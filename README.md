@@ -1,129 +1,232 @@
-# AI Story Generator 📚✨
+# AI Story Writer 📚✨
 
-Generate full-length novels with AI! Harness the power of large language models to create engaging stories based on your prompts.
+A modern, clean AI story generation application built with clean architecture principles. Generate full-length novels with AI using multiple model providers.
 
 [![Discord](https://img.shields.io/discord/1255847829763784754?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://discord.gg/R2SySWDr2s)
 
 ## 🚀 Features
 
-- Generate medium to full-length novels: Produce substantial stories with coherent narratives, suitable for novella or novel-length works.
-- Easy setup and use: Get started quickly with minimal configuration required.
-- Customizable prompts and models: Choose from existing prompts or create your own, and select from various language models.
-- Automatic model downloading: The system can automatically download required models via Ollama if they aren't already available.
-- Support for local models via Ollama: Run language models locally for full control and privacy.
-- Cloud provider support (currently Google): Access high-performance computing resources for those without powerful GPUs.
-- Flexible configuration options: Fine-tune the generation process through easily modifiable settings.
-- Works across all operating systems
-- Supoorts translation of the generated stories in all languages
+- **Clean Architecture**: Built with domain-driven design and clean architecture principles
+- **Multiple Model Providers**: Support for Ollama, Google, OpenRouter, and more
+- **Async/Await**: Full async support for better performance
+- **Type Safety**: Comprehensive type hints and validation
+- **Structured Logging**: Professional logging with levels and structured data
+- **Dependency Injection**: Clean dependency management and testability
+- **Extensible Design**: Easy to add new features and providers
+- **Generate medium to full-length novels**: Produce substantial stories with coherent narratives
+- **Automatic model downloading**: The system can automatically download required models via Ollama
+- **Translation support**: Translate stories and prompts to multiple languages
+- **Savepoint system**: Resume generation from any point
+
+## 🏗️ Architecture
+
+This application is built using clean architecture principles:
+
+```
+src/
+├── domain/              # Business logic and entities
+├── application/         # Use cases and services
+├── infrastructure/      # External concerns (providers, storage, logging)
+├── presentation/        # CLI and API interfaces
+└── config/             # Configuration management
+```
 
 ## 🏁 Quick Start
 
-Getting started with AI Story Generator is easy:
+### Prerequisites
 
-1. Clone the repository
-2. Install [Ollama](https://ollama.com/) for local model support
-3. Run the generator:
+1. **Python 3.8+** installed
+2. **Ollama** installed and running (for local models)
+3. **API Keys** (optional, for cloud providers)
 
-```sh
-./Write.py -Prompt Prompts/YourChosenPrompt.txt
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/datacrystals/AIStoryWriter.git
+cd AIStoryWriter
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install the application
+pip install -e src/
 ```
 
-That's it! The system will automatically download any required models and start generating your story.
+### Basic Usage
 
-**Optional steps:**
-
-- Modify prompts in `Writer/Prompts.py` or create your own
-- Configure the model selection in `Writer/Config.py`
-
-## 💻 Hardware Recommendations
-
-Not sure which models to use with your GPU? Check out our [Model Recommendations](Docs/Models.md) page for suggestions based on different GPU capabilities. We provide a quick reference table to help you choose the right models for your hardware, ensuring optimal performance and quality for your story generation projects.
-
-## 🛠️ Usage
-
-You can customize the models used for different parts of the story generation process in two ways:
-
-### 1. Using Command-Line Arguments (Recommended)
-
-You can override the default models by specifying them as command-line arguments:
-
-```sh
-./Write.py -Prompt Prompts/YourChosenPrompt.txt -InitialOutlineModel "ollama://llama3:70b" ...
+```bash
+# Generate a story from a prompt file
+python src/main.py Prompts/YourPrompt.txt
 ```
 
-Available command-line arguments are stated in the `Write.py` file.
+The application will use all configuration options defined in `config.md`.
 
-The model format is: `{ModelProvider}://{ModelName}@{ModelHost}?parameter=value`
+## 🧰 Configuration
 
-- Default host is `127.0.0.1:11434` (currently only affects ollama)
-- Default ModelProvider is `ollama`
-- Supported providers: `ollama`, `google`, `openrouter`
-- For `ollama` we support the passing of parameters (e.g. `temperature`) on a per model basis
+All configuration options are defined in the YAML frontmatter of `config.md`. You can modify these values to customize the behavior of the application.
 
-Example:
-```sh
-./Write.py -Prompt Prompts/YourChosenPrompt.txt -InitialOutlineModel "google://gemini-1.5-pro" -ChapterOutlineModel "ollama://llama3:70b@192.168.1.100:11434" ...
+### Model Configuration
+
+The application supports multiple model providers with a unified format:
+
+```yaml
+models:
+  initial_outline_writer: "ollama://llama3:70b"
+  chapter_stage1_writer: "ollama://llama3:70b@192.168.1.100:11434"
+  info_model: "ollama://llama3:70b?temperature=0.7"
 ```
 
-This flexibility allows you to experiment with different models for various parts of the story generation process, helping you find the optimal combination for your needs.
+### Generation Settings
 
-
-NOTE: If you're using a provider that needs an API key, please copy `.env.example` to `.env` and paste in your API keys there.
-
-
-### 2. Using Writer/Config.py
-
-
-Edit the `Writer/Config.py` file to change the default models:
-
-```python
-INITIAL_OUTLINE_WRITER_MODEL = "ollama://llama3:70b"
-CHAPTER_OUTLINE_WRITER_MODEL = "ollama://gemma2:27b"
-CHAPTER_WRITER_MODEL = "google://gemini-1.5-flash"
-...
+```yaml
+generation:
+  seed: 12
+  outline_min_revisions: 2
+  outline_max_revisions: 5
+  chapter_min_revisions: 1
+  chapter_max_revisions: 3
+  enable_final_edit: true
+  stream: false
+  debug: false
+  strategy: "outline-chapter"  # or "stream-of-consciousness"
 ```
 
-## 🧰 Architecture Overview
+### Story Writing Strategies
 
-![Block Diagram](Docs/BlockDiagram.drawio.svg)
+The application supports multiple story writing strategies:
 
-## 🛠️ Customization
+- **`outline-chapter`** (default): Generates detailed outlines first, then writes chapters based on the outline structure
+- **`stream-of-consciousness`**: Generates stories in a flowing, associative narrative style
 
-- Experiment with different local models via Ollama: Try out various language models to find the best fit for your storytelling needs.
-- Test various model combinations for different story components: Mix and match models for outline generation, chapter writing, and revisions to optimize output quality.
+To change strategies, update the `strategy` option in the generation settings above.
 
-## 💪 What's Working Well
+See `src/application/strategies/README.md` for detailed information about creating custom strategies.
 
-- Generating decent-length stories: The system consistently produces narratives of substantial length, suitable for novella or novel-length works.
-- Character consistency: AI models maintain coherent character traits and development throughout the generated stories.
-- Interesting story outlines: The initial outline generation creates compelling story structures that serve as strong foundations for the full narratives.
+### Environment Variables
 
-## 🔧 Areas for Improvement
+Create a `.env` file for API keys:
 
-- Reducing repetitive phrases: We're working on enhancing the language variety to create more natural-sounding prose.
-- Improving chapter flow and connections: Efforts are ongoing to create smoother transitions between chapters and maintain narrative cohesion.
-- Addressing pacing issues: Refinements are being made to ensure proper story pacing and focus on crucial plot points.
-- Optimizing generation speed: We're continuously working on improving performance to reduce generation times without sacrificing quality.
+```bash
+# .env
+GOOGLE_API_KEY=your_google_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
+```
+
+For detailed configuration options, see [config.md](config.md).
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pytest tests/
+
+# Run specific test categories
+pytest tests/unit/
+pytest tests/integration/
+pytest tests/e2e/
+
+# Run with coverage
+pytest --cov=src tests/
+```
+
+## 📁 Project Structure
+
+```
+AIStoryWriter/
+├── src/                    # Main application code
+│   ├── domain/            # Business logic and entities
+│   ├── application/       # Use cases and services
+│   ├── infrastructure/    # External concerns
+│   ├── presentation/      # CLI and API interfaces
+│   └── config/           # Configuration management
+├── tests/                 # Test suite
+├── Prompts/              # Story prompts
+├── Stories/              # Generated stories
+├── SavePoints/           # Generation savepoints
+├── Logs/                 # Application logs
+└── docs/                 # Documentation
+```
+
+## 🔧 Development
+
+### Adding a New Model Provider
+
+1. Create a new provider in `src/infrastructure/providers/`
+2. Implement the `ModelProvider` interface
+3. Register it in the dependency injection container
+4. Add tests
+
+### Adding a New Storage Backend
+
+1. Create a new storage implementation in `src/infrastructure/storage/`
+2. Implement the `StorageProvider` interface
+3. Register it in the dependency injection container
+4. Add tests
+
+### Adding New Features
+
+1. Add domain entities and value objects in `src/domain/`
+2. Create application services in `src/application/services/`
+3. Add infrastructure implementations as needed
+4. Update CLI interface in `src/presentation/cli/`
+5. Add comprehensive tests
+
+## 🚀 Performance
+
+- **Async Operations**: All I/O operations are async for better performance
+- **Model Caching**: Automatic model downloading and caching
+- **Resource Management**: Proper cleanup and resource handling
+- **Streaming Support**: Stream model responses for real-time feedback
+
+## 🔍 Monitoring
+
+- **Structured Logging**: JSON-formatted logs with metadata
+- **Performance Metrics**: Generation time, word count, tokens per second
+- **Error Tracking**: Comprehensive error handling and reporting
+- **Debug Mode**: Detailed logging for troubleshooting
 
 ## 🤝 Contributing
 
-We're excited to hear from you! Your feedback and contributions are crucial to improving the AI Story Generator. Here's how you can get involved:
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-1. 🐛 **Open Issues**: Encountered a bug or have a feature request? [Open an issue](https://github.com/datacrystals/AIStoryWriter/issues) and let us know!
+### Development Setup
 
-2. 💡 **Start Discussions**: Have ideas or want to brainstorm? [Start a discussion](https://github.com/datacrystals/AIStoryWriter/discussions) in our GitHub Discussions forum.
+```bash
+# Clone and setup
+git clone https://github.com/datacrystals/AIStoryWriter.git
+cd AIStoryWriter
+pip install -r requirements.txt
+pip install -e src/
 
-3. 🔬 **Experiment and Share**: Try different model combinations and share your results. Your experiments can help improve the system for everyone!
+# Run tests
+pytest tests/
 
-4. 🖊️ **Submit Pull Requests**: Ready to contribute code? We welcome pull requests for improvements and new features.
-
-5. 💬 **Join our Discord**: For real-time chat, support, and community engagement, [join our Discord server](https://discord.gg/R2SySWDr2s).
-
-Don't hesitate to reach out – your input is valuable, and we're here to help!
+# Run linting
+flake8 src/
+mypy src/
+```
 
 ## 📄 License
 
-This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). This means that if you modify the code and use it to provide a service over a network, you must make your modified source code available to the users of that service. For more details, see the [LICENSE](LICENSE) file in the repository or visit [https://www.gnu.org/licenses/agpl-3.0.en.html](https://www.gnu.org/licenses/agpl-3.0.en.html).
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Discord**: [Join our Discord server](https://discord.gg/R2SySWDr2s)
+- **Issues**: [GitHub Issues](https://github.com/datacrystals/AIStoryWriter/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/datacrystals/AIStoryWriter/discussions)
+
+## 🎯 Roadmap
+
+- [ ] Web API for story generation
+- [ ] Database storage backends
+- [ ] Additional model providers (OpenAI, Anthropic)
+- [ ] Plugin system for custom features
+- [ ] Distributed generation support
+- [ ] Real-time collaboration features
+- [ ] Advanced story analytics
+- [ ] Multi-language support
 
 ---
 
