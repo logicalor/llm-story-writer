@@ -17,27 +17,29 @@ The strategy system allows you to:
 src/application/strategies/
 ├── README.md                           # This documentation
 ├── strategy_factory.py                 # Strategy management
-├── outline_chapter_strategy.py         # Traditional story strategy
-├── stream_of_consciousness_strategy.py # Experimental strategy
-└── prompts/                           # Strategy-specific prompts
-    ├── outline-chapter/               # Prompts for outline-chapter strategy
-    │   ├── extract_story_start_date.md
-    │   ├── extract_base_context.md
-    │   ├── generate_story_elements.md
-    │   ├── generate_initial_outline.md
-    │   ├── generate_chapter_list.md
-    │   ├── count_chapters.md
-    │   ├── get_chapter_outline.md
-    │   ├── get_previous_chapter_recap.md
-    │   ├── generate_chapter_content.md
-    │   ├── generate_chapter_title.md
-    │   ├── generate_title.md
-    │   ├── generate_summary.md
-    │   └── generate_tags.md
-    └── stream-of-consciousness/       # Prompts for stream-of-consciousness strategy
-        ├── outline.md
-        ├── content.md
-        └── metadata.md
+├── outline_chapter/                    # Outline-chapter strategy
+│   ├── strategy.py                     # Main strategy implementation
+│   └── prompts/                        # Strategy-specific prompts
+│       ├── extract_story_start_date.md
+│       ├── extract_base_context.md
+│       ├── generate_story_elements.md
+│       ├── generate_initial_outline.md
+│       ├── generate_chapter_list.md
+│       ├── count_chapters.md
+│       ├── get_chapter_outline.md
+│       ├── get_previous_chapter_recap.md
+│       ├── generate_chapter_content.md
+│       ├── generate_chapter_title.md
+│       ├── generate_title.md
+│       ├── generate_summary.md
+│       └── generate_tags.md
+├── stream_of_consciousness/            # Stream-of-consciousness strategy
+│   ├── strategy.py                     # Main strategy implementation
+│   └── prompts/                        # Strategy-specific prompts
+│       ├── outline.md
+│       ├── content.md
+│       └── metadata.md
+
 ```
 
 ## Available Strategies
@@ -50,7 +52,7 @@ src/application/strategies/
   2. Generate detailed outline
   3. Create chapter-by-chapter content
   4. Generate metadata (title, summary, tags)
-- **Prompt Directory**: `src/application/strategies/prompts/outline-chapter/`
+- **Prompt Directory**: `src/application/strategies/outline_chapter/prompts/`
 
 ### 2. Stream-of-Consciousness Strategy (`stream-of-consciousness`)
 - **Description**: Generates stories in a stream-of-consciousness style with flowing, associative narrative
@@ -60,7 +62,7 @@ src/application/strategies/
   2. Generate flowing narrative content
   3. Split into natural sections
   4. Generate poetic metadata
-- **Prompt Directory**: `src/application/strategies/prompts/stream-of-consciousness/`
+- **Prompt Directory**: `src/application/strategies/stream_of_consciousness/prompts/`
 
 ## Configuration
 
@@ -113,13 +115,13 @@ class MyCustomStrategy(StoryStrategy):
         return ["model1", "model2"]  # List required model names
     
     def get_prompt_directory(self) -> str:
-        return "src/application/strategies/prompts/my-custom-strategy"
+        return "src/application/strategies/my_custom_strategy/prompts"
 ```
 
 2. **Create prompt directory and files**:
 
 ```bash
-mkdir -p src/application/strategies/prompts/my-custom-strategy
+mkdir -p src/application/strategies/my_custom_strategy/prompts
 # Create your prompt files:
 # - outline.md
 # - content.md

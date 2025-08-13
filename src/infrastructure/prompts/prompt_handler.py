@@ -25,6 +25,7 @@ class PromptRequest:
     min_word_count: int = 1
     debug: bool = False
     stream: bool = False
+    log_prompt_inputs: bool = False
 
 
 @dataclass
@@ -90,6 +91,14 @@ class PromptHandler:
                 print(f"[PROMPT DEBUG] Savepoint ID: {request.savepoint_id}")
             if request.model_config:
                 print(f"[PROMPT DEBUG] Model: {request.model_config.name}")
+        
+        # Log prompt input if enabled
+        if getattr(request, 'log_prompt_inputs', False):
+            print(f"\n{'='*80}")
+            print(f"[PROMPT INPUT] {request.prompt_id}")
+            print(f"{'='*80}")
+            print(prompt_content)
+            print(f"{'='*80}\n")
         
         # Prepare messages
         messages = self._prepare_messages(prompt_content, request.prepend_message, request.system_message)

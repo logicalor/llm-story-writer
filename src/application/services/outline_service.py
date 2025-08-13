@@ -101,7 +101,7 @@ class OutlineService:
     async def _generate_story_elements(self, prompt: str, settings: GenerationSettings) -> str:
         """Generate story elements from prompt."""
         prompt_content = self.prompt_loader.load_prompt(
-            "outline/generate_story_elements",
+            "outline-chapter/outline/create_elements",
             variables={"prompt": prompt}
         )
         
@@ -127,7 +127,7 @@ class OutlineService:
     ) -> str:
         """Generate initial story outline."""
         prompt_content = self.prompt_loader.load_prompt(
-            "outline/generate_initial_outline",
+            "outline-chapter/outline/create",
             variables={
                 "prompt": prompt,
                 "story_elements": story_elements,
@@ -158,7 +158,7 @@ class OutlineService:
     ) -> str:
         """Generate detailed chapter list."""
         prompt_content = self.prompt_loader.load_prompt(
-            "outline/generate_chapter_list",
+            "outline-chapter/chapters/create_list",
             variables={
                 "outline": outline,
                 "base_context": base_context,

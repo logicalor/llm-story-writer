@@ -182,7 +182,7 @@ async def example_usage():
     
     # Setup (these would come from your DI container)
     model_provider: ModelProvider = None
-    prompt_loader = PromptLoader("src/application/strategies/prompts/outline-chapter")
+    prompt_loader = PromptLoader("src/application/strategies/outline_chapter/prompts")
     savepoint_repo: SavepointRepository = None
     
     # Create the enhanced strategy

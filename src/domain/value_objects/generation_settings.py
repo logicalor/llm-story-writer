@@ -32,9 +32,14 @@ class GenerationSettings:
     enable_outline_critique: bool = True
     outline_critique_iterations: int = 3
     
+    # Initial outline generation settings
+    use_chunked_outline_generation: bool = False  # Use chunked approach vs single-pass generation
+    outline_chunk_size: int = 4  # Number of chapters per chunk in outline generation
+    
     # Output settings
     stream: bool = False
     debug: bool = False
+    log_prompt_inputs: bool = False  # Log full prompt inputs for debugging
     
     # Strategy settings
     strategy: str = "outline-chapter"
@@ -93,6 +98,13 @@ class GenerationSettings:
         
         if self.outline_critique_iterations > 10:
             raise ValidationError(f"Outline critique iterations cannot exceed 10, got {self.outline_critique_iterations}")
+        
+        # Validate outline chunk size
+        if self.outline_chunk_size < 1:
+            raise ValidationError(f"Outline chunk size must be at least 1, got {self.outline_chunk_size}")
+        
+        if self.outline_chunk_size > 20:
+            raise ValidationError(f"Outline chunk size cannot exceed 20, got {self.outline_chunk_size}")
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GenerationSettings":
@@ -124,6 +136,9 @@ class GenerationSettings:
             "strategy": self.strategy,
             "use_improved_recap_sanitizer": self.use_improved_recap_sanitizer,
             "use_multi_stage_recap_sanitizer": self.use_multi_stage_recap_sanitizer,
+            "use_chunked_outline_generation": self.use_chunked_outline_generation,
+            "outline_chunk_size": self.outline_chunk_size,
+            "log_prompt_inputs": self.log_prompt_inputs,
             "translate_language": self.translate_language,
             "translate_prompt_language": self.translate_prompt_language,
             "optional_output_name": self.optional_output_name,

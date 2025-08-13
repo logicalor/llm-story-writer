@@ -7,8 +7,8 @@ from ..interfaces.story_strategy import StoryStrategy
 from ..interfaces.model_provider import ModelProvider
 from config.settings import AppConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
-from .outline_chapter_strategy import OutlineChapterStrategy
-from .stream_of_consciousness_strategy import StreamOfConsciousnessStrategy
+from .outline_chapter.strategy import OutlineChapterStrategy
+from .stream_of_consciousness.strategy import StreamOfConsciousnessStrategy
 
 
 class StrategyFactory:

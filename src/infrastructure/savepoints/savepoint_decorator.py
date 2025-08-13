@@ -72,10 +72,12 @@ class SavepointManager:
     
     async def load_step(self, step_name: str) -> Optional[Any]:
         """Load a completed step."""
+        print(f"[SAVEPOINT] loading: {step_name}")
         return await self.savepoint_repo.load_savepoint(step_name)
     
     async def save_step(self, step_name: str, result: Any) -> None:
         """Manually save a step result."""
+        print(f"[SAVEPOINT] Saving: {step_name}")
         await self.savepoint_repo.save_savepoint(step_name, result)
     
     async def clear_story_savepoints(self) -> None:

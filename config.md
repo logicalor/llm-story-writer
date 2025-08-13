@@ -19,13 +19,15 @@ models:
   translator_model: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
   sanity_model: "ollama://huihui_ai/deepseek-r1-abliterated:7b?think=true"
   logical_model: "ollama://huihui_ai/qwen2.5-coder-abliterate:7b"
+  #scene_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
+  scene_writer: "ollama://hf.co/DavidAU/L3-DARKEST-PLANET-16.5B-GGUF"
 
 # Generation Settings
 generation:
   seed: 12
   outline_quality: 87
   chapter_quality: 85
-  wanted_chapters: 75
+  wanted_chapters: 5
   outline_min_revisions: 0
   outline_max_revisions: 3
   chapter_min_revisions: 0
@@ -43,6 +45,9 @@ generation:
   strategy: "outline-chapter"
   use_improved_recap_sanitizer: true
   use_multi_stage_recap_sanitizer: true
+  use_chunked_outline_generation: true
+  outline_chunk_size: 10
+  log_prompt_inputs: true
 
 # Translation Settings
 translation:
@@ -120,6 +125,9 @@ The `generation` section controls the story generation process:
 - `outline_critique_iterations`: Maximum number of critique refinement iterations (1-10)
 - `stream`: Enable real-time streaming of model output to console
 - `debug`: Enable debug logging and verbose output
+- `log_prompt_inputs`: Log full prompt inputs to console for debugging (shows exact prompts sent to models)
+- `use_chunked_outline_generation`: Use chunked approach for initial outline generation (prevents skipping chapters with long outlines)
+- `outline_chunk_size`: Number of chapters to generate per chunk when using chunked outline generation
 
 ### Translation Settings
 
@@ -214,6 +222,22 @@ translation:
   translate_language: "French"
 ```
 
+### Chunked Outline Generation (for Long Stories)
+```yaml
+generation:
+  wanted_chapters: 75  # Large number of chapters
+  use_chunked_outline_generation: true  # Prevent chapter skipping
+  outline_chunk_size: 4  # Generate 4 chapters per chunk
+```
+
+### Debugging and Development
+```yaml
+generation:
+  debug: true  # Enable debug logging
+  log_prompt_inputs: true  # Log full prompts sent to models
+  stream: true  # Show real-time model output
+```
+
 ## 🔍 Environment Variables
 
 Create a `.env` file in the project root for API keys:
@@ -241,6 +265,16 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 - Use models that fit in your available RAM
 - Consider using cloud models for large models
 - Monitor system resources during generation
+
+### Long Story Generation
+- Use `use_chunked_outline_generation: true` for stories with 30+ chapters
+- Adjust `outline_chunk_size` based on model capabilities (4-8 chapters work well)
+- Chunked generation prevents chapter skipping due to token limits
+
+### Debugging and Development
+- Enable `log_prompt_inputs: true` to see exactly what prompts are sent to models
+- Combine with `debug: true` for comprehensive debugging information
+- **Warning**: Prompt logging generates very verbose output - disable for production runs
 
 ## 🐛 Troubleshooting
 

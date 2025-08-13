@@ -16,6 +16,7 @@ class Chapter:
     word_count: int = 0
     outline: Optional[str] = None
     summary: Optional[str] = None
+    scenes: List["Scene"] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
@@ -42,8 +43,70 @@ class Chapter:
             "word_count": self.word_count,
             "outline": self.outline,
             "summary": self.summary,
+            "scenes": [scene.to_dict() for scene in self.scenes],
             "metadata": self.metadata,
         }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Chapter":
+        """Create Chapter from dictionary."""
+        # Extract scenes if they exist
+        scenes_data = data.get("scenes", [])
+        scenes = [Scene.from_dict(scene_data) for scene_data in scenes_data]
+        
+        # Create chapter without scenes first, then add them
+        chapter_without_scenes = {k: v for k, v in data.items() if k != "scenes"}
+        chapter = cls(**chapter_without_scenes)
+        chapter.scenes = scenes
+        return chapter
+
+
+@dataclass
+class Scene:
+    """A scene within a chapter."""
+    
+    number: int
+    title: str
+    content: str
+    word_count: int = 0
+    outline: Optional[str] = None
+    summary: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """Validate scene data."""
+        if self.number < 1:
+            raise ValidationError(f"Scene number must be positive, got {self.number}")
+        
+        if not self.title:
+            raise ValidationError("Scene title cannot be empty")
+        
+        if not self.content:
+            raise ValidationError("Scene content cannot be empty")
+        
+        # Calculate word count if not provided
+        if self.word_count == 0:
+            self.word_count = len(self.content.split())
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert scene to dictionary."""
+        return {
+            "number": self.number,
+            "title": self.title,
+            "content": self.content,
+            "word_count": self.word_count,
+            "outline": self.outline,
+            "summary": self.summary,
+            "metadata": self.metadata,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Scene":
+        """Create Scene from dictionary."""
+        return cls(**data)
+
+
+
 
 
 @dataclass
@@ -179,7 +242,19 @@ class Story:
         """Create Story from dictionary."""
         info = StoryInfo(**data["info"])
         outline = Outline(**data["outline"])
-        chapters = [Chapter(**chapter_data) for chapter_data in data["chapters"]]
+        
+        # Handle chapters with scenes
+        chapters = []
+        for chapter_data in data["chapters"]:
+            # Extract scenes if they exist
+            scenes_data = chapter_data.get("scenes", [])
+            scenes = [Scene.from_dict(scene_data) for scene_data in scenes_data]
+            
+            # Create chapter without scenes first, then add them
+            chapter_without_scenes = {k: v for k, v in chapter_data.items() if k != "scenes"}
+            chapter = Chapter(**chapter_without_scenes)
+            chapter.scenes = scenes
+            chapters.append(chapter)
         
         return cls(
             info=info,

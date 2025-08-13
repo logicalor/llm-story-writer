@@ -42,6 +42,65 @@ class OllamaProvider(ModelProvider):
         filtered = re.sub(r'(.*?)</think>.*', r'\1', filtered, flags=re.DOTALL)
         return filtered
     
+    def _estimate_token_count(self, messages: List[Dict[str, str]]) -> int:
+        """Estimate token count for messages using multiple methods."""
+        # Combine all message content
+        total_text = ""
+        for message in messages:
+            role = message.get('role', '')
+            content = message.get('content', '')
+            # Include role tokens in estimation
+            total_text += f"{role}: {content}\n"
+        
+        # Try tiktoken first (most accurate for OpenAI-compatible models)
+        # Install with: pip install tiktoken
+        try:
+            import tiktoken
+            # Use cl100k_base encoding (GPT-4 tokenizer) as a reasonable approximation
+            encoding = tiktoken.get_encoding("cl100k_base")
+            return len(encoding.encode(total_text))
+        except ImportError:
+            # tiktoken not available, fall back to word-based estimation
+            pass
+        except Exception:
+            # Other tiktoken errors, fall back to word-based estimation
+            pass
+        
+        # Fallback to word-based estimation
+        # Most models have roughly 1.3-1.5 tokens per word on average
+        word_count = len(total_text.split())
+        estimated_tokens = int(word_count * 1.33)
+        
+        # Add some tokens for message structure overhead
+        message_overhead = len(messages) * 10  # ~10 tokens per message for role/structure
+        
+        return estimated_tokens + message_overhead
+    
+    def _log_prompt_stats(self, messages: List[Dict[str, str]], model_config: ModelConfig):
+        """Log prompt statistics including token count."""
+        token_count = self._estimate_token_count(messages)
+        
+        # Calculate total character count
+        total_chars = sum(len(msg.get('content', '')) for msg in messages)
+        
+        # Count messages by role
+        role_counts = {}
+        for msg in messages:
+            role = msg.get('role', 'unknown')
+            role_counts[role] = role_counts.get(role, 0) + 1
+        
+        print(f"[PROMPT STATS] Estimated tokens: {token_count:,}")
+        print(f"[PROMPT STATS] Total characters: {total_chars:,}")
+        print(f"[PROMPT STATS] Message count: {len(messages)}")
+        print(f"[PROMPT STATS] Messages by role: {role_counts}")
+        
+        # Warn if token count is very high
+        context_length = model_config.parameters.get('num_ctx', 16384)
+        if token_count > context_length * 0.8:  # Warn at 80% of context length
+            print(f"[PROMPT STATS] ⚠️  WARNING: Prompt uses {token_count:,} tokens, approaching context limit of {context_length:,}")
+        elif token_count > context_length * 0.6:  # Info at 60% of context length
+            print(f"[PROMPT STATS] ℹ️  INFO: Prompt uses {token_count:,} tokens ({token_count/context_length*100:.1f}% of {context_length:,} context limit)")
+    
     def _display_debug_prompt(self, messages: List[Dict[str, str]], model_config: ModelConfig):
         """Display the full prompt messages in debug mode."""
         print(f"\n{'='*80}")
@@ -105,6 +164,9 @@ class OllamaProvider(ModelProvider):
             # Display debug prompt if enabled
             if debug:
                 self._display_debug_prompt(messages, model_config)
+            
+            # Log prompt statistics
+            self._log_prompt_stats(messages, model_config)
             
             # Output model and options details
             print(f"\n[CHAT REQUEST] Model: {model_config.name}")
@@ -185,6 +247,9 @@ class OllamaProvider(ModelProvider):
         if debug:
             self._display_debug_prompt(messages, model_config)
         
+        # Log prompt statistics
+        self._log_prompt_stats(messages, model_config)
+        
         full_response = ""
         async for chunk in self.stream_text(
             messages=messages,
@@ -216,8 +281,11 @@ class OllamaProvider(ModelProvider):
                 print(f"[DEBUG] Generating JSON response using {model_config.name}...")
                 print(f"[DEBUG] Required attributes: {required_attributes}")
             
-            # Use the existing non-streaming implementation for JSON
-            response_text = await self._generate_text_non_streaming(
+            # Log prompt statistics
+            self._log_prompt_stats(messages, model_config)
+            
+            # Use the existing non-streaming implementation for JSON (but skip stats logging since we already did it)
+            response_text = await self._generate_text_non_streaming_no_stats(
                 messages=messages,
                 model_config=model_config,
                 seed=seed,
@@ -271,6 +339,9 @@ class OllamaProvider(ModelProvider):
         try:
             client = await self._get_client(model_config)
             options = self._prepare_options(model_config, seed, format_type)
+            
+            # Log prompt statistics
+            self._log_prompt_stats(messages, model_config)
             
             # Output model and options details
             print(f"\n[CHAT REQUEST] Model: {model_config.name}")
@@ -447,4 +518,88 @@ class OllamaProvider(ModelProvider):
         # Set keep_alive to 0 to unload model immediately after request
         options['keep_alive'] = 0
         
-        return options 
+        return options
+    
+    async def _generate_text_non_streaming_no_stats(
+        self,
+        messages: List[Dict[str, str]],
+        model_config: ModelConfig,
+        seed: Optional[int] = None,
+        format_type: Optional[str] = None,
+        min_word_count: int = 1,
+        debug: bool = False
+    ) -> str:
+        """Generate text without streaming and without logging stats (for internal use)."""
+        try:
+            client = await self._get_client(model_config)
+            options = self._prepare_options(model_config, seed, format_type)
+            
+            # Display debug prompt if enabled (but no stats logging)
+            if debug:
+                self._display_debug_prompt(messages, model_config)
+            
+            # Output model and options details
+            print(f"\n[CHAT REQUEST] Model: {model_config.name}")
+            print(f"[CHAT REQUEST] Provider: {model_config.provider}")
+            if model_config.host:
+                print(f"[CHAT REQUEST] Host: {model_config.host}")
+            print(f"[CHAT REQUEST] Options: {options}")
+            print(f"[CHAT REQUEST] Format: {format_type or 'text'}")
+            print(f"[CHAT REQUEST] Seed: {seed}")
+            print(f"[CHAT REQUEST] Min word count: {min_word_count}")
+            if options.get('think'):
+                print(f"[CHAT REQUEST] Thinking: ENABLED")
+            print()
+            
+            response = await asyncio.to_thread(
+                client.chat,
+                model=model_config.name,
+                messages=messages,
+                options=options
+            )
+            
+            # Add a short delay to allow Ollama time to unload the model
+            await asyncio.sleep(5)
+            
+            response_text = response['message']['content']
+            
+            # Handle thinking output if present
+            if 'thinking' in response['message'] and response['message']['thinking']:
+                thinking_text = response['message']['thinking']
+                # Combine thinking and content for streaming output
+                response_text = f"<thinking>{thinking_text}</thinking>\n\n{response_text}"
+            
+            # Filter out think tags (for backward compatibility with models that use <think> tags)
+            response_text = self._filter_think_tags(response_text)
+            
+            # Ensure minimum word count
+            word_count = len(response_text.split())
+            if word_count < min_word_count:
+                # Retry with more specific prompt
+                messages.append({"role": "assistant", "content": response_text})
+                messages.append({"role": "user", "content": f"Please continue and expand on this response to reach at least {min_word_count} words."})
+                
+                response = await asyncio.to_thread(
+                    client.chat,
+                    model=model_config.name,
+                    messages=messages,
+                    options=options
+                )
+                
+                # Add a short delay to allow Ollama time to unload the model
+                await asyncio.sleep(5)
+                
+                response_text = response['message']['content']
+                
+                # Handle thinking output if present in continuation
+                if 'thinking' in response['message'] and response['message']['thinking']:
+                    thinking_text = response['message']['thinking']
+                    response_text = f"<thinking>{thinking_text}</thinking>\n\n{response_text}"
+                
+                # Filter think tags from the continuation as well
+                response_text = self._filter_think_tags(response_text)
+            
+            return response_text
+            
+        except Exception as e:
+            raise ModelProviderError(f"Ollama generation failed: {e}") from e 

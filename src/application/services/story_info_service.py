@@ -57,7 +57,7 @@ class StoryInfoService:
         first_chapter_content = chapters[0].content if chapters else ""
         
         prompt_content = self.prompt_loader.load_prompt(
-            "outline-chapter/generate_title",
+            "outline-chapter/outline/create_title",
             variables={
                 "outline": outline.content,
                 "first_chapter": first_chapter_content[:1000] + "..."
@@ -88,7 +88,7 @@ class StoryInfoService:
         chapter_content = "\n\n".join([ch.content[:500] for ch in chapters[:3]])
         
         prompt_content = self.prompt_loader.load_prompt(
-            "outline-chapter/generate_summary",
+            "outline-chapter/outline/create_summary",
             variables={
                 "outline": outline.content,
                 "chapter_content": chapter_content
@@ -119,7 +119,7 @@ class StoryInfoService:
         first_chapter_content = chapters[0].content if chapters else ""
         
         prompt_content = self.prompt_loader.load_prompt(
-            "outline-chapter/generate_tags",
+            "outline-chapter/outline/create_tags",
             variables={
                 "outline": outline.content,
                 "first_chapter": first_chapter_content[:1000] + "..."
