@@ -27,9 +27,15 @@ class AppConfig:
     ollama_host: str = "127.0.0.1:11434"
     ollama_context_length: int = 16384
     
+    # LM Studio settings
+    lm_studio_host: str = "127.0.0.1:1234"
+    
     # API settings
     google_api_key: Optional[str] = None
     openrouter_api_key: Optional[str] = None
+    
+    # API keys for various providers
+    api_keys: Dict[str, str] = None
     
     # Feature flags
     use_improved_recap_sanitizer: bool = True
@@ -87,8 +93,10 @@ class AppConfig:
             logs_dir=logs_dir,
             ollama_host=data.get("ollama_host", "127.0.0.1:11434"),
             ollama_context_length=data.get("ollama_context_length", 16384),
+            lm_studio_host=data.get("lm_studio_host", "127.0.0.1:1234"),
             google_api_key=data.get("google_api_key"),
             openrouter_api_key=data.get("openrouter_api_key"),
+            api_keys=data.get("api_keys", {}),
             use_improved_recap_sanitizer=data.get("use_improved_recap_sanitizer", True),
             use_multi_stage_recap_sanitizer=data.get("use_multi_stage_recap_sanitizer", True),
         )
@@ -103,8 +111,10 @@ class AppConfig:
             "logs_dir": str(self.logs_dir),
             "ollama_host": self.ollama_host,
             "ollama_context_length": self.ollama_context_length,
+            "lm_studio_host": self.lm_studio_host,
             "google_api_key": self.google_api_key,
             "openrouter_api_key": self.openrouter_api_key,
+            "api_keys": self.api_keys,
             "use_improved_recap_sanitizer": self.use_improved_recap_sanitizer,
             "use_multi_stage_recap_sanitizer": self.use_multi_stage_recap_sanitizer,
         }

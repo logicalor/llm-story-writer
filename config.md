@@ -19,8 +19,8 @@ models:
   translator_model: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
   sanity_model: "ollama://huihui_ai/deepseek-r1-abliterated:7b?think=true"
   logical_model: "ollama://huihui_ai/qwen2.5-coder-abliterate:7b"
-  #scene_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  scene_writer: "ollama://hf.co/DavidAU/L3-DARKEST-PLANET-16.5B-GGUF"
+  scene_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
+  #scene_writer: "ollama://hf.co/DavidAU/L3-DARKEST-PLANET-16.5B-GGUF"
 
 # Generation Settings
 generation:

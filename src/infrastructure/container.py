@@ -8,6 +8,8 @@ from config.settings import AppConfig
 from application.services.story_generation_service import StoryGenerationService
 from application.strategies.strategy_factory import StrategyFactory
 from .providers.ollama_provider import OllamaProvider
+from .providers.lm_studio_provider import LMStudioProvider
+from .providers.langchain_provider import LangChainProvider
 from .storage.file_storage import FileStorage
 from .storage.savepoint_repository import FilesystemSavepointRepository
 from .logging.structured_logger import StructuredLogger, LogLevel
@@ -39,6 +41,16 @@ class Container(containers.DeclarativeContainer):
     ollama_provider = providers.Singleton(
         OllamaProvider,
         host=config.ollama_host
+    )
+    
+    lm_studio_provider = providers.Singleton(
+        LMStudioProvider,
+        host=config.lm_studio_host
+    )
+    
+    langchain_provider = providers.Singleton(
+        LangChainProvider,
+        api_keys=config.api_keys
     )
     
     file_storage = providers.Singleton(
@@ -90,6 +102,13 @@ class Container(containers.DeclarativeContainer):
             )
         )
         
+        container.lm_studio_provider.override(
+            providers.Singleton(
+                LMStudioProvider,
+                host=app_config.lm_studio_host
+            )
+        )
+        
         container.file_storage.override(
             providers.Singleton(
                 FileStorage,
@@ -115,6 +134,10 @@ class Container(containers.DeclarativeContainer):
         """Get model provider by name."""
         if provider_name == "ollama":
             return self.ollama_provider()
+        elif provider_name == "lm_studio":
+            return self.lm_studio_provider()
+        elif provider_name == "langchain":
+            return self.langchain_provider()
         else:
             raise ValueError(f"Unknown model provider: {provider_name}")
     

@@ -1,5 +1,6 @@
 """Character management functionality for the outline-chapter strategy."""
 
+import json
 from typing import List, Optional
 from domain.value_objects.generation_settings import GenerationSettings
 from config.settings import AppConfig
@@ -52,78 +53,75 @@ class CharacterManager:
         """Extract character names from story elements."""
         model_config = self.config.get_model("logical_model")
         
-        try:
-            response = await execute_prompt_with_savepoint(
-                handler=self.prompt_handler,
-                prompt_id="characters/extract_names",
-                variables={"story_elements": story_elements},
-                savepoint_id="character_names",
-                model_config=model_config,
-                seed=settings.seed,
-                debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
-            )
-            
-            # Parse the response to extract character names
-            names_text = response.content.strip()
-            
-            # First try to parse as JSON (the expected format)
-            character_names = []
+        # Define JSON schema for character names
+        CHARACTER_NAMES_SCHEMA = {
+            "type": "array",
+            "items": {"type": "string"}
+        }
+
+        response = await execute_prompt_with_savepoint(
+            handler=self.prompt_handler,
+            prompt_id="characters/extract_names",
+            variables={"story_elements": story_elements},
+            savepoint_id="character_names",
+            model_config=model_config,
+            seed=settings.seed,
+            debug=settings.debug,
+            stream=settings.stream,
+            log_prompt_inputs=settings.log_prompt_inputs,
+            system_message=self.system_message,
+            expect_json=True,
+            json_schema=CHARACTER_NAMES_SCHEMA
+        )
+        
+        # Parse the response using the new JSON integration
+        names_text = response.content.strip()
+        character_names = []
+        
+        if response.json_parsed:
+            # llm-output-parser has already successfully parsed the JSON
+            # The content should now be a clean JSON string that we can parse
             try:
-                # Look for JSON content wrapped in markdown backticks
-                import json
-                import re
-                
-                # Find JSON content between backticks
-                json_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', names_text, re.DOTALL)
-                if json_match:
-                    json_content = json_match.group(1)
-                    parsed_names = json.loads(json_content)
-                    if isinstance(parsed_names, list):
-                        character_names = [str(name).strip() for name in parsed_names if name and str(name).strip()]
-                        if settings.debug:
-                            print(f"[CHARACTER NAMES] Successfully parsed JSON: {character_names}")
+                parsed_names = json.loads(names_text)
+                if isinstance(parsed_names, list):
+                    character_names = [str(name).strip() for name in parsed_names if name and str(name).strip()]
+                    if settings.debug:
+                        print(f"[CHARACTER NAMES] Successfully parsed JSON: {character_names}")
                 else:
-                    # Try to find JSON array without backticks
-                    json_match = re.search(r'(\[.*?\])', names_text, re.DOTALL)
-                    if json_match:
-                        json_content = json_match.group(1)
-                        parsed_names = json.loads(json_content)
-                        if isinstance(parsed_names, list):
-                            character_names = [str(name).strip() for name in parsed_names if name and str(name).strip()]
-                            if settings.debug:
-                                print(f"[CHARACTER NAMES] Successfully parsed JSON without backticks: {character_names}")
-                    
+                    if settings.debug:
+                        print(f"[CHARACTER NAMES] Expected list but got: {type(parsed_names)}")
             except (json.JSONDecodeError, AttributeError) as e:
                 if settings.debug:
                     print(f"[CHARACTER NAMES] JSON parsing failed: {e}, falling back to line parsing")
-                
-                # Fallback to line-by-line parsing
-                for line in names_text.split('\n'):
-                    line = line.strip()
-                    if line and not line.startswith('#') and not line.startswith('-'):
-                        # Remove any bullet points, numbers, or other formatting
-                        clean_name = line.replace('*', '').replace('-', '').replace('•', '')
-                        clean_name = clean_name.strip()
-                        if clean_name and len(clean_name) < 50:  # Reasonable name length
-                            character_names.append(clean_name)
-            
-            # Remove duplicates while preserving order
-            seen = set()
-            unique_names = []
-            for name in character_names:
-                if name.lower() not in seen:
-                    seen.add(name.lower())
-                    unique_names.append(name)
-            
-            return unique_names[:10]  # Limit to 10 characters max
-            
-        except Exception as e:
+                character_names = []
+        else:
             if settings.debug:
-                print(f"[CHARACTER NAMES] Error extracting character names: {e}")
-            return []
+                print(f"[CHARACTER NAMES] JSON parsing failed: {response.json_errors}, falling back to line parsing")
+                print(f"[CHARACTER NAMES] Raw response preview: {names_text[:200]}...")
+            character_names = []
+        
+        # Fallback to line-by-line parsing if JSON parsing failed
+        if not character_names:
+            # Since llm-output-parser handles markdown automatically, 
+            # we can use simpler line parsing as fallback
+            for line in names_text.split('\n'):
+                line = line.strip()
+                if line and not line.startswith('#') and not line.startswith('-') and not line.startswith('```'):
+                    # Remove any bullet points, numbers, or other formatting
+                    clean_name = line.replace('*', '').replace('-', '').replace('•', '')
+                    clean_name = clean_name.strip()
+                    if clean_name and len(clean_name) < 50:  # Reasonable name length
+                        character_names.append(clean_name)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_names = []
+        for name in character_names:
+            if name.lower() not in seen:
+                seen.add(name.lower())
+                unique_names.append(name)
+        
+        return unique_names[:10]  # Limit to 10 characters max
     
     async def generate_single_character_sheet(self, character_name: str, story_elements: str, additional_context: str, settings: GenerationSettings) -> None:
         """Generate a character sheet for a single character."""
@@ -162,6 +160,12 @@ class CharacterManager:
         model_config = self.config.get_model("logical_model")
         
         try:
+            # Define JSON schema for character names
+            CHARACTER_NAMES_SCHEMA = {
+                "type": "array",
+                "items": {"type": "string"}
+            }
+
             response = await execute_prompt_with_savepoint(
                 handler=self.prompt_handler,
                 prompt_id="characters/extract_from_chapter",
@@ -175,44 +179,34 @@ class CharacterManager:
                 debug=settings.debug,
                 stream=settings.stream,
                 log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                system_message=self.system_message,
+                expect_json=True,
+                json_schema=CHARACTER_NAMES_SCHEMA
             )
             
-            # Parse the response to extract character names
+            # Parse the response using the new JSON integration
             names_text = response.content.strip()
             
             # First try to parse as JSON (the expected format)
             character_names = []
-            try:
-                # Look for JSON content wrapped in markdown backticks
-                import json
-                import re
-                
-                # Find JSON content between backticks
-                json_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', names_text, re.DOTALL)
-                if json_match:
-                    json_content = json_match.group(1)
-                    parsed_names = json.loads(json_content)
+            if response.json_parsed:
+                try:
+                    parsed_names = json.loads(names_text)
                     if isinstance(parsed_names, list):
                         character_names = [str(name).strip() for name in parsed_names if name and str(name).strip()]
                         if settings.debug:
                             print(f"[CHARACTER EXTRACTION] Successfully parsed JSON: {character_names}")
-                else:
-                    # Try to find JSON array without backticks
-                    json_match = re.search(r'(\[.*?\])', names_text, re.DOTALL)
-                    if json_match:
-                        json_content = json_match.group(1)
-                        parsed_names = json.loads(json_content)
-                        if isinstance(parsed_names, list):
-                            character_names = [str(name).strip() for name in parsed_names if name and str(name).strip()]
-                            if settings.debug:
-                                print(f"[CHARACTER EXTRACTION] Successfully parsed JSON without backticks: {character_names}")
-                    
-            except (json.JSONDecodeError, AttributeError) as e:
+                except (json.JSONDecodeError, AttributeError) as e:
+                    if settings.debug:
+                        print(f"[CHARACTER EXTRACTION] JSON parsing failed: {e}, falling back to line parsing")
+                    character_names = []
+            else:
                 if settings.debug:
-                    print(f"[CHARACTER EXTRACTION] JSON parsing failed: {e}, falling back to line parsing")
-                
-                # Fallback to line-by-line parsing
+                    print(f"[CHARACTER EXTRACTION] JSON parsing failed: {response.json_errors}, falling back to line parsing")
+                character_names = []
+            
+            # Fallback to line-by-line parsing if JSON parsing failed
+            if not character_names:
                 for line in names_text.split('\n'):
                     line = line.strip()
                     if line and not line.startswith('#') and not line.startswith('-'):
@@ -362,6 +356,12 @@ class CharacterManager:
         model_config = self.config.get_model("logical_model")
         
         try:
+            # Define JSON schema for character names
+            CHARACTER_NAMES_SCHEMA = {
+                "type": "array",
+                "items": {"type": "string"}
+            }
+
             response = await execute_prompt_with_savepoint(
                 handler=self.prompt_handler,
                 prompt_id="characters/extract_from_chapter",
@@ -375,44 +375,34 @@ class CharacterManager:
                 debug=settings.debug,
                 stream=settings.stream,
                 log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                system_message=self.system_message,
+                expect_json=True,
+                json_schema=CHARACTER_NAMES_SCHEMA
             )
             
-            # Parse the response to extract character names
+            # Parse the response using the new JSON integration
             names_text = response.content.strip()
             
             # First try to parse as JSON (the expected format)
             character_names = []
-            try:
-                # Look for JSON content wrapped in markdown backticks
-                import json
-                import re
-                
-                # Find JSON content between backticks
-                json_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', names_text, re.DOTALL)
-                if json_match:
-                    json_content = json_match.group(1)
-                    parsed_names = json.loads(json_content)
+            if response.json_parsed:
+                try:
+                    parsed_names = json.loads(names_text)
                     if isinstance(parsed_names, list):
                         character_names = [str(name).strip() for name in parsed_names if name and str(name).strip()]
                         if settings.debug:
                             print(f"[CHARACTER EXTRACTION] Successfully parsed JSON: {character_names}")
-                else:
-                    # Try to find JSON array without backticks
-                    json_match = re.search(r'(\[.*?\])', names_text, re.DOTALL)
-                    if json_match:
-                        json_content = json_match.group(1)
-                        parsed_names = json.loads(json_content)
-                        if isinstance(parsed_names, list):
-                            character_names = [str(name).strip() for name in parsed_names if name and str(name).strip()]
-                            if settings.debug:
-                                print(f"[CHARACTER EXTRACTION] Successfully parsed JSON without backticks: {character_names}")
-                    
-            except (json.JSONDecodeError, AttributeError) as e:
+                except (json.JSONDecodeError, AttributeError) as e:
+                    if settings.debug:
+                        print(f"[CHARACTER EXTRACTION] JSON parsing failed: {e}, falling back to line parsing")
+                    character_names = []
+            else:
                 if settings.debug:
-                    print(f"[CHARACTER EXTRACTION] JSON parsing failed: {e}, falling back to line parsing")
-                
-                # Fallback to line-by-line parsing
+                    print(f"[CHARACTER EXTRACTION] JSON parsing failed: {response.json_errors}, falling back to line parsing")
+                character_names = []
+            
+            # Fallback to line-by-line parsing if JSON parsing failed
+            if not character_names:
                 for line in names_text.split('\n'):
                     line = line.strip()
                     if line and not line.startswith('#') and not line.startswith('-'):

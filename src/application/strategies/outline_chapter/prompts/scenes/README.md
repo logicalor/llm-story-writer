@@ -14,12 +14,16 @@ The scene generation system breaks down chapters into smaller, more manageable s
 
 - `parse_definitions.md` - Parses chapter outlines to identify distinct scenes
 - `create_content.md` - Generates content for individual scenes
+- `extract_events.md` - Extracts key events from scenes in point form
+- `clean_content.md` - Cleans scene content by removing commentary and repetition
 - `create_title.md` - Creates titles for individual scenes
 
 ## Savepoint Structure
 
 Scenes are saved using the following savepoint pattern:
 - `chapter_{num}/scene_{num}` - Scene content
+- `chapter_{num}/scene_{num}_summary` - Scene events summary
+- `chapter_{num}/scene_{num}_clean` - Cleaned scene content
 - `chapter_{num}/scene_{num}_title` - Scene title
 - `chapter_{num}/content` - Combined chapter content (all scenes merged)
 
@@ -36,6 +40,8 @@ Scenes are saved using the following savepoint pattern:
 1. Chapter outline is generated with scene definitions
 2. For each scene in the outline:
    - Scene content is generated using the scene definition
+   - Scene events are extracted in point form and saved as summary
+   - Scene content is cleaned to remove commentary and repetition
    - Scene title is generated based on content
    - Both are saved to savepoints
 3. All scenes are combined into chapter content

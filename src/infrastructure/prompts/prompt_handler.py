@@ -1,7 +1,8 @@
-"""Prompt handler for managing savepoints and prompt execution."""
+"""Prompt handler for executing prompts with savepoint management."""
 
-import asyncio
-from typing import Dict, Any, Optional, List
+import json
+import time
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from domain.repositories.savepoint_repository import SavepointRepository
 from domain.value_objects.model_config import ModelConfig
@@ -26,6 +27,9 @@ class PromptRequest:
     debug: bool = False
     stream: bool = False
     log_prompt_inputs: bool = False
+    # JSON-related parameters
+    expect_json: bool = False
+    json_schema: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -36,6 +40,9 @@ class PromptResponse:
     was_cached: bool = False
     model_used: Optional[str] = None
     execution_time: Optional[float] = None
+    # JSON-related fields
+    json_parsed: bool = False
+    json_errors: Optional[str] = None
 
 
 class PromptHandler:
@@ -70,12 +77,42 @@ class PromptHandler:
             if await self.savepoint_repo.has_savepoint(request.savepoint_id):
                 cached_content = await self.savepoint_repo.load_savepoint(request.savepoint_id)
                 if cached_content is not None:
+                    # If JSON parsing is requested, apply it to cached content as well
+                    json_parsed = False
+                    json_errors = None
+                    
+                    if request.expect_json and request.json_schema:
+                        try:
+                            from llm_output_parser import parse_json
+                            
+                            # Parse the cached content using llm-output-parser
+                            parsed_content = parse_json(cached_content, strict=False)
+                            
+                            if parsed_content is not None:
+                                # Update content with parsed JSON string
+                                cached_content = json.dumps(parsed_content, indent=2)
+                                json_parsed = True
+                                if request.debug:
+                                    print(f"[JSON PARSING] Successfully parsed cached JSON response for {request.prompt_id}")
+                            else:
+                                json_errors = "Failed to extract valid JSON from cached response"
+                                if request.debug:
+                                    print(f"[JSON PARSING] No valid JSON found in cached response for {request.prompt_id}")
+                                    print(f"[JSON PARSING] Raw cached content preview: {cached_content[:200]}...")
+                                    
+                        except Exception as e:
+                            json_errors = f"Exception during JSON parsing of cached response: {str(e)}"
+                            if request.debug:
+                                print(f"[JSON PARSING] Failed to parse cached JSON response for {request.prompt_id}: {e}")
+                    
                     execution_time = time.time() - start_time
                     return PromptResponse(
                         content=cached_content,
                         savepoint_id=request.savepoint_id,
                         was_cached=True,
-                        execution_time=execution_time
+                        execution_time=execution_time,
+                        json_parsed=json_parsed,
+                        json_errors=json_errors
                     )
         
         # Load and prepare the prompt
@@ -159,12 +196,52 @@ class PromptHandler:
         
         execution_time = time.time() - start_time
         
+        # Handle JSON parsing if requested
+        json_parsed = False
+        json_errors = None
+        
+        if request.expect_json and request.json_schema:
+            try:
+                from llm_output_parser import parse_json
+                
+                # Parse the response using llm-output-parser
+                # This automatically handles markdown code blocks and multiple parsing strategies
+                parsed_content = parse_json(content, strict=False)
+                
+                if parsed_content is not None:
+                    # Validate against the provided schema if possible
+                    # Note: llm-output-parser doesn't have built-in schema validation,
+                    # but it does provide robust JSON extraction
+                    content = json.dumps(parsed_content, indent=2)
+                    json_parsed = True
+                    if request.debug:
+                        print(f"[JSON PARSING] Successfully parsed JSON response for {request.prompt_id}")
+                else:
+                    json_errors = "Failed to extract valid JSON from response"
+                    if request.debug:
+                        print(f"[JSON PARSING] No valid JSON found in response for {request.prompt_id}")
+                        print(f"[JSON PARSING] Raw content preview: {content[:200]}...")
+                        
+            except Exception as e:
+                json_errors = f"Exception during JSON parsing: {str(e)}"
+                if request.debug:
+                    print(f"[JSON PARSING] Failed to parse JSON response for {request.prompt_id}: {e}")
+                # Keep original content if JSON parsing fails
+        
+        # Ensure json_errors is never None when JSON parsing was attempted
+        if request.expect_json and json_errors is None and not json_parsed:
+            json_errors = "Unknown JSON parsing failure"
+            if request.debug:
+                print(f"[JSON PARSING] Unknown failure for {request.prompt_id}")
+        
         return PromptResponse(
             content=content,
             savepoint_id=request.savepoint_id,
             was_cached=False,
             model_used=request.model_config.to_string() if request.model_config else None,
-            execution_time=execution_time
+            execution_time=execution_time,
+            json_parsed=json_parsed,
+            json_errors=json_errors
         )
     
     async def execute_json_prompt(
@@ -262,7 +339,9 @@ class PromptHandler:
         
         # Add system message if provided
         if system_message:
-            user_content = f"{system_message}\n\n{prompt_content}"
+            #user_content = f"{system_message}\n\n{prompt_content}"
+            messages.append({"role": "system", "content": system_message})
+            user_content = prompt_content
         
         elif prepend_message:
             user_content = f"{prepend_message}\n\n{prompt_content}"

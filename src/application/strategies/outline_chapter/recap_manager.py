@@ -101,6 +101,24 @@ class RecapManager:
         """Extract events from chapter content."""
         model_config = self.config.get_model("logical_model")
         
+        # Define JSON schema for recap events
+        RECAP_EVENTS_SCHEMA = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string"},
+                    "type": {"type": "string"},
+                    "key_events": {"type": "array", "items": {"type": "string"}},
+                    "character_development": {"type": "array", "items": {"type": "string"}},
+                    "locations": {"type": "array", "items": {"type": "string"}},
+                    "symbols_motifs": {"type": "array", "items": {"type": "string"}},
+                    "importance": {"type": "string", "enum": ["high", "medium", "low"]}
+                },
+                "required": ["summary", "type", "key_events", "character_development", "locations", "symbols_motifs", "importance"]
+            }
+        }
+
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
             prompt_id="recap/extract_events",
@@ -108,29 +126,68 @@ class RecapManager:
                 "chapter_content": chapter_content,
                 "chapter_num": chapter_num
             },
-            savepoint_id=f"chapter_{chapter_num}/extracted_events",
+            savepoint_id=f"chapter_{chapter_num}/events",
             model_config=model_config,
             seed=settings.seed,
             debug=settings.debug,
             stream=settings.stream,
             log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            system_message=self.system_message,
+            expect_json=True,
+            json_schema=RECAP_EVENTS_SCHEMA
         )
         
-        return response.content.strip()
+        # Parse the response using the new JSON integration
+        if response.json_parsed:
+            # llm-output-parser has already successfully parsed the JSON
+            # The content should now be a clean JSON string that we can parse
+            try:
+                # Validate the parsed JSON
+                events_data = json.loads(response.content.strip())
+                if settings.debug:
+                    print(f"[RECAP EVENTS] Successfully parsed {len(events_data)} events from JSON")
+                return response.content.strip()
+            except (json.JSONDecodeError, ValueError) as e:
+                if settings.debug:
+                    print(f"[RECAP EVENTS] JSON validation failed: {e}")
+                return response.content.strip()
+        else:
+            if settings.debug:
+                print(f"[RECAP EVENTS] JSON parsing failed: {response.json_errors}")
+            return response.content.strip()
     
     async def assign_event_timing(self, events: str, story_start_date: str, previous_chapter_recap: str, chapter_num: int, settings: GenerationSettings) -> str:
         """Assign timing to events."""
         model_config = self.config.get_model("logical_model")
         
+        # Define JSON schema for timed events
+        TIMED_EVENTS_SCHEMA = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string"},
+                    "type": {"type": "string"},
+                    "start": {"type": "string"},
+                    "end": {"type": "string"},
+                    "duration": {"type": "string"},
+                    "key_events": {"type": "array", "items": {"type": "string"}},
+                    "character_development": {"type": "array", "items": {"type": "string"}},
+                    "locations": {"type": "array", "items": {"type": "string"}},
+                    "symbols_motifs": {"type": "array", "items": {"type": "string"}},
+                    "importance": {"type": "string", "enum": ["high", "medium", "low"]}
+                },
+                "required": ["summary", "type", "start", "end", "duration", "key_events", "character_development", "locations", "symbols_motifs", "importance"]
+            }
+        }
+
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
             prompt_id="recap/assign_event_timing",
             variables={
                 "events": events,
                 "story_start_date": story_start_date,
-                "previous_chapter_recap": previous_chapter_recap,
-                "chapter_num": chapter_num
+                "previous_chapter_recap": previous_chapter_recap
             },
             savepoint_id=f"chapter_{chapter_num}/timed_events",
             model_config=model_config,
@@ -138,15 +195,56 @@ class RecapManager:
             debug=settings.debug,
             stream=settings.stream,
             log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            system_message=self.system_message,
+            expect_json=True,
+            json_schema=TIMED_EVENTS_SCHEMA
         )
         
-        return response.content.strip()
+        # Parse the response using the new JSON integration
+        if response.json_parsed:
+            # llm-output-parser has already successfully parsed the JSON
+            # The content should now be a clean JSON string that we can parse
+            try:
+                # Validate the parsed JSON
+                events_data = json.loads(response.content.strip())
+                if settings.debug:
+                    print(f"[RECAP TIMING] Successfully parsed {len(events_data)} timed events from JSON")
+                return response.content.strip()
+            except (json.JSONDecodeError, ValueError) as e:
+                if settings.debug:
+                    print(f"[RECAP TIMING] JSON validation failed: {e}")
+                return response.content.strip()
+        else:
+            if settings.debug:
+                print(f"[RECAP TIMING] JSON parsing failed: {response.json_errors}")
+            return response.content.strip()
     
     async def enrich_event_details(self, timed_events: str, chapter_num: int, settings: GenerationSettings) -> str:
-        """Enrich event details."""
+        """Enrich event details with additional context."""
         model_config = self.config.get_model("logical_model")
         
+        # Define JSON schema for enriched events
+        ENRICHED_EVENTS_SCHEMA = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string"},
+                    "type": {"type": "string"},
+                    "start": {"type": "string"},
+                    "end": {"type": "string"},
+                    "duration": {"type": "string"},
+                    "key_events": {"type": "array", "items": {"type": "string"}},
+                    "character_development": {"type": "array", "items": {"type": "string"}},
+                    "locations": {"type": "array", "items": {"type": "string"}},
+                    "symbols_motifs": {"type": "array", "items": {"type": "string"}},
+                    "importance": {"type": "string", "enum": ["high", "medium", "low"]},
+                    "chapter_context": {"type": "string"}
+                },
+                "required": ["summary", "type", "start", "end", "duration", "key_events", "character_development", "locations", "symbols_motifs", "importance", "chapter_context"]
+            }
+        }
+
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
             prompt_id="recap/enrich_event_details",
@@ -160,15 +258,64 @@ class RecapManager:
             debug=settings.debug,
             stream=settings.stream,
             log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            system_message=self.system_message,
+            expect_json=True,
+            json_schema=ENRICHED_EVENTS_SCHEMA
         )
         
-        return response.content.strip()
+        # Parse the response using the new JSON integration
+        if response.json_parsed:
+            # llm-output-parser has already successfully parsed the JSON
+            # The content should now be a clean JSON string that we can parse
+            try:
+                # Validate the parsed JSON
+                events_data = json.loads(response.content.strip())
+                if settings.debug:
+                    print(f"[RECAP ENRICHMENT] Successfully parsed {len(events_data)} enriched events from JSON")
+                return response.content.strip()
+            except (json.JSONDecodeError, ValueError) as e:
+                if settings.debug:
+                    print(f"[RECAP ENRICHMENT] JSON validation failed: {e}")
+                return response.content.strip()
+        else:
+            if settings.debug:
+                print(f"[RECAP ENRICHMENT] JSON parsing failed: {response.json_errors}")
+            return response.content.strip()
     
     async def format_recap_output(self, enriched_events: str, chapter_num: int, settings: GenerationSettings) -> str:
-        """Format recap output in JSON format."""
+        """Format the final recap output."""
         model_config = self.config.get_model("logical_model")
         
+        # Define JSON schema for formatted recap
+        FORMATTED_RECAP_SCHEMA = {
+            "type": "object",
+            "properties": {
+                "chapter_number": {"type": "integer"},
+                "chapter_title": {"type": "string"},
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "summary": {"type": "string"},
+                            "type": {"type": "string"},
+                            "start": {"type": "string"},
+                            "end": {"type": "string"},
+                            "duration": {"type": "string"},
+                            "key_events": {"type": "array", "items": {"type": "string"}},
+                            "character_development": {"type": "array", "items": {"type": "string"}},
+                            "locations": {"type": "array", "items": {"type": "string"}},
+                            "symbols_motifs": {"type": "array", "items": {"type": "string"}},
+                            "importance": {"type": "string", "enum": ["high", "medium", "low"]},
+                            "chapter_context": {"type": "string"}
+                        },
+                        "required": ["summary", "type", "start", "end", "duration", "key_events", "character_development", "locations", "symbols_motifs", "importance", "chapter_context"]
+                    }
+                }
+            },
+            "required": ["chapter_number", "chapter_title", "events"]
+        }
+
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
             prompt_id="recap/format_json",
@@ -182,19 +329,29 @@ class RecapManager:
             debug=settings.debug,
             stream=settings.stream,
             log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            system_message=self.system_message,
+            expect_json=True,
+            json_schema=FORMATTED_RECAP_SCHEMA
         )
         
-        # Ensure the response is valid JSON
-        try:
-            # Try to parse as JSON to validate
-            json.loads(response.content.strip())
-            return response.content.strip()
-        except json.JSONDecodeError:
+        # Parse the response using the new JSON integration
+        if response.json_parsed:
+            # llm-output-parser has already successfully parsed the JSON
+            # The content should now be a clean JSON string that we can parse
+            try:
+                # Validate the parsed JSON
+                recap_data = json.loads(response.content.strip())
+                if settings.debug:
+                    print(f"[RECAP FORMAT] Successfully parsed formatted recap from JSON")
+                return response.content.strip()
+            except (json.JSONDecodeError, ValueError) as e:
+                if settings.debug:
+                    print(f"[RECAP FORMAT] JSON validation failed: {e}")
+                return response.content.strip()
+        else:
             if settings.debug:
-                print(f"[RECAP FORMAT] Invalid JSON response, attempting to sanitize")
-            # Try to sanitize the response to extract JSON
-            return await self.sanitize_json_response(response.content.strip())
+                print(f"[RECAP FORMAT] JSON parsing failed: {response.json_errors}")
+            return response.content.strip()
     
     async def generate_recap_fallback(self, chapter_num: int, chapter_outline: str, story_start_date: str, previous_chapter_recap: str, settings: GenerationSettings) -> str:
         """Fallback recap generation method."""
@@ -488,6 +645,32 @@ class RecapManager:
         """Classify events by recency using model-based approach."""
         model_config = self.config.get_model("logical_model")
         
+        # Define JSON schema for classified events
+        CLASSIFIED_EVENTS_SCHEMA = {
+            "type": "object",
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "summary": {"type": "string"},
+                            "type": {"type": "string"},
+                            "date": {"type": "string"},
+                            "recency": {"type": "string", "enum": ["current", "recent", "this_week", "this_month", "historical"]},
+                            "key_events": {"type": "array", "items": {"type": "string"}},
+                            "character_development": {"type": "array", "items": {"type": "string"}},
+                            "locations": {"type": "array", "items": {"type": "string"}},
+                            "symbols_motifs": {"type": "array", "items": {"type": "string"}},
+                            "importance": {"type": "string", "enum": ["high", "medium", "low"]}
+                        },
+                        "required": ["summary", "type", "date", "recency", "key_events", "character_development", "locations", "symbols_motifs", "importance"]
+                    }
+                }
+            },
+            "required": ["events"]
+        }
+
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
             prompt_id="outline/analyze_continuity",  # Reuse existing prompt
@@ -501,10 +684,29 @@ class RecapManager:
             debug=settings.debug,
             stream=settings.stream,
             log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            system_message=self.system_message,
+            expect_json=True,
+            json_schema=CLASSIFIED_EVENTS_SCHEMA
         )
         
-        return await self.sanitize_json_response(response.content.strip())
+        # Parse the response using the new JSON integration
+        if response.json_parsed:
+            # llm-output-parser has already successfully parsed the JSON
+            # The content should now be a clean JSON string that we can parse
+            try:
+                # Validate the parsed JSON
+                events_data = json.loads(response.content.strip())
+                if settings.debug:
+                    print(f"[EVENT CLASSIFICATION] Successfully parsed classified events from JSON")
+                return response.content.strip()
+            except (json.JSONDecodeError, ValueError) as e:
+                if settings.debug:
+                    print(f"[EVENT CLASSIFICATION] JSON validation failed: {e}")
+                return response.content.strip()
+        else:
+            if settings.debug:
+                print(f"[EVENT CLASSIFICATION] JSON parsing failed: {response.json_errors}")
+            return response.content.strip()
     
     async def convert_json_to_recap(self, classified_json: str, settings: GenerationSettings) -> str:
         """Convert classified JSON back to JSON recap format (no longer narrative)."""
@@ -535,6 +737,36 @@ class RecapManager:
         
         model_config = self.config.get_model("logical_model")
         
+        # Define JSON schema for compacted recap
+        COMPACTED_RECAP_SCHEMA = {
+            "type": "object",
+            "properties": {
+                "chapter_number": {"type": "integer"},
+                "chapter_title": {"type": "string"},
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "summary": {"type": "string"},
+                            "type": {"type": "string"},
+                            "start": {"type": "string"},
+                            "end": {"type": "string"},
+                            "duration": {"type": "string"},
+                            "key_events": {"type": "array", "items": {"type": "string"}},
+                            "character_development": {"type": "array", "items": {"type": "string"}},
+                            "locations": {"type": "array", "items": {"type": "string"}},
+                            "symbols_motifs": {"type": "array", "items": {"type": "string"}},
+                            "importance": {"type": "string", "enum": ["high", "medium", "low"]},
+                            "chapter_context": {"type": "string"}
+                        },
+                        "required": ["summary", "type", "start", "end", "duration", "key_events", "character_development", "locations", "symbols_motifs", "importance", "chapter_context"]
+                    }
+                }
+            },
+            "required": ["chapter_number", "chapter_title", "events"]
+        }
+
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
             prompt_id="recap/compact_events",
@@ -549,19 +781,29 @@ class RecapManager:
             debug=settings.debug,
             stream=settings.stream,
             log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            system_message=self.system_message,
+            expect_json=True,
+            json_schema=COMPACTED_RECAP_SCHEMA
         )
         
-        # Ensure the response is valid JSON
-        try:
-            # Try to parse as JSON to validate
-            json.loads(response.content.strip())
-            return response.content.strip()
-        except json.JSONDecodeError:
+        # Parse the response using the new JSON integration
+        if response.json_parsed:
+            # llm-output-parser has already successfully parsed the JSON
+            # The content should now be a clean JSON string that we can parse
+            try:
+                # Validate the parsed JSON
+                recap_data = json.loads(response.content.strip())
+                if settings.debug:
+                    print(f"[RECAP COMPACTION] Successfully parsed compacted recap from JSON")
+                return response.content.strip()
+            except (json.JSONDecodeError, ValueError) as e:
+                if settings.debug:
+                    print(f"[RECAP COMPACTION] JSON validation failed: {e}")
+                return response.content.strip()
+        else:
             if settings.debug:
-                print(f"[RECAP COMPACTION] Invalid JSON response, attempting to sanitize")
-            # Try to sanitize the response to extract JSON
-            return await self.sanitize_json_response(response.content.strip())
+                print(f"[RECAP COMPACTION] JSON parsing failed: {response.json_errors}")
+            return response.content.strip()
     
     async def filter_aged_events(self, recap: str, story_start_date: str, settings: GenerationSettings) -> str:
         """Filter out events that are too old to be relevant using programmatic logic."""

@@ -1,10 +1,8 @@
-"""Ollama model provider implementation."""
+"""LM Studio model provider implementation."""
 
 import asyncio
 import json
 import random
-import subprocess
-import sys
 import re
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from domain.value_objects.model_config import ModelConfig
@@ -12,22 +10,24 @@ from domain.exceptions import ModelProviderError
 from application.interfaces.model_provider import ModelProvider
 
 
-class OllamaProvider(ModelProvider):
-    """Ollama model provider implementation."""
+class LMStudioProvider(ModelProvider):
+    """LM Studio model provider implementation."""
     
-    def __init__(self, host: str = "127.0.0.1:11434"):
+    def __init__(self, host: str = "127.0.0.1:1234"):
         self.host = host
         self.clients = {}
-        self._ensure_ollama_installed()
+        self._ensure_requests_installed()
     
-    def _ensure_ollama_installed(self):
-        """Ensure ollama package is installed."""
+    def _ensure_requests_installed(self):
+        """Ensure requests package is installed."""
         try:
-            import ollama
+            import requests
         except ImportError:
-            print("Package ollama not found. Installing...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "ollama"])
-            import ollama
+            print("Package requests not found. Installing...")
+            import subprocess
+            import sys
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
+            import requests
     
     def _filter_think_tags(self, text: str) -> str:
         """Remove <think>...</think> tags from text while preserving the rest."""
@@ -53,7 +53,6 @@ class OllamaProvider(ModelProvider):
             total_text += f"{role}: {content}\n"
         
         # Try tiktoken first (most accurate for OpenAI-compatible models)
-        # Install with: pip install tiktoken
         try:
             import tiktoken
             # Use cl100k_base encoding (GPT-4 tokenizer) as a reasonable approximation
@@ -95,7 +94,7 @@ class OllamaProvider(ModelProvider):
         print(f"[PROMPT STATS] Messages by role: {role_counts}")
         
         # Warn if token count is very high
-        context_length = model_config.parameters.get('num_ctx', 16384)
+        context_length = model_config.parameters.get('max_tokens', 16384)
         if token_count > context_length * 0.8:  # Warn at 80% of context length
             print(f"[PROMPT STATS] ⚠️  WARNING: Prompt uses {token_count:,} tokens, approaching context limit of {context_length:,}")
         elif token_count > context_length * 0.6:  # Info at 60% of context length
@@ -123,7 +122,7 @@ class OllamaProvider(ModelProvider):
         debug: bool = False,
         stream: bool = False
     ) -> str:
-        """Generate text using Ollama."""
+        """Generate text using LM Studio."""
         try:
             if stream:
                 # Use streaming for stream mode
@@ -145,7 +144,7 @@ class OllamaProvider(ModelProvider):
                     debug=debug
                 )
         except Exception as e:
-            raise ModelProviderError(f"Ollama generation failed: {e}") from e
+            raise ModelProviderError(f"LM Studio generation failed: {e}") from e
     
     async def _generate_text_non_streaming(
         self,
@@ -156,9 +155,8 @@ class OllamaProvider(ModelProvider):
         min_word_count: int = 1,
         debug: bool = False
     ) -> str:
-        """Generate text without streaming (original implementation)."""
+        """Generate text without streaming."""
         try:
-            client = await self._get_client(model_config)
             options = self._prepare_options(model_config, seed, format_type)
             
             # Display debug prompt if enabled
@@ -177,29 +175,20 @@ class OllamaProvider(ModelProvider):
             print(f"[CHAT REQUEST] Format: {format_type or 'text'}")
             print(f"[CHAT REQUEST] Seed: {seed}")
             print(f"[CHAT REQUEST] Min word count: {min_word_count}")
-            if options.get('think'):
-                print(f"[CHAT REQUEST] Thinking: ENABLED")
             print()
             
-            response = await asyncio.to_thread(
-                client.chat,
-                model=model_config.name,
-                messages=messages,
-                options=options
-            )
+            # Prepare the request payload
+            payload = {
+                "messages": messages,
+                **options
+            }
             
-            # Add a short delay to allow Ollama time to unload the model
-            await asyncio.sleep(5)
+            # Make the request to LM Studio
+            response = await self._make_request(payload, model_config)
             
-            response_text = response['message']['content']
+            response_text = response.get('choices', [{}])[0].get('message', {}).get('content', '')
             
-            # Handle thinking output if present
-            if 'thinking' in response['message'] and response['message']['thinking']:
-                thinking_text = response['message']['thinking']
-                # Combine thinking and content for streaming output
-                response_text = f"<thinking>{thinking_text}</thinking>\n\n{response_text}"
-            
-            # Filter out think tags (for backward compatibility with models that use <think> tags)
+            # Filter out think tags if present
             response_text = self._filter_think_tags(response_text)
             
             # Ensure minimum word count
@@ -209,22 +198,13 @@ class OllamaProvider(ModelProvider):
                 messages.append({"role": "assistant", "content": response_text})
                 messages.append({"role": "user", "content": f"Please continue and expand on this response to reach at least {min_word_count} words."})
                 
-                response = await asyncio.to_thread(
-                    client.chat,
-                    model=model_config.name,
-                    messages=messages,
-                    options=options
-                )
+                payload = {
+                    "messages": messages,
+                    **options
+                }
                 
-                # Add a short delay to allow Ollama time to unload the model
-                await asyncio.sleep(5)
-                
-                response_text = response['message']['content']
-                
-                # Handle thinking output if present in continuation
-                if 'thinking' in response['message'] and response['message']['thinking']:
-                    thinking_text = response['message']['thinking']
-                    response_text = f"<thinking>{thinking_text}</thinking>\n\n{response_text}"
+                response = await self._make_request(payload, model_config)
+                response_text = response.get('choices', [{}])[0].get('message', {}).get('content', '')
                 
                 # Filter think tags from the continuation as well
                 response_text = self._filter_think_tags(response_text)
@@ -232,7 +212,7 @@ class OllamaProvider(ModelProvider):
             return response_text
             
         except Exception as e:
-            raise ModelProviderError(f"Ollama generation failed: {e}") from e
+            raise ModelProviderError(f"LM Studio generation failed: {e}") from e
     
     async def _generate_text_with_streaming(
         self,
@@ -273,7 +253,7 @@ class OllamaProvider(ModelProvider):
         seed: Optional[int] = None,
         debug: bool = False
     ) -> Dict[str, Any]:
-        """Generate JSON response using Ollama."""
+        """Generate JSON response using LM Studio."""
         try:
             # Display debug prompt if enabled
             if debug:
@@ -284,7 +264,7 @@ class OllamaProvider(ModelProvider):
             # Log prompt statistics
             self._log_prompt_stats(messages, model_config)
             
-            # Use the existing non-streaming implementation for JSON (but skip stats logging since we already did it)
+            # Use the existing non-streaming implementation for JSON
             response_text = await self._generate_text_non_streaming_no_stats(
                 messages=messages,
                 model_config=model_config,
@@ -298,7 +278,6 @@ class OllamaProvider(ModelProvider):
             
             # Parse JSON response
             try:
-                import json
                 response_data = json.loads(response_text)
                 
                 if debug:
@@ -312,7 +291,6 @@ class OllamaProvider(ModelProvider):
                     print(f"[DEBUG] Attempting to extract JSON from response...")
                 
                 # Try to extract JSON from the response
-                import re
                 json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
                 if json_match:
                     try:
@@ -326,7 +304,7 @@ class OllamaProvider(ModelProvider):
                 raise ModelProviderError(f"Failed to parse JSON response: {e}")
                 
         except Exception as e:
-            raise ModelProviderError(f"Ollama JSON generation failed: {e}") from e
+            raise ModelProviderError(f"LM Studio JSON generation failed: {e}") from e
     
     async def stream_text(
         self,
@@ -335,9 +313,8 @@ class OllamaProvider(ModelProvider):
         seed: Optional[int] = None,
         format_type: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
-        """Stream text generation using Ollama."""
+        """Stream text generation using LM Studio."""
         try:
-            client = await self._get_client(model_config)
             options = self._prepare_options(model_config, seed, format_type)
             
             # Log prompt statistics
@@ -352,128 +329,80 @@ class OllamaProvider(ModelProvider):
             print(f"[CHAT REQUEST] Format: {format_type or 'text'}")
             print(f"[CHAT REQUEST] Seed: {seed}")
             print(f"[CHAT REQUEST] Mode: streaming")
-            if options.get('think'):
-                print(f"[CHAT REQUEST] Thinking: ENABLED")
             print()
             
-            # Stream response
-            stream = await asyncio.to_thread(
-                client.chat,
-                model=model_config.name,
-                messages=messages,
-                options=options,
-                stream=True
-            )
+            # Prepare the request payload
+            payload = {
+                "messages": messages,
+                "stream": True,
+                **options
+            }
             
-            # Add a short delay to allow Ollama time to unload the model after streaming completes
-            # Note: The delay will be added after the streaming loop completes
-            
-            buffer = ""
-            in_think_tag = False
-            thinking_buffer = ""
-            content_buffer = ""
-            thinking_complete = False
-            
-            for chunk in stream:
-                # Handle thinking output (new Ollama thinking feature)
-                if 'message' in chunk and 'thinking' in chunk['message'] and chunk['message']['thinking']:
-                    thinking_buffer += chunk['message']['thinking']
-                    # Yield thinking content as it comes
-                    yield chunk['message']['thinking']
-                
-                # Handle content output
-                if 'message' in chunk and 'content' in chunk['message'] and chunk['message']['content']:
-                    content = chunk['message']['content']
-                    content_buffer += content
-                    
-                    # Process the buffer to handle legacy think tags
-                    while True:
-                        if not in_think_tag:
-                            # Look for start of think tag
-                            think_start = content_buffer.find('<think>')
-                            if think_start != -1:
-                                # Yield content before think tag
-                                if think_start > 0:
-                                    yield content_buffer[:think_start]
-                                # Remove content up to and including think tag start
-                                content_buffer = content_buffer[think_start + 7:]  # 7 is len('<think>')
-                                in_think_tag = True
-                                continue
-                            else:
-                                # No think tag found, yield the buffer
-                                if content_buffer:
-                                    yield content_buffer
-                                    content_buffer = ""
-                                break
-                        else:
-                            # We're inside a think tag, look for end
-                            think_end = content_buffer.find('</think>')
-                            if think_end != -1:
-                                # Remove content up to and including think tag end
-                                content_buffer = content_buffer[think_end + 8:]  # 8 is len('</think>')
-                                in_think_tag = False
-                                continue
-                            else:
-                                # Think tag not complete, keep buffering
-                                break
-            
-            # Yield any remaining content (outside of think tags)
-            if content_buffer and not in_think_tag:
-                yield content_buffer
-            
-            # Add a short delay to allow Ollama time to unload the model after streaming completes
-            await asyncio.sleep(5)
+            # Stream response from LM Studio
+            async for chunk in self._stream_request(payload, model_config):
+                if chunk.get('choices') and chunk['choices'][0].get('delta', {}).get('content'):
+                    content = chunk['choices'][0]['delta']['content']
+                    yield content
                     
         except Exception as e:
-            raise ModelProviderError(f"Ollama streaming failed: {e}") from e
+            raise ModelProviderError(f"LM Studio streaming failed: {e}") from e
     
     async def is_model_available(self, model_config: ModelConfig) -> bool:
-        """Check if a model is available in Ollama."""
+        """Check if a model is available in LM Studio."""
         try:
-            client = await self._get_client(model_config)
-            await asyncio.to_thread(client.show, model_config.name)
-            return True
+            # Try to make a simple request to check if the service is running
+            import requests
+            host = model_config.host or self.host
+            response = requests.get(f"http://{host}/v1/models", timeout=5)
+            return response.status_code == 200
         except Exception:
             return False
     
     async def download_model(self, model_config: ModelConfig) -> None:
-        """Download a model in Ollama."""
-        try:
-            client = await self._get_client(model_config)
-            
-            print(f"Downloading model {model_config.name}...")
-            stream = await asyncio.to_thread(
-                client.pull,
-                model_config.name,
-                stream=True
-            )
-            
-            for chunk in stream:
-                if 'completed' in chunk and 'total' in chunk:
-                    progress = chunk['completed'] / chunk['total']
-                    completed_size = chunk['completed'] / 1024**3
-                    total_size = chunk['total'] / 1024**3
-                    print(f"Downloading {model_config.name}: {progress * 100:.2f}% ({completed_size:.3f}GB/{total_size:.3f}GB)", end="\r")
-                else:
-                    print(f"{chunk.get('status', 'Unknown')} {model_config.name}", end="\r")
-            
-            print(f"\nModel {model_config.name} downloaded successfully!")
-            
-        except Exception as e:
-            raise ModelProviderError(f"Failed to download model {model_config.name}: {e}") from e
+        """Download a model in LM Studio."""
+        # LM Studio handles model downloads through its own interface
+        # This method is a no-op for LM Studio
+        print(f"LM Studio handles model downloads through its own interface.")
+        print(f"Please download the model '{model_config.name}' through the LM Studio application.")
     
     async def get_supported_providers(self) -> List[str]:
         """Get list of supported providers."""
-        return ["ollama"]
+        return ["lm_studio"]
     
-    async def _get_client(self, model_config: ModelConfig):
-        """Get or create Ollama client."""
-        if model_config.name not in self.clients:
-            import ollama
-            host = model_config.host or self.host
-            self.clients[model_config.name] = ollama.Client(host=host)
+    async def _make_request(self, payload: Dict[str, Any], model_config: ModelConfig) -> Dict[str, Any]:
+        """Make a request to LM Studio API."""
+        import requests
         
-        return self.clients[model_config.name]
+        host = model_config.host or self.host
+        url = f"http://{host}/v1/chat/completions"
+        
+        response = requests.post(url, json=payload, timeout=120)
+        response.raise_for_status()
+        
+        return response.json()
+    
+    async def _stream_request(self, payload: Dict[str, Any], model_config: ModelConfig):
+        """Make a streaming request to LM Studio API."""
+        import requests
+        
+        host = model_config.host or self.host
+        url = f"http://{host}/v1/chat/completions"
+        
+        response = requests.post(url, json=payload, stream=True, timeout=120)
+        response.raise_for_status()
+        
+        for line in response.iter_lines():
+            if line:
+                line = line.decode('utf-8')
+                if line.startswith('data: '):
+                    data = line[6:]  # Remove 'data: ' prefix
+                    if data == '[DONE]':
+                        break
+                    try:
+                        chunk = json.loads(data)
+                        yield chunk
+                    except json.JSONDecodeError:
+                        continue
     
     def _prepare_options(
         self,
@@ -481,12 +410,12 @@ class OllamaProvider(ModelProvider):
         seed: Optional[int] = None,
         format_type: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Prepare options for Ollama API call."""
+        """Prepare options for LM Studio API call."""
         options = model_config.parameters.copy()
         
         # Set default context length if not specified
-        if 'num_ctx' not in options:
-            options['num_ctx'] = 16384
+        if 'max_tokens' not in options:
+            options['max_tokens'] = 16384
         
         # Set seed if provided, with automatic randomness
         if seed is not None:
@@ -496,27 +425,17 @@ class OllamaProvider(ModelProvider):
         
         # Set format for JSON responses
         if format_type == "json":
-            options['format'] = 'json'
+            options['response_format'] = {"type": "json_object"}
             if 'temperature' not in options:
                 options['temperature'] = 0
         
-        # Enable thinking for models that support it
-        # Currently supported: DeepSeek R1, Qwen 3, and others
-        thinking_models = [
-            "deepseek-r1", "deepseek-r1:8b", "deepseek-r1:32b",
-            "qwen3", "qwen3:8b", "qwen3:32b"
-        ]
-        
-        # Check if the model name contains any thinking model identifiers
-        if any(thinking_model in model_config.name.lower() for thinking_model in thinking_models):
-            options['think'] = True
-        
-        # Special handling for specific models
-        if model_config.name == "huihui_ai/magistral-abliterated:24b":
+        # Set default temperature if not specified
+        if 'temperature' not in options:
             options['temperature'] = 0.7
         
-        # Set keep_alive to 0 to unload model immediately after request
-        options['keep_alive'] = 0
+        # Set default top_p if not specified
+        if 'top_p' not in options:
+            options['top_p'] = 0.9
         
         return options
     
@@ -531,7 +450,6 @@ class OllamaProvider(ModelProvider):
     ) -> str:
         """Generate text without streaming and without logging stats (for internal use)."""
         try:
-            client = await self._get_client(model_config)
             options = self._prepare_options(model_config, seed, format_type)
             
             # Display debug prompt if enabled (but no stats logging)
@@ -547,29 +465,20 @@ class OllamaProvider(ModelProvider):
             print(f"[CHAT REQUEST] Format: {format_type or 'text'}")
             print(f"[CHAT REQUEST] Seed: {seed}")
             print(f"[CHAT REQUEST] Min word count: {min_word_count}")
-            if options.get('think'):
-                print(f"[CHAT REQUEST] Thinking: ENABLED")
             print()
             
-            response = await asyncio.to_thread(
-                client.chat,
-                model=model_config.name,
-                messages=messages,
-                options=options
-            )
+            # Prepare the request payload
+            payload = {
+                "messages": messages,
+                **options
+            }
             
-            # Add a short delay to allow Ollama time to unload the model
-            await asyncio.sleep(5)
+            # Make the request to LM Studio
+            response = await self._make_request(payload, model_config)
             
-            response_text = response['message']['content']
+            response_text = response.get('choices', [{}])[0].get('message', {}).get('content', '')
             
-            # Handle thinking output if present
-            if 'thinking' in response['message'] and response['message']['thinking']:
-                thinking_text = response['message']['thinking']
-                # Combine thinking and content for streaming output
-                response_text = f"<thinking>{thinking_text}</thinking>\n\n{response_text}"
-            
-            # Filter out think tags (for backward compatibility with models that use <think> tags)
+            # Filter out think tags if present
             response_text = self._filter_think_tags(response_text)
             
             # Ensure minimum word count
@@ -579,22 +488,13 @@ class OllamaProvider(ModelProvider):
                 messages.append({"role": "assistant", "content": response_text})
                 messages.append({"role": "user", "content": f"Please continue and expand on this response to reach at least {min_word_count} words."})
                 
-                response = await asyncio.to_thread(
-                    client.chat,
-                    model=model_config.name,
-                    messages=messages,
-                    options=options
-                )
+                payload = {
+                    "messages": messages,
+                    **options
+                }
                 
-                # Add a short delay to allow Ollama time to unload the model
-                await asyncio.sleep(5)
-                
-                response_text = response['message']['content']
-                
-                # Handle thinking output if present in continuation
-                if 'thinking' in response['message'] and response['message']['thinking']:
-                    thinking_text = response['message']['thinking']
-                    response_text = f"<thinking>{thinking_text}</thinking>\n\n{response_text}"
+                response = await self._make_request(payload, model_config)
+                response_text = response.get('choices', [{}])[0].get('message', {}).get('content', '')
                 
                 # Filter think tags from the continuation as well
                 response_text = self._filter_think_tags(response_text)
@@ -602,7 +502,7 @@ class OllamaProvider(ModelProvider):
             return response_text
             
         except Exception as e:
-            raise ModelProviderError(f"Ollama generation failed: {e}") from e
+            raise ModelProviderError(f"LM Studio generation failed: {e}") from e
     
     async def generate_multistep_conversation(
         self,
@@ -614,7 +514,6 @@ class OllamaProvider(ModelProvider):
     ) -> str:
         """Generate text through a multi-step conversation with memory."""
         try:
-            client = await self._get_client(model_config)
             options = self._prepare_options(model_config, seed, None)
             
             # Display debug information if enabled
@@ -645,22 +544,17 @@ class OllamaProvider(ModelProvider):
                 # Add user message to conversation
                 conversation_messages.append({"role": "user", "content": user_message})
                 
+                # Prepare the request payload
+                payload = {
+                    "messages": conversation_messages,
+                    **options
+                }
+                
                 # Generate response
-                response = await asyncio.to_thread(
-                    client.chat,
-                    model=model_config.name,
-                    messages=conversation_messages,
-                    options=options
-                )
+                response = await self._make_request(payload, model_config)
+                response_text = response.get('choices', [{}])[0].get('message', {}).get('content', '')
                 
-                response_text = response['message']['content']
-                
-                # Handle thinking output if present
-                if 'thinking' in response['message'] and response['message']['thinking']:
-                    thinking_text = response['message']['thinking']
-                    response_text = f"<thinking>{thinking_text}</thinking>\n\n{response_text}"
-                
-                # Filter out think tags
+                # Filter out think tags if present
                 response_text = self._filter_think_tags(response_text)
                 
                 if debug:
@@ -679,4 +573,4 @@ class OllamaProvider(ModelProvider):
             return final_response
             
         except Exception as e:
-            raise ModelProviderError(f"Ollama multi-step conversation failed: {e}") from e 
+            raise ModelProviderError(f"LM Studio multi-step conversation failed: {e}") from e

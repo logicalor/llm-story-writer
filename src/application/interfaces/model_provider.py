@@ -23,6 +23,18 @@ class ModelProvider(ABC):
         pass
     
     @abstractmethod
+    async def generate_multistep_conversation(
+        self,
+        user_messages: List[str],
+        model_config: ModelConfig,
+        system_message: Optional[str] = None,
+        seed: Optional[int] = None,
+        debug: bool = False
+    ) -> str:
+        """Generate text through a multi-step conversation with memory."""
+        pass
+    
+    @abstractmethod
     async def generate_json(
         self,
         messages: List[Dict[str, str]],

@@ -4,7 +4,7 @@ You are a story outline specialist who creates detailed chapter outlines based o
 
 ## Your Task
 
-Generate a detailed outline for Chapter {chapter_number} with as many scenes as needed to advance the story.
+Generate a detailed outline for Chapter {chapter_number}.
 
 ## Input
 
@@ -59,6 +59,7 @@ Generate a detailed outline for Chapter {chapter_number} with as many scenes as 
 3. **Structure and Creative Licence**: 
    - IMPORTANT: Don't be concerned restricting the narrative to the synopsis' focus. The subject matter can meander a bit as long as the main focus is covered adequately.
    - IMPORTANT: Think about how you could expand the narrative scope of the chapter using the existing synopsis, weaving in recurring themes or other characters.
+   - The MINIMUM number of scenes is **ten**.
    - The DESIRED number of scenes is BETWEEN **ten and fifteen**. 
    - LEAN TOWARD A HIGHER NUMBER OF SCENES.
    - If you think you can creatively expand the synopsis to include more than ten scenes, tben you MUST include more scenes.

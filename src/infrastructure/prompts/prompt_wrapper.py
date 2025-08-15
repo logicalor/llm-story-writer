@@ -14,6 +14,8 @@ async def execute_prompt_with_savepoint(
     model_config: Optional[ModelConfig] = None,
     force_regenerate: bool = False,
     system_message: Optional[str] = None,
+    expect_json: bool = False,
+    json_schema: Optional[Dict[str, Any]] = None,
     **kwargs
 ) -> PromptResponse:
     """
@@ -28,6 +30,8 @@ async def execute_prompt_with_savepoint(
         model_config: Model configuration to use
         force_regenerate: Force regeneration even if savepoint exists
         system_message: Optional system message
+        expect_json: Whether to expect and parse JSON response
+        json_schema: JSON schema for parsing response (required if expect_json=True)
         **kwargs: Additional arguments passed to PromptRequest
         
     Returns:
@@ -45,6 +49,8 @@ async def execute_prompt_with_savepoint(
         model_config=model_config,
         force_regenerate=force_regenerate,
         system_message=system_message,
+        expect_json=expect_json,
+        json_schema=json_schema,
         **kwargs
     )
     
@@ -192,6 +198,51 @@ async def execute_json_prompt(
     )
     
     return await handler.execute_json_prompt(request, required_attributes)
+
+
+async def execute_json_prompt_with_savepoint_lite(
+    handler: PromptHandler,
+    prompt_id: str,
+    json_schema: Dict[str, Any],
+    variables: Optional[Dict[str, Any]] = None,
+    savepoint_id: Optional[str] = None,
+    prepend_message: Optional[str] = None,
+    model_config: Optional[ModelConfig] = None,
+    force_regenerate: bool = False,
+    system_message: Optional[str] = None,
+    **kwargs
+) -> PromptResponse:
+    """
+    Execute a prompt that returns JSON with savepoint management using LiteLLMJson.
+    
+    Args:
+        handler: PromptHandler instance
+        prompt_id: ID of the prompt to execute
+        json_schema: JSON schema for parsing response
+        variables: Variables to substitute in the prompt
+        savepoint_id: ID for the savepoint (optional)
+        prepend_message: Optional message to prepend to the prompt
+        model_config: Model configuration to use
+        force_regenerate: Force regeneration even if savepoint exists
+        system_message: Optional system message
+        **kwargs: Additional arguments passed to PromptRequest
+        
+    Returns:
+        PromptResponse with parsed JSON content and metadata
+    """
+    return await execute_prompt_with_savepoint(
+        handler=handler,
+        prompt_id=prompt_id,
+        variables=variables,
+        savepoint_id=savepoint_id,
+        prepend_message=prepend_message,
+        model_config=model_config,
+        force_regenerate=force_regenerate,
+        system_message=system_message,
+        expect_json=True,
+        json_schema=json_schema,
+        **kwargs
+    )
 
 
 # Convenience function that creates a handler and executes a prompt

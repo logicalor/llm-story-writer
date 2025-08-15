@@ -11,6 +11,7 @@ from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
 from infrastructure.savepoints import SavepointManager
 from .character_manager import CharacterManager
 from .setting_manager import SettingManager
+import json
 
 
 class OutlineGenerator:
@@ -587,6 +588,20 @@ class OutlineGenerator:
         """Extract chapters from combined outline as a structured list."""
         model_config = self.config.get_model("logical_model")
         
+        # Define JSON schema for chapter list
+        CHAPTER_LIST_SCHEMA = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "number": {"type": "integer"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"}
+                },
+                "required": ["number", "title", "description"]
+            }
+        }
+        
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
             prompt_id="chapters/extract_list",
@@ -601,36 +616,36 @@ class OutlineGenerator:
             debug=settings.debug,
             stream=settings.stream,
             log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            system_message=self.system_message,
+            expect_json=True,
+            json_schema=CHAPTER_LIST_SCHEMA
         )
         
-        # Parse the response as JSON
-        try:
-            import json
-            content = response.content.strip()
-            
-            # Try to extract JSON from markdown code blocks if present
-            if "```json" in content:
-                json_start = content.find("```json") + 7
-                json_end = content.find("```", json_start)
-                if json_end != -1:
-                    content = content[json_start:json_end].strip()
-            elif "```" in content:
-                json_start = content.find("```") + 3
-                json_end = content.find("```", json_start)
-                if json_end != -1:
-                    content = content[json_start:json_end].strip()
-            
-            chapter_list = json.loads(content)
-            if not isinstance(chapter_list, list):
-                raise ValueError("Response is not a list")
-            
-            return chapter_list
-            
-        except (json.JSONDecodeError, ValueError) as e:
+        # Parse the response using the new JSON integration
+        if response.json_parsed:
+            # llm-output-parser has already successfully parsed the JSON
+            # The content should now be a clean JSON string that we can parse
+            try:
+                # Validate the parsed JSON
+                chapter_list = json.loads(response.content.strip())
+                if not isinstance(chapter_list, list):
+                    raise ValueError("Response is not a list")
+                
+                if settings.debug:
+                    print(f"[CHAPTER SYNOPSES] Successfully parsed {len(chapter_list)} chapters from JSON")
+                return chapter_list
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                if settings.debug:
+                    print(f"[CHAPTER SYNOPSES] JSON validation failed: {e}")
+                    print(f"[CHAPTER SYNOPSES] Raw response: {response.content}")
+                
+                # Fallback: create a simple list from the outline
+                return self._fallback_chapter_extraction(combined_outline)
+        else:
             if settings.debug:
-                print(f"[CHAPTER SYNOPSES] Failed to parse JSON response: {e}")
-                print(f"[CHAPTER SYNOPSES] Raw response: {response.content}")
+                print(f"[CHAPTER SYNOPSES] JSON parsing failed: {response.json_errors}")
+                print(f"[CHAPTER SYNOPSES] Raw response preview: {response.content[:200]}...")
             
             # Fallback: create a simple list from the outline
             return self._fallback_chapter_extraction(combined_outline)
@@ -722,11 +737,25 @@ class OutlineGenerator:
         """Generate detailed chapter list from outline (for single-pass generation)."""
         model_config = self.config.get_model("chapter_outline_writer")
         
+        # Define JSON schema for chapter list
+        CHAPTER_LIST_SCHEMA = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "number": {"type": "integer"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"}
+                },
+                "required": ["number", "title", "description"]
+            }
+        }
+
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
             prompt_id="chapters/create_list",
             variables={
-                "outline": final_outline,
+                "combined_outline": final_outline,
                 "base_context": base_context,
                 "story_elements": story_elements
             },
@@ -736,7 +765,35 @@ class OutlineGenerator:
             debug=settings.debug,
             stream=settings.stream,
             log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            system_message=self.system_message,
+            expect_json=True,
+            json_schema=CHAPTER_LIST_SCHEMA
         )
         
-        return response.content.strip()
+        # Parse the response using the new JSON integration
+        if response.json_parsed:
+            # llm-output-parser has already successfully parsed the JSON
+            # The content should now be a clean JSON string that we can parse
+            try:
+                # Validate the parsed JSON
+                chapter_list = json.loads(response.content.strip())
+                if not isinstance(chapter_list, list):
+                    raise ValueError("Response is not a list")
+                
+                if settings.debug:
+                    print(f"[CHAPTER SYNOPSES] Successfully parsed {len(chapter_list)} chapters from JSON")
+                return chapter_list
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                if settings.debug:
+                    print(f"[CHAPTER SYNOPSES] JSON validation failed: {e}")
+                    print(f"[CHAPTER SYNOPSES] Raw response: {response.content}")
+                
+                # Fallback: create a simple list from the outline
+                return self._fallback_chapter_extraction(final_outline)
+        else:
+            if settings.debug:
+                print(f"[CHAPTER SYNOPSES] JSON parsing failed: {response.json_errors}")
+            
+            # Fallback: create a simple list from the outline
+            return self._fallback_chapter_extraction(final_outline)

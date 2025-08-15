@@ -146,22 +146,9 @@ class ChapterGenerator:
                                 # Load and parse scene definitions
                                 scene_definitions_raw = await self.savepoint_manager.load_step(f"chapter_{chapter_num}/scene_definitions")
                                 
-                                # Parse JSON and strip non-JSON content if needed
+                                # Parse JSON directly since this is loaded from savepoint
                                 try:
-                                    # First, try to find JSON content wrapped in markdown backticks
-                                    json_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', scene_definitions_raw, re.DOTALL)
-                                    if json_match:
-                                        json_content = json_match.group(1)
-                                        scene_definitions = json.loads(json_content)
-                                    else:
-                                        # Try to find JSON array without backticks
-                                        json_match = re.search(r'(\[.*?\])', scene_definitions_raw, re.DOTALL)
-                                        if json_match:
-                                            json_content = json_match.group(1)
-                                            scene_definitions = json.loads(json_content)
-                                        else:
-                                            # If no JSON found, try to parse the entire content as JSON
-                                            scene_definitions = json.loads(scene_definitions_raw)
+                                    scene_definitions = json.loads(scene_definitions_raw)
                                     
                                     # Validate that we got a list of scene objects
                                     if isinstance(scene_definitions, list):
@@ -174,7 +161,6 @@ class ChapterGenerator:
                                 except (json.JSONDecodeError, ValueError) as e:
                                     if settings.debug:
                                         print(f"    JSON parsing failed: {e}, will regenerate scene definitions")
-                                    # If parsing fails, we'll regenerate scenes below
                                     scene_definitions = []
                                     expected_scene_count = 0
                             except Exception as e:
