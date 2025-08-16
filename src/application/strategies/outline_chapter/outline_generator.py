@@ -69,11 +69,10 @@ class OutlineGenerator:
                 conversation_history=conversation_history,
                 model_config=model_config,
                 debug=settings.debug,
+                savepoint_id="understand_prompt",
                 stream=True,
                 use_boxed_solution=True
             )
-            if 'I understand' not in response.content and 'I\ understand' not in response.content:
-                raise StoryGenerationError(f"User did not understand the prompt: {response.content.strip()}")
 
             # Extract story start date
             start_date = await self._extract_story_start_date(prompt, settings, conversation_history)
@@ -699,7 +698,7 @@ class OutlineGenerator:
         story_elements: str,
         settings: GenerationSettings
     ) -> str:
-        """Generate synopsis for a single chapter."""
+        """Generate synopsis for a single chapter using a multistep approach."""
         model_config = ModelConfig.from_string(self.config["models"]["chapter_outline_writer"])
         
         # Get previous chapter synopsis if this is not the first chapter
@@ -712,25 +711,129 @@ class OutlineGenerator:
                     print(f"[CHAPTER SYNOPSES] Could not load previous chapter synopsis for chapter {chapter_num}")
                 previous_chapter = ""
         
-        response = await execute_prompt_with_savepoint(
+        # Build conversation history through multistep approach
+        conversation_history = []
+        
+        # Step 1: Understand storyline
+        storyline_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/enrichment/understand_storyline",
+            {"story_elements": story_elements}
+        )
+        conversation_history.append({"role": "user", "content": storyline_prompt})
+        
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
-            prompt_id="chapters/create_synopsis",
-            variables={
+            conversation_history=conversation_history,
+            savepoint_id=f"chapter_{chapter_num}_step1_storyline",
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 2: Understand base context
+        base_context_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/enrichment/understand_base_context",
+            {"base_context": base_context}
+        )
+        conversation_history.append({"role": "user", "content": base_context_prompt})
+        
+        response = await execute_messages_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 3: Understand combined outline
+        outline_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/enrichment/understand_outline",
+            {"outline": combined_outline}
+        )
+        conversation_history.append({"role": "user", "content": outline_prompt})
+        
+        response = await execute_messages_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 4: Understand characters (combined abridged characters)
+        characters = await self.character_manager.extract_character_names(story_elements, settings)
+        character_summaries = await self.character_manager.get_character_summaries(characters, settings)
+        character_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/enrichment/understand_characters",
+            {"character_summaries": character_summaries}
+        )
+        conversation_history.append({"role": "user", "content": character_prompt})
+        
+        response = await execute_messages_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 5: Understand settings (combined abridged settings)
+        setting_names = await self.setting_manager.extract_setting_names(story_elements, settings)
+        setting_summaries = await self.setting_manager.get_setting_summaries(setting_names, settings)
+        setting_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/enrichment/understand_settings",
+            {"setting_summaries": setting_summaries}
+        )
+        conversation_history.append({"role": "user", "content": setting_prompt})
+        
+        response = await execute_messages_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 6: Understand previous chapter synopsis (if chapter > 1)
+        if chapter_num > 1 and previous_chapter:
+            previous_chapter_prompt = self.prompt_handler.prompt_loader.load_prompt(
+                "multistep/chapter/enrichment/understand_previous_chapter",
+                {"previous_chapter": previous_chapter}
+            )
+            conversation_history.append({"role": "user", "content": previous_chapter_prompt})
+            
+            response = await execute_messages_with_savepoint(
+                handler=self.prompt_handler,
+                conversation_history=conversation_history,
+                model_config=model_config,
+                debug=settings.debug,
+                stream=settings.stream
+            )
+            conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 7: Generate the chapter synopsis
+        synopsis_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/create_synopsis",
+            {
                 "chapter_number": chapter_num,
                 "chapter_title": chapter_title,
                 "chapter_description": chapter_description,
-                "outline": combined_outline,
-                "base_context": base_context,
-                "story_elements": story_elements,
-                "previous_chapter": previous_chapter
-            },
+            }
+        )
+        conversation_history.append({"role": "user", "content": synopsis_prompt})
+        
+        response = await execute_messages_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
             savepoint_id=f"chapter_{chapter_num}/synopsis",
             model_config=model_config,
-            seed=settings.seed,
             debug=settings.debug,
-            stream=settings.stream,
-            log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            stream=settings.stream
         )
         
         return response.content.strip()

@@ -1,9 +1,30 @@
-Here is a prompt that the user has provided, which is the basis for a story:
+# Understand Story Prompt
 
+You are analyzing a user's story prompt to understand the core concept and requirements.
+
+## Your Task
+Carefully read and understand the story prompt provided. Focus on:
+- The main story concept and premise
+- Key characters and their roles
+- Setting and world-building elements
+- Plot direction and themes
+- Specific requirements or constraints mentioned
+
+## Story Prompt
 <STORY_PROMPT>
 {prompt}
 </STORY_PROMPT>
 
-## Your Task
+## Instructions
+1. Read through the story prompt carefully
+2. Identify the main story concept and premise
+3. Note key characters, settings, and plot elements
+4. Understand the story's direction and themes
+5. Pay attention to any specific requirements or constraints
 
-You just need to read the prompt, and indicate that you understand it by responding with "I understand".  If you have any questions about the prompt, then respond with "Needs Clarification", along with your clarification requests.
+## Response Format
+Provide a concise summary of your understanding of the story prompt, demonstrating that you have comprehended the key elements and requirements.
+
+If you have any questions about the prompt or need clarification on specific elements, include those in your response as well.
+
+Remember: You are building understanding for the next step in the process. Be thorough but focused on the most important aspects of the story prompt.

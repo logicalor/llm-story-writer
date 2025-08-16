@@ -679,7 +679,7 @@ class SceneGenerator:
             )
 
         if scene_num == chapter_count or scene_num != 1:
-            previous_scene_summary = await self.savepoint_manager.load_step(f"chapter_{chapter_num}/scene_{scene_num - 1}_summary")
+            previous_scene_summary = await self.savepoint_manager.load_step(f"chapter_{chapter_num}/scene_{scene_num - 1}_multistep_content")
         try:
             # Get the model provider for multi-step conversation
             model_config = ModelConfig.from_string(self.config["models"]["scene_writer"])
@@ -711,9 +711,7 @@ class SceneGenerator:
                     stream=True
                 )
 
-                # If the response done not contain 'I understand' then raise an error
-                if 'I understand' not in response.content:
-                    raise StoryGenerationError("The model did not understand the story elements")
+
                 
                 # Extract content from PromptResponse
                 conversation_history.append({"role": "assistant", "content": response.content})
@@ -749,8 +747,7 @@ class SceneGenerator:
                     stream=True
                 )
 
-                if 'I understand' not in response.content:
-                    raise StoryGenerationError("The model did not understand the context")
+
                 
                 conversation_history.append({"role": "assistant", "content": response.content})
 
@@ -780,8 +777,7 @@ class SceneGenerator:
                         stream=True
                     )
 
-                    if 'I understand' not in response.content:
-                        raise StoryGenerationError("The model did not understand the characters")
+
                     
                     conversation_history.append({"role": "assistant", "content": response.content})
                     
@@ -813,8 +809,7 @@ class SceneGenerator:
                         stream=True
                     )
 
-                    if 'I understand' not in response.content:
-                        raise StoryGenerationError("The model did not understand the settings")
+
                     
                     conversation_history.append({"role": "assistant", "content": response.content})
                     
@@ -852,8 +847,7 @@ class SceneGenerator:
                         debug=settings.debug,
                         stream=True
                     )
-                    if 'I understand' not in response.content:
-                        raise StoryGenerationError("The model did not understand the next scene")
+
                     
                     conversation_history.append({"role": "assistant", "content": response.content})
                     
@@ -882,8 +876,7 @@ class SceneGenerator:
                         debug=settings.debug,
                         stream=True
                     )
-                    if 'I understand' not in response.content:
-                        raise StoryGenerationError("The model did not understand the previous scene")
+
                     
                     conversation_history.append({"role": "assistant", "content": response.content})
                     
@@ -912,8 +905,7 @@ class SceneGenerator:
                         debug=settings.debug,
                         stream=True
                     )
-                    if 'I understand' not in response.content:
-                        raise StoryGenerationError("The model did not understand the next chapter")
+
                     
                     conversation_history.append({"role": "assistant", "content": response.content})
                     
