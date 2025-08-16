@@ -28,6 +28,7 @@ Create a structured document that fits within 1500-2500 words maximum. Focus on 
 
 ## RESPONSE STRUCTURE
 
+<TEMPLATE>
 # Story Title
 
 ## Genre & Style
@@ -57,7 +58,7 @@ Create a structured document that fits within 1500-2500 words maximum. Focus on 
 **IMPORTANT**: Describe all characters at their **initial state** at the story's beginning, before any story events occur. This provides a clean baseline for character development throughout the story.
 
 ### Main Character(s)
-#### [Full Character Name - First and Last Name]
+#### [Full Character Name - First Name and Last Name]
 - **Initial Core Identity**: [2-3 essential traits that define the character at story start]
 - **Age**: 
 - **Physical Description**: [Any physical description notes from the context or intial prompt]
@@ -67,7 +68,7 @@ Create a structured document that fits within 1500-2500 words maximum. Focus on 
 - **Initial Key Relationships**: [2-3 most important relationships at story start]
 
 ### Supporting Characters
-#### [Full Character Name - First and Last Name]
+#### [Full Character Name - First Name and Last Name]
 - **Initial Role**: [How does this character support the main plot at story start?]
 - **Age**: 
 - **Physical Description**: [Any physical description notes from the context or intial prompt]
@@ -81,18 +82,6 @@ Create a structured document that fits within 1500-2500 words maximum. Focus on 
 - **Unique Identities**: Each character should have a distinct name, role, and personality
 - **Avoid Ambiguity**: Don't use "the protagonist", "the villain", "the mentor" - give them actual names
 
-**Examples of Good Character Naming:**
-- ✅ "Sarah Chen" (not just "Sarah")
-- ✅ "Marcus Rodriguez" and "Elena Rodriguez" (not "the Rodriguez siblings")
-- ✅ "Dr. Emily Watson" and "Professor James Watson" (not "the Watson parents")
-- ✅ "Detective Michael Torres" (not "the detective")
-
-**Examples of What to Avoid:**
-- ❌ "Sarah" (missing last name)
-- ❌ "the parents" (not individualized)
-- ❌ "the protagonist" (not named)
-- ❌ "friends" (not specific people)
-
 ## Pacing & Structure
 - **Overall Pace**: [Fast, moderate, or slow]
 - **Chapter Structure**: [How will chapters be organized?]
@@ -105,7 +94,7 @@ Create a structured document that fits within 1500-2500 words maximum. Focus on 
 - **Color/Element Themes**: [If applicable, what colors or elements represent key concepts?]
 
 ## World-Building Essentials
-- **Key Locations**: [3-5 important places the story will visit]
+- **Key Locations**: [3-5 important places the story will visit - give each a realistic name - nothing generic]
 - **Cultural Elements**: [Important customs, beliefs, or social structures]
 - **Technology/Magic**: [Key systems that affect the story]
 - **History**: [Important past events that influence the present]
@@ -114,6 +103,30 @@ Create a structured document that fits within 1500-2500 words maximum. Focus on 
 - **Research Needs**: [What information might be needed for authenticity?]
 - **Potential Challenges**: [What might be difficult to execute well?]
 - **Unique Elements**: [What makes this story special or different?]
+</TEMPLATE>
+
+**Examples of Good Character Naming:**
+- ✅ "Sarah Chen" (not just "Sarah")
+- ✅ "Marcus Rodriguez" and "Elena Rodriguez" (not "the Rodriguez siblings")
+- ✅ "Dr. Emily Watson" and "Professor James Watson" (not "the Watson parents")
+- ✅ "Detective Michael Torres" (not "the detective")
+
+**Examples of Bad Character Naming:**
+- ❌ "Sarah" (missing last name)
+- ❌ "the parents" (not individualized)
+- ❌ "the protagonist" (not named)
+- ❌ "friends" (not specific people)
+
+**Examples of Good Place Naming:**
+- ✅ "Babbage Children's Hospital" (named)
+- ✅ "Sarah's Apartment" (belongs to sarah, we can identify it clearly)
+- ✅ "Friendly's Cafe" (personalised name)
+- ✅ "Rainbow Beach" (again, a realistic name)
+
+**Examples of Bad Place Naming:**
+- ❌ "Public Hospital" (generic description)
+- ❌ "nearby parks" (not individualized)
+- ❌ "the cafe" (not named)
 
 ## AVOID
 - Long character backstories (focus on what's relevant to the plot)

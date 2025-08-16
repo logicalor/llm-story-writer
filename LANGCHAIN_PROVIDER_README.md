@@ -256,11 +256,21 @@ user_messages = [
 
 system_message = "You are a helpful AI assistant helping to develop a story outline. Be creative and engaging."
 
+# Non-streaming conversation
 response = await provider.generate_multistep_conversation(
     user_messages=user_messages,
     model_config=model_config,
     system_message=system_message,
     debug=True
+)
+
+# Streaming conversation (respects generation.stream setting)
+response = await provider.generate_multistep_conversation(
+    user_messages=user_messages,
+    model_config=model_config,
+    system_message=system_message,
+    debug=True,
+    stream=True  # Enable real-time streaming output
 )
 ```
 
@@ -269,6 +279,7 @@ This method:
 - Processes each user message sequentially
 - Builds memory of the conversation
 - Returns the final response with full context
+- **Supports streaming output** when `stream=True` is set
 
 ### Local Models
 ```python

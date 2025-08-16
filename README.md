@@ -7,7 +7,7 @@ A modern, clean AI story generation application built with clean architecture pr
 ## 🚀 Features
 
 - **Clean Architecture**: Built with domain-driven design and clean architecture principles
-- **Multiple Model Providers**: Support for Ollama, Google, OpenRouter, and more
+- **Multiple Model Providers**: Support for Ollama, LM Studio, LangChain, llama.cpp, Google, OpenRouter, and more
 - **Async/Await**: Full async support for better performance
 - **Type Safety**: Comprehensive type hints and validation
 - **Structured Logging**: Professional logging with levels and structured data

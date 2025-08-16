@@ -1,9 +1,10 @@
 """Character management functionality for the outline-chapter strategy."""
 
 import json
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from domain.value_objects.generation_settings import GenerationSettings
-from config.settings import AppConfig
+from domain.value_objects.model_config import ModelConfig
+
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
@@ -16,7 +17,7 @@ class CharacterManager:
     def __init__(
         self,
         model_provider: ModelProvider,
-        config: AppConfig,
+        config: Dict[str, Any],
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None
@@ -51,7 +52,7 @@ class CharacterManager:
     
     async def extract_character_names(self, story_elements: str, settings: GenerationSettings) -> List[str]:
         """Extract character names from story elements."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         # Define JSON schema for character names
         CHARACTER_NAMES_SCHEMA = {
@@ -125,7 +126,7 @@ class CharacterManager:
     
     async def generate_single_character_sheet(self, character_name: str, story_elements: str, additional_context: str, settings: GenerationSettings) -> None:
         """Generate a character sheet for a single character."""
-        model_config = self.config.get_model("initial_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
         
         try:
             response = await execute_prompt_with_savepoint(
@@ -157,7 +158,7 @@ class CharacterManager:
     
     async def extract_chapter_characters(self, chapter_synopsis: str, chapter_num: int, settings: GenerationSettings) -> List[str]:
         """Extract character names from chapter synopsis."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
             # Define JSON schema for character names
@@ -281,7 +282,7 @@ class CharacterManager:
                             continue
                 
                 # Generate updated character sheet
-                model_config = self.config.get_model("initial_outline_writer")
+                model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
                 
                 response = await execute_prompt_with_savepoint(
                     handler=self.prompt_handler,
@@ -317,7 +318,7 @@ class CharacterManager:
     ) -> None:
         """Generate an abridged character summary suitable for prompt injection."""
         try:
-            model_config = self.config.get_model("initial_outline_writer")
+            model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
             
             # Create savepoint path for this character's abridged summary
             savepoint_id = f"characters/{character_name}/sheet-abridged"
@@ -353,7 +354,7 @@ class CharacterManager:
     
     async def extract_chapter_characters_from_outline(self, chapter_outline: str, chapter_num: int, settings: GenerationSettings) -> List[str]:
         """Extract character names from chapter outline."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
             # Define JSON schema for character names
@@ -399,6 +400,7 @@ class CharacterManager:
             else:
                 if settings.debug:
                     print(f"[CHARACTER EXTRACTION] JSON parsing failed: {response.json_errors}, falling back to line parsing")
+                print(f"[CHARACTER EXTRACTION] Raw response preview: {names_text[:200]}...")
                 character_names = []
             
             # Fallback to line-by-line parsing if JSON parsing failed
@@ -426,3 +428,154 @@ class CharacterManager:
             if settings.debug:
                 print(f"[CHAPTER CHARACTERS] Error extracting characters from outline for chapter {chapter_num}: {e}")
             return []
+    
+    async def generate_character_summary(
+        self,
+        character_name: str,
+        settings: GenerationSettings
+    ) -> str:
+        """Generate a natural language summary of a character from their abridged character sheet.
+        
+        Args:
+            character_name: Name of the character to summarize
+            settings: Generation settings for the request
+            
+        Returns:
+            Natural language summary of the character, or empty string if not found
+        """
+        if not self.savepoint_manager:
+            if settings.debug:
+                print(f"[CHARACTER SUMMARY] No savepoint manager available for {character_name}")
+            return ""
+        
+        try:
+            # Try to load the abridged character sheet
+            abridged_key = f"characters/{character_name}/sheet-abridged"
+            abridged_sheet = await self.savepoint_manager.load_step(abridged_key)
+            
+            if not abridged_sheet:
+                if settings.debug:
+                    print(f"[CHARACTER SUMMARY] No abridged sheet found for {character_name}")
+                return ""
+            
+            # Generate natural language summary from the abridged sheet
+            model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
+            
+            response = await execute_prompt_with_savepoint(
+                handler=self.prompt_handler,
+                prompt_id="characters/create_summary",
+                variables={
+                    "character_name": character_name,
+                    "abridged_sheet": abridged_sheet
+                },
+                savepoint_id=f"characters/{character_name}/summary",
+                model_config=model_config,
+                seed=settings.seed,
+                debug=settings.debug,
+                stream=settings.stream,
+                log_prompt_inputs=settings.log_prompt_inputs,
+                system_message=self.system_message
+            )
+            
+            if response and response.content and response.content.strip():
+                summary = response.content.strip()
+                if settings.debug:
+                    print(f"[CHARACTER SUMMARY] Generated summary for {character_name}: {len(summary)} characters")
+                return summary
+            else:
+                if settings.debug:
+                    print(f"[CHARACTER SUMMARY] Warning: Empty response when generating summary for {character_name}")
+                return ""
+                
+        except Exception as e:
+            if settings.debug:
+                print(f"[CHARACTER SUMMARY] Error generating summary for {character_name}: {e}")
+            return ""
+    
+    async def get_character_summaries(
+        self,
+        character_names: List[str],
+        settings: GenerationSettings
+    ) -> str:
+        """Get natural language summaries for all characters.
+        
+        Args:
+            character_names: List of character names to get summaries for
+            settings: Generation settings for the request
+            
+        Returns:
+            Combined natural language summaries of all characters, suitable for prompt injection
+        """
+        if not character_names:
+            return ""
+        
+        # Check if savepoint manager is available
+        if not self.savepoint_manager:
+            if settings.debug:
+                print(f"[CHARACTER SUMMARIES] No savepoint manager available, returning character names only")
+            # Return just the character names as a fallback
+            return "\n\n".join([f"**{name}**: Character appears in this scene" for name in character_names])
+        
+        summaries = []
+        for character_name in character_names:
+            summary = await self.generate_character_summary(character_name, settings)
+            if summary:
+                summaries.append(f"**{character_name}**: {summary}")
+        
+        if summaries:
+            combined_summaries = "\n\n".join(summaries)
+            if settings.debug:
+                print(f"[CHARACTER SUMMARIES] Generated {len(summaries)} character summaries")
+            return combined_summaries
+        else:
+            if settings.debug:
+                print(f"[CHARACTER SUMMARIES] No character summaries generated, returning character names only")
+            # Return just the character names as a fallback
+            return "\n\n".join([f"**{name}**: Character appears in this scene" for name in character_names])
+    
+    async def get_character_summaries_list(
+        self,
+        character_names: List[str],
+        settings: GenerationSettings
+    ) -> str:
+        """Get a list of natural language character summaries divided by markdown horizontal rules.
+        
+        This method generates summaries for each character and formats them as a list separated
+        by horizontal rules (---), skipping any characters that don't have abridged summaries.
+        
+        Args:
+            character_names: List of character names to get summaries for
+            settings: Generation settings for the request
+            
+        Returns:
+            Formatted list of character summaries with horizontal rule separators, or empty string if none found
+        """
+        if not character_names:
+            return ""
+        
+        # Check if savepoint manager is available
+        if not self.savepoint_manager:
+            if settings.debug:
+                print(f"[CHARACTER SUMMARIES LIST] No savepoint manager available, returning character names only")
+            # Return just the character names as a fallback
+            return "\n\n---\n\n".join([f"**{name}**\n\nCharacter appears in this scene" for name in character_names])
+        
+        summaries = []
+        for character_name in character_names:
+            summary = await self.generate_character_summary(character_name, settings)
+            if summary:
+                summaries.append(f"**{character_name}**\n\n{summary}")
+        
+        if summaries:
+            # Join summaries with horizontal rules, but don't add one after the last summary
+            formatted_summaries = "\n\n---\n\n".join(summaries)
+            
+            if settings.debug:
+                print(f"[CHARACTER SUMMARIES LIST] Generated {len(summaries)} character summaries with horizontal rule separators")
+            
+            return formatted_summaries
+        else:
+            if settings.debug:
+                print(f"[CHARACTER SUMMARIES LIST] No character summaries generated, returning character names only")
+            # Return just the character names as a fallback
+            return "\n\n---\n\n".join([f"**{name}**\n\nCharacter appears in this scene" for name in character_names])

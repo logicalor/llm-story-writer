@@ -24,7 +24,7 @@ class ModelConfig:
             raise ValidationError("Model provider cannot be empty")
         
         # Validate provider
-        valid_providers = {"ollama", "lm_studio", "langchain", "google", "openrouter", "openai", "anthropic"}
+        valid_providers = {"ollama", "lm_studio", "langchain", "google", "openrouter", "openai", "anthropic", "llama_cpp"}
         if self.provider.lower() not in valid_providers:
             raise ValidationError(f"Invalid provider: {self.provider}. Must be one of {valid_providers}")
     

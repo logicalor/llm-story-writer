@@ -4,6 +4,53 @@ from typing import Dict, Any, Optional
 from domain.value_objects.model_config import ModelConfig
 from .prompt_handler import PromptHandler, PromptRequest, PromptResponse
 
+def extract_boxed_solution(text: str) -> Optional[str]:
+    """
+    Extracts the content of the last `\boxed{}` in a given LaTeX-style text.
+    Args:
+        text (str): The input string containing LaTeX-style content.
+    Returns:
+        Optional[str]: The extracted content inside the last `\boxed{}` if found 
+        and properly matched, otherwise `None`.
+    Example:
+        >>> extract_boxed_solution("The result is \\boxed{42}.")
+        '42'
+        >>> extract_boxed_solution("Unmatched \\boxed{42")
+        None
+    """
+    try:
+        start_index = text.rindex("\\boxed{")
+        content_start = start_index + 7
+        bracket_count = 1
+        current_pos = content_start
+
+        while bracket_count > 0 and current_pos < len(text):
+            if text[current_pos] == "{":
+                bracket_count += 1
+            elif text[current_pos] == "}":
+                bracket_count -= 1
+            current_pos += 1
+
+        if bracket_count == 0:
+            content = text[content_start : current_pos - 1].strip()
+            # Unescape common escape sequences
+            content = content.replace("\\n", "\n")
+            content = content.replace("\\t", "\t")
+            content = content.replace("\\r", "\r")
+            content = content.replace("\\\"", "\"")
+            content = content.replace("\\'", "'")
+            content = content.replace("\\\\", "\\")
+            return content
+        else:
+            print("Error: Unmatched brackets in the text")
+            return None
+
+    except ValueError:
+        print("No boxed solution found in the text")
+        return None
+    except Exception as e:
+        print(f"Error processing text: {str(e)}")
+        return None
 
 async def execute_prompt_with_savepoint(
     handler: PromptHandler,
@@ -16,6 +63,7 @@ async def execute_prompt_with_savepoint(
     system_message: Optional[str] = None,
     expect_json: bool = False,
     json_schema: Optional[Dict[str, Any]] = None,
+    use_boxed_solution: bool = False,
     **kwargs
 ) -> PromptResponse:
     """
@@ -56,6 +104,11 @@ async def execute_prompt_with_savepoint(
     
     response = await handler.execute_prompt(request)
     
+    if use_boxed_solution:
+        boxed_solution = extract_boxed_solution(response.content)
+        if boxed_solution is not None:
+            response.content = boxed_solution
+    
     end_time = time.time()
     duration = end_time - start_time
     
@@ -74,6 +127,7 @@ async def execute_prompt(
     prepend_message: Optional[str] = None,
     model_config: Optional[ModelConfig] = None,
     system_message: Optional[str] = None,
+    use_boxed_solution: bool = False,
     **kwargs
 ) -> PromptResponse:
     """
@@ -107,6 +161,11 @@ async def execute_prompt(
     
     response = await handler.execute_prompt(request)
     
+    if use_boxed_solution:
+        boxed_solution = extract_boxed_solution(response.content)
+        if boxed_solution is not None:
+            response.content = boxed_solution
+    
     end_time = time.time()
     duration = end_time - start_time
     
@@ -115,6 +174,181 @@ async def execute_prompt(
     print(f"[PROMPT TIMING] {prompt_id} | Model: {model_name} | Duration: {duration:.2f}s")
     
     return response
+
+
+async def execute_messages_with_savepoint(
+    handler: PromptHandler,
+    conversation_history: list,
+    savepoint_id: Optional[str] = None,
+    model_config: Optional[ModelConfig] = None,
+    force_regenerate: bool = False,
+    expect_json: bool = False,
+    json_schema: Optional[Dict[str, Any]] = None,
+    use_boxed_solution: bool = False,
+    **kwargs
+) -> PromptResponse:
+    """
+    Execute a conversation with a custom conversation history and savepoint management.
+    
+    This method allows you to define the complete conversation history including both
+    user and assistant messages, and sends the final user message to get a response.
+    
+    Args:
+        handler: PromptHandler instance
+        conversation_history: List of conversation messages in format [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}, ...]
+        savepoint_id: ID for the savepoint (optional)
+        model_config: Model configuration to use
+        force_regenerate: Force regeneration even if savepoint exists
+        expect_json: Whether to expect and parse JSON response
+        json_schema: JSON schema for parsing response (required if expect_json=True)
+        **kwargs: Additional arguments passed to PromptRequest
+        
+    Returns:
+        PromptResponse with the generated content and metadata
+    """
+    import time
+    
+    start_time = time.time()
+    
+    # Check if we should use a savepoint
+    if savepoint_id and handler.savepoint_repo and not force_regenerate:
+        if await handler.savepoint_repo.has_savepoint(savepoint_id):
+            cached_content = await handler.savepoint_repo.load_savepoint(savepoint_id)
+            if cached_content is not None:
+                # Handle JSON parsing if requested
+                json_parsed = False
+                json_errors = None
+                
+                if expect_json and json_schema:
+                    try:
+                        from llm_output_parser import parse_json
+                        parsed_content = parse_json(cached_content, strict=False)
+                        
+                        if parsed_content is not None:
+                            cached_content = json.dumps(parsed_content, indent=2)
+                            json_parsed = True
+                        else:
+                            json_errors = "Failed to extract valid JSON from cached response"
+                    except Exception as e:
+                        json_errors = f"JSON parsing error: {e}"
+                
+                end_time = time.time()
+                duration = end_time - start_time
+                
+                model_name = model_config.name if model_config else "unknown"
+                print(f"[MESSAGES TIMING] {len(conversation_history)} messages | Model: {model_name} | Duration: {duration:.2f}s (cached)")
+                
+                return PromptResponse(
+                    content=cached_content,
+                    savepoint_id=savepoint_id,
+                    was_cached=True,
+                    model_used=model_name,
+                    execution_time=duration,
+                    json_parsed=json_parsed,
+                    json_errors=json_errors
+                )
+    
+    # Execute the conversation with custom history
+    try:
+        # Extract parameters from kwargs
+        seed = kwargs.get('seed')
+        debug = kwargs.get('debug', False)
+        stream = kwargs.get('stream', False)
+        
+        # Use the model provider's text generation functionality with custom conversation history
+        response_content = await handler.model_provider.generate_text(
+            messages=conversation_history,
+            model_config=model_config,
+            seed=seed,
+            debug=debug,
+            stream=stream
+        )
+        
+        if use_boxed_solution:
+            boxed_solution = extract_boxed_solution(response_content)
+            if boxed_solution is not None:
+                response_content = boxed_solution
+        
+        # Save to savepoint if requested
+        if savepoint_id and handler.savepoint_repo:
+            await handler.savepoint_repo.save_savepoint(savepoint_id, response_content)
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        
+        # Log the timing
+        model_name = model_config.name if model_config else "unknown"
+        savepoint_info = f" (savepoint: {savepoint_id})" if savepoint_id else ""
+        message_count = len(conversation_history)
+        print(f"[MESSAGES TIMING] {message_count} messages | Model: {model_name} | Duration: {duration:.2f}s{savepoint_info}")
+        
+        return PromptResponse(
+            content=response_content,
+            savepoint_id=savepoint_id,
+            was_cached=False,
+            model_used=model_name,
+            execution_time=duration,
+            json_parsed=False,  # Chat completion doesn't support JSON parsing
+            json_errors=None
+        )
+        
+    except Exception as e:
+        end_time = time.time()
+        duration = end_time - start_time
+        
+        model_name = model_config.name if model_config else "unknown"
+        print(f"[MESSAGES TIMING] {len(conversation_history)} messages | Model: {model_name} | Duration: {duration:.2f}s (ERROR)")
+        
+        raise StoryGenerationError(f"Failed to execute chat completion: {e}") from e
+
+
+def load_prompt(
+    handler: PromptHandler,
+    prompt_id: str,
+    variables: Optional[Dict[str, Any]] = None
+) -> str:
+    """
+    Load prompt text with substitutions directly from a prompt ID and substitution list.
+    
+    This utility function loads a prompt template and applies variable substitutions
+    without executing the prompt. Useful for getting formatted prompt text for
+    custom conversation building.
+    
+    Args:
+        handler: PromptHandler instance
+        prompt_id: ID of the prompt to load
+        variables: Variables to substitute in the prompt (optional)
+        
+    Returns:
+        Formatted prompt text with substitutions applied
+    """
+    try:
+        # Load the prompt template
+        prompt_template = handler.prompt_loader.load_prompt(prompt_id)
+        
+        if not prompt_template:
+            raise ValueError(f"Prompt template not found for ID: {prompt_id}")
+        
+        # Apply variable substitutions if provided
+        if variables:
+            try:
+                # Simple string substitution for common patterns
+                formatted_prompt = prompt_template
+                for key, value in variables.items():
+                    placeholder = f"{{{key}}}"
+                    if placeholder in formatted_prompt:
+                        formatted_prompt = formatted_prompt.replace(placeholder, str(value))
+                
+                return formatted_prompt
+            except Exception as e:
+                print(f"[PROMPT LOADER] Warning: Error applying variables to prompt {prompt_id}: {e}")
+                return prompt_template
+        else:
+            return prompt_template
+            
+    except Exception as e:
+        print(f"[PROMPT LOADER] Error loading prompt {prompt_id}: {e}")
+        return f"Error loading prompt {prompt_id}: {e}"
 
 
 async def execute_json_prompt_with_savepoint(

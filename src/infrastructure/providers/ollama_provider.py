@@ -15,8 +15,10 @@ from application.interfaces.model_provider import ModelProvider
 class OllamaProvider(ModelProvider):
     """Ollama model provider implementation."""
     
-    def __init__(self, host: str = "127.0.0.1:11434"):
+    def __init__(self, host: str = "127.0.0.1:11434", context_length: int = 16384, randomize_seed: bool = True):
         self.host = host
+        self.context_length = context_length
+        self.randomize_seed = randomize_seed
         self.clients = {}
         self._ensure_ollama_installed()
     
@@ -95,7 +97,7 @@ class OllamaProvider(ModelProvider):
         print(f"[PROMPT STATS] Messages by role: {role_counts}")
         
         # Warn if token count is very high
-        context_length = model_config.parameters.get('num_ctx', 16384)
+        context_length = model_config.parameters.get('num_ctx', self.context_length)
         if token_count > context_length * 0.8:  # Warn at 80% of context length
             print(f"[PROMPT STATS] ⚠️  WARNING: Prompt uses {token_count:,} tokens, approaching context limit of {context_length:,}")
         elif token_count > context_length * 0.6:  # Info at 60% of context length
@@ -484,15 +486,28 @@ class OllamaProvider(ModelProvider):
         """Prepare options for Ollama API call."""
         options = model_config.parameters.copy()
         
-        # Set default context length if not specified
+        # Set context length from infrastructure config if not specified
         if 'num_ctx' not in options:
-            options['num_ctx'] = 16384
+            options['num_ctx'] = self.context_length
+        # If num_ctx is specified but exceeds infrastructure limit, cap it
+        elif options['num_ctx'] > self.context_length:
+            print(f"[OLLAMA] Warning: Requested num_ctx {options['num_ctx']} exceeds infrastructure limit {self.context_length}, capping to {self.context_length}")
+            options['num_ctx'] = self.context_length
         
-        # Set seed if provided, with automatic randomness
+        # Set seed if provided, with conditional randomness
         if seed is not None:
-            # Add random offset to ensure variety in generation
-            random_offset = random.randint(1, 10000)
-            options['seed'] = seed + random_offset
+            # Check if we should randomize the seed
+            should_randomize = self.randomize_seed and not model_config.parameters.get('static_seed', False)
+            
+            if should_randomize:
+                # Add random offset to ensure variety in generation
+                random_offset = random.randint(1, 10000)
+                options['seed'] = seed + random_offset
+                print(f"[OLLAMA] Seed randomized: {seed} + {random_offset} = {options['seed']}")
+            else:
+                # Use exact seed without randomization
+                options['seed'] = seed
+                print(f"[OLLAMA] Using static seed: {seed}")
         
         # Set format for JSON responses
         if format_type == "json":
@@ -517,6 +532,12 @@ class OllamaProvider(ModelProvider):
         
         # Set keep_alive to 0 to unload model immediately after request
         options['keep_alive'] = 0
+        
+        # Log context length configuration for debugging
+        if 'num_ctx' in options:
+            print(f"[OLLAMA] Context length: {options['num_ctx']} (from model config)")
+        else:
+            print(f"[OLLAMA] Context length: {options['num_ctx']} (from infrastructure default)")
         
         return options
     
@@ -610,9 +631,41 @@ class OllamaProvider(ModelProvider):
         model_config: ModelConfig,
         system_message: Optional[str] = None,
         seed: Optional[int] = None,
-        debug: bool = False
+        debug: bool = False,
+        stream: bool = False
     ) -> str:
         """Generate text through a multi-step conversation with memory."""
+        try:
+            if stream:
+                # Use streaming for stream mode
+                return await self._generate_multistep_conversation_with_streaming(
+                    user_messages=user_messages,
+                    model_config=model_config,
+                    system_message=system_message,
+                    seed=seed,
+                    debug=debug
+                )
+            else:
+                # Use non-streaming for normal mode
+                return await self._generate_multistep_conversation_non_streaming(
+                    user_messages=user_messages,
+                    model_config=model_config,
+                    system_message=system_message,
+                    seed=seed,
+                    debug=debug
+                )
+        except Exception as e:
+            raise ModelProviderError(f"Ollama multi-step conversation failed: {e}") from e
+    
+    async def _generate_multistep_conversation_non_streaming(
+        self,
+        user_messages: List[str],
+        model_config: ModelConfig,
+        system_message: Optional[str] = None,
+        seed: Optional[int] = None,
+        debug: bool = False
+    ) -> str:
+        """Generate text through a multi-step conversation without streaming."""
         try:
             client = await self._get_client(model_config)
             options = self._prepare_options(model_config, seed, None)
@@ -679,4 +732,81 @@ class OllamaProvider(ModelProvider):
             return final_response
             
         except Exception as e:
-            raise ModelProviderError(f"Ollama multi-step conversation failed: {e}") from e 
+            raise ModelProviderError(f"Ollama multi-step conversation failed: {e}") from e
+    
+    async def _generate_multistep_conversation_with_streaming(
+        self,
+        user_messages: List[str],
+        model_config: ModelConfig,
+        system_message: Optional[str] = None,
+        seed: Optional[int] = None,
+        debug: bool = False
+    ) -> str:
+        """Generate text through a multi-step conversation with streaming output."""
+        try:
+            client = await self._get_client(model_config)
+            options = self._prepare_options(model_config, seed, None)
+            
+            # Display debug information if enabled
+            if debug:
+                print(f"\n{'='*80}")
+                print(f"DEBUG: Multi-step Conversation (Streaming) for {model_config.name}")
+                print(f"{'='*80}")
+                print(f"System Message: {system_message or 'None'}")
+                print(f"User Messages: {len(user_messages)}")
+                for i, msg in enumerate(user_messages, 1):
+                    print(f"  {i}. {msg[:100]}{'...' if len(msg) > 100 else ''}")
+                print(f"{'='*80}\n")
+            
+            # Initialize conversation memory
+            conversation_messages = []
+            
+            # Add system message if provided
+            if system_message:
+                conversation_messages.append({"role": "system", "content": system_message})
+            
+            # Process each user message sequentially
+            final_response = ""
+            for i, user_message in enumerate(user_messages, 1):
+                if debug:
+                    print(f"[CONVERSATION] Step {i}/{len(user_messages)}: Processing user message")
+                    print(f"[CONVERSATION] User: {user_message[:100]}{'...' if len(user_message) > 100 else ''}")
+                
+                # Add user message to conversation
+                conversation_messages.append({"role": "user", "content": user_message})
+                
+                # Generate streaming response
+                print(f"\n[CONVERSATION] Step {i} Response:")
+                print(f"{'='*40}")
+                
+                response_text = ""
+                async for chunk in self.stream_text(
+                    messages=conversation_messages,
+                    model_config=model_config,
+                    seed=seed
+                ):
+                    print(chunk, end="", flush=True)
+                    response_text += chunk
+                
+                print(f"\n{'='*40}")
+                
+                # Filter out think tags
+                response_text = self._filter_think_tags(response_text)
+                
+                if debug:
+                    print(f"[CONVERSATION] Step {i} Response Length: {len(response_text)} characters")
+                
+                # Add assistant response to conversation
+                conversation_messages.append({"role": "assistant", "content": response_text})
+                
+                # Store final response
+                final_response = response_text
+            
+            if debug:
+                print(f"[CONVERSATION] Completed {len(user_messages)} steps")
+                print(f"[CONVERSATION] Final response length: {len(final_response)} characters")
+            
+            return final_response
+            
+        except Exception as e:
+            raise ModelProviderError(f"Ollama multi-step conversation streaming failed: {e}") from e 

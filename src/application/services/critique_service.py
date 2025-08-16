@@ -3,8 +3,9 @@
 import json
 from typing import List, Optional
 from domain.value_objects.generation_settings import GenerationSettings
+from domain.value_objects.model_config import ModelConfig
 from domain.exceptions import StoryGenerationError
-from config.settings import AppConfig
+
 from ..interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_loader import PromptLoader
 from infrastructure.savepoints import SavepointManager
@@ -14,7 +15,7 @@ from .critique_parser import CritiqueParser, CritiqueResult
 class CritiqueService:
     """Service for handling outline critiques and iterative refinement."""
     
-    def __init__(self, model_provider: ModelProvider, config: AppConfig, prompt_loader: PromptLoader):
+    def __init__(self, model_provider: ModelProvider, config: Dict[str, Any], prompt_loader: PromptLoader):
         self.model_provider = model_provider
         self.config = config
         self.prompt_loader = prompt_loader
@@ -129,7 +130,7 @@ class CritiqueService:
             {"role": "user", "content": "You are an expert critic providing detailed, constructive feedback on story outlines. Always follow the exact format specified in the prompt.\n\n" + prompt_content}
         ]
         
-        model_config = self.config.get_model("initial_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
         response = await self.model_provider.generate_text(
             messages=messages,
             model_config=model_config,
@@ -209,7 +210,7 @@ It is extremely important that you maintain the story's integrity. Don't just re
             {"role": "user", "content": "You are an expert story outline writer specializing in iterative refinement based on professional feedback. Focus on addressing specific critique points while maintaining story integrity.\n\n" + refinement_prompt}
         ]
         
-        model_config = self.config.get_model("initial_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
         response = await self.model_provider.generate_text(
             messages=messages,
             model_config=model_config,

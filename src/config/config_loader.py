@@ -4,9 +4,7 @@ import re
 import yaml
 from pathlib import Path
 from typing import Dict, Any
-from .settings import AppConfig
 from domain.exceptions import ConfigurationError
-from domain.value_objects.generation_settings import GenerationSettings
 
 
 class ConfigLoader:
@@ -15,7 +13,7 @@ class ConfigLoader:
     def __init__(self, config_file: str = "config.md"):
         self.config_file = Path(config_file)
     
-    def load_config(self) -> AppConfig:
+    def load_config(self) -> Dict[str, Any]:
         """Load configuration from config.md frontmatter."""
         if not self.config_file.exists():
             raise ConfigurationError(f"Configuration file not found: {self.config_file}")
@@ -34,15 +32,18 @@ class ConfigLoader:
                 })
                 del config_data['translation']
             
-            # Merge infrastructure settings
+            # Merge infrastructure settings with defaults
             if 'infrastructure' in config_data:
                 infrastructure = config_data['infrastructure']
                 config_data.update({
                     'output_dir': infrastructure.get('output_dir', 'Stories'),
                     'savepoint_dir': infrastructure.get('savepoint_dir', 'SavePoints'),
                     'logs_dir': infrastructure.get('logs_dir', 'Logs'),
-                    'ollama_host': infrastructure.get('ollama_host', '127.0.0.1:11434'),
-                    'ollama_context_length': infrastructure.get('ollama_context_length', 16384),
+                                    'ollama_host': infrastructure.get('ollama_host', '127.0.0.1:11434'),
+                'lm_studio_host': infrastructure.get('lm_studio_host', '127.0.0.1:1234'),
+                'llama_cpp_host': infrastructure.get('llama_cpp_host', '127.0.0.1:8080'),
+                    'context_length': infrastructure.get('context_length', 4096),
+                    'randomize_seed': infrastructure.get('randomize_seed', True),
                 })
                 del config_data['infrastructure']
             
@@ -55,7 +56,7 @@ class ConfigLoader:
                 })
                 del config_data['api_keys']
             
-            return AppConfig.from_dict(config_data)
+            return config_data
             
         except Exception as e:
             raise ConfigurationError(f"Failed to load configuration from {self.config_file}: {e}") from e
@@ -71,7 +72,9 @@ class ConfigLoader:
         
         return match.group(1)
     
-    def get_generation_settings(self) -> GenerationSettings:
+    def get_generation_settings(self) -> "GenerationSettings":
         """Get generation settings from config."""
+        from domain.value_objects.generation_settings import GenerationSettings
         config = self.load_config()
-        return config.generation 
+        generation_data = config.get('generation', {})
+        return GenerationSettings.from_dict(generation_data) 

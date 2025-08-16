@@ -1,9 +1,10 @@
 """Setting management functionality for the outline-chapter strategy."""
 
 import json
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from domain.value_objects.generation_settings import GenerationSettings
-from config.settings import AppConfig
+from domain.value_objects.model_config import ModelConfig
+
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
@@ -16,7 +17,7 @@ class SettingManager:
     def __init__(
         self,
         model_provider: ModelProvider,
-        config: AppConfig,
+        config: Dict[str, Any],
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None
@@ -51,7 +52,7 @@ class SettingManager:
     
     async def extract_setting_names(self, story_elements: str, settings: GenerationSettings) -> List[str]:
         """Extract setting names from story elements."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         # Define JSON schema for setting names
         SETTING_NAMES_SCHEMA = {
@@ -126,7 +127,7 @@ class SettingManager:
     
     async def generate_single_setting_sheet(self, setting_name: str, story_elements: str, additional_context: str, settings: GenerationSettings) -> None:
         """Generate a setting sheet for a single setting."""
-        model_config = self.config.get_model("initial_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
         
         try:
             response = await execute_prompt_with_savepoint(
@@ -158,7 +159,7 @@ class SettingManager:
     
     async def extract_chapter_settings(self, chapter_synopsis: str, chapter_num: int, settings: GenerationSettings) -> List[str]:
         """Extract setting names from chapter synopsis."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
             # Define JSON schema for setting names
@@ -258,7 +259,7 @@ class SettingManager:
     ) -> None:
         """Generate an abridged setting summary suitable for prompt injection."""
         try:
-            model_config = self.config.get_model("initial_outline_writer")
+            model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
             
             # Create savepoint path for this setting's abridged summary
             savepoint_id = f"settings/{setting_name}/sheet-abridged"
@@ -325,7 +326,7 @@ class SettingManager:
                             continue
                 
                 # Generate updated setting sheet
-                model_config = self.config.get_model("initial_outline_writer")
+                model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
                 
                 response = await execute_prompt_with_savepoint(
                     handler=self.prompt_handler,
@@ -351,3 +352,154 @@ class SettingManager:
             except Exception as e:
                 if settings.debug:
                     print(f"[SETTING UPDATE] Error updating sheet for {setting_name}: {e}")
+    
+    async def generate_setting_summary(
+        self,
+        setting_name: str,
+        settings: GenerationSettings
+    ) -> str:
+        """Generate a natural language summary of a setting from its abridged setting sheet.
+        
+        Args:
+            setting_name: Name of the setting to summarize
+            settings: Generation settings for the request
+            
+        Returns:
+            Natural language summary of the setting, or empty string if not found
+        """
+        if not self.savepoint_manager:
+            if settings.debug:
+                print(f"[SETTING SUMMARY] No savepoint manager available for {setting_name}")
+            return ""
+        
+        try:
+            # Try to load the abridged setting sheet
+            abridged_key = f"settings/{setting_name}/sheet-abridged"
+            abridged_sheet = await self.savepoint_manager.load_step(abridged_key)
+            
+            if not abridged_sheet:
+                if settings.debug:
+                    print(f"[SETTING SUMMARY] No abridged sheet found for {setting_name}")
+                return ""
+            
+            # Generate natural language summary from the abridged sheet
+            model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
+            
+            response = await execute_prompt_with_savepoint(
+                handler=self.prompt_handler,
+                prompt_id="settings/create_summary",
+                variables={
+                    "setting_name": setting_name,
+                    "abridged_sheet": abridged_sheet
+                },
+                savepoint_id=f"settings/{setting_name}/summary",
+                model_config=model_config,
+                seed=settings.seed,
+                debug=settings.debug,
+                stream=settings.stream,
+                log_prompt_inputs=settings.log_prompt_inputs,
+                system_message=self.system_message
+            )
+            
+            if response and response.content and response.content.strip():
+                summary = response.content.strip()
+                if settings.debug:
+                    print(f"[SETTING SUMMARY] Generated summary for {setting_name}: {len(summary)} characters")
+                return summary
+            else:
+                if settings.debug:
+                    print(f"[SETTING SUMMARY] Warning: Empty response when generating summary for {setting_name}")
+                return ""
+                
+        except Exception as e:
+            if settings.debug:
+                print(f"[SETTING SUMMARY] Error generating summary for {setting_name}: {e}")
+            return ""
+    
+    async def get_setting_summaries(
+        self,
+        setting_names: List[str],
+        settings: GenerationSettings
+    ) -> str:
+        """Get natural language summaries for all settings.
+        
+        Args:
+            setting_names: List of setting names to get summaries for
+            settings: Generation settings for the request
+            
+        Returns:
+            Combined natural language summaries of all settings, suitable for prompt injection
+        """
+        if not setting_names:
+            return ""
+        
+        # Check if savepoint manager is available
+        if not self.savepoint_manager:
+            if settings.debug:
+                print(f"[SETTING SUMMARIES] No savepoint manager available, returning setting names only")
+            # Return just the setting names as a fallback
+            return "\n\n".join([f"**{name}**: Setting appears in this scene" for name in setting_names])
+        
+        summaries = []
+        for setting_name in setting_names:
+            summary = await self.generate_setting_summary(setting_name, settings)
+            if summary:
+                summaries.append(f"**{setting_name}**: {summary}")
+        
+        if summaries:
+            combined_summaries = "\n\n".join(summaries)
+            if settings.debug:
+                print(f"[SETTING SUMMARIES] Generated {len(summaries)} setting summaries")
+            return combined_summaries
+        else:
+            if settings.debug:
+                print(f"[SETTING SUMMARIES] No setting summaries generated, returning setting names only")
+            # Return just the setting names as a fallback
+            return "\n\n".join([f"**{name}**: Setting appears in this scene" for name in setting_names])
+    
+    async def get_setting_summaries_list(
+        self,
+        setting_names: List[str],
+        settings: GenerationSettings
+    ) -> str:
+        """Get a list of natural language setting summaries divided by markdown horizontal rules.
+        
+        This method generates summaries for each setting and formats them as a list separated
+        by horizontal rules (---), skipping any settings that don't have abridged summaries.
+        
+        Args:
+            setting_names: List of setting names to get summaries for
+            settings: Generation settings for the request
+            
+        Returns:
+            Formatted list of setting summaries with horizontal rule separators, or empty string if none found
+        """
+        if not setting_names:
+            return ""
+        
+        # Check if savepoint manager is available
+        if not self.savepoint_manager:
+            if settings.debug:
+                print(f"[SETTING SUMMARIES LIST] No savepoint manager available, returning setting names only")
+            # Return just the setting names as a fallback
+            return "\n\n---\n\n".join([f"**{name}**\n\nSetting appears in this scene" for name in setting_names])
+        
+        summaries = []
+        for setting_name in setting_names:
+            summary = await self.generate_setting_summary(setting_name, settings)
+            if summary:
+                summaries.append(f"**{setting_name}**\n\n{summary}")
+        
+        if summaries:
+            # Join summaries with horizontal rules, but don't add one after the last summary
+            formatted_summaries = "\n\n---\n\n".join(summaries)
+            
+            if settings.debug:
+                print(f"[SETTING SUMMARIES LIST] Generated {len(summaries)} setting summaries with horizontal rule separators")
+            
+            return formatted_summaries
+        else:
+            if settings.debug:
+                print(f"[SETTING SUMMARIES LIST] No setting summaries generated, returning setting names only")
+            # Return just the setting names as a fallback
+            return "\n\n---\n\n".join([f"**{name}**\n\nSetting appears in this scene" for name in setting_names])

@@ -4,25 +4,26 @@ This document provides an overview of all available model providers in the AI St
 
 ## Available Providers
 
-The AI Story Writer supports three main model providers, each with different capabilities and use cases:
+The AI Story Writer supports four main model providers, each with different capabilities and use cases:
 
 1. **Ollama Provider** - Local models through Ollama
 2. **LM Studio Provider** - Local models through LM Studio  
 3. **LangChain Provider** - Unified interface to multiple providers
+4. **llama.cpp Provider** - Local models through llama.cpp server
 
 ## Provider Comparison
 
-| Feature | Ollama | LM Studio | LangChain |
-|---------|--------|-----------|-----------|
-| **Local Models** | ✅ | ✅ | ✅ |
-| **Cloud Models** | ❌ | ❌ | ✅ |
-| **API Format** | Custom | OpenAI-compatible | Multiple |
-| **Model Management** | Programmatic | UI-based | Provider-specific |
-| **Cost** | Free | Free | Variable |
-| **Privacy** | 100% Local | 100% Local | Configurable |
-| **Setup Complexity** | Low | Low | Medium |
-| **Model Variety** | High | High | Very High |
-| **Multi-step Conversations** | ✅ | ✅ | ✅ |
+| Feature | Ollama | LM Studio | LangChain | llama.cpp |
+|---------|--------|-----------|-----------|-----------|
+| **Local Models** | ✅ | ✅ | ✅ | ✅ |
+| **Cloud Models** | ❌ | ❌ | ✅ | ❌ |
+| **API Format** | Custom | OpenAI-compatible | Multiple | HTTP API |
+| **Model Management** | Programmatic | UI-based | Provider-specific | Manual |
+| **Cost** | Free | Free | Variable | Free |
+| **Privacy** | 100% Local | 100% Local | Configurable | 100% Local |
+| **Setup Complexity** | Low | Low | Medium | Medium |
+| **Model Variety** | High | High | Very High | High |
+| **Multi-step Conversations** | ✅ | ✅ | ✅ | ✅ |
 
 ## Quick Start
 
@@ -136,9 +137,40 @@ models:
 langchain://provider:model_name@host:port?param1=value1&param2=value2
 ```
 
+### llama.cpp Provider
+
+**Best for**: Local models, high performance, custom server setup
+
+**Setup**:
+1. Build or download llama.cpp: https://github.com/ggerganov/llama.cpp
+2. Start the server: `./server -m models/your-model.gguf --port 8080`
+3. Or use Docker: `docker run -p 8080:8080 ghcr.io/ggerganov/llama.cpp:server`
+
+**Configuration**:
+```yaml
+llama_cpp_host: "127.0.0.1:8080"
+
+models:
+  scene_writer: "llama_cpp://llama-2-7b-chat"
+  logical_model: "llama_cpp://mistral-7b-instruct"
+```
+
+**Model Format**:
+```
+llama_cpp://model_name@host:port?param1=value1&param2=value2
+```
+
+**Supported Parameters**:
+- `temperature`: Controls randomness (0.0-1.0)
+- `top_p`: Nucleus sampling parameter
+- `top_k`: Top-k sampling parameter
+- `repeat_penalty`: Penalty for repeating tokens
+- `n_ctx`: Context window size
+- `seed`: Random seed for reproducible generation
+
 ## Multi-step Conversation Feature
 
-All three providers support **multi-step conversation with memory**, allowing you to build complex, contextual interactions.
+All four providers support **multi-step conversation with memory**, allowing you to build complex, contextual interactions.
 
 ### How It Works
 
@@ -162,12 +194,21 @@ user_messages = [
 
 system_message = "You are a creative writing coach helping develop a mystery novel."
 
-# Execute multi-step conversation
+# Non-streaming conversation
 response = await provider.generate_multistep_conversation(
     user_messages=user_messages,
     model_config=model_config,
     system_message=system_message,
     debug=True
+)
+
+# Streaming conversation (respects generation.stream setting)
+response = await provider.generate_multistep_conversation(
+    user_messages=user_messages,
+    model_config=model_config,
+    system_message=system_message,
+    debug=True,
+    stream=True  # Enable real-time streaming output
 )
 ```
 
@@ -185,7 +226,7 @@ response = await provider.generate_multistep_conversation(
 - **Memory Management**: Automatic conversation history tracking
 - **Sequential Logic**: Natural flow from simple to complex
 - **Debug Support**: Step-by-step processing visibility
-- **Provider Agnostic**: Works with all three providers
+- **Provider Agnostic**: Works with all four providers
 
 ## Advanced Configuration
 
@@ -216,13 +257,13 @@ Each provider supports different parameters:
 ```yaml
 models:
   # Ollama with custom parameters
-  scene_writer: "ollama://llama3:8b?temperature=0.7&num_ctx=8192"
+  scene_writer: "ollama://llama3:8b?temperature=0.7"
   
   # LM Studio with OpenAI-style parameters
-  logical_model: "lm_studio://mistral-7b-instruct?temperature=0.7&max_tokens=2048"
+  logical_model: "lm_studio://mistral-7b-instruct?temperature=0.7"
   
   # LangChain with provider-specific parameters
-  cloud_model: "langchain://openai:gpt-4?temperature=0.7&max_tokens=2048"
+  cloud_model: "langchain://openai:gpt-4?temperature=0.7"
 ```
 
 ### Environment Variables

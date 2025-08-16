@@ -1,10 +1,11 @@
 """Stream of Consciousness story writing strategy."""
 
-from typing import List
+from typing import List, Dict, Any
 from domain.entities.story import Story, Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
+from domain.value_objects.model_config import ModelConfig
 from domain.exceptions import StoryGenerationError
-from config.settings import AppConfig
+
 from application.interfaces.story_strategy import StoryStrategy
 from application.interfaces.model_provider import ModelProvider
 
@@ -12,7 +13,7 @@ from application.interfaces.model_provider import ModelProvider
 class StreamOfConsciousnessStrategy(StoryStrategy):
     """Story writing strategy that generates content in a stream-of-consciousness style."""
     
-    def __init__(self, model_provider: ModelProvider, config: AppConfig = None):
+    def __init__(self, model_provider: ModelProvider, config: Dict[str, Any] = None):
         super().__init__(model_provider)
         self.config = config
         # Create strategy-specific prompt loader
@@ -31,7 +32,7 @@ class StreamOfConsciousnessStrategy(StoryStrategy):
         
         response = await self.model_provider.generate_text(
             messages=messages,
-            model_config=self.config.get_model("initial_outline_writer") if self.config else None,
+            model_config=ModelConfig.from_string(self.config["models"]["initial_outline_writer"]) if self.config else None,
             seed=settings.seed,
             debug=settings.debug,
             stream=settings.stream
@@ -59,7 +60,7 @@ class StreamOfConsciousnessStrategy(StoryStrategy):
         
         response = await self.model_provider.generate_text(
             messages=messages,
-            model_config=self.config.get_model("initial_outline_writer") if self.config else None,
+            model_config=ModelConfig.from_string(self.config["models"]["initial_outline_writer"]) if self.config else None,
             seed=settings.seed,
             min_word_count=2000,
             debug=settings.debug,
@@ -97,7 +98,7 @@ class StreamOfConsciousnessStrategy(StoryStrategy):
         
         title_response = await self.model_provider.generate_text(
             messages=messages,
-            model_config=self.config.get_model("info_model") if self.config else None,
+            model_config=ModelConfig.from_string(self.config["models"]["info_model"]) if self.config else None,
             seed=settings.seed,
             debug=settings.debug,
             stream=settings.stream

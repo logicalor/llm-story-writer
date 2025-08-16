@@ -3,10 +3,11 @@
 import json
 import re
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from domain.entities.story import Outline, Chapter
 from domain.value_objects.generation_settings import GenerationSettings
-from config.settings import AppConfig
+from domain.value_objects.model_config import ModelConfig
+
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
@@ -19,7 +20,7 @@ class RecapManager:
     def __init__(
         self,
         model_provider: ModelProvider,
-        config: AppConfig,
+        config: Dict[str, Any],
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None
@@ -99,7 +100,7 @@ class RecapManager:
     
     async def extract_chapter_events(self, chapter_content: str, chapter_num: int, settings: GenerationSettings) -> str:
         """Extract events from chapter content."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         # Define JSON schema for recap events
         RECAP_EVENTS_SCHEMA = {
@@ -158,7 +159,7 @@ class RecapManager:
     
     async def assign_event_timing(self, events: str, story_start_date: str, previous_chapter_recap: str, chapter_num: int, settings: GenerationSettings) -> str:
         """Assign timing to events."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         # Define JSON schema for timed events
         TIMED_EVENTS_SCHEMA = {
@@ -221,7 +222,7 @@ class RecapManager:
     
     async def enrich_event_details(self, timed_events: str, chapter_num: int, settings: GenerationSettings) -> str:
         """Enrich event details with additional context."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         # Define JSON schema for enriched events
         ENRICHED_EVENTS_SCHEMA = {
@@ -284,7 +285,7 @@ class RecapManager:
     
     async def format_recap_output(self, enriched_events: str, chapter_num: int, settings: GenerationSettings) -> str:
         """Format the final recap output."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         # Define JSON schema for formatted recap
         FORMATTED_RECAP_SCHEMA = {
@@ -355,7 +356,7 @@ class RecapManager:
     
     async def generate_recap_fallback(self, chapter_num: int, chapter_outline: str, story_start_date: str, previous_chapter_recap: str, settings: GenerationSettings) -> str:
         """Fallback recap generation method."""
-        model_config = self.config.get_model("chapter_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["chapter_writer"])
         
         # Since we're always loading from savepoints now, this fallback function is no longer needed
         # The recap should already exist in the savepoint from when the chapter was created
@@ -386,7 +387,7 @@ class RecapManager:
     
     async def run_recap_sanitizer(self, recap: str, story_start_date: str, previous_chapter_recap: str, settings: GenerationSettings) -> str:
         """Run recap sanitizer to ensure consistency."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -423,7 +424,7 @@ class RecapManager:
         
         try:
             # Use the enhanced sanitizer directly (no more multi-stage)
-            model_config = self.config.get_model("logical_model")
+            model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
             
             response = await execute_prompt_with_savepoint(
                 handler=self.prompt_handler,
@@ -573,7 +574,7 @@ class RecapManager:
     
     async def convert_recap_to_json(self, recap: str, settings: GenerationSettings) -> str:
         """Convert recap to JSON format for programmatic analysis."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -643,7 +644,7 @@ class RecapManager:
     
     async def classify_event_recency_model_based(self, events_json: str, current_date: str, settings: GenerationSettings) -> str:
         """Classify events by recency using model-based approach."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         # Define JSON schema for classified events
         CLASSIFIED_EVENTS_SCHEMA = {
@@ -735,7 +736,7 @@ class RecapManager:
         else:
             compaction_level = "heavy"
         
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         # Define JSON schema for compacted recap
         COMPACTED_RECAP_SCHEMA = {

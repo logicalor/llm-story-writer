@@ -99,35 +99,19 @@ class CLIApplication:
         # Calculate statistics
         end_time = time.time()
         duration = end_time - start_time
-        word_count = story.info.word_count
         
         # Log completion
-        self.logger.log_generation_complete(
-            word_count=word_count,
-            chapter_count=story.info.chapter_count,
-            duration=duration,
-            output_path=output_path
-        )
+        self.logger.info("Story generation completed", 
+                        duration=duration,
+                        output_path=str(output_path))
         
-        # Print summary
-        self._print_summary(story, duration, output_path)
-    
-    def _print_summary(self, story, duration: float, output_path: str):
-        """Print generation summary."""
-        print(f"\n{'='*60}")
-        print(f"Story Generation Complete!")
-        print(f"{'='*60}")
-        print(f"Title: {story.info.title}")
-        print(f"Chapters: {story.info.chapter_count}")
-        print(f"Words: {story.info.word_count:,}")
-        print(f"Duration: {duration:.2f} seconds")
-        print(f"Output: {output_path}")
-        print(f"Strategy: {story.settings.get('strategy', 'Unknown')}")
-        print(f"{'='*60}")
+        print(f"\n✅ Story generated successfully!")
+        print(f"📁 Output saved to: {output_path}")
+        print(f"⏱️  Total time: {duration:.2f} seconds")
 
 
 def main():
-    """Main entry point."""
+    """Main CLI entry point."""
     app = CLIApplication()
     asyncio.run(app.run())
 

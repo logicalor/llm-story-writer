@@ -199,7 +199,6 @@ async def example_usage():
     settings = GenerationSettings(
         model="ollama://llama3:70b",
         temperature=0.7,
-        max_tokens=2000,
         seed=42
     )
     

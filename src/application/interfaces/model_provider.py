@@ -29,7 +29,8 @@ class ModelProvider(ABC):
         model_config: ModelConfig,
         system_message: Optional[str] = None,
         seed: Optional[int] = None,
-        debug: bool = False
+        debug: bool = False,
+        stream: bool = False
     ) -> str:
         """Generate text through a multi-step conversation with memory."""
         pass

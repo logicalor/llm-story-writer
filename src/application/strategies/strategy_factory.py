@@ -1,11 +1,10 @@
 """Strategy factory for managing story writing strategies."""
 
-from typing import Dict, Type, Optional
+from typing import Dict, Type, Optional, Any
 from domain.exceptions import ConfigurationError
 from domain.repositories.savepoint_repository import SavepointRepository
 from ..interfaces.story_strategy import StoryStrategy
 from ..interfaces.model_provider import ModelProvider
-from config.settings import AppConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
 from .outline_chapter.strategy import OutlineChapterStrategy
 from .stream_of_consciousness.strategy import StreamOfConsciousnessStrategy
@@ -44,7 +43,7 @@ class StrategyFactory:
         self,
         strategy_name: str,
         model_provider: ModelProvider,
-        config: AppConfig,
+        config: Dict[str, Any],
         prompt_loader: PromptLoader,
         savepoint_repo: Optional[SavepointRepository] = None
     ) -> StoryStrategy:
@@ -70,7 +69,7 @@ class StrategyFactory:
         self,
         strategy_name: str,
         model_provider: ModelProvider,
-        config: AppConfig,
+        config: Dict[str, Any],
         savepoint_repo: Optional[SavepointRepository] = None
     ) -> StoryStrategy:
         """Create a strategy instance with its own prompt loader."""
@@ -103,7 +102,7 @@ class StrategyFactory:
     def validate_strategy_requirements(
         self,
         strategy_name: str,
-        config: AppConfig
+        config: Dict[str, Any]
     ) -> bool:
         """Validate that a strategy's requirements are met."""
         if strategy_name not in self._strategies:

@@ -3,8 +3,9 @@
 from typing import List
 from domain.entities.story import StoryInfo, Outline, Chapter
 from domain.value_objects.generation_settings import GenerationSettings
+from domain.value_objects.model_config import ModelConfig
 from domain.exceptions import StoryGenerationError
-from config.settings import AppConfig
+
 from ..interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_loader import PromptLoader
 
@@ -12,7 +13,7 @@ from infrastructure.prompts.prompt_loader import PromptLoader
 class StoryInfoService:
     """Service for generating story metadata."""
     
-    def __init__(self, model_provider: ModelProvider, config: AppConfig, prompt_loader: PromptLoader):
+    def __init__(self, model_provider: ModelProvider, config: Dict[str, Any], prompt_loader: PromptLoader):
         self.model_provider = model_provider
         self.config = config
         self.prompt_loader = prompt_loader
@@ -66,7 +67,7 @@ class StoryInfoService:
         
         messages = [{"role": "user", "content": prompt_content}]
         
-        model_config = self.config.get_model("info_model")
+        model_config = ModelConfig.from_string(self.config["models"]["info_model"])
         response = await self.model_provider.generate_text(
             messages=messages,
             model_config=model_config,
@@ -97,7 +98,7 @@ class StoryInfoService:
         
         messages = [{"role": "user", "content": prompt_content}]
         
-        model_config = self.config.get_model("info_model")
+        model_config = ModelConfig.from_string(self.config["models"]["info_model"])
         response = await self.model_provider.generate_text(
             messages=messages,
             model_config=model_config,
@@ -128,7 +129,7 @@ class StoryInfoService:
         
         messages = [{"role": "user", "content": prompt_content}]
         
-        model_config = self.config.get_model("info_model")
+        model_config = ModelConfig.from_string(self.config["models"]["info_model"])
         response = await self.model_provider.generate_json(
             messages=messages,
             model_config=model_config,

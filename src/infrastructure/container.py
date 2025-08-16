@@ -2,14 +2,14 @@
 
 from dependency_injector import containers, providers
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Any
 
-from config.settings import AppConfig
 from application.services.story_generation_service import StoryGenerationService
 from application.strategies.strategy_factory import StrategyFactory
 from .providers.ollama_provider import OllamaProvider
 from .providers.lm_studio_provider import LMStudioProvider
 from .providers.langchain_provider import LangChainProvider
+from .providers.llama_cpp_provider import LlamaCppProvider
 from .storage.file_storage import FileStorage
 from .storage.savepoint_repository import FilesystemSavepointRepository
 from .logging.structured_logger import StructuredLogger, LogLevel
@@ -21,9 +21,6 @@ class Container(containers.DeclarativeContainer):
     
     # Configuration
     config = providers.Configuration()
-    
-    # Store the actual AppConfig object
-    app_config = providers.Configuration()
     
     # Infrastructure
     logger = providers.Singleton(
@@ -40,17 +37,30 @@ class Container(containers.DeclarativeContainer):
     
     ollama_provider = providers.Singleton(
         OllamaProvider,
-        host=config.ollama_host
+        host=config.ollama_host,
+        context_length=config.context_length,
+        randomize_seed=config.randomize_seed
     )
     
     lm_studio_provider = providers.Singleton(
         LMStudioProvider,
-        host=config.lm_studio_host
+        host=config.lm_studio_host,
+        context_length=config.context_length,
+        randomize_seed=config.randomize_seed
     )
     
     langchain_provider = providers.Singleton(
         LangChainProvider,
-        api_keys=config.api_keys
+        api_keys=config.api_keys,
+        context_length=config.context_length,
+        randomize_seed=config.randomize_seed
+    )
+    
+    llama_cpp_provider = providers.Singleton(
+        LlamaCppProvider,
+        host=config.llama_cpp_host,
+        context_length=config.context_length,
+        randomize_seed=config.randomize_seed
     )
     
     file_storage = providers.Singleton(
@@ -68,11 +78,11 @@ class Container(containers.DeclarativeContainer):
     
     # Strategy (created dynamically based on config)
     strategy = providers.Factory(
-        lambda factory, model_provider, app_config, savepoint_repo: 
-        factory.create_strategy_with_prompts(app_config.generation.strategy, model_provider, app_config, savepoint_repo),
+        lambda factory, model_provider, config, savepoint_repo: 
+        factory.create_strategy_with_prompts(config.get('generation', {}).get('strategy', 'outline-chapter'), model_provider, config, savepoint_repo),
         factory=strategy_factory,
         model_provider=ollama_provider,
-        app_config=app_config,
+        config=config,
         savepoint_repo=savepoint_repository
     )
     
@@ -86,42 +96,12 @@ class Container(containers.DeclarativeContainer):
     )
     
     @classmethod
-    def create_from_config(cls, app_config: AppConfig) -> "Container":
-        """Create container from application config."""
+    def create_from_config(cls, config_data: Dict[str, Any]) -> "Container":
+        """Create container from configuration data."""
         container = cls()
         
         # Set configuration values
-        container.config.from_dict(app_config.to_dict())
-        container.app_config.override(providers.Object(app_config))
-        
-        # Override providers with config-specific settings
-        container.ollama_provider.override(
-            providers.Singleton(
-                OllamaProvider,
-                host=app_config.ollama_host
-            )
-        )
-        
-        container.lm_studio_provider.override(
-            providers.Singleton(
-                LMStudioProvider,
-                host=app_config.lm_studio_host
-            )
-        )
-        
-        container.file_storage.override(
-            providers.Singleton(
-                FileStorage,
-                base_path=app_config.output_dir
-            )
-        )
-        
-        container.savepoint_repository.override(
-            providers.Singleton(
-                FilesystemSavepointRepository,
-                base_path=app_config.savepoint_dir
-            )
-        )
+        container.config.from_dict(config_data)
         
         return container
     
@@ -138,9 +118,11 @@ class Container(containers.DeclarativeContainer):
             return self.lm_studio_provider()
         elif provider_name == "langchain":
             return self.langchain_provider()
+        elif provider_name == "llama_cpp":
+            return self.llama_cpp_provider()
         else:
             raise ValueError(f"Unknown model provider: {provider_name}")
     
     def get_generation_settings(self):
         """Get generation settings from config."""
-        return self.app_config().generation 
+        return self.config.generation() 

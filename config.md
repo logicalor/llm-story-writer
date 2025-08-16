@@ -20,6 +20,7 @@ models:
   sanity_model: "ollama://huihui_ai/deepseek-r1-abliterated:7b?think=true"
   logical_model: "ollama://huihui_ai/qwen2.5-coder-abliterate:7b"
   scene_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
+  creative_model: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
   #scene_writer: "ollama://hf.co/DavidAU/L3-DARKEST-PLANET-16.5B-GGUF"
 
 # Generation Settings
@@ -27,7 +28,7 @@ generation:
   seed: 12
   outline_quality: 87
   chapter_quality: 85
-  wanted_chapters: 5
+  wanted_chapters: 25
   outline_min_revisions: 0
   outline_max_revisions: 3
   chapter_min_revisions: 0
@@ -60,7 +61,9 @@ infrastructure:
   savepoint_dir: "/home/shaun/Documents/stories/saves"
   logs_dir: "Logs"
   ollama_host: "127.0.0.1:11434"
-  ollama_context_length: 16384
+  llama_cpp_host: "127.0.0.1:8080"
+  context_length: 32000
+  randomize_seed: true
 
 # API Keys (set via environment variables)
 api_keys:
@@ -144,7 +147,6 @@ The `infrastructure` section controls system behavior:
 - `savepoint_dir`: Directory for savepoint files
 - `logs_dir`: Directory for log files
 - `ollama_host`: Ollama server host and port
-- `ollama_context_length`: Maximum context length for Ollama models
 
 ## 🔧 Model Format Reference
 

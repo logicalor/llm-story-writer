@@ -1,12 +1,11 @@
 """Outline-Chapter story writing strategy."""
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from domain.entities.story import Story, Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from domain.exceptions import StoryGenerationError
 from domain.repositories.savepoint_repository import SavepointRepository
-from config.settings import AppConfig
 from application.interfaces.story_strategy import StoryStrategy
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_loader import PromptLoader
@@ -23,7 +22,7 @@ class OutlineChapterStrategy(StoryStrategy):
     def __init__(
         self, 
         model_provider: ModelProvider, 
-        config: AppConfig, 
+        config: Dict[str, Any], 
         prompt_loader: PromptLoader,
         savepoint_repo: Optional[SavepointRepository] = None
     ):
@@ -199,7 +198,7 @@ You have deep knowledge of storytelling techniques, character development, plot 
     # Story info generation methods
     async def _generate_title(self, outline: Outline, chapters: List[Chapter], settings: GenerationSettings) -> str:
         """Generate story title."""
-        model_config = self.config.get_model("info_model")
+        model_config = ModelConfig.from_string(self.config["models"]["info_model"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -221,7 +220,7 @@ You have deep knowledge of storytelling techniques, character development, plot 
     
     async def _generate_summary(self, outline: Outline, chapters: List[Chapter], settings: GenerationSettings) -> str:
         """Generate story summary."""
-        model_config = self.config.get_model("info_model")
+        model_config = ModelConfig.from_string(self.config["models"]["info_model"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -243,7 +242,7 @@ You have deep knowledge of storytelling techniques, character development, plot 
     
     async def _generate_tags(self, outline: Outline, chapters: List[Chapter], settings: GenerationSettings) -> List[str]:
         """Generate story tags."""
-        model_config = self.config.get_model("info_model")
+        model_config = ModelConfig.from_string(self.config["models"]["info_model"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,

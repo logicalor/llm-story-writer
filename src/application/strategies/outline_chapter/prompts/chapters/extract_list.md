@@ -11,7 +11,7 @@ You are tasked with extracting a structured list of chapters from a combined sto
 Analyze the outline and extract each chapter as a structured entry. Return the result as a JSON array where each chapter has:
 - `number`: The chapter number (integer)
 - `title`: The chapter title or heading
-- `description`: A brief description of what happens in the chapter
+- `description`: The entire chapter description
 
 <COMBINED_OUTLINE>
 {outline}
@@ -39,6 +39,6 @@ Example format:
 ## Guidelines
 - Extract chapters in the order they appear in the outline
 - Use the exact chapter titles/headings from the outline
-- Provide concise but descriptive summaries
+- Provide the original description for each chapter
 - Ensure the JSON is valid and properly formatted
 - Do not add any commentary or explanations outside the JSON

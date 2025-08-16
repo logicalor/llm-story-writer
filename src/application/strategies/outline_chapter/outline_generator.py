@@ -3,11 +3,12 @@
 from typing import List, Optional, Dict, Any
 from domain.entities.story import Outline
 from domain.value_objects.generation_settings import GenerationSettings
+from domain.value_objects.model_config import ModelConfig
 from domain.exceptions import StoryGenerationError
-from config.settings import AppConfig
+
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
-from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
+from infrastructure.prompts.prompt_wrapper import execute_messages_with_savepoint, execute_prompt_with_savepoint, extract_boxed_solution
 from infrastructure.savepoints import SavepointManager
 from .character_manager import CharacterManager
 from .setting_manager import SettingManager
@@ -20,7 +21,7 @@ class OutlineGenerator:
     def __init__(
         self,
         model_provider: ModelProvider,
-        config: AppConfig,
+        config: Dict[str, Any],
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None
@@ -55,14 +56,41 @@ class OutlineGenerator:
     ) -> Outline:
         """Generate story outline from prompt."""
         try:
+            conversation_history = []
+            model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+
+            prompt_prompt = self.prompt_handler.prompt_loader.load_prompt("multistep/outline/understand_prompt", {
+                "prompt": prompt,
+            })
+            conversation_history.append({"role": "user", "content": prompt_prompt})
+
+            response = await execute_messages_with_savepoint(
+                handler=self.prompt_handler,
+                conversation_history=conversation_history,
+                model_config=model_config,
+                debug=settings.debug,
+                stream=True,
+                use_boxed_solution=True
+            )
+            if 'I understand' not in response.content and 'I\ understand' not in response.content:
+                raise StoryGenerationError(f"User did not understand the prompt: {response.content.strip()}")
+
             # Extract story start date
-            start_date = await self._extract_story_start_date(prompt, settings)
+            start_date = await self._extract_story_start_date(prompt, settings, conversation_history)
             
             # Extract base context
-            base_context = await self._extract_base_context(prompt, settings)
+            base_context = await self._extract_base_context(prompt, settings, conversation_history)
             
             # Generate story elements
-            story_elements = await self._generate_story_elements(prompt, base_context, settings)
+            story_elements = await self._generate_story_elements(prompt, base_context, settings, conversation_history)
+
+            await self.character_manager.generate_character_sheets(story_elements, base_context, settings)
+            await self.setting_manager.generate_setting_sheets(story_elements, base_context, settings)
+            await self._generate_stripped_story_elements(story_elements, settings)
+
+            enrichment_suggestions = await self._analyze_story_enrichment(
+                prompt, story_elements, base_context, settings
+            )
             
             # Generate initial outline (this now includes critique refinement)
             # Use stripped story elements for outline generation to avoid character/setting duplication
@@ -105,80 +133,80 @@ class OutlineGenerator:
         except Exception as e:
             raise StoryGenerationError(f"Failed to generate outline: {e}") from e
     
-    async def _extract_story_start_date(self, prompt: str, settings: GenerationSettings) -> str:
+    async def _extract_story_start_date(self, prompt: str, settings: GenerationSettings, conversation_history: list) -> str:
         """Extract story start date from prompt."""
-        model_config = self.config.get_model("logical_model")
-        
-        response = await execute_prompt_with_savepoint(
+        model_config = ModelConfig.from_string(self.config["models"]["creative_model"])
+
+        story_start_date_prompt = self.prompt_handler.prompt_loader.load_prompt("multistep/outline/story_start_date")
+        conversation_history.append({"role": "user", "content": story_start_date_prompt})
+
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
-            prompt_id="extract_story_start_date",
-            variables={"prompt": prompt},
+            conversation_history=conversation_history,
             savepoint_id="story_start_date",
             model_config=model_config,
-            seed=settings.seed,
             debug=settings.debug,
-            stream=settings.stream,
-            log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            stream=True,
+            use_boxed_solution=True
         )
         
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+
         return response.content.strip()
     
-    async def _extract_base_context(self, prompt: str, settings: GenerationSettings) -> str:
+    async def _extract_base_context(self, prompt: str, settings: GenerationSettings, conversation_history: list) -> str:
         """Extract important base context from prompt."""
-        model_config = self.config.get_model("initial_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+
+        base_context_prompt = self.prompt_handler.prompt_loader.load_prompt("multistep/outline/base_context", {
+            "prompt": prompt,
+        })
+        conversation_history.append({"role": "user", "content": base_context_prompt})
         
-        response = await execute_prompt_with_savepoint(
+        
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
-            prompt_id="extract_base_context",
-            variables={"prompt": prompt},
+            conversation_history=conversation_history,
             savepoint_id="base_context",
             model_config=model_config,
-            seed=settings.seed,
             debug=settings.debug,
-            stream=settings.stream,
-            log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            stream=True,
+            use_boxed_solution=True
         )
         
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+
         return response.content.strip()
     
-    async def _generate_story_elements(self, prompt: str, base_context: str, settings: GenerationSettings) -> str:
+    async def _generate_story_elements(self, prompt: str, base_context: str, settings: GenerationSettings, conversation_history: list) -> str:
         """Generate story elements from prompt."""
-        model_config = self.config.get_model("initial_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
         
-        response = await execute_prompt_with_savepoint(
+        elements_prompt = self.prompt_handler.prompt_loader.load_prompt("multistep/outline/story_elements", {
+            "prompt": prompt,
+            "base_context": base_context,
+        })
+        conversation_history.append({"role": "user", "content": elements_prompt})
+
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
-            prompt_id="outline/create_elements",
-            variables={"prompt": prompt},
+            conversation_history=conversation_history,
             savepoint_id="story_elements",
             model_config=model_config,
-            seed=settings.seed,
             debug=settings.debug,
-            stream=settings.stream,
-            log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            stream=True,
+            use_boxed_solution=True
         )
         
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+
         story_elements = response.content.strip()
-        
-        # Generate character sheets after story elements
-        if self.savepoint_manager:
-            # Update managers with current savepoint manager
-            self.character_manager.savepoint_manager = self.savepoint_manager
-            self.setting_manager.savepoint_manager = self.savepoint_manager
-            
-            await self.character_manager.generate_character_sheets(story_elements, base_context, settings)
-            # Generate setting sheets after character sheets
-            await self.setting_manager.generate_setting_sheets(story_elements, base_context, settings)
-            # Generate stripped story elements (without characters/settings) for future use
-            await self._generate_stripped_story_elements(story_elements, settings)
-        
+
         return story_elements
     
     async def _generate_stripped_story_elements(self, story_elements: str, settings: GenerationSettings) -> str:
         """Generate a version of story elements with characters and specific settings removed."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -218,76 +246,8 @@ class OutlineGenerator:
             print(f"[OUTLINE GENERATION] wanted_chapters: {settings.wanted_chapters}")
             print(f"[OUTLINE GENERATION] outline_chunk_size: {settings.outline_chunk_size}")
         
-        if settings.use_chunked_outline_generation:
-            print(f"[OUTLINE GENERATION] Using chunked generation approach")
-            return await self._generate_initial_outline_chunked(prompt, story_elements, base_context, settings)
-        else:
-            print(f"[OUTLINE GENERATION] Using single-pass generation approach")
-            return await self._generate_initial_outline_single_pass(prompt, story_elements, base_context, settings)
-    
-    async def _generate_initial_outline_single_pass(
-        self,
-        prompt: str,
-        story_elements: str,
-        base_context: str,
-        settings: GenerationSettings
-    ) -> str:
-        """Generate initial story outline in a single pass (original method)."""
-        model_config = self.config.get_model("initial_outline_writer")
-        
-        # Generate initial outline using the prompt handler
-        response = await execute_prompt_with_savepoint(
-            handler=self.prompt_handler,
-            prompt_id="outline/create",
-            variables={
-                "prompt": prompt,
-                "story_elements": story_elements,
-                "base_context": base_context,
-                "desired_chapters": settings.wanted_chapters
-            },
-            savepoint_id="initial_outline",
-            model_config=model_config,
-            seed=settings.seed,
-            debug=settings.debug,
-            stream=settings.stream,
-            log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message,
-            min_word_count=500
-        )
-        
-        initial_outline = response.content.strip()
-        
-        # Apply iterative critique refinement if enabled
-        if settings.enable_outline_critique:
-            from application.services.critique_service import CritiqueService
-            critique_service = CritiqueService(self.model_provider, self.config, self.prompt_handler.prompt_loader)
-            
-            # Save the initial outline
-            if self.savepoint_manager:
-                await self.savepoint_manager.save_step("initial_outline", initial_outline)
-            
-            refined_outline = await critique_service.refine_outline_iteratively(
-                initial_outline=initial_outline,
-                story_elements=story_elements,
-                base_context=base_context,
-                prompt=prompt,
-                settings=settings,
-                max_iterations=settings.outline_critique_iterations,
-                savepoint_manager=self.savepoint_manager
-            )
-            
-            # Save the final refined outline
-            if self.savepoint_manager:
-                await self.savepoint_manager.save_step("final_outline", refined_outline)
-            
-            return refined_outline
-        else:
-            # Save the initial outline as final if critique is disabled
-            if self.savepoint_manager:
-                await self.savepoint_manager.save_step("initial_outline", initial_outline)
-                await self.savepoint_manager.save_step("final_outline", initial_outline)
-            
-            return initial_outline
+        print(f"[OUTLINE GENERATION] Using chunked generation approach")
+        return await self._generate_initial_outline_chunked(prompt, story_elements, base_context, settings)
     
     async def _generate_initial_outline_chunked(
         self,
@@ -349,25 +309,104 @@ class OutlineGenerator:
         base_context: str,
         settings: GenerationSettings
     ) -> str:
-        """Analyze opportunities to enrich the story."""
-        model_config = self.config.get_model("initial_outline_writer")
+        """Analyze opportunities to enrich the story using a multistep approach."""
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+
+        # First extract the characters and setting names from the story elements
+        characters = await self.character_manager.extract_character_names(story_elements, settings)
+        setting_names = await self.setting_manager.extract_setting_names(story_elements, settings)
+
+        # Then get character summaries
+        character_summaries = await self.character_manager.get_character_summaries(characters, settings)
+
+        # Then get setting summaries
+        setting_summaries = await self.setting_manager.get_setting_summaries(setting_names, settings)
         
-        response = await execute_prompt_with_savepoint(
+        # Build conversation history through multistep approach
+        conversation_history = []
+        
+        # Step 1: Understand story elements
+        story_elements_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/outline/enrichment/understand_story_elements",
+            {"story_elements": story_elements}
+        )
+        conversation_history.append({"role": "user", "content": story_elements_prompt})
+        
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
-            prompt_id="outline/analyze_enrichment",
-            variables={
-                "prompt": prompt,
-                "story_elements": story_elements,
-                "base_context": base_context,
-                "desired_chapters": settings.wanted_chapters
-            },
+            conversation_history=conversation_history,
+            savepoint_id="enrichment_step1_story_elements",
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 2: Understand base context
+        base_context_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/outline/enrichment/understand_base_context",
+            {"base_context": base_context}
+        )
+        conversation_history.append({"role": "user", "content": base_context_prompt})
+        
+        response = await execute_messages_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            savepoint_id="enrichment_step2_base_context",
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 3: Understand character summaries
+        character_summaries_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/outline/enrichment/understand_character_summaries",
+            {"character_summaries": character_summaries}
+        )
+        conversation_history.append({"role": "user", "content": character_summaries_prompt})
+        
+        response = await execute_messages_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            savepoint_id="enrichment_step3_character_summaries",
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 4: Understand setting summaries
+        setting_summaries_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/outline/enrichment/understand_setting_summaries",
+            {"setting_summaries": setting_summaries}
+        )
+        conversation_history.append({"role": "user", "content": setting_summaries_prompt})
+        
+        response = await execute_messages_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            savepoint_id="enrichment_step4_setting_summaries",
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 5: Analyze enrichment opportunities
+        analyze_enrichment_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/outline/enrichment/analyze_enrichment",
+            {"desired_chapters": settings.wanted_chapters}
+        )
+        conversation_history.append({"role": "user", "content": analyze_enrichment_prompt})
+        
+        response = await execute_messages_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
             savepoint_id="enrichment_suggestions",
             model_config=model_config,
-            seed=settings.seed,
             debug=settings.debug,
-            stream=settings.stream,
-            log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
+            stream=settings.stream
         )
         
         return response.content.strip()
@@ -381,7 +420,7 @@ class OutlineGenerator:
         settings: GenerationSettings
     ) -> str:
         """Generate the main outline skeleton."""
-        model_config = self.config.get_model("initial_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -472,7 +511,7 @@ class OutlineGenerator:
         settings: GenerationSettings
     ) -> str:
         """Generate outline for a specific chunk of chapters."""
-        model_config = self.config.get_model("initial_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -505,7 +544,7 @@ class OutlineGenerator:
         settings: GenerationSettings
     ) -> str:
         """Analyze continuity between chunks to maintain story flow."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -586,7 +625,7 @@ class OutlineGenerator:
         settings: GenerationSettings
     ) -> List[Dict[str, Any]]:
         """Extract chapters from combined outline as a structured list."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["creative_model"])
         
         # Define JSON schema for chapter list
         CHAPTER_LIST_SCHEMA = {
@@ -661,7 +700,7 @@ class OutlineGenerator:
         settings: GenerationSettings
     ) -> str:
         """Generate synopsis for a single chapter."""
-        model_config = self.config.get_model("chapter_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["chapter_outline_writer"])
         
         # Get previous chapter synopsis if this is not the first chapter
         previous_chapter = ""
@@ -735,7 +774,7 @@ class OutlineGenerator:
         settings: GenerationSettings
     ) -> str:
         """Generate detailed chapter list from outline (for single-pass generation)."""
-        model_config = self.config.get_model("chapter_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["chapter_outline_writer"])
         
         # Define JSON schema for chapter list
         CHAPTER_LIST_SCHEMA = {

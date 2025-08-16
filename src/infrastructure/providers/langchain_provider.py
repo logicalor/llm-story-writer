@@ -13,8 +13,10 @@ from application.interfaces.model_provider import ModelProvider
 class LangChainProvider(ModelProvider):
     """LangChain model provider implementation."""
     
-    def __init__(self, api_keys: Optional[Dict[str, str]] = None):
+    def __init__(self, api_keys: Optional[Dict[str, str]] = None, context_length: int = 16384, randomize_seed: bool = True):
         self.api_keys = api_keys or {}
+        self.context_length = context_length
+        self.randomize_seed = randomize_seed
         self.clients = {}
         self._ensure_langchain_installed()
     
@@ -101,7 +103,7 @@ class LangChainProvider(ModelProvider):
         print(f"[PROMPT STATS] Messages by role: {role_counts}")
         
         # Warn if token count is very high
-        context_length = model_config.parameters.get('max_tokens', 16384)
+        context_length = model_config.parameters.get('max_tokens', self.context_length)
         if token_count > context_length * 0.8:  # Warn at 80% of context length
             print(f"[PROMPT STATS] ⚠️  WARNING: Prompt uses {token_count:,} tokens, approaching context limit of {context_length:,}")
         elif token_count > context_length * 0.6:  # Info at 60% of context length
@@ -159,9 +161,41 @@ class LangChainProvider(ModelProvider):
         model_config: ModelConfig,
         system_message: Optional[str] = None,
         seed: Optional[int] = None,
-        debug: bool = False
+        debug: bool = False,
+        stream: bool = False
     ) -> str:
         """Generate text through a multi-step conversation with memory."""
+        try:
+            if stream:
+                # Use streaming for stream mode
+                return await self._generate_multistep_conversation_with_streaming(
+                    user_messages=user_messages,
+                    model_config=model_config,
+                    system_message=system_message,
+                    seed=seed,
+                    debug=debug
+                )
+            else:
+                # Use non-streaming for normal mode
+                return await self._generate_multistep_conversation_non_streaming(
+                    user_messages=user_messages,
+                    model_config=model_config,
+                    system_message=system_message,
+                    seed=seed,
+                    debug=debug
+                )
+        except Exception as e:
+            raise ModelProviderError(f"LangChain multi-step conversation failed: {e}") from e
+    
+    async def _generate_multistep_conversation_non_streaming(
+        self,
+        user_messages: List[str],
+        model_config: ModelConfig,
+        system_message: Optional[str] = None,
+        seed: Optional[int] = None,
+        debug: bool = False
+    ) -> str:
+        """Generate text through a multi-step conversation without streaming."""
         try:
             llm = await self._get_llm(model_config)
             options = self._prepare_options(model_config, seed, None)
@@ -228,6 +262,85 @@ class LangChainProvider(ModelProvider):
             
         except Exception as e:
             raise ModelProviderError(f"LangChain multi-step conversation failed: {e}") from e
+    
+    async def _generate_multistep_conversation_with_streaming(
+        self,
+        user_messages: List[str],
+        model_config: ModelConfig,
+        system_message: Optional[str] = None,
+        seed: Optional[int] = None,
+        debug: bool = False
+    ) -> str:
+        """Generate text through a multi-step conversation with streaming output."""
+        try:
+            llm = await self._get_llm(model_config)
+            options = self._prepare_options(model_config, seed, None)
+            
+            # Display debug information if enabled
+            if debug:
+                print(f"\n{'='*80}")
+                print(f"DEBUG: Multi-step Conversation (Streaming) for {model_config.name}")
+                print(f"{'='*80}")
+                print(f"System Message: {system_message or 'None'}")
+                print(f"User Messages: {len(user_messages)}")
+                for i, msg in enumerate(user_messages, 1):
+                    print(f"  {i}. {msg[:100]}{'...' if len(msg) > 100 else ''}")
+                print(f"{'='*80}\n")
+            
+            # Initialize conversation memory
+            conversation_memory = self._create_conversation_memory()
+            
+            # Add system message if provided
+            if system_message:
+                conversation_memory.chat_memory.add_message(
+                    self._create_system_message(system_message)
+                )
+            
+            # Process each user message sequentially
+            final_response = ""
+            for i, user_message in enumerate(user_messages, 1):
+                if debug:
+                    print(f"[CONVERSATION] Step {i}/{len(user_messages)}: Processing user message")
+                    print(f"[CONVERSATION] User: {user_message[:100]}{'...' if len(user_message) > 100 else ''}")
+                
+                # Add user message to memory
+                conversation_memory.chat_memory.add_user_message(user_message)
+                
+                # Get conversation history
+                conversation_history = conversation_memory.load_memory_variables({})
+                messages = conversation_history.get("history", [])
+                
+                # Generate streaming response
+                print(f"\n[CONVERSATION] Step {i} Response:")
+                print(f"{'='*40}")
+                
+                response_text = ""
+                async for chunk in self._stream_langchain_response(llm, messages):
+                    print(chunk, end="", flush=True)
+                    response_text += chunk
+                
+                print(f"\n{'='*40}")
+                
+                # Filter out think tags if present
+                response_text = self._filter_think_tags(response_text)
+                
+                if debug:
+                    print(f"[CONVERSATION] Step {i} Response Length: {len(response_text)} characters")
+                
+                # Add assistant response to memory
+                conversation_memory.chat_memory.add_ai_message(response_text)
+                
+                # Store final response
+                final_response = response_text
+            
+            if debug:
+                print(f"[CONVERSATION] Completed {len(user_messages)} steps")
+                print(f"[CONVERSATION] Final response length: {len(final_response)} characters")
+            
+            return final_response
+            
+        except Exception as e:
+            raise ModelProviderError(f"LangChain multi-step conversation streaming failed: {e}") from e
     
     async def _generate_text_non_streaming(
         self,
@@ -594,15 +707,28 @@ class LangChainProvider(ModelProvider):
         """Prepare options for LangChain API call."""
         options = model_config.parameters.copy()
         
-        # Set default context length if not specified
+        # Set context length from infrastructure config if not specified
         if 'max_tokens' not in options:
-            options['max_tokens'] = 16384
+            options['max_tokens'] = self.context_length
+        # If max_tokens is specified but exceeds infrastructure limit, cap it
+        elif options['max_tokens'] > self.context_length:
+            print(f"[LANGCHAIN] Warning: Requested max_tokens {options['max_tokens']} exceeds infrastructure limit {self.context_length}, capping to {self.context_length}")
+            options['max_tokens'] = self.context_length
         
-        # Set seed if provided, with automatic randomness
+        # Set seed if provided, with conditional randomness
         if seed is not None:
-            # Add random offset to ensure variety in generation
-            random_offset = random.randint(1, 10000)
-            options['seed'] = seed + random_offset
+            # Check if we should randomize the seed
+            should_randomize = self.randomize_seed and not model_config.parameters.get('static_seed', False)
+            
+            if should_randomize:
+                # Add random offset to ensure variety in generation
+                random_offset = random.randint(1, 10000)
+                options['seed'] = seed + random_offset
+                print(f"[LANGCHAIN] Seed randomized: {seed} + {random_offset} = {options['seed']}")
+            else:
+                # Use exact seed without randomization
+                options['seed'] = seed
+                print(f"[LANGCHAIN] Using static seed: {seed}")
         
         # Set format for JSON responses
         if format_type == "json":
@@ -617,6 +743,12 @@ class LangChainProvider(ModelProvider):
         # Set default top_p if not specified
         if 'top_p' not in options:
             options['top_p'] = 0.9
+        
+        # Log context length configuration for debugging
+        if 'max_tokens' in options:
+            print(f"[LANGCHAIN] Context length: {options['max_tokens']} (from model config)")
+        else:
+            print(f"[LANGCHAIN] Context length: {options['max_tokens']} (from infrastructure default)")
         
         return options
     

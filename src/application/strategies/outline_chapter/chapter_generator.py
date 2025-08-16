@@ -3,11 +3,12 @@
 import json
 import os
 import re
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from domain.entities.story import Outline, Chapter, Scene
 from domain.value_objects.generation_settings import GenerationSettings
+from domain.value_objects.model_config import ModelConfig
 from domain.exceptions import StoryGenerationError
-from config.settings import AppConfig
+
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
@@ -24,7 +25,7 @@ class ChapterGenerator:
     def __init__(
         self,
         model_provider: ModelProvider,
-        config: AppConfig,
+        config: Dict[str, Any],
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None
@@ -221,11 +222,15 @@ class ChapterGenerator:
                                 chapter_num, chapter_count, settings
                             )
 
-                            chapter_outline_for_scene = await self.savepoint_manager.load_step(f"chapter_{chapter_num}/outline")
+                            chapter_outline_for_scene = await self.savepoint_manager.load_step(f"chapter_{chapter_num}/disambiguated_outline")
+                            
+                            # Update the scene generator's savepoint manager to ensure character/setting managers have access
+                            self.scene_generator.update_savepoint_manager(self.savepoint_manager)
                             
                             # Generate scenes for this chapter
                             chapter_scenes = await self.scene_generator.generate_scenes(
                                 chapter_num=chapter_num,
+                                chapter_count=chapter_count,
                                 chapter_outline=chapter_outline_for_scene,
                                 base_context=outline.base_context,
                                 story_elements=outline.story_elements,
@@ -406,7 +411,7 @@ class ChapterGenerator:
         settings: GenerationSettings
     ) -> str:
         """Implementation of chapter outline generation."""
-        model_config = self.config.get_model("chapter_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["chapter_outline_writer"])
         
         # First, generate the core outline
         core_outline = await self._generate_core_outline(
@@ -455,7 +460,7 @@ class ChapterGenerator:
         settings: GenerationSettings
     ) -> str:
         """Generate the core chapter outline."""
-        model_config = self.config.get_model("chapter_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["chapter_outline_writer"])
         
         # Get next chapter synopsis if available
         next_chapter_synopsis = ""
@@ -522,7 +527,7 @@ class ChapterGenerator:
     
     async def _validate_outline_quality(self, outline: str, chapter_num: int, settings: GenerationSettings) -> List[str]:
         """Validate the quality of a chapter outline."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
             response = await execute_prompt_with_savepoint(
@@ -566,7 +571,7 @@ class ChapterGenerator:
         settings: GenerationSettings
     ) -> str:
         """Regenerate outline with feedback from validation."""
-        model_config = self.config.get_model("chapter_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["chapter_outline_writer"])
         
         issues_text = self._format_validation_issues(issues)
         
@@ -609,7 +614,7 @@ class ChapterGenerator:
     
     async def _run_disambiguator(self, chapter_outline: str, chapter_num: int, settings: GenerationSettings) -> str:
         """Run disambiguator on chapter outline."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -628,7 +633,7 @@ class ChapterGenerator:
     
     async def _run_cleanup(self, chapter_outline: str, chapter_num: int, settings: GenerationSettings) -> str:
         """Run cleanup on chapter outline."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -647,7 +652,7 @@ class ChapterGenerator:
     
     async def _format_outline_structure(self, outline: str, settings: GenerationSettings) -> str:
         """Format the outline structure."""
-        model_config = self.config.get_model("logical_model")
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -671,7 +676,7 @@ class ChapterGenerator:
         settings: GenerationSettings
     ) -> str:
         """Get outline for specific chapter."""
-        model_config = self.config.get_model("chapter_outline_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["chapter_outline_writer"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -733,7 +738,7 @@ class ChapterGenerator:
         settings: GenerationSettings
     ) -> str:
         """Generate the actual chapter content."""
-        model_config = self.config.get_model("chapter_stage1_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["chapter_stage1_writer"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -767,7 +772,7 @@ class ChapterGenerator:
         settings: GenerationSettings
     ) -> str:
         """Generate title for chapter."""
-        model_config = self.config.get_model("chapter_writer")
+        model_config = ModelConfig.from_string(self.config["models"]["chapter_writer"])
         
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,

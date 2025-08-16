@@ -12,16 +12,11 @@ Identify and structure the scenes in this chapter. For each scene, provide:
 2. **Scene Description**: Full description of what happens in the scene
 3. **Characters & Setting**: Characters present in the scene
 4. **Conflict & Tone**: Conflict & tone
-5. **Key Events**: All events that occur in the scene
+5. **Key Events**: All events that occur in the scene. 
 6. **Dialogue**: Examples of dialogue
 7. **Resolution & Lead-in**: How the scene closes and leads into the next 
 
-Look for natural breaks in the narrative such as:
-- Changes in location
-- Time jumps
-- Different character perspectives
-- Major plot developments
-- Scene transitions
+Don't rewrite the contents - just reformat them into JSON. Do not leave any details out.
 
 Output your response as a valid JSON array of scene objects. Each scene object should have this structure:
 
@@ -31,7 +26,7 @@ Output your response as a valid JSON array of scene objects. Each scene object s
     "title": "Scene Title",
     "description": "Description of what happens in this scene",
     "characters": ["Character 1", "Character 2"],
-    "setting": "Location description",
+    "setting": "Location name - just the name with no qualifiers",
     "conflict": "Main conflict or tension",
     "tone": "Mood or atmosphere",
     "key_events": ["Event 1", "Event 2", "Event 3"],
@@ -43,6 +38,8 @@ Output your response as a valid JSON array of scene objects. Each scene object s
   }
 ]
 ```
+
+Don't rewrite the contents - just reformat them into JSON. Do not leave any details out.
 
 If the chapter appears to be a single continuous scene, provide a single scene object with the chapter title and full description.
 
