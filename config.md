@@ -64,6 +64,16 @@ infrastructure:
   llama_cpp_host: "127.0.0.1:8080"
   context_length: 32000
   randomize_seed: true
+  
+  # RAG Configuration
+  postgres_host: "localhost:5432"
+  postgres_database: "story_writer"
+  postgres_user: "story_user"
+  postgres_password: "story_pass"
+  embedding_model: "ollama://nomic-embed-text"
+  vector_dimensions: 1536
+  similarity_threshold: 0.7
+  max_context_chunks: 20
 
 # API Keys (set via environment variables)
 api_keys:
@@ -147,6 +157,19 @@ The `infrastructure` section controls system behavior:
 - `savepoint_dir`: Directory for savepoint files
 - `logs_dir`: Directory for log files
 - `ollama_host`: Ollama server host and port
+
+#### RAG Configuration
+
+The RAG (Retrieval-Augmented Generation) system configuration:
+
+- `postgres_host`: PostgreSQL server host and port
+- `postgres_database`: Database name for story data
+- `postgres_user`: Database username
+- `postgres_password`: Database password
+- `embedding_model`: Ollama model for generating text embeddings
+- `vector_dimensions`: Dimension of the embedding vectors (1536 for nomic-embed-text)
+- `similarity_threshold`: Minimum similarity score for relevant content retrieval
+- `max_context_chunks`: Maximum number of content chunks to retrieve for context
 
 ## 🔧 Model Format Reference
 

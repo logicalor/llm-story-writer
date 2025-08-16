@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: story_writer
+      POSTGRES_USER: story_user
+      POSTGRES_PASSWORD: story_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: postgres -c shared_preload_libraries='vector'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U story_user -d story_writer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
