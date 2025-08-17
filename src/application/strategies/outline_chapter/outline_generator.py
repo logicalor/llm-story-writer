@@ -12,6 +12,9 @@ from infrastructure.prompts.prompt_wrapper import execute_messages_with_savepoin
 from infrastructure.savepoints import SavepointManager
 from .character_manager import CharacterManager
 from .setting_manager import SettingManager
+from application.services.rag_service import RAGService
+from application.services.rag_integration_service import RAGIntegrationService
+from application.services.content_chunker import ContentChunker
 import json
 
 
@@ -24,13 +27,24 @@ class OutlineGenerator:
         config: Dict[str, Any],
         prompt_handler: PromptHandler,
         system_message: str,
-        savepoint_manager: Optional[SavepointManager] = None
+        savepoint_manager: Optional[SavepointManager] = None,
+        rag_service: Optional[RAGService] = None
     ):
         self.model_provider = model_provider
         self.config = config
         self.prompt_handler = prompt_handler
         self.system_message = system_message
         self.savepoint_manager = savepoint_manager
+        self.rag_service = rag_service
+        
+        # Initialize RAG integration if service is provided
+        self.rag_integration = None
+        if self.rag_service:
+            content_chunker = ContentChunker(
+                max_chunk_size=self.config.get("max_chunk_size", 1000),
+                overlap_size=self.config.get("overlap_size", 200)
+            )
+            self.rag_integration = RAGIntegrationService(self.rag_service, content_chunker)
         
         # Initialize managers
         self.character_manager = CharacterManager(

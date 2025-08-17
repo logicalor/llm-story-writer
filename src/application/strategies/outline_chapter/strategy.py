@@ -1,5 +1,6 @@
 """Outline-Chapter story writing strategy."""
 
+import asyncio
 from typing import List, Optional, Dict, Any
 from domain.entities.story import Story, Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
@@ -14,6 +15,7 @@ from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
 from infrastructure.savepoints import SavepointManager
 from .outline_generator import OutlineGenerator
 from .chapter_generator import ChapterGenerator
+from application.services.rag_service import RAGService
 
 
 class OutlineChapterStrategy(StoryStrategy):
@@ -24,13 +26,17 @@ class OutlineChapterStrategy(StoryStrategy):
         model_provider: ModelProvider, 
         config: Dict[str, Any], 
         prompt_loader: PromptLoader,
-        savepoint_repo: Optional[SavepointRepository] = None
+        savepoint_repo: Optional[SavepointRepository] = None,
+        rag_service: Optional['RAGService'] = None
     ):
         super().__init__(model_provider)
         self.config = config
         self.prompt_loader = prompt_loader
         self.savepoint_repo = savepoint_repo
         self.savepoint_manager: Optional[SavepointManager] = None
+        self.rag_service = rag_service
+        self._prompt_filename: Optional[str] = None
+        self._rag_story_id: Optional[int] = None
         
         # Create the prompt handler
         self.prompt_handler = PromptHandler(
@@ -58,7 +64,8 @@ You have deep knowledge of storytelling techniques, character development, plot 
             config=config,
             prompt_handler=self.prompt_handler,
             system_message=self.system_message,
-            savepoint_manager=self.savepoint_manager
+            savepoint_manager=self.savepoint_manager,
+            rag_service=self.rag_service
         )
         
         self.chapter_generator = ChapterGenerator(
@@ -72,6 +79,9 @@ You have deep knowledge of storytelling techniques, character development, plot 
     def _setup_savepoints(self, prompt_filename: str) -> None:
         """Setup savepoint manager for the current story."""
         if self.savepoint_repo:
+            # Store the prompt filename for RAG context
+            self._prompt_filename = prompt_filename
+            
             self.savepoint_manager = SavepointManager(self.savepoint_repo, prompt_filename)
             # Also set up the prompt handler with the story directory
             self.prompt_handler.set_story_directory(prompt_filename)
@@ -87,6 +97,56 @@ You have deep knowledge of storytelling techniques, character development, plot 
             self.chapter_generator.setting_manager.savepoint_manager = self.savepoint_manager
             self.chapter_generator.recap_manager.savepoint_manager = self.savepoint_manager
             self.chapter_generator.scene_generator.savepoint_manager = self.savepoint_manager
+            
+            # Initialize RAG story context for this prompt filename
+            if self.rag_service:
+                asyncio.create_task(self._initialize_rag_story(prompt_filename))
+    
+    async def _initialize_rag_story(self, prompt_filename: str) -> None:
+        """Initialize RAG story context for the given prompt filename."""
+        try:
+            if not self.rag_service:
+                return
+            
+            # Create or get story in RAG system using prompt filename as identifier
+            story_id = await self.rag_service.create_story(
+                story_name=prompt_filename,
+                prompt_file_path=prompt_filename
+            )
+            
+            # Store the story ID for future use
+            self._rag_story_id = story_id
+            
+            print(f"✅ RAG story initialized for '{prompt_filename}' with ID: {story_id}")
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Could not initialize RAG story for '{prompt_filename}': {e}")
+    
+    def get_rag_story_id(self) -> Optional[int]:
+        """Get the current RAG story ID for the active prompt filename."""
+        return self._rag_story_id
+    
+    def has_rag_story(self) -> bool:
+        """Check if a RAG story is currently active."""
+        return self._rag_story_id is not None
+    
+    def get_current_prompt_filename(self) -> Optional[str]:
+        """Get the current prompt filename for the active story."""
+        return self._prompt_filename
+    
+    def get_rag_status(self) -> Dict[str, Any]:
+        """Get comprehensive RAG status including story information."""
+        status = {
+            "rag_service_available": self.rag_service is not None,
+            "prompt_filename": self._prompt_filename,
+            "rag_story_active": self.has_rag_story(),
+            "rag_story_id": self._rag_story_id
+        }
+        
+        if self.rag_service:
+            status["rag_service_type"] = type(self.rag_service).__name__
+        
+        return status
     
     def _create_messages_with_system(self, user_content: str) -> List[Dict[str, str]]:
         """Create messages list with system message included."""
@@ -119,6 +179,8 @@ You have deep knowledge of storytelling techniques, character development, plot 
     def reset_system_message(self) -> None:
         """Reset the system message to the default."""
         self.system_message = self.get_default_system_message()
+    
+
     
     async def generate_outline(self, prompt: str, settings: GenerationSettings, prompt_filename: Optional[str] = None) -> Outline:
         """Generate story outline from prompt."""
