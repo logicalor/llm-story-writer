@@ -801,6 +801,311 @@ class ChapterGenerator:
         return response.content.strip()
     
 
+    async def generate_chapter_synopses(
+        self,
+        combined_outline: str,
+        base_context: str,
+        story_elements: str,
+        settings: GenerationSettings
+    ) -> str:
+        """Extract chapters from combined outline and generate synopses for each."""
+        if settings.debug:
+            print(f"[CHAPTER SYNOPSES] Generating synopses for chapters from combined outline")
+        
+        # Step 1: Extract chapters as JSON list from the combined outline
+        chapter_list = await self._extract_chapters_from_outline(
+            combined_outline, base_context, story_elements, settings
+        )
+        
+        # Step 2: Generate synopsis for each chapter
+        synopses = []
+        for chapter_data in chapter_list:
+            chapter_num = chapter_data.get("number", len(synopses) + 1)
+            chapter_title = chapter_data.get("title", f"Chapter {chapter_num}")
+            chapter_description = chapter_data.get("description", "")
+            
+            if settings.debug:
+                print(f"[CHAPTER SYNOPSES] Generating synopsis for Chapter {chapter_num}: {chapter_title}")
+            
+            # Generate synopsis for this chapter
+            synopsis = await self._generate_single_chapter_synopsis(
+                chapter_num, chapter_title, chapter_description,
+                combined_outline, base_context, story_elements, settings
+            )
+            
+            synopses.append(synopsis)
+            
+            # Save synopsis to savepoint
+            if self.savepoint_manager:
+                await self.savepoint_manager.save_step(f"chapter_{chapter_num}/synopsis", synopsis)
+        
+        if settings.debug:
+            print(f"[CHAPTER SYNOPSES] Completed generating {len(synopses)} chapter synopses")
+        
+        # Return a formatted chapter list string for the main method to use
+        chapter_list_text = []
+        for chapter_data in chapter_list:
+            chapter_num = chapter_data.get("number", 0)
+            chapter_title = chapter_data.get("title", f"Chapter {chapter_num}")
+            chapter_description = chapter_data.get("description", "")
+            chapter_list_text.append(f"## Chapter {chapter_num}: {chapter_title}\n{chapter_description}")
+        
+        return "\n\n".join(chapter_list_text)
+    
+    async def _extract_chapters_from_outline(
+        self,
+        combined_outline: str,
+        base_context: str,
+        story_elements: str,
+        settings: GenerationSettings
+    ) -> List[Dict[str, Any]]:
+        """Extract chapters from combined outline as a structured list."""
+        model_config = ModelConfig.from_string(self.config["models"]["creative_model"])
+        
+        # Define JSON schema for chapter list
+        CHAPTER_LIST_SCHEMA = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "number": {"type": "integer"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"}
+                },
+                "required": ["number", "title", "description"]
+            }
+        }
+        
+        response = await execute_prompt_with_savepoint(
+            handler=self.prompt_handler,
+            prompt_id="chapters/extract_list",
+            variables={
+                "outline": combined_outline,
+                "base_context": base_context,
+                "story_elements": story_elements
+            },
+            savepoint_id="extracted_chapters",
+            model_config=model_config,
+            seed=settings.seed,
+            debug=settings.debug,
+            stream=settings.stream,
+            log_prompt_inputs=settings.log_prompt_inputs,
+            system_message=self.system_message,
+            expect_json=True,
+            json_schema=CHAPTER_LIST_SCHEMA
+        )
+        
+        # Parse the response using the new JSON integration
+        if response.json_parsed:
+            # llm-output-parser has already successfully parsed the JSON
+            # The content should now be a clean JSON string that we can parse
+            try:
+                # Validate the parsed JSON
+                chapter_list = json.loads(response.content.strip())
+                if not isinstance(chapter_list, list):
+                    raise ValueError("Response is not a list")
+                
+                if settings.debug:
+                    print(f"[CHAPTER SYNOPSES] Successfully parsed {len(chapter_list)} chapters from JSON")
+                return chapter_list
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                if settings.debug:
+                    print(f"[CHAPTER SYNOPSES] JSON validation failed: {e}")
+                    print(f"[CHAPTER SYNOPSES] Raw response: {response.content}")
+                
+                # Fallback: create a simple list from the outline
+                return self._fallback_chapter_extraction(combined_outline)
+        else:
+            if settings.debug:
+                print(f"[CHAPTER SYNOPSES] JSON parsing failed: {response.json_errors}")
+                print(f"[CHAPTER SYNOPSES] Raw response preview: {response.content[:200]}...")
+            
+            # Fallback: create a simple list from the outline
+            return self._fallback_chapter_extraction(combined_outline)
+    
+    async def _generate_single_chapter_synopsis(
+        self,
+        chapter_num: int,
+        chapter_title: str,
+        chapter_description: str,
+        combined_outline: str,
+        base_context: str,
+        story_elements: str,
+        settings: GenerationSettings
+    ) -> str:
+        """Generate synopsis for a single chapter using a multistep approach."""
+        model_config = ModelConfig.from_string(self.config["models"]["chapter_outline_writer"])
+        
+        # Get previous chapter synopsis if this is not the first chapter
+        previous_chapter = ""
+        if chapter_num > 1 and self.savepoint_manager:
+            try:
+                previous_chapter = await self.savepoint_manager.load_step(f"chapter_{chapter_num-1}/synopsis")
+            except:
+                if settings.debug:
+                    print(f"[CHAPTER SYNOPSES] Could not load previous chapter synopsis for chapter {chapter_num}")
+                previous_chapter = ""
+        
+        # Build conversation history through multistep approach
+        conversation_history = []
+        
+        # Step 1: Understand storyline
+        storyline_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/enrichment/understand_storyline",
+            {"story_elements": story_elements}
+        )
+        conversation_history.append({"role": "user", "content": storyline_prompt})
+        
+        response = await execute_prompt_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            savepoint_id=f"chapter_{chapter_num}_step1_storyline",
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 2: Understand base context
+        base_context_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/enrichment/understand_base_context",
+            {"base_context": base_context}
+        )
+        conversation_history.append({"role": "user", "content": base_context_prompt})
+        
+        response = await execute_prompt_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 3: Understand combined outline
+        outline_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/enrichment/understand_outline",
+            {"outline": combined_outline}
+        )
+        conversation_history.append({"role": "user", "content": outline_prompt})
+        
+        response = await execute_prompt_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 4: Understand characters (combined abridged characters)
+        characters = await self.character_manager.extract_character_names(story_elements, settings)
+        character_summaries = await self.character_manager.get_character_summaries(characters, settings)
+        character_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/enrichment/understand_characters",
+            {"character_summaries": character_summaries}
+        )
+        conversation_history.append({"role": "user", "content": character_prompt})
+        
+        response = await execute_prompt_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 5: Understand settings (combined abridged settings)
+        setting_names = await self.setting_manager.extract_setting_names(story_elements, settings)
+        setting_summaries = await self.setting_manager.get_setting_summaries(setting_names, settings)
+        setting_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/enrichment/understand_settings",
+            {"setting_summaries": setting_summaries}
+        )
+        conversation_history.append({"role": "user", "content": setting_prompt})
+        
+        response = await execute_prompt_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 6: Understand previous chapter synopsis (if chapter > 1)
+        if chapter_num > 1 and previous_chapter:
+            previous_chapter_prompt = self.prompt_handler.prompt_loader.load_prompt(
+                "multistep/chapter/enrichment/understand_previous_chapter",
+                {"previous_chapter": previous_chapter}
+            )
+            conversation_history.append({"role": "user", "content": previous_chapter_prompt})
+            
+            response = await execute_prompt_with_savepoint(
+                handler=self.prompt_handler,
+                conversation_history=conversation_history,
+                model_config=model_config,
+                debug=settings.debug,
+                stream=settings.stream
+            )
+            conversation_history.append({"role": "assistant", "content": response.content.strip()})
+        
+        # Step 7: Generate the chapter synopsis
+        synopsis_prompt = self.prompt_handler.prompt_loader.load_prompt(
+            "multistep/chapter/create_synopsis",
+            {
+                "chapter_number": chapter_num,
+                "chapter_title": chapter_title,
+                "chapter_description": chapter_description,
+            }
+        )
+        conversation_history.append({"role": "user", "content": synopsis_prompt})
+        
+        response = await execute_prompt_with_savepoint(
+            handler=self.prompt_handler,
+            conversation_history=conversation_history,
+            savepoint_id=f"chapter_{chapter_num}/synopsis",
+            model_config=model_config,
+            debug=settings.debug,
+            stream=settings.stream
+        )
+        
+        return response.content.strip()
+    
+    def _fallback_chapter_extraction(self, combined_outline: str) -> List[Dict[str, Any]]:
+        """Fallback method to extract chapters when JSON parsing fails."""
+        chapters = []
+        lines = combined_outline.split('\n')
+        current_chapter = None
+        
+        for line in lines:
+            line = line.strip()
+            if line.startswith('## Chapter') or line.startswith('Chapter'):
+                # Extract chapter number and title
+                parts = line.split(':', 1)
+                if len(parts) == 2:
+                    chapter_title = parts[1].strip()
+                else:
+                    chapter_title = line
+                
+                current_chapter = {
+                    "number": len(chapters) + 1,
+                    "title": chapter_title,
+                    "description": ""
+                }
+                chapters.append(current_chapter)
+            elif current_chapter and line:
+                # Add description lines to current chapter
+                if current_chapter["description"]:
+                    current_chapter["description"] += " " + line
+                else:
+                    current_chapter["description"] = line
+        
+        return chapters
+    
+
     
 
     
