@@ -21,22 +21,49 @@ fi
 
 echo "✅ Docker and Ollama are running"
 
-# Pull the nomic-embed-text model for embeddings
-echo "📥 Pulling nomic-embed-text embedding model..."
-ollama pull nomic-embed-text
+# Check if embedding model is specified in config
+if [ -f "config.md" ]; then
+    # Extract embedding model from config.md (simple grep approach)
+    EMBEDDING_MODEL=$(grep -A 20 "infrastructure:" config.md | grep "embedding_model:" | head -1 | sed 's/.*embedding_model:\s*"//' | sed 's/".*//')
+    
+    if [ -n "$EMBEDDING_MODEL" ]; then
+        # Extract just the model name from ollama://host:port/model_name format
+        MODEL_NAME=$(echo "$EMBEDDING_MODEL" | sed 's|ollama://||' | sed 's|.*/||')
+        echo "📥 Pulling $MODEL_NAME embedding model from config..."
+        ollama pull "$MODEL_NAME"
+    else
+        echo "📥 Pulling default nomic-embed-text embedding model..."
+        ollama pull nomic-embed-text
+    fi
+else
+    echo "📥 Pulling default nomic-embed-text embedding model..."
+    ollama pull nomic-embed-text
+fi
 
 # Start PostgreSQL with pgvector
 echo "🐘 Starting PostgreSQL with pgvector..."
-docker-compose up -d postgres
+docker compose up -d postgres
 
 # Wait for PostgreSQL to be ready
 echo "⏳ Waiting for PostgreSQL to be ready..."
-until docker-compose exec -T postgres pg_isready -U story_user -d story_writer > /dev/null 2>&1; do
+until docker compose exec -T postgres pg_isready -U story_user -d story_writer > /dev/null 2>&1; do
     echo "   Waiting for PostgreSQL..."
     sleep 2
 done
 
 echo "✅ PostgreSQL is ready"
+
+# Clean up any leftover migration artifacts
+echo "🧹 Cleaning up any leftover migration artifacts..."
+docker compose exec -T postgres psql -U story_user -d story_writer -c "
+    DROP TABLE IF EXISTS content_chunks_migration_768 CASCADE;
+    DROP TABLE IF EXISTS content_chunks_migration_1024 CASCADE;
+    DROP TABLE IF EXISTS content_chunks_migration_384 CASCADE;
+    DROP TABLE IF EXISTS content_chunks_migration_1536 CASCADE;
+    DROP TABLE IF EXISTS content_chunks_backup CASCADE;
+" 2>/dev/null || true
+
+echo "✅ Database cleanup completed"
 
 # Install Python dependencies
 echo "📦 Installing Python dependencies..."
@@ -52,4 +79,4 @@ echo "3. Index an existing story: python src/presentation/cli/rag_cli.py index -
 echo ""
 echo "For help: python src/presentation/cli/rag_cli.py --help"
 echo ""
-echo "To stop PostgreSQL: docker-compose down"
+echo "To stop PostgreSQL: docker compose down"

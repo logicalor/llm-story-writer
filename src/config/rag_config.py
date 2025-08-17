@@ -36,20 +36,31 @@ class RAGConfig:
     def ollama_host(self) -> str:
         """Extract Ollama host from embedding model string."""
         if self.embedding_model.startswith("ollama://"):
-            # Format: ollama://host:port/model_name
+            # Format: ollama://host:port/model_name or ollama://model_name
             parts = self.embedding_model.split("/")
             if len(parts) >= 3:
-                return parts[2]  # host:port part
+                # Check if the third part contains a colon (host:port)
+                if ":" in parts[2]:
+                    return parts[2]  # host:port part
+                else:
+                    return "127.0.0.1:11434"  # Default host
         return "127.0.0.1:11434"  # Default
     
     @property
     def embedding_model_name(self) -> str:
         """Extract the actual model name from the embedding model string."""
         if self.embedding_model.startswith("ollama://"):
-            # Format: ollama://host:port/model_name
+            # Format: ollama://host:port/model_name or ollama://model_name
             parts = self.embedding_model.split("/")
-            if len(parts) >= 4:
-                return parts[3]  # model_name part
+            if len(parts) >= 3:
+                # Check if the third part contains a colon (host:port)
+                if ":" in parts[2]:
+                    # Format: ollama://host:port/model_name
+                    if len(parts) >= 4:
+                        return parts[3]  # model_name part
+                else:
+                    # Format: ollama://model_name
+                    return parts[2]  # model_name part
         return "nomic-embed-text"  # Default
 
 

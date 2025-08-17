@@ -252,6 +252,52 @@ enhanced_prompt = f"{base_prompt}\n\nContext:\n{context}"
 - **Story ID caching**: Avoid repeated database lookups
 - **Embedding caching**: Store computed embeddings
 
+## 🔄 Embedding Model Migration
+
+### Changing Embedding Models
+
+If you want to change your embedding model after setting up the RAG system, use the migration script:
+
+```bash
+# Quick migration to fast model (384 dimensions)
+./migrate_embed.sh fast
+
+# Quick migration to accurate model (1536 dimensions)
+./migrate_embed.sh accurate
+
+# Custom model migration
+./migrate_embed.sh custom ollama://bge-large-en
+
+# Dry run to see what would be migrated
+./migrate_embed.sh dry-run
+
+# Analyze current database state
+./migrate_embed.sh analyze
+```
+
+### Migration Process
+
+The migration script will:
+
+1. **Analyze** your current database and content
+2. **Create** a new table with the correct vector dimensions
+3. **Re-embed** all content using the new model
+4. **Swap** the tables atomically
+5. **Clean up** the old table
+
+### Migration Safety Features
+
+- **Dry-run mode**: Test migration without making changes
+- **Backup preservation**: Old table is preserved until cleanup
+- **Error handling**: Migration stops if errors occur
+- **Rollback capability**: Can restore from backup if needed
+
+### Supported Models
+
+- **Fast models**: `all-MiniLM-L6-v2` (384d), `bge-small-en` (384d)
+- **Balanced models**: `text-embedding-3-small` (1536d), `bge-base-en` (768d)
+- **High-quality models**: `nomic-embed-text` (1536d), `bge-large-en` (1024d)
+
 ## 🐛 Troubleshooting
 
 ### Common Issues

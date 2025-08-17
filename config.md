@@ -74,6 +74,8 @@ infrastructure:
   vector_dimensions: 1536
   similarity_threshold: 0.7
   max_context_chunks: 20
+  max_chunk_size: 1000
+  overlap_size: 200
 
 # API Keys (set via environment variables)
 api_keys:
@@ -166,10 +168,12 @@ The RAG (Retrieval-Augmented Generation) system configuration:
 - `postgres_database`: Database name for story data
 - `postgres_user`: Database username
 - `postgres_password`: Database password
-- `embedding_model`: Ollama model for generating text embeddings
-- `vector_dimensions`: Dimension of the embedding vectors (1536 for nomic-embed-text)
+- `embedding_model`: Model for generating text embeddings (see format below)
+- `vector_dimensions`: Dimension of the embedding vectors (varies by model)
 - `similarity_threshold`: Minimum similarity score for relevant content retrieval
 - `max_context_chunks`: Maximum number of content chunks to retrieve for context
+- `max_chunk_size`: Maximum size of content chunks in characters
+- `overlap_size`: Overlap size between chunks in characters
 
 ## 🔧 Model Format Reference
 
@@ -179,6 +183,22 @@ models:
   initial_outline_writer: "ollama://llama3:70b"
   chapter_stage1_writer: "ollama://llama3:70b@192.168.1.100:11434"
   info_model: "ollama://llama3:70b?temperature=0.7"
+```
+
+### Embedding Models (RAG System)
+```yaml
+infrastructure:
+  # Ollama embedding models
+  embedding_model: "ollama://nomic-embed-text"           # 1536 dimensions
+  embedding_model: "ollama://all-MiniLM-L6-v2"          # 384 dimensions
+  embedding_model: "ollama://text-embedding-3-small"    # 1536 dimensions
+  
+  # With custom host
+  embedding_model: "ollama://nomic-embed-text@192.168.1.100:11434"
+  
+  # Vector dimensions must match the model
+  vector_dimensions: 1536  # for nomic-embed-text
+  vector_dimensions: 384   # for all-MiniLM-L6-v2
 ```
 
 ### Google Models (Cloud)
@@ -245,6 +265,45 @@ generation:
 translation:
   translate_prompt_language: "Spanish"
   translate_language: "French"
+```
+
+### RAG System Configuration
+```yaml
+infrastructure:
+  # High-quality embeddings (slower, more accurate)
+  embedding_model: "ollama://nomic-embed-text"
+  vector_dimensions: 1536
+  similarity_threshold: 0.8
+  
+  # Fast embeddings (faster, good quality)
+  embedding_model: "ollama://all-MiniLM-L6-v2"
+  vector_dimensions: 384
+  similarity_threshold: 0.7
+  
+  # Balanced approach
+  embedding_model: "ollama://text-embedding-3-small"
+  vector_dimensions: 1536
+  similarity_threshold: 0.75
+```
+
+### Changing Embedding Models
+
+**⚠️ Important**: If you change the embedding model after indexing content, you'll need to migrate your data.
+
+**Before indexing content** (recommended):
+1. Set your desired `embedding_model` in config.md
+2. Run `./setup_rag.sh` to set up with the new model
+
+**After indexing content** (requires migration):
+1. Update `embedding_model` in config.md
+2. Run `./migrate_embed.sh fast` or `./migrate_embed.sh accurate`
+3. The migration script will re-embed all content with the new model
+
+**Migration commands**:
+```bash
+./migrate_embed.sh fast        # Switch to fast model (384d)
+./migrate_embed.sh accurate    # Switch to accurate model (1536d)
+./migrate_embed.sh dry-run     # See what would be migrated
 ```
 
 ### Chunked Outline Generation (for Long Stories)
