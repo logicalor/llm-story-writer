@@ -54,7 +54,7 @@ CREATE TABLE content_chunks (
     title VARCHAR(255),
     content TEXT NOT NULL,
     metadata JSONB,
-    embedding vector(1536), -- Adjust dimension based on your embedding model
+    embedding vector(768), -- Adjust dimension based on your embedding model
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     chapter_number INTEGER,
     scene_number INTEGER

@@ -14,6 +14,9 @@ from .storage.file_storage import FileStorage
 from .storage.savepoint_repository import FilesystemSavepointRepository
 from .logging.structured_logger import StructuredLogger, LogLevel
 from .prompts.prompt_loader import PromptLoader
+from application.services.rag_service import RAGService
+from .providers.ollama_embedding_provider import OllamaEmbeddingProvider
+from .storage.pgvector_store import PgVectorStore
 
 
 class Container(containers.DeclarativeContainer):
@@ -73,17 +76,48 @@ class Container(containers.DeclarativeContainer):
         base_path=providers.Callable(lambda savepoint_dir: Path(savepoint_dir), config.savepoint_dir)
     )
     
+    # RAG service dependencies
+    ollama_embedding_provider = providers.Singleton(
+        OllamaEmbeddingProvider,
+        host=config.ollama_host,
+        model=providers.Callable(
+            lambda model: model.replace("ollama://", "") if model else "nomic-embed-text",
+            config.embedding_model
+        )
+    )
+    
+    pgvector_store = providers.Factory(
+        PgVectorStore,
+        connection_string=providers.Callable(
+            lambda host, database, user, password: f"postgresql://{user}:{password}@{host.split(':')[0]}:5432/{database}",
+            config.postgres_host,
+            config.postgres_database,
+            config.postgres_user,
+            config.postgres_password
+        )
+    )
+    
+    # RAG service - use Factory to ensure proper async initialization
+    rag_service = providers.Factory(
+        RAGService,
+        embedding_provider=ollama_embedding_provider,
+        vector_store=pgvector_store,
+        similarity_threshold=config.similarity_threshold,
+        max_context_chunks=config.max_context_chunks
+    )
+    
     # Strategy factory
     strategy_factory = providers.Singleton(StrategyFactory)
     
     # Strategy (created dynamically based on config)
     strategy = providers.Factory(
-        lambda factory, model_provider, config, savepoint_repo: 
-        factory.create_strategy_with_prompts(config.get('generation', {}).get('strategy', 'outline-chapter'), model_provider, config, savepoint_repo),
+        lambda factory, model_provider, config, savepoint_repo, rag_service: 
+        factory.create_strategy_with_prompts(config.get('generation', {}).get('strategy', 'outline-chapter'), model_provider, config, savepoint_repo, rag_service),
         factory=strategy_factory,
         model_provider=ollama_provider,
         config=config,
-        savepoint_repo=savepoint_repository
+        savepoint_repo=savepoint_repository,
+        rag_service=rag_service
     )
     
     # Application services

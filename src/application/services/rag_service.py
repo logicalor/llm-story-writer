@@ -306,6 +306,23 @@ class RAGService:
             logger.error(f"Failed to get story summary: {e}")
             return {}
     
+    async def delete_content_by_type_and_metadata(
+        self,
+        story_id: int,
+        content_type: str,
+        metadata_filters: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Delete content chunks by type and optional metadata filters."""
+        try:
+            deleted_count = await self.vector_store.delete_content_by_type_and_metadata(
+                story_id, content_type, metadata_filters
+            )
+            logger.info(f"Deleted {deleted_count} {content_type} chunks for story {story_id}")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"Failed to delete {content_type} content for story {story_id}: {e}")
+            raise
+    
     async def delete_story(self, story_id: int) -> bool:
         """Delete a story and all its content."""
         try:

@@ -38,7 +38,8 @@ class RAGIntegrationService:
             return self._story_cache[story_identifier]
         
         # Create or get story from database
-        story_id = await self.rag_service.create_story(story_name, story_identifier)
+        from pathlib import Path
+        story_id = await self.rag_service.create_story(story_name, Path(story_identifier))
         self._story_cache[story_identifier] = story_id
         
         logger.info(f"Initialized story '{story_name}' with ID {story_id}")
@@ -46,11 +47,34 @@ class RAGIntegrationService:
     
     async def _get_or_create_story_id(self, story_identifier: Optional[str] = None) -> int:
         """Get or create a story ID for the given identifier."""
+        # Ensure RAG service is initialized
+        if not hasattr(self.rag_service, '_initialized'):
+            await self.rag_service.initialize()
+            self.rag_service._initialized = True
+        
         identifier = story_identifier or self._current_story_identifier
         if not identifier:
             raise ValueError("No story identifier available for RAG operations")
         
         return await self.initialize_story(identifier)
+    
+    async def cleanup_content_by_type_and_metadata(
+        self,
+        content_type: str,
+        metadata_filters: Optional[Dict[str, Any]] = None,
+        story_identifier: Optional[str] = None
+    ) -> int:
+        """Clean up content chunks by type and metadata before re-indexing."""
+        try:
+            story_id = await self._get_or_create_story_id(story_identifier)
+            deleted_count = await self.rag_service.delete_content_by_type_and_metadata(
+                story_id, content_type, metadata_filters
+            )
+            logger.info(f"Cleaned up {deleted_count} {content_type} chunks for story {story_id}")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"Failed to cleanup {content_type} content: {e}")
+            raise
     
     async def index_outline(
         self,

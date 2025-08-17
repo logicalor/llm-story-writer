@@ -1,10 +1,13 @@
 """Outline generation functionality for the outline-chapter strategy."""
 
+import logging
 from typing import List, Optional, Dict, Any
 from domain.entities.story import Outline
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from domain.exceptions import StoryGenerationError
+
+logger = logging.getLogger(__name__)
 
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
@@ -12,6 +15,8 @@ from infrastructure.prompts.prompt_wrapper import execute_messages_with_savepoin
 from infrastructure.savepoints import SavepointManager
 from .character_manager import CharacterManager
 from .setting_manager import SettingManager
+from .chapter_generator import ChapterGenerator
+from .story_state_manager import StoryStateManager
 from application.services.rag_service import RAGService
 from application.services.rag_integration_service import RAGIntegrationService
 from application.services.content_chunker import ContentChunker
@@ -64,6 +69,25 @@ class OutlineGenerator:
             savepoint_manager=savepoint_manager,
             rag_service=rag_service
         )
+
+        self.chapter_generator = ChapterGenerator(
+            model_provider=model_provider,
+            config=config,
+            prompt_handler=prompt_handler,
+            system_message=system_message,
+            savepoint_manager=savepoint_manager,
+            rag_service=rag_service
+        )
+        
+        # Initialize story state manager for progressive planning
+        self.story_state_manager = StoryStateManager(
+            model_provider=model_provider,
+            config=config,
+            prompt_handler=prompt_handler,
+            system_message=system_message,
+            savepoint_manager=savepoint_manager,
+            rag_service=rag_service
+        )
     
     async def generate_outline(
         self, 
@@ -80,7 +104,7 @@ class OutlineGenerator:
             })
             conversation_history.append({"role": "user", "content": prompt_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation_history,
                 model_config=model_config,
@@ -108,13 +132,8 @@ class OutlineGenerator:
             # Generate setting sheets with RAG integration
             await self.setting_manager.generate_setting_sheets(story_elements, base_context, settings)
             
-            await self._generate_stripped_story_elements(story_elements, settings)
-            
-            # Generate initial outline (this now includes critique refinement)
-            # Use stripped story elements for outline generation to avoid character/setting duplication
-            stripped_story_elements = story_elements
             final_outline = await self._generate_initial_outline(
-                prompt, stripped_story_elements, base_context, settings
+                story_elements, base_context, settings
             )
             
             # Get the initial outline from savepoint if available
@@ -128,7 +147,7 @@ class OutlineGenerator:
             # Generate detailed chapter list (now handled by chapter generator)
             # For both single-pass and chunked generation, use the chapter generator
             chapter_list = await self.chapter_generator.generate_chapter_synopses(
-                final_outline, base_context, stripped_story_elements, settings
+                final_outline, base_context, story_elements, settings
             )
             
             return Outline(
@@ -144,6 +163,36 @@ class OutlineGenerator:
         except Exception as e:
             raise StoryGenerationError(f"Failed to generate outline: {e}") from e
     
+    async def initialize_progressive_outline(
+        self, 
+        prompt: str, 
+        settings: GenerationSettings
+    ) -> Dict[str, Any]:
+        """Initialize the progressive outline system with story context."""
+        try:
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Initializing progressive outline system...")
+            
+            # Initialize story context using story state manager
+            story_context = await self.story_state_manager.initialize_story_context(prompt, settings)
+            
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Story context initialized: {story_context.story_direction}")
+            
+            # Generate initial story analysis chunks for RAG indexing
+            story_chunks = await self._generate_story_analysis_chunks(prompt, settings, [])
+            
+            # Return initialization data
+            return {
+                "story_context": story_context,
+                "story_chunks": story_chunks,
+                "status": "initialized",
+                "message": "Progressive outline system ready for chapter planning"
+            }
+            
+        except Exception as e:
+            raise StoryGenerationError(f"Failed to initialize progressive outline: {e}") from e
+    
     async def _generate_story_analysis_chunks(
         self,
         prompt: str,
@@ -155,16 +204,28 @@ class OutlineGenerator:
             if settings.debug:
                 print(f"[STORY ANALYSIS] Generating story analysis chunks")
             
+            # Initialize base conversation for understanding the story prompt
+            base_conversation = conversation_history + [
+                {
+                    "role": "user",
+                    "content": f"Please create a summary of your understanding of this story prompt:\n\n{prompt}\n\nFocus on the key elements, themes, and direction you can identify."
+                },
+                {
+                    "role": "assistant", 
+                    "content": "I'll analyze this story prompt and provide a summary of my understanding."
+                }
+            ]
+            
             # Generate each type of story analysis chunk
             chunks = {}
-            chunks["core_story_foundation"] = await self._generate_core_story_foundation_chunk(prompt, settings, conversation_history)
-            chunks["character_foundation"] = await self._generate_character_foundation_chunk(prompt, settings, conversation_history)
-            chunks["setting_foundation"] = await self._generate_setting_foundation_chunk(prompt, settings, conversation_history)
-            chunks["plot_structure"] = await self._generate_plot_structure_chunk(prompt, settings, conversation_history)
-            chunks["theme_message"] = await self._generate_theme_message_chunk(prompt, settings, conversation_history)
-            chunks["tone_style"] = await self._generate_tone_style_chunk(prompt, settings, conversation_history)
-            chunks["conflict_stakes"] = await self._generate_conflict_stakes_chunk(prompt, settings, conversation_history)
-            chunks["world_rules_logic"] = await self._generate_world_rules_logic_chunk(prompt, settings, conversation_history)
+            chunks["core_story_foundation"] = await self._generate_core_story_foundation_chunk(prompt, settings, base_conversation)
+            chunks["character_foundation"] = await self._generate_character_foundation_chunk(prompt, settings, base_conversation)
+            chunks["setting_foundation"] = await self._generate_setting_foundation_chunk(prompt, settings, base_conversation)
+            chunks["plot_structure"] = await self._generate_plot_structure_chunk(prompt, settings, base_conversation)
+            chunks["theme_message"] = await self._generate_theme_message_chunk(prompt, settings, base_conversation)
+            chunks["tone_style"] = await self._generate_tone_style_chunk(prompt, settings, base_conversation)
+            chunks["conflict_stakes"] = await self._generate_conflict_stakes_chunk(prompt, settings, base_conversation)
+            chunks["world_rules_logic"] = await self._generate_world_rules_logic_chunk(prompt, settings, base_conversation)
             
             # Index all chunks in RAG if available
             if self.rag_integration:
@@ -187,25 +248,26 @@ class OutlineGenerator:
         settings: GenerationSettings,
         conversation_history: list
     ) -> str:
-        """Generate core story foundation chunk."""
+        """Generate core story foundation chunk using multistep conversation."""
         try:
             model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
             
-            response = await execute_prompt_with_savepoint(
+            # Add the specific chunk generation prompt to the base conversation
+            messages = conversation_history + [
+                {
+                    "role": "user",
+                    "content": f"Based on your understanding of the story prompt, please generate a core story foundation chunk. Use this prompt:\n\n{self.prompt_handler.prompt_loader.load_prompt('multistep/outline/create_core_story_foundation_chunk')}\n\nStory prompt: {prompt}"
+                }
+            ]
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="multistep/outline/create_core_story_foundation_chunk",
-                variables={
-                    "prompt": prompt,
-                    "base_context": "",
-                    "story_elements": ""
-                },
+                conversation_history=messages,
                 savepoint_id="story_analysis/core_story_foundation_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
@@ -224,25 +286,26 @@ class OutlineGenerator:
         settings: GenerationSettings,
         conversation_history: list
     ) -> str:
-        """Generate character foundation chunk."""
+        """Generate character foundation chunk using multistep conversation."""
         try:
             model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
             
-            response = await execute_prompt_with_savepoint(
+            # Add the specific chunk generation prompt to the base conversation
+            messages = conversation_history + [
+                {
+                    "role": "user",
+                    "content": f"Based on your understanding of the story prompt, please generate a character foundation chunk. Use this prompt:\n\n{self.prompt_handler.prompt_loader.load_prompt('multistep/outline/create_character_foundation_chunk')}\n\nStory prompt: {prompt}"
+                }
+            ]
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="multistep/outline/create_character_foundation_chunk",
-                variables={
-                    "prompt": prompt,
-                    "base_context": "",
-                    "story_elements": ""
-                },
+                conversation_history=messages,
                 savepoint_id="story_analysis/character_foundation_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
@@ -261,25 +324,26 @@ class OutlineGenerator:
         settings: GenerationSettings,
         conversation_history: list
     ) -> str:
-        """Generate setting foundation chunk."""
+        """Generate setting foundation chunk using multistep conversation."""
         try:
             model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
             
-            response = await execute_prompt_with_savepoint(
+            # Add the specific chunk generation prompt to the base conversation
+            messages = conversation_history + [
+                {
+                    "role": "user",
+                    "content": f"Based on your understanding of the story prompt, please generate a setting foundation chunk. Use this prompt:\n\n{self.prompt_handler.prompt_loader.load_prompt('multistep/outline/create_setting_foundation_chunk')}\n\nStory prompt: {prompt}"
+                }
+            ]
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="multistep/outline/create_setting_foundation_chunk",
-                variables={
-                    "prompt": prompt,
-                    "base_context": "",
-                    "story_elements": ""
-                },
+                conversation_history=messages,
                 savepoint_id="story_analysis/setting_foundation_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
@@ -298,25 +362,26 @@ class OutlineGenerator:
         settings: GenerationSettings,
         conversation_history: list
     ) -> str:
-        """Generate plot structure chunk."""
+        """Generate plot structure chunk using multistep conversation."""
         try:
             model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
             
-            response = await execute_prompt_with_savepoint(
+            # Add the specific chunk generation prompt to the base conversation
+            messages = conversation_history + [
+                {
+                    "role": "user",
+                    "content": f"Based on your understanding of the story prompt, please generate a plot structure chunk. Use this prompt:\n\n{self.prompt_handler.prompt_loader.load_prompt('multistep/outline/create_plot_structure_chunk')}\n\nStory prompt: {prompt}"
+                }
+            ]
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="multistep/outline/create_plot_structure_chunk",
-                variables={
-                    "prompt": prompt,
-                    "base_context": "",
-                    "story_elements": ""
-                },
+                conversation_history=messages,
                 savepoint_id="story_analysis/plot_structure_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
@@ -335,25 +400,26 @@ class OutlineGenerator:
         settings: GenerationSettings,
         conversation_history: list
     ) -> str:
-        """Generate theme and message chunk."""
+        """Generate theme and message chunk using multistep conversation."""
         try:
             model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
             
-            response = await execute_prompt_with_savepoint(
+            # Add the specific chunk generation prompt to the base conversation
+            messages = conversation_history + [
+                {
+                    "role": "user",
+                    "content": f"Based on your understanding of the story prompt, please generate a theme and message chunk. Use this prompt:\n\n{self.prompt_handler.prompt_loader.load_prompt('multistep/outline/create_theme_message_chunk')}\n\nStory prompt: {prompt}"
+                }
+            ]
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="multistep/outline/create_theme_message_chunk",
-                variables={
-                    "prompt": prompt,
-                    "base_context": "",
-                    "story_elements": ""
-                },
+                conversation_history=messages,
                 savepoint_id="story_analysis/theme_message_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
@@ -372,25 +438,26 @@ class OutlineGenerator:
         settings: GenerationSettings,
         conversation_history: list
     ) -> str:
-        """Generate tone and style chunk."""
+        """Generate tone and style chunk using multistep conversation."""
         try:
             model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
             
-            response = await execute_prompt_with_savepoint(
+            # Add the specific chunk generation prompt to the base conversation
+            messages = conversation_history + [
+                {
+                    "role": "user",
+                    "content": f"Based on your understanding of the story prompt, please generate a tone and style chunk. Use this prompt:\n\n{self.prompt_handler.prompt_loader.load_prompt('multistep/outline/create_tone_style_chunk')}\n\nStory prompt: {prompt}"
+                }
+            ]
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="multistep/outline/create_tone_style_chunk",
-                variables={
-                    "prompt": prompt,
-                    "base_context": "",
-                    "story_elements": ""
-                },
+                conversation_history=messages,
                 savepoint_id="story_analysis/tone_style_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
@@ -409,25 +476,26 @@ class OutlineGenerator:
         settings: GenerationSettings,
         conversation_history: list
     ) -> str:
-        """Generate conflict and stakes chunk."""
+        """Generate conflict and stakes chunk using multistep conversation."""
         try:
             model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
             
-            response = await execute_prompt_with_savepoint(
+            # Add the specific chunk generation prompt to the base conversation
+            messages = conversation_history + [
+                {
+                    "role": "user",
+                    "content": f"Based on your understanding of the story prompt, please generate a conflict and stakes chunk. Use this prompt:\n\n{self.prompt_handler.prompt_loader.load_prompt('multistep/outline/create_conflict_stakes_chunk')}\n\nStory prompt: {prompt}"
+                }
+            ]
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="multistep/outline/create_conflict_stakes_chunk",
-                variables={
-                    "prompt": prompt,
-                    "base_context": "",
-                    "story_elements": ""
-                },
+                conversation_history=messages,
                 savepoint_id="story_analysis/conflict_stakes_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
@@ -446,25 +514,26 @@ class OutlineGenerator:
         settings: GenerationSettings,
         conversation_history: list
     ) -> str:
-        """Generate world rules and logic chunk."""
+        """Generate world rules and logic chunk using multistep conversation."""
         try:
             model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
             
-            response = await execute_prompt_with_savepoint(
+            # Add the specific chunk generation prompt to the base conversation
+            messages = conversation_history + [
+                {
+                    "role": "user",
+                    "content": f"Based on your understanding of the story prompt, please generate a world rules and logic chunk. Use this prompt:\n\n{self.prompt_handler.prompt_loader.load_prompt('multistep/outline/create_world_rules_logic_chunk')}\n\nStory prompt: {prompt}"
+                }
+            ]
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="multistep/outline/create_world_rules_logic_chunk",
-                variables={
-                    "prompt": prompt,
-                    "base_context": "",
-                    "story_elements": ""
-                },
+                conversation_history=messages,
                 savepoint_id="story_analysis/world_rules_logic_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
@@ -482,11 +551,34 @@ class OutlineGenerator:
         chunks: Dict[str, str],
         settings: GenerationSettings
     ) -> None:
-        """Index all story analysis chunks in RAG."""
+        """Index all story analysis chunks in RAG with proper cleanup."""
+        if settings.debug:
+            print(f"[RAG STORY ANALYSIS] Starting indexing process...")
+            print(f"[RAG STORY ANALYSIS] rag_integration exists: {self.rag_integration is not None}")
+            print(f"[RAG STORY ANALYSIS] rag_integration type: {type(self.rag_integration).__name__ if self.rag_integration else 'None'}")
+            print(f"[RAG STORY ANALYSIS] Number of chunks to index: {len(chunks)}")
+            print(f"[RAG STORY ANALYSIS] Chunk types: {list(chunks.keys())}")
+        
         if not self.rag_integration:
             return
         
         try:
+            # Clean up old story analysis chunks before indexing new ones
+            if settings.debug:
+                print(f"[RAG STORY ANALYSIS] Cleaning up old story analysis chunks...")
+            
+            deleted_count = await self.rag_integration.cleanup_content_by_type_and_metadata(
+                content_type="outline",
+                metadata_filters={
+                    "content_type": "story_analysis_chunk",
+                    "generation_stage": "story_analysis"
+                }
+            )
+            
+            if settings.debug:
+                print(f"[RAG STORY ANALYSIS] Cleaned up {deleted_count} old story analysis chunks")
+            
+            # Index new story analysis chunks
             for chunk_type, chunk_content in chunks.items():
                 if chunk_content:
                     await self.rag_integration.index_outline(
@@ -499,11 +591,13 @@ class OutlineGenerator:
                     )
             
             if settings.debug:
-                print(f"[RAG STORY ANALYSIS] Indexed {len(chunks)} story analysis chunks")
+                print(f"[RAG STORY ANALYSIS] Indexed {len(chunks)} new story analysis chunks")
         
         except Exception as e:
             if settings.debug:
                 print(f"[RAG STORY ANALYSIS] Error indexing story analysis chunks: {e}")
+            # Log the error but don't fail the entire process
+            logger.error(f"Failed to index story analysis chunks: {e}")
     
     async def _extract_story_start_date_from_chunks(
         self,
@@ -589,28 +683,8 @@ class OutlineGenerator:
                 print(f"[STORY ELEMENTS] Error generating story elements from chunks: {e}")
             return "Story elements generation in progress"  # Default fallback
 
-    async def _generate_stripped_story_elements(self, story_elements: str, settings: GenerationSettings) -> str:
-        """Generate a version of story elements with characters and specific settings removed."""
-        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
-        
-        response = await execute_prompt_with_savepoint(
-            handler=self.prompt_handler,
-            prompt_id="outline/strip_elements",
-            variables={"story_elements": story_elements},
-            savepoint_id="story_elements_stripped",
-            model_config=model_config,
-            seed=settings.seed,
-            debug=settings.debug,
-            stream=settings.stream,
-            log_prompt_inputs=settings.log_prompt_inputs,
-            system_message=self.system_message
-        )
-        
-        return response.content.strip()
-
     async def _generate_initial_outline(
         self,
-        prompt: str,
         story_elements: str,
         base_context: str,
         settings: GenerationSettings
@@ -623,11 +697,10 @@ class OutlineGenerator:
             print(f"[OUTLINE GENERATION] outline_chunk_size: {settings.outline_chunk_size}")
         
         print(f"[OUTLINE GENERATION] Using chunked generation approach")
-        return await self._generate_initial_outline_chunked(prompt, story_elements, base_context, settings)
+        return await self._generate_initial_outline_chunked(story_elements, base_context, settings)
     
     async def _generate_initial_outline_chunked(
         self,
-        prompt: str,
         story_elements: str,
         base_context: str,
         settings: GenerationSettings
@@ -638,7 +711,7 @@ class OutlineGenerator:
         
         # Step 2: Generate chunked outline
         chunked_outline = await self._generate_chunked_outline(
-            prompt, story_elements, base_context, settings
+            story_elements, base_context, settings
         )
         
         # Save the chunked outline as both initial and final if critique is disabled
@@ -650,7 +723,6 @@ class OutlineGenerator:
     
     async def _generate_chunked_outline(
         self,
-        prompt: str,
         story_elements: str,
         base_context: str,
         settings: GenerationSettings
@@ -737,6 +809,75 @@ class OutlineGenerator:
         )
         
         return response.content.strip()
+    
+    # Progressive Planning Methods
+    
+    async def plan_next_chapter_progressive(
+        self, 
+        settings: GenerationSettings
+    ) -> Dict[str, Any]:
+        """Coordinate progressive chapter planning using StoryStateManager."""
+        try:
+            if not self.story_state_manager.story_context:
+                raise StoryGenerationError("Story context must be initialized before progressive planning")
+            
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Coordinating next chapter planning...")
+            
+            # Delegate planning to StoryStateManager
+            chapter_state = await self.story_state_manager.plan_next_chapter(settings)
+            
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Chapter {chapter_state.chapter_number} planning coordinated")
+            
+            # Return planning data for chapter generator to use
+            return {
+                "chapter_number": chapter_state.chapter_number,
+                "title": chapter_state.title,
+                "planned_content": chapter_state.planned_content,
+                "key_events": chapter_state.key_events,
+                "character_developments": chapter_state.character_developments,
+                "plot_advancements": chapter_state.plot_advancements,
+                "themes_explored": chapter_state.themes_explored,
+                "story_context": self.story_state_manager._prepare_planning_context()
+            }
+            
+        except Exception as e:
+            raise StoryGenerationError(f"Failed to coordinate progressive chapter planning: {e}") from e
+    
+    async def revise_outline_progressive(
+        self, 
+        chapter_num: int, 
+        settings: GenerationSettings
+    ) -> Dict[str, Any]:
+        """Coordinate outline revision using StoryStateManager."""
+        try:
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Coordinating outline revision for chapter {chapter_num}...")
+            
+            # Delegate revision to StoryStateManager
+            chapter_state = await self.story_state_manager.revise_chapter_plan(chapter_num, settings)
+            
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Chapter {chapter_num} revision coordinated")
+            
+            # Return revised planning data
+            return {
+                "chapter_number": chapter_state.chapter_number,
+                "title": chapter_state.title,
+                "planned_content": chapter_state.planned_content,
+                "key_events": chapter_state.key_events,
+                "character_developments": chapter_state.character_developments,
+                "plot_advancements": chapter_state.plot_advancements,
+                "themes_explored": chapter_state.themes_explored,
+                "revision_notes": chapter_state.revision_notes,
+                "story_context": self.story_state_manager._prepare_planning_context()
+            }
+            
+        except Exception as e:
+            raise StoryGenerationError(f"Failed to coordinate outline revision: {e}") from e
+    
+
     
     async def _analyze_chunk_continuity(
         self,

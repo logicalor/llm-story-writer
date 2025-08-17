@@ -2,6 +2,8 @@
 
 import asyncio
 from typing import List, Optional, Dict, Any
+from datetime import datetime
+from pathlib import Path
 from domain.entities.story import Story, Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
@@ -15,6 +17,7 @@ from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
 from infrastructure.savepoints import SavepointManager
 from .outline_generator import OutlineGenerator
 from .chapter_generator import ChapterGenerator
+from .story_state_manager import StoryStateManager
 from application.services.rag_service import RAGService
 
 
@@ -76,8 +79,18 @@ You have deep knowledge of storytelling techniques, character development, plot 
             savepoint_manager=self.savepoint_manager,
             rag_service=self.rag_service
         )
+        
+        # Initialize story state manager
+        self.story_state_manager = StoryStateManager(
+            model_provider=model_provider,
+            config=config,
+            prompt_handler=self.prompt_handler,
+            system_message=self.system_message,
+            savepoint_manager=self.savepoint_manager,
+            rag_service=self.rag_service
+        )
     
-    def _setup_savepoints(self, prompt_filename: str) -> None:
+    async def _setup_savepoints(self, prompt_filename: str) -> None:
         """Setup savepoint manager for the current story."""
         if self.savepoint_repo:
             # Store the prompt filename for RAG context
@@ -99,15 +112,21 @@ You have deep knowledge of storytelling techniques, character development, plot 
             self.chapter_generator.recap_manager.savepoint_manager = self.savepoint_manager
             self.chapter_generator.scene_generator.savepoint_manager = self.savepoint_manager
             
+            # Update story state manager
+            self.story_state_manager.savepoint_manager = self.savepoint_manager
+            self.story_state_manager.set_story_directory(prompt_filename)
+            
             # Set the story identifier in RAG integration services for story isolation
             if self.rag_service and self.outline_generator.rag_integration:
                 self.outline_generator.rag_integration.set_current_story_identifier(prompt_filename)
             if self.rag_service and self.chapter_generator.rag_integration:
                 self.chapter_generator.rag_integration.set_current_story_identifier(prompt_filename)
+            if self.rag_service and self.story_state_manager.rag_integration:
+                self.story_state_manager.rag_integration.set_current_story_identifier(prompt_filename)
             
             # Initialize RAG story context for this prompt filename
             if self.rag_service:
-                asyncio.create_task(self._initialize_rag_story(prompt_filename))
+                await self._initialize_rag_story(prompt_filename)
     
     async def _initialize_rag_story(self, prompt_filename: str) -> None:
         """Initialize RAG story context for the given prompt filename."""
@@ -115,10 +134,15 @@ You have deep knowledge of storytelling techniques, character development, plot 
             if not self.rag_service:
                 return
             
+            # Ensure RAG service is initialized before use
+            if not hasattr(self.rag_service, '_initialized'):
+                await self.rag_service.initialize()
+                self.rag_service._initialized = True
+            
             # Create or get story in RAG system using prompt filename as identifier
             story_id = await self.rag_service.create_story(
                 story_name=prompt_filename,
-                prompt_file_path=prompt_filename
+                prompt_file_path=Path(prompt_filename)
             )
             
             # Store the story ID for future use
@@ -194,7 +218,7 @@ You have deep knowledge of storytelling techniques, character development, plot 
         try:
             # Setup savepoints if available
             if prompt_filename and self.savepoint_repo:
-                self._setup_savepoints(prompt_filename)
+                await self._setup_savepoints(prompt_filename)
             
             # Delegate to outline generator
             return await self.outline_generator.generate_outline(prompt, settings)
@@ -210,6 +234,159 @@ You have deep knowledge of storytelling techniques, character development, plot 
             
         except Exception as e:
             raise StoryGenerationError(f"Failed to generate chapters: {e}") from e
+    
+    async def generate_progressive_story(self, prompt: str, settings: GenerationSettings) -> List[Chapter]:
+        """Generate story progressively, one chapter at a time."""
+        try:
+            # Initialize progressive outline system
+            print("[PROGRESSIVE STORY] Initializing progressive outline system...")
+            init_result = await self.outline_generator.initialize_progressive_outline(prompt, settings)
+            print(f"[PROGRESSIVE STORY] Progressive outline initialized: {init_result['status']}")
+            
+            chapters = []
+            chapter_count = 0
+            
+            # Generate chapters progressively
+            while chapter_count < settings.wanted_chapters:
+                chapter_count += 1
+                print(f"[PROGRESSIVE STORY] Planning Chapter {chapter_count}...")
+                
+                # Use OutlineGenerator to coordinate chapter planning
+                chapter_plan = await self.outline_generator.plan_next_chapter_progressive(settings)
+                print(f"[PROGRESSIVE STORY] Chapter {chapter_count} planned: {chapter_plan['title']}")
+                
+                # Generate the chapter content using ChapterGenerator
+                print(f"[PROGRESSIVE STORY] Generating Chapter {chapter_count} content...")
+                chapter = await self._generate_chapter_from_plan(chapter_plan, settings)
+                chapters.append(chapter)
+                
+                # Update story evolution
+                print(f"[PROGRESSIVE STORY] Analyzing Chapter {chapter_count} evolution...")
+                await self.story_state_manager.update_story_evolution(chapter_count, settings)
+                
+                # Check if we need to revise previous chapter plans
+                if chapter_count > 1:
+                    print(f"[PROGRESSIVE STORY] Checking if Chapter {chapter_count-1} needs revision...")
+                    await self._check_and_revise_previous_chapters(chapter_count, settings)
+                
+                print(f"[PROGRESSIVE STORY] Chapter {chapter_count} completed. Story state updated.")
+                print(f"[PROGRESSIVE STORY] Current story summary:\n{self.story_state_manager.get_story_summary()}")
+            
+            return chapters
+            
+        except Exception as e:
+            raise StoryGenerationError(f"Failed to generate progressive story: {e}") from e
+    
+    async def get_progressive_outline_status(self, settings: GenerationSettings) -> Dict[str, Any]:
+        """Get the current status of the progressive outline system."""
+        try:
+            if not self.story_state_manager.story_context:
+                return {
+                    "status": "not_initialized",
+                    "message": "Progressive outline system not initialized"
+                }
+            
+            # Get status information from StoryStateManager
+            chapter_count = len(self.story_state_manager.chapters)
+            planned_chapters = len([c for c in self.story_state_manager.chapters.values() if c.status == "planned"])
+            completed_chapters = len([c for c in self.story_state_manager.chapters.values() if c.status == "completed"])
+            revised_chapters = len([c for c in self.story_state_manager.chapters.values() if c.status == "revised"])
+            
+            # Get story context summary
+            context = self.story_state_manager.story_context
+            story_summary = {
+                "direction": context.story_direction,
+                "themes": context.current_themes,
+                "tone": context.tone_style,
+                "pacing": context.story_pacing,
+                "tension": context.current_tension
+            }
+            
+            return {
+                "status": "active",
+                "story_context": story_summary,
+                "chapters": {
+                    "planned": planned_chapters,
+                    "completed": completed_chapters,
+                    "revised": revised_chapters,
+                    "total": chapter_count
+                },
+                "characters": len(self.story_state_manager.characters),
+                "plot_threads": len([t for t in self.story_state_manager.plot_threads.values() if t.status == 'active']),
+                "evolution_entries": len(self.story_state_manager.story_evolution)
+            }
+            
+        except Exception as e:
+            raise StoryGenerationError(f"Failed to get progressive outline status: {e}") from e
+    
+    async def plan_next_chapter_progressive(self, settings: GenerationSettings) -> Dict[str, Any]:
+        """Manually plan the next chapter in the progressive story."""
+        try:
+            if not self.story_state_manager.story_context:
+                raise StoryGenerationError("Progressive outline system not initialized. Call generate_progressive_story first.")
+            
+            # Use OutlineGenerator to coordinate chapter planning
+            chapter_plan = await self.outline_generator.plan_next_chapter_progressive(settings)
+            
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Next chapter planned: {chapter_plan['title']}")
+            
+            return chapter_plan
+            
+        except Exception as e:
+            raise StoryGenerationError(f"Failed to plan next chapter: {e}") from e
+    
+    async def _generate_chapter_from_plan(self, chapter_plan: Dict[str, Any], settings: GenerationSettings) -> Chapter:
+        """Generate a chapter from a progressive chapter plan using ChapterGenerator."""
+        try:
+            # Create a Chapter entity with the planned content
+            from domain.entities.story import Chapter
+            chapter = Chapter(
+                title=chapter_plan['title'],
+                content=chapter_plan['planned_content'],
+                chapter_number=chapter_plan['chapter_number']
+            )
+            
+            # Use ChapterGenerator to enhance the chapter content if needed
+            # This could involve scene generation, character development, etc.
+            # For now, we'll use the planned content directly
+            if settings.debug:
+                print(f"[PROGRESSIVE STORY] Chapter {chapter.chapter_number} generated from plan")
+                print(f"   Title: {chapter.title}")
+                print(f"   Content length: {len(chapter.content)} characters")
+            
+            # Update the chapter state in StoryStateManager
+            if chapter.chapter_number in self.story_state_manager.chapters:
+                chapter_state = self.story_state_manager.chapters[chapter.chapter_number]
+                chapter_state.actual_content = chapter.content
+                chapter_state.status = "completed"
+                chapter_state.updated_at = datetime.now()
+                
+                # Save the updated state
+                self.story_state_manager._save_state()
+            
+            return chapter
+            
+        except Exception as e:
+            raise StoryGenerationError(f"Failed to generate chapter from plan: {e}") from e
+    
+    async def _check_and_revise_previous_chapters(self, current_chapter: int, settings: GenerationSettings) -> None:
+        """Check if previous chapters need revision based on story evolution."""
+        try:
+            # Check the previous chapter for potential revisions
+            prev_chapter = current_chapter - 1
+            if prev_chapter in self.story_state_manager.chapters:
+                chapter_state = self.story_state_manager.chapters[prev_chapter]
+                
+                # Simple heuristic: if the chapter was planned more than 2 chapters ago, consider revision
+                if current_chapter - chapter_state.chapter_number > 2:
+                    print(f"[PROGRESSIVE STORY] Revising Chapter {prev_chapter} plan...")
+                    # Use OutlineGenerator to coordinate revision
+                    await self.outline_generator.revise_outline_progressive(prev_chapter, settings)
+                    print(f"[PROGRESSIVE STORY] Chapter {prev_chapter} plan revised.")
+                    
+        except Exception as e:
+            print(f"[PROGRESSIVE STORY] Warning: Could not check/revise previous chapters: {e}")
     
     async def generate_story_info(self, outline: Outline, chapters: List[Chapter], settings: GenerationSettings) -> StoryInfo:
         """Generate story metadata."""
@@ -247,7 +424,7 @@ You have deep knowledge of storytelling techniques, character development, plot 
     
     def get_strategy_description(self) -> str:
         """Get a description of this strategy."""
-        return "Generates a detailed outline first, then writes chapters based on the outline structure."
+        return "Generates stories progressively, allowing organic development through iterative chapter planning and writing, or traditionally with upfront outline generation."
     
     def get_required_models(self) -> List[str]:
         """Get list of required model names for this strategy."""

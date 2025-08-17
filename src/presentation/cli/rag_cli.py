@@ -6,12 +6,12 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from config.rag_config import RAGConfigLoader, RAGConfig
-from infrastructure.providers.ollama_embedding_provider import OllamaEmbeddingProvider
-from infrastructure.storage.pgvector_store import PgVectorStore
-from application.services.rag_service import RAGService
-from application.services.content_chunker import ContentChunker
-from application.services.rag_integration_service import RAGIntegrationService
+from ..config.rag_config import RAGConfigLoader, RAGConfig
+from ..infrastructure.providers.ollama_embedding_provider import OllamaEmbeddingProvider
+from ..infrastructure.storage.pgvector_store import PgVectorStore
+from ..application.services.rag_service import RAGService
+from ..application.services.content_chunker import ContentChunker
+from ..application.services.rag_integration_service import RAGIntegrationService
 
 
 class RAGCLI:
@@ -26,7 +26,9 @@ class RAGCLI:
         """Initialize the RAG system."""
         try:
             # Load configuration
-            config_loader = RAGConfigLoader()
+            from ..config.config_loader import ConfigLoader
+            main_config_loader = ConfigLoader()
+            config_loader = RAGConfigLoader(main_config_loader)
             self.config = config_loader.load_rag_config()
             
             # Validate configuration

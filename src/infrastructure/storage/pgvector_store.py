@@ -5,6 +5,10 @@ import json
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 import asyncpg
+try:
+    import asyncpg.pgvector
+except ImportError:
+    asyncpg.pgvector = None
 from domain.exceptions import StorageError
 
 logger = logging.getLogger(__name__)
@@ -21,11 +25,34 @@ class PgVectorStore:
         """Initialize the connection pool and ensure tables exist."""
         try:
             self._pool = await asyncpg.create_pool(self.connection_string)
+            
+            # Register vector type handler
+            await self._register_vector_type()
+            
             await self._ensure_tables_exist()
             logger.info("PgVector store initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize PgVector store: {e}")
             raise StorageError(f"Failed to initialize PgVector store: {e}")
+    
+    async def _register_vector_type(self):
+        """Register the vector type handler with asyncpg."""
+        if not asyncpg.pgvector:
+            logger.warning("asyncpg.pgvector not available, vector type handling may not work properly")
+            return
+            
+        async with self._pool.acquire() as conn:
+            # Get the OID of the vector type
+            vector_oid = await conn.fetchval(
+                "SELECT oid FROM pg_type WHERE typname = 'vector'"
+            )
+            
+            if vector_oid:
+                # Register a custom type handler for vector
+                asyncpg.pgvector.register_vector(conn)
+                logger.info("Vector type handler registered successfully")
+            else:
+                logger.warning("Vector type not found, pgvector extension may not be installed")
     
     async def close(self):
         """Close the connection pool."""
@@ -91,17 +118,20 @@ class PgVectorStore:
         """Store content with embedding in the vector store."""
         async with self._pool.acquire() as conn:
             try:
+                # Convert embedding list to PostgreSQL vector format
+                vector_str = f"[{','.join(map(str, embedding))}]"
+                
                 chunk_id = await conn.fetchval(
                     """
                     INSERT INTO content_chunks 
                     (story_id, content_type, content_subtype, title, content, metadata, 
                      embedding, chapter_number, scene_number)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9)
                     RETURNING id
                     """,
                     story_id, content_type, content_subtype, title, content,
                     json.dumps(metadata) if metadata else None,
-                    embedding, chapter_number, scene_number
+                    vector_str, chapter_number, scene_number
                 )
                 logger.debug(f"Stored embedding for content type '{content_type}' with ID {chunk_id}")
                 return chunk_id
@@ -231,6 +261,56 @@ class PgVectorStore:
             except Exception as e:
                 logger.error(f"Failed to get story content: {e}")
                 raise StorageError(f"Failed to get story content: {e}")
+    
+    async def delete_content_by_type_and_metadata(
+        self,
+        story_id: int,
+        content_type: str,
+        metadata_filters: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Delete content chunks by type and optional metadata filters."""
+        async with self._pool.acquire() as conn:
+            try:
+                # First, count the chunks that will be deleted
+                count_query_parts = [
+                    "SELECT COUNT(*) FROM content_chunks WHERE story_id = $1 AND content_type = $2"
+                ]
+                count_params = [story_id, content_type]
+                param_count = 2
+                
+                # Add metadata filters if provided
+                if metadata_filters:
+                    for key, value in metadata_filters.items():
+                        param_count += 1
+                        count_query_parts.append(f"AND metadata->>'{key}' = ${param_count}")
+                        count_params.append(str(value))
+                
+                count_query = " ".join(count_query_parts)
+                chunk_count = await conn.fetchval(count_query, *count_params)
+                
+                # Now delete the chunks
+                delete_query_parts = [
+                    "DELETE FROM content_chunks WHERE story_id = $1 AND content_type = $2"
+                ]
+                delete_params = [story_id, content_type]
+                param_count = 2
+                
+                # Add metadata filters if provided
+                if metadata_filters:
+                    for key, value in metadata_filters.items():
+                        param_count += 1
+                        delete_query_parts.append(f"AND metadata->>'{key}' = ${param_count}")
+                        delete_params.append(str(value))
+                
+                delete_query = " ".join(delete_query_parts)
+                await conn.execute(delete_query, *delete_params)
+                
+                logger.info(f"Deleted {chunk_count} {content_type} chunks for story {story_id}")
+                return chunk_count
+                
+            except Exception as e:
+                logger.error(f"Failed to delete {content_type} content for story {story_id}: {e}")
+                raise StorageError(f"Failed to delete {content_type} content for story {story_id}: {e}")
     
     async def delete_story_content(self, story_id: int) -> int:
         """Delete all content for a story."""

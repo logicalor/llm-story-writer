@@ -62,7 +62,7 @@ infrastructure:
   logs_dir: "Logs"
   ollama_host: "127.0.0.1:11434"
   llama_cpp_host: "127.0.0.1:8080"
-  context_length: 32000
+  context_length: 16384
   randomize_seed: true
   
   # RAG Configuration

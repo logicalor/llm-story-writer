@@ -39,11 +39,22 @@ class ConfigLoader:
                     'output_dir': infrastructure.get('output_dir', 'Stories'),
                     'savepoint_dir': infrastructure.get('savepoint_dir', 'SavePoints'),
                     'logs_dir': infrastructure.get('logs_dir', 'Logs'),
-                                    'ollama_host': infrastructure.get('ollama_host', '127.0.0.1:11434'),
-                'lm_studio_host': infrastructure.get('lm_studio_host', '127.0.0.1:1234'),
-                'llama_cpp_host': infrastructure.get('llama_cpp_host', '127.0.0.1:8080'),
+                    'ollama_host': infrastructure.get('ollama_host', '127.0.0.1:11434'),
+                    'lm_studio_host': infrastructure.get('lm_studio_host', '127.0.0.1:1234'),
+                    'llama_cpp_host': infrastructure.get('llama_cpp_host', '127.0.0.1:8080'),
                     'context_length': infrastructure.get('context_length', 4096),
                     'randomize_seed': infrastructure.get('randomize_seed', True),
+                    # RAG Configuration
+                    'postgres_host': infrastructure.get('postgres_host', 'localhost:5432'),
+                    'postgres_database': infrastructure.get('postgres_database', 'story_writer'),
+                    'postgres_user': infrastructure.get('postgres_user', 'story_user'),
+                    'postgres_password': infrastructure.get('postgres_password', 'story_pass'),
+                    'embedding_model': infrastructure.get('embedding_model', 'ollama://nomic-embed-text'),
+                    'vector_dimensions': infrastructure.get('vector_dimensions', 1536),
+                    'similarity_threshold': infrastructure.get('similarity_threshold', 0.7),
+                    'max_context_chunks': infrastructure.get('max_context_chunks', 20),
+                    'max_chunk_size': infrastructure.get('max_chunk_size', 1000),
+                    'overlap_size': infrastructure.get('overlap_size', 200),
                 })
                 del config_data['infrastructure']
             

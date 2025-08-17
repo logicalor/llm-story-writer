@@ -14,6 +14,8 @@ from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
 from infrastructure.savepoints import SavepointManager
 from application.services.rag_service import RAGService
+from application.services.rag_integration_service import RAGIntegrationService
+from application.services.content_chunker import ContentChunker
 from .character_manager import CharacterManager
 from .setting_manager import SettingManager
 from .recap_manager import RecapManager
@@ -38,6 +40,15 @@ class ChapterGenerator:
         self.system_message = system_message
         self.savepoint_manager = savepoint_manager
         self.rag_service = rag_service
+        
+        # Initialize RAG integration
+        self.rag_integration = None
+        if self.rag_service:
+            content_chunker = ContentChunker(
+                max_chunk_size=config.get("max_chunk_size", 1000),
+                overlap_size=config.get("overlap_size", 200)
+            )
+            self.rag_integration = RAGIntegrationService(self.rag_service, content_chunker)
         
         # Initialize managers
         self.character_manager = CharacterManager(

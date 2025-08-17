@@ -70,7 +70,8 @@ class StrategyFactory:
         strategy_name: str,
         model_provider: ModelProvider,
         config: Dict[str, Any],
-        savepoint_repo: Optional[SavepointRepository] = None
+        savepoint_repo: Optional[SavepointRepository] = None,
+        rag_service: Optional[Any] = None
     ) -> StoryStrategy:
         """Create a strategy instance with its own prompt loader."""
         if strategy_name not in self._strategies:
@@ -92,7 +93,7 @@ class StrategyFactory:
         
         # Create strategy instance with required dependencies
         if strategy_name == "outline-chapter":
-            return strategy_class(model_provider, config, strategy_prompt_loader, savepoint_repo)
+            return strategy_class(model_provider, config, strategy_prompt_loader, savepoint_repo, rag_service)
         elif strategy_name == "stream-of-consciousness":
             return strategy_class(model_provider, config)
         else:
