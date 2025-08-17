@@ -54,17 +54,29 @@ async def _initialize_rag_story(self, prompt_filename: str) -> None:
         print(f"⚠️ Warning: Could not initialize RAG story for '{prompt_filename}': {e}")
 ```
 
-### **3. OutlineGenerator Enhancement**
+### **3. Complete Component Integration**
 
-**File**: `src/application/strategies/outline_chapter/outline_generator.py`
+**All components now receive consistent dependency injection**:
 
-**Changes**:
-- Added `rag_service` parameter to constructor for RAG integration service
-- **No prompt filename tracking** - this is managed by the strategy
-- **No RAG story ID tracking** - this is managed by the strategy
-- Focuses on its core responsibility: outline generation
+#### **OutlineGenerator**
+- Receives `rag_service` and `savepoint_manager` from strategy
+- Initializes its managers (`CharacterManager`, `SettingManager`) with RAG service
 
-**Constructor**:
+#### **ChapterGenerator**
+- Receives `rag_service` and `savepoint_manager` from strategy
+- Initializes all its managers with RAG service:
+  - `CharacterManager`
+  - `SettingManager`
+  - `RecapManager`
+  - `SceneGenerator`
+
+#### **Manager Components**
+- **CharacterManager**: Receives `rag_service` and `savepoint_manager`
+- **SettingManager**: Receives `rag_service` and `savepoint_manager`
+- **RecapManager**: Receives `rag_service` and `savepoint_manager`
+- **SceneGenerator**: Receives `rag_service` and `savepoint_manager`, passes to its managers
+
+**Constructor Pattern** (consistent across all components):
 ```python
 def __init__(
     self,
@@ -73,13 +85,13 @@ def __init__(
     prompt_handler: PromptHandler,
     system_message: str,
     savepoint_manager: Optional[SavepointManager] = None,
-    rag_service: Optional[RAGService] = None  # For RAG integration service only
+    rag_service: Optional[RAGService] = None  # Consistent RAG service injection
 ):
     # ... existing initialization ...
-    # No prompt_filename or _rag_story_id attributes
+    self.rag_service = rag_service  # Store for future RAG operations
 ```
 
-**Key Principle**: The outline generator focuses on outline generation and RAG integration services, while the strategy manages story context and prompt filename tracking.
+**Key Principle**: All components receive the same dependencies from the strategy, ensuring consistent access to RAG services and savepoint management throughout the entire generation pipeline.
 
 ## 🔄 **Workflow Integration**
 

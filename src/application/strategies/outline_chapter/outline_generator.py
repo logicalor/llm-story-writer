@@ -52,7 +52,8 @@ class OutlineGenerator:
             config=config,
             prompt_handler=prompt_handler,
             system_message=system_message,
-            savepoint_manager=savepoint_manager
+            savepoint_manager=savepoint_manager,
+            rag_service=rag_service
         )
         
         self.setting_manager = SettingManager(
@@ -60,7 +61,8 @@ class OutlineGenerator:
             config=config,
             prompt_handler=prompt_handler,
             system_message=system_message,
-            savepoint_manager=savepoint_manager
+            savepoint_manager=savepoint_manager,
+            rag_service=rag_service
         )
     
     async def generate_outline(

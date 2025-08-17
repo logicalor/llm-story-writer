@@ -12,6 +12,7 @@ from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
 from infrastructure.savepoints import SavepointManager
+from application.services.rag_service import RAGService
 
 
 class RecapManager:
@@ -23,13 +24,15 @@ class RecapManager:
         config: Dict[str, Any],
         prompt_handler: PromptHandler,
         system_message: str,
-        savepoint_manager: Optional[SavepointManager] = None
+        savepoint_manager: Optional[SavepointManager] = None,
+        rag_service: Optional[RAGService] = None
     ):
         self.model_provider = model_provider
         self.config = config
         self.prompt_handler = prompt_handler
         self.system_message = system_message
         self.savepoint_manager = savepoint_manager
+        self.rag_service = rag_service
     
     async def get_previous_chapter_recap_from_savepoint(
         self,

@@ -73,7 +73,8 @@ You have deep knowledge of storytelling techniques, character development, plot 
             config=config,
             prompt_handler=self.prompt_handler,
             system_message=self.system_message,
-            savepoint_manager=self.savepoint_manager
+            savepoint_manager=self.savepoint_manager,
+            rag_service=self.rag_service
         )
     
     def _setup_savepoints(self, prompt_filename: str) -> None:

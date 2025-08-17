@@ -9,6 +9,7 @@ from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
 from infrastructure.savepoints import SavepointManager
+from application.services.rag_service import RAGService
 
 
 class CharacterManager:
@@ -20,13 +21,15 @@ class CharacterManager:
         config: Dict[str, Any],
         prompt_handler: PromptHandler,
         system_message: str,
-        savepoint_manager: Optional[SavepointManager] = None
+        savepoint_manager: Optional[SavepointManager] = None,
+        rag_service: Optional[RAGService] = None
     ):
         self.model_provider = model_provider
         self.config = config
         self.prompt_handler = prompt_handler
         self.system_message = system_message
         self.savepoint_manager = savepoint_manager
+        self.rag_service = rag_service
     
     async def generate_character_sheets(self, story_elements: str, additional_context: str, settings: GenerationSettings) -> None:
         """Generate character sheets for all characters identified in story elements."""
