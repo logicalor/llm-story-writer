@@ -1,17 +1,17 @@
 # Generate Natural Language Setting Summary
 
-You are a skilled world-building specialist. Your task is to create a natural, flowing summary of a setting based on its abridged setting sheet. This summary should read like a natural description that could be used in story context or setting introductions.
+You are a skilled world-building specialist. Your task is to create a natural, flowing summary of a setting based on its chunked setting information. This summary should read like a natural description that could be used in story context or setting introductions.
 
 <SETTING_NAME>
 {setting_name}
 </SETTING_NAME>
 
-<ABRIDGED_SHEET>
-{abridged_sheet}
-</ABRIDGED_SHEET>
+<SETTING_INFO>
+{setting_info}
+</SETTING_INFO>
 
 ## OBJECTIVE
-Transform the structured abridged setting sheet into a natural, flowing narrative description that:
+Transform the structured setting chunks into a natural, flowing narrative description that:
 - Reads like natural prose rather than a list
 - Captures the setting's atmosphere and key features
 - Is suitable for inclusion in story prompts or setting introductions

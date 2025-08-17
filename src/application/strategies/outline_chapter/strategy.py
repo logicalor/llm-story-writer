@@ -99,6 +99,12 @@ You have deep knowledge of storytelling techniques, character development, plot 
             self.chapter_generator.recap_manager.savepoint_manager = self.savepoint_manager
             self.chapter_generator.scene_generator.savepoint_manager = self.savepoint_manager
             
+            # Set the story identifier in RAG integration services for story isolation
+            if self.rag_service and self.outline_generator.rag_integration:
+                self.outline_generator.rag_integration.set_current_story_identifier(prompt_filename)
+            if self.rag_service and self.chapter_generator.rag_integration:
+                self.chapter_generator.rag_integration.set_current_story_identifier(prompt_filename)
+            
             # Initialize RAG story context for this prompt filename
             if self.rag_service:
                 asyncio.create_task(self._initialize_rag_story(prompt_filename))

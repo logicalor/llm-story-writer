@@ -1,6 +1,7 @@
 """Outline generation functionality for the outline-chapter strategy."""
 
 from typing import List, Optional, Dict, Any
+from pathlib import Path
 from domain.entities.story import Outline
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
@@ -99,8 +100,12 @@ class OutlineGenerator:
             # Generate story elements
             story_elements = await self._generate_story_elements(prompt, base_context, settings, conversation_history)
 
+            # Generate character sheets with RAG integration
             await self.character_manager.generate_character_sheets(story_elements, base_context, settings)
+            
+            # Generate setting sheets with RAG integration
             await self.setting_manager.generate_setting_sheets(story_elements, base_context, settings)
+            
             await self._generate_stripped_story_elements(story_elements, settings)
 
             enrichment_suggestions = await self._analyze_story_enrichment(
@@ -238,14 +243,8 @@ class OutlineGenerator:
         
         return response.content.strip()
     
-    async def _get_story_elements_for_prompts(self) -> str:
-        """Get the stripped story elements for use in prompts (without characters/settings)."""
-        if self.savepoint_manager and await self.savepoint_manager.has_step("story_elements_stripped"):
-            return await self.savepoint_manager.load_step("story_elements_stripped")
-        else:
-            # Fallback to original story elements if stripped version doesn't exist
-            return await self.savepoint_manager.load_step("story_elements")
-    
+
+
 
     async def _generate_initial_outline(
         self,
@@ -955,3 +954,4 @@ class OutlineGenerator:
             
             # Fallback: create a simple list from the outline
             return self._fallback_chapter_extraction(final_outline)
+    
