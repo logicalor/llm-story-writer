@@ -52,6 +52,84 @@ def extract_boxed_solution(text: str) -> Optional[str]:
         print(f"Error processing text: {str(e)}")
         return None
 
+
+def extract_output_tags(text: str) -> Optional[str]:
+    """
+    Extracts the content of the last `<output>...</output>` tags in a given text.
+    Handles unclosed tags gracefully by extracting content up to the end of text.
+    Args:
+        text (str): The input string containing output tags.
+    Returns:
+        Optional[str]: The extracted content inside the last `<output>` tags if found, 
+        or content from unclosed tag to end of text, otherwise `None`.
+    Example:
+        >>> extract_output_tags("Here is the result: <output>42</output>")
+        '42'
+        >>> extract_output_tags("Unmatched <output>42")
+        '42'
+    """
+    if text is None:
+        return None
+        
+    try:
+        start_index = text.rindex("<output>")
+        content_start = start_index + 8  # Length of "<output>"
+        
+        # Try to find the closing tag
+        try:
+            end_index = text.rindex("</output>")
+            if end_index > start_index:
+                # Found properly closed tags
+                content = text[content_start:end_index].strip()
+                return content
+            else:
+                # Closing tag is before opening tag, treat as unclosed
+                content = text[content_start:].strip()
+                print(f"⚠️ Warning: Found unclosed <output> tag, extracting content to end of text")
+                return content
+        except ValueError:
+            # No closing tag found, extract to end of text
+            content = text[content_start:].strip()
+            print(f"⚠️ Warning: Found unclosed <output> tag, extracting content to end of text")
+            return content
+
+    except ValueError:
+        return None
+    except Exception as e:
+        print(f"Error processing output tags: {str(e)}")
+        return None
+
+
+def validate_and_parse_output(text: str, skip_validation: bool = False) -> tuple[str, bool]:
+    """
+    Validates and parses output content based on <output> tags.
+    
+    Args:
+        text (str): The raw output text to validate and parse
+        skip_validation (bool): If True, return raw text without validation
+        
+    Returns:
+        tuple[str, bool]: (parsed_content, needs_retry)
+            - parsed_content: The extracted content or raw text
+            - needs_retry: True if validation failed and retry is needed
+    """
+    if skip_validation:
+        return text, False
+    
+    # Check if output tags are present
+    if "<output>" in text:
+        parsed_content = extract_output_tags(text)
+        if parsed_content is not None:
+            return parsed_content, False
+        else:
+            print("⚠️ Warning: Output tags found but content extraction failed")
+            return text, False
+    
+    # No output tags found - this is a parsing error
+    print("❌ Parsing Error: Expected output wrapped in <output> tags but none found")
+    print("   Raw output preview:", text[:200] + "..." if len(text) > 200 else text)
+    return text, True
+
 async def execute_prompt_with_savepoint(
     handler: PromptHandler,
     prompt_id: str,
@@ -64,6 +142,7 @@ async def execute_prompt_with_savepoint(
     expect_json: bool = False,
     json_schema: Optional[Dict[str, Any]] = None,
     use_boxed_solution: bool = False,
+    skip_validation: bool = False,
     **kwargs
 ) -> PromptResponse:
     """
@@ -104,10 +183,32 @@ async def execute_prompt_with_savepoint(
     
     response = await handler.execute_prompt(request)
     
+    # Skip validation and parsing if content comes from a savepoint (already parsed)
+    if response.was_cached:
+        parsed_content = response.content
+        print(f"📋 Using cached content from savepoint '{savepoint_id}' - skipping validation/parsing")
+    else:
+        # Apply output validation and parsing for newly generated content
+        parsed_content, needs_retry = validate_and_parse_output(response.content, skip_validation)
+        if needs_retry:
+            print(f"🔄 Retrying prompt '{prompt_id}' due to missing output tags...")
+            # Retry the prompt once
+            retry_response = await handler.execute_prompt(request)
+            parsed_content, needs_retry = validate_and_parse_output(retry_response.content, skip_validation)
+            if needs_retry:
+                print(f"⚠️ Warning: Retry failed for prompt '{prompt_id}', using raw output")
+                parsed_content = retry_response.content
+            else:
+                response = retry_response
+    
+    # Apply boxed solution extraction if requested
     if use_boxed_solution:
-        boxed_solution = extract_boxed_solution(response.content)
+        boxed_solution = extract_boxed_solution(parsed_content)
         if boxed_solution is not None:
-            response.content = boxed_solution
+            parsed_content = boxed_solution
+    
+    # Update response content with parsed/validated content
+    response.content = parsed_content
     
     end_time = time.time()
     duration = end_time - start_time
@@ -128,6 +229,7 @@ async def execute_prompt(
     model_config: Optional[ModelConfig] = None,
     system_message: Optional[str] = None,
     use_boxed_solution: bool = False,
+    skip_validation: bool = False,
     **kwargs
 ) -> PromptResponse:
     """
@@ -161,10 +263,32 @@ async def execute_prompt(
     
     response = await handler.execute_prompt(request)
     
+    # Skip validation and parsing if content comes from a savepoint (already parsed)
+    if response.was_cached:
+        parsed_content = response.content
+        print(f"📋 Using cached content from savepoint - skipping validation/parsing")
+    else:
+        # Apply output validation and parsing for newly generated content
+        parsed_content, needs_retry = validate_and_parse_output(response.content, skip_validation)
+        if needs_retry:
+            print(f"🔄 Retrying prompt '{prompt_id}' due to missing output tags...")
+            # Retry the prompt once
+            retry_response = await handler.execute_prompt(request)
+            parsed_content, needs_retry = validate_and_parse_output(retry_response.content, skip_validation)
+            if needs_retry:
+                print(f"⚠️ Warning: Retry failed for prompt '{prompt_id}', using raw output")
+                parsed_content = retry_response.content
+            else:
+                response = retry_response
+    
+    # Apply boxed solution extraction if requested
     if use_boxed_solution:
-        boxed_solution = extract_boxed_solution(response.content)
+        boxed_solution = extract_boxed_solution(parsed_content)
         if boxed_solution is not None:
-            response.content = boxed_solution
+            parsed_content = boxed_solution
+    
+    # Update response content with parsed/validated content
+    response.content = parsed_content
     
     end_time = time.time()
     duration = end_time - start_time
@@ -185,6 +309,7 @@ async def execute_messages_with_savepoint(
     expect_json: bool = False,
     json_schema: Optional[Dict[str, Any]] = None,
     use_boxed_solution: bool = False,
+    skip_validation: bool = False,
     **kwargs
 ) -> PromptResponse:
     """
@@ -264,14 +389,38 @@ async def execute_messages_with_savepoint(
             stream=stream
         )
         
+        # For conversation execution, we always need to validate and parse since it's not using savepoints
+        # Apply output validation and parsing
+        parsed_content, needs_retry = validate_and_parse_output(response_content, skip_validation)
+        if needs_retry:
+            print(f"🔄 Retrying conversation due to missing output tags...")
+            # Retry the conversation once
+            retry_content = await handler.model_provider.generate_text(
+                messages=conversation_history,
+                model_config=model_config,
+                seed=seed,
+                debug=debug,
+                stream=stream
+            )
+            parsed_content, needs_retry = validate_and_parse_output(retry_content, skip_validation)
+            if needs_retry:
+                print(f"⚠️ Warning: Retry failed for conversation, using raw output")
+                parsed_content = retry_content
+            else:
+                response_content = retry_content
+        
+        # Apply boxed solution extraction if requested
         if use_boxed_solution:
-            boxed_solution = extract_boxed_solution(response_content)
+            boxed_solution = extract_boxed_solution(parsed_content)
             if boxed_solution is not None:
-                response_content = boxed_solution
+                parsed_content = boxed_solution
+        
+        # Use parsed content for savepoint and response
+        final_content = parsed_content
         
         # Save to savepoint if requested
         if savepoint_id and handler.savepoint_repo:
-            await handler.savepoint_repo.save_savepoint(savepoint_id, response_content)
+            await handler.savepoint_repo.save_savepoint(savepoint_id, final_content)
         
         end_time = time.time()
         duration = end_time - start_time
@@ -283,7 +432,7 @@ async def execute_messages_with_savepoint(
         print(f"[MESSAGES TIMING] {message_count} messages | Model: {model_name} | Duration: {duration:.2f}s{savepoint_info}")
         
         return PromptResponse(
-            content=response_content,
+            content=final_content,
             savepoint_id=savepoint_id,
             was_cached=False,
             model_used=model_name,
@@ -361,6 +510,7 @@ async def execute_json_prompt_with_savepoint(
     model_config: Optional[ModelConfig] = None,
     force_regenerate: bool = False,
     system_message: Optional[str] = None,
+    skip_validation: bool = False,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -403,6 +553,7 @@ async def execute_json_prompt(
     prepend_message: Optional[str] = None,
     model_config: Optional[ModelConfig] = None,
     system_message: Optional[str] = None,
+    skip_validation: bool = False,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -444,6 +595,7 @@ async def execute_json_prompt_with_savepoint_lite(
     model_config: Optional[ModelConfig] = None,
     force_regenerate: bool = False,
     system_message: Optional[str] = None,
+    skip_validation: bool = False,
     **kwargs
 ) -> PromptResponse:
     """
@@ -475,6 +627,7 @@ async def execute_json_prompt_with_savepoint_lite(
         system_message=system_message,
         expect_json=True,
         json_schema=json_schema,
+        skip_validation=skip_validation,
         **kwargs
     )
 
@@ -491,6 +644,7 @@ async def quick_prompt(
     model_config: Optional[ModelConfig] = None,
     force_regenerate: bool = False,
     system_message: Optional[str] = None,
+    skip_validation: bool = False,
     **kwargs
 ) -> PromptResponse:
     """
@@ -527,5 +681,6 @@ async def quick_prompt(
         model_config=model_config,
         force_regenerate=force_regenerate,
         system_message=system_message,
+        skip_validation=skip_validation,
         **kwargs
     ) 

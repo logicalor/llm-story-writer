@@ -55,8 +55,10 @@ Create a focused, well-structured description of the story's tone and style that
 - Ensure consistency with the established story concept
 - Keep the focus on how the story should be told, not what happens in it
 
-## Example Structure
-```
+Use the following format:
+
+```xml
+<output>
 Tone and Style
 
 Narrative Voice:
@@ -78,6 +80,7 @@ Pacing and Rhythm:
 Genre Style:
 - [Style expectations and conventions]
 - [Audience accessibility]
+</output>
 ```
 
 Remember: This chunk should be focused specifically on tone and style, providing a clear understanding of how the story should be written and what voice it should maintain.

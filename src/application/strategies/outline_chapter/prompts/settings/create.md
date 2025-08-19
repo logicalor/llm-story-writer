@@ -1,14 +1,10 @@
 # Generate Setting Sheet
 
-You are a skilled world-building and setting development specialist. Your task is to create a comprehensive setting sheet for a specific location based on the information provided in the story elements and any additional context.
+You are a skilled world-building and setting development specialist. Your task is to create a comprehensive setting sheet for **{setting_name}** based on the information provided in the story elements and any additional context.
 
 <STORY_ELEMENTS>
 {story_elements}
 </STORY_ELEMENTS>
-
-<SETTING_NAME>
-{setting_name}
-</SETTING_NAME>
 
 <ADDITIONAL_CONTEXT>
 {additional_context}
@@ -22,13 +18,20 @@ Create a detailed setting sheet that:
 - Is structured for easy reference and retrieval
 
 ## OUTPUT FORMAT
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a comprehensive setting sheet that fits within 800-1200 words. Focus on information that will be needed for:
 - Scene description and atmosphere
 - Character interaction with the environment
 - Plot development and conflict
 - World-building consistency
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-<TEMPLATE>
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 # Setting Name
 
 ## Basic Information
@@ -99,6 +102,9 @@ Create a comprehensive setting sheet that fits within 800-1200 words. Focus on i
 - **Character Opportunities**: [How can characters grow or change here?]
 - **Plot Integration**: [How does this setting advance the story?]
 - **Consistency Checks**: [What needs to remain consistent?]
+</output>
+```
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 ## AVOID
 - Generic descriptions that could apply anywhere

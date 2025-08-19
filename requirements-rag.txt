@@ -14,3 +14,8 @@ orjson>=3.9.0
 
 # Environment variable management
 python-dotenv>=1.0.0
+
+# Reranking models
+sentence-transformers>=2.2.0
+torch>=2.0.0
+transformers>=4.30.0

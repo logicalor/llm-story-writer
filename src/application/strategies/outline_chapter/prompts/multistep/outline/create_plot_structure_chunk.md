@@ -55,8 +55,10 @@ Create a focused, well-structured description of the story's plot structure that
 - Ensure consistency with the established story concept
 - Keep the focus on how the story should be structured, not what happens in detail
 
-## Example Structure
-```
+Use the following format:
+
+```xml
+<output>
 Plot Structure
 
 Story Structure:
@@ -78,6 +80,7 @@ Subplot Framework:
 Development Patterns:
 - [Conflict escalation and resolution]
 - [Character and setting integration]
+</output>
 ```
 
 Remember: This chunk should be focused specifically on plot structure, providing a clear understanding of how the story should be organized and how it should progress.

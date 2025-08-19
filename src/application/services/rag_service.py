@@ -7,6 +7,8 @@ from pathlib import Path
 from infrastructure.providers.ollama_embedding_provider import OllamaEmbeddingProvider
 from infrastructure.storage.pgvector_store import PgVectorStore
 from domain.exceptions import StorageError
+from application.services.reranker_service import RerankerService
+from application.services.model_reranker_service import ModelRerankerService
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +21,24 @@ class RAGService:
         embedding_provider: OllamaEmbeddingProvider,
         vector_store: PgVectorStore,
         similarity_threshold: float = 0.7,
-        max_context_chunks: int = 20
+        max_context_chunks: int = 20,
+        use_reranker: bool = True,
+        reranker_type: str = "model_based"
     ):
         self.embedding_provider = embedding_provider
         self.vector_store = vector_store
         self.similarity_threshold = similarity_threshold
         self.max_context_chunks = max_context_chunks
+        self.use_reranker = use_reranker
+        self.reranker_type = reranker_type
+        
+        if use_reranker:
+            if reranker_type == "model_based":
+                self.reranker = ModelRerankerService()
+            else:
+                self.reranker = RerankerService()
+        else:
+            self.reranker = None
     
     async def initialize(self):
         """Initialize the RAG service."""
@@ -61,6 +75,15 @@ class RAGService:
         try:
             # Generate embedding for the content
             embedding = await self.embedding_provider.get_single_embedding(content)
+            
+            # Debug logging to check embedding type
+            logger.debug(f"Generated embedding type: {type(embedding)}, length: {len(embedding) if isinstance(embedding, list) else 'N/A'}")
+            logger.debug(f"Embedding preview: {str(embedding)[:100]}...")
+            
+            # Ensure embedding is a list, not numpy array
+            if hasattr(embedding, 'tolist'):
+                embedding = embedding.tolist()
+                logger.debug(f"Converted numpy array to list, new type: {type(embedding)}")
             
             # Store in vector database
             chunk_id = await self.vector_store.store_embedding(
@@ -101,8 +124,8 @@ class RAGService:
             threshold = similarity_threshold or self.similarity_threshold
             
             results = await self.vector_store.search_similar(
-                story_id=story_id,
                 query_embedding=query_embedding,
+                story_id=story_id,
                 content_type=content_type,
                 limit=limit,
                 similarity_threshold=threshold,
@@ -115,6 +138,92 @@ class RAGService:
         except Exception as e:
             logger.error(f"Failed to search similar content: {e}")
             raise StorageError(f"Failed to search similar content: {e}")
+    
+    async def search_similar_reranked(
+        self,
+        story_id: int,
+        query: str,
+        content_type: Optional[str] = None,
+        limit: Optional[int] = None,
+        similarity_threshold: Optional[float] = None,
+        use_hnsw: bool = True,
+        rerank_strategy: str = "hybrid"
+    ) -> List[Tuple[int, str, str, Dict[str, Any], float]]:
+        """Search for similar content and rerank results for better relevance."""
+        try:
+            # First get raw search results with a lower threshold to get more candidates
+            raw_threshold = min(similarity_threshold or self.similarity_threshold, 0.3)
+            raw_results = await self.search_similar(
+                story_id=story_id,
+                query=query,
+                content_type=content_type,
+                limit=limit * 2 if limit else self.max_context_chunks * 2,  # Get more candidates
+                similarity_threshold=raw_threshold,
+                use_hnsw=use_hnsw
+            )
+            
+            if not raw_results:
+                return []
+            
+            # Apply reranking if enabled
+            if self.use_reranker and self.reranker:
+                logger.debug(f"Reranking {len(raw_results)} results using {rerank_strategy} strategy with {self.reranker_type} reranker")
+                
+                if self.reranker_type == "model_based":
+                    # Model-based reranker returns ModelRerankedResult objects
+                    reranked_results = await self.reranker.rerank_results(
+                        query=query,
+                        results=raw_results,
+                        strategy=rerank_strategy
+                    )
+                    
+                    # Convert back to tuple format and limit results
+                    final_results = []
+                    for result in reranked_results[:limit or self.max_context_chunks]:
+                        final_results.append((
+                            result.chunk_id,
+                            result.content_type,
+                            result.content,
+                            result.metadata,
+                            result.reranked_score
+                        ))
+                else:
+                    # Rule-based reranker returns RerankedResult objects
+                    reranked_results = await self.reranker.rerank_results(
+                        query=query,
+                        results=raw_results,
+                        strategy=rerank_strategy
+                    )
+                    
+                    # Convert back to tuple format and limit results
+                    final_results = []
+                    for result in reranked_results[:limit or self.max_context_chunks]:
+                        final_results.append((
+                            result.chunk_id,
+                            result.content_type,
+                            result.content,
+                            result.metadata,
+                            result.reranked_score
+                        ))
+                
+                logger.debug(f"Reranked search returned {len(final_results)} results")
+                return final_results
+            else:
+                # Fall back to regular search if reranker is disabled
+                logger.debug("Reranker disabled, using regular search results")
+                return raw_results[:limit or self.max_context_chunks]
+                
+        except Exception as e:
+            logger.error(f"Failed to search with reranking: {e}")
+            # Fall back to regular search on error
+            return await self.search_similar(
+                story_id=story_id,
+                query=query,
+                content_type=content_type,
+                limit=limit,
+                similarity_threshold=similarity_threshold,
+                use_hnsw=use_hnsw
+            )
     
     async def get_context_for_generation(
         self,

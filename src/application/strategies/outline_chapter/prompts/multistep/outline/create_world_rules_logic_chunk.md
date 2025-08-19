@@ -55,8 +55,10 @@ Create a focused, well-structured description of the story's world rules and log
 - Ensure consistency with the established story concept
 - Keep the focus on how the world should work, not what happens in it
 
-## Example Structure
-```
+Use the following format:
+
+```xml
+<output>
 World Rules and Logic
 
 Physical Rules:
@@ -78,6 +80,7 @@ Logical Constraints:
 Limitations:
 - [What cannot happen]
 - [Boundaries and restrictions]
+</output>
 ```
 
 Remember: This chunk should be focused specifically on world rules and logic, providing a clear understanding of what is and isn't possible in the story world and how it should maintain consistency.

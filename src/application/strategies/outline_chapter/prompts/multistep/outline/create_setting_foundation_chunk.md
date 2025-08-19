@@ -1,6 +1,6 @@
 # Setting Foundation Chunk Generation
 
-You are tasked with extracting and focusing on the setting foundation aspects of a story from the prompt and initial analysis. Create a focused, detailed description of the world, environment, and setting basics.
+You are tasked with analyzing the story prompt to identify all mentioned settings and, if necessary, create additional settings to support the story's needs. Focus on building a complete setting foundation that serves the narrative requirements.
 
 ## Input
 - **Prompt**: The original story prompt or request
@@ -8,7 +8,30 @@ You are tasked with extracting and focusing on the setting foundation aspects of
 - **Story Elements**: Any existing story elements that have been identified
 
 ## Task
-Extract and focus on the story's setting foundation, creating a comprehensive but focused chunk that covers:
+Your primary objectives are:
+
+### 1. Extract Mentioned Settings
+- Identify ALL settings, locations, and environments explicitly mentioned in the prompt
+- Extract setting names, descriptions, and any provided details
+- Note setting relationships and connections mentioned
+- Capture setting rules, constraints, or characteristics stated
+
+### 2. Create Supporting Settings (if needed)
+- Analyze what setting types would best support the story
+- Identify gaps in the setting roster that could enhance the narrative
+- Create additional settings that serve specific story functions:
+  - Contrasting or opposing environments
+  - Transitional or journey locations
+  - Hidden or secret places that advance the plot
+  - Cultural or social centers that enrich the world
+  - Minor locations that add depth and realism
+
+## Setting Foundation Elements
+
+### Main Setting Roster
+- **Extracted Settings**: Settings mentioned in the prompt with their details
+- **Created Settings**: Additional settings created to support the story
+- **Setting Functions**: The role each setting plays in the narrative
 
 ### Primary Locations and Environments
 - Main story locations and settings
@@ -41,23 +64,17 @@ Extract and focus on the story's setting foundation, creating a comprehensive bu
 - World personality and character
 
 ## Output Format
-Create a focused, well-structured description of the story's setting foundation that is:
-- **Comprehensive**: Covers all major setting aspects
-- **World-Building**: Focuses on world rules and structure
-- **Focused**: Stays within the setting domain
-- **Readable**: Well-organized and easy to understand
-- **Consistent**: Shows how the world should work
+Create a comprehensive setting foundation that clearly distinguishes between extracted and created settings:
 
-## Guidelines
-- Focus ONLY on setting foundation - avoid detailed character or plot specifics
-- Emphasize world rules and consistency framework
-- Show setting constraints and opportunities
-- Ensure consistency with the established story concept
-- Keep the focus on what the world is like, not what happens in it
-
-## Example Structure
-```
+```xml
+<output>
 Setting Foundation
+
+Extracted Settings (from prompt):
+- [Setting name]: [Type/function] - [Brief description of what was mentioned]
+
+Created Settings (to support story):
+- [Setting name]: [Type/function] - [Brief description and story purpose]
 
 Primary Locations:
 - [Main story settings and environments]
@@ -78,6 +95,17 @@ Cultural Context:
 Setting Atmosphere:
 - [Overall world feeling and mood]
 - [Environmental personality]
+</output>
 ```
 
-Remember: This chunk should be focused specifically on setting foundation, providing a clear understanding of what the world is like and how it should function consistently.
+## Guidelines
+- **Extract First**: Start by thoroughly identifying all settings mentioned in the prompt
+- **Analyze Gaps**: Determine what setting types would strengthen the story
+- **Create Purposefully**: Only add settings that serve clear narrative functions
+- **Maintain Balance**: Ensure the setting roster supports the story without overwhelming it
+- **Focus on Function**: Emphasize how each setting serves the story's needs
+- **Keep Consistent**: Ensure all settings align with the established world concept
+- **World-Building**: Focus on world rules and consistency framework
+- **Show Constraints**: Highlight setting limitations and opportunities
+
+Remember: This chunk should provide a complete setting foundation that includes both the settings explicitly mentioned in the prompt and any additional settings needed to create a compelling, well-supported world for the narrative.

@@ -47,9 +47,7 @@ class OutlineService:
             
             # Create outline entity
             outline = Outline(
-                content=outline_content,
                 story_elements=story_elements,
-                chapter_list=chapter_list,
                 base_context=base_context,
                 story_start_date=story_start_date
             )

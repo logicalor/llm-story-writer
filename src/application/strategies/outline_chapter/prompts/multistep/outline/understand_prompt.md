@@ -23,7 +23,7 @@ Carefully read and understand the story prompt provided. Focus on:
 5. Pay attention to any specific requirements or constraints
 
 ## Response Format
-Provide a concise summary of your understanding of the story prompt, demonstrating that you have comprehended the key elements and requirements.
+Provide a concise summary of your understanding of the story prompt, demonstrating that you have comprehended the key elements and requirements.  Wrap your answer inside `<output>` tags.
 
 If you have any questions about the prompt or need clarification on specific elements, include those in your response as well.
 

@@ -113,33 +113,27 @@ class Scene:
 class Outline:
     """Story outline with all its components."""
     
-    content: str  # This will be the final refined outline
+
     story_elements: str
-    chapter_list: str
+
     base_context: str
     story_start_date: Optional[str] = None
     initial_outline: Optional[str] = None  # The original outline before critique refinement
-    final_outline: Optional[str] = None    # The final refined outline after critique
+
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
         """Validate outline data."""
-        if not self.content:
-            raise ValidationError("Outline content cannot be empty")
-        
         if not self.story_elements:
             raise ValidationError("Story elements cannot be empty")
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert outline to dictionary."""
         return {
-            "content": self.content,
             "story_elements": self.story_elements,
-            "chapter_list": self.chapter_list,
             "base_context": self.base_context,
             "story_start_date": self.story_start_date,
             "initial_outline": self.initial_outline,
-            "final_outline": self.final_outline,
             "metadata": self.metadata,
         }
 

@@ -54,8 +54,10 @@ Create a focused, well-structured description of the story's core foundation tha
 - Ensure consistency with the established story concept
 - Keep the focus on what the story is fundamentally about, not how it will be told
 
-## Example Structure
-```
+Use the following format:
+
+```xml
+<output>
 Core Story Foundation
 
 Story Premise:
@@ -77,6 +79,7 @@ Story Goals:
 Story Direction:
 - [Where the story is headed]
 - [Scope and scale of the narrative]
+</output>
 ```
 
 Remember: This chunk should be focused specifically on the story's core foundation, providing a clear understanding of what this story is fundamentally about and where it should go.

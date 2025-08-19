@@ -60,7 +60,7 @@ class StoryInfoService:
         prompt_content = self.prompt_loader.load_prompt(
             "outline-chapter/outline/create_title",
             variables={
-                "outline": outline.content,
+                "outline": outline.story_elements,
                 "first_chapter": first_chapter_content[:1000] + "..."
             }
         )
@@ -91,7 +91,7 @@ class StoryInfoService:
         prompt_content = self.prompt_loader.load_prompt(
             "outline-chapter/outline/create_summary",
             variables={
-                "outline": outline.content,
+                "outline": outline.story_elements,
                 "chapter_content": chapter_content
             }
         )
@@ -122,7 +122,7 @@ class StoryInfoService:
         prompt_content = self.prompt_loader.load_prompt(
             "outline-chapter/outline/create_tags",
             variables={
-                "outline": outline.content,
+                "outline": outline.story_elements,
                 "first_chapter": first_chapter_content[:1000] + "..."
             }
         )

@@ -46,6 +46,8 @@ Extract and focus on the setting's physical description, creating a comprehensiv
 - Overall atmosphere and mood
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the setting's physical description that is:
 - **Comprehensive**: Covers all major physical aspects
 - **Sensory**: Appeals to multiple senses
@@ -59,9 +61,13 @@ Create a focused, well-structured description of the setting's physical descript
 - Provide specific, vivid details that engage the senses
 - Ensure consistency with the established setting description
 - Keep the focus on what can be observed and experienced, not what has happened or will happen
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Setting Name]'s Physical Description
 
 Visual Appearance:
@@ -83,6 +89,9 @@ Environmental Features:
 Physical Condition:
 - [State of repair and maintenance]
 - [Overall atmosphere and mood]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on physical description and sensory details, providing a clear understanding of what this setting looks like and how it feels to experience it.

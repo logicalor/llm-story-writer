@@ -7,7 +7,7 @@ from domain.value_objects.model_config import ModelConfig
 
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
-from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
+from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint, execute_messages_with_savepoint
 from infrastructure.savepoints import SavepointManager
 from application.services.rag_service import RAGService
 from application.services.rag_integration_service import RAGIntegrationService
@@ -32,15 +32,8 @@ class CharacterManager:
         self.savepoint_manager = savepoint_manager
         self.rag_service = rag_service
         
-        # Initialize RAG integration if service is provided
+        # RAG integration service will be set by the strategy after story initialization
         self.rag_integration = None
-        if self.rag_service:
-            from application.services.content_chunker import ContentChunker
-            content_chunker = ContentChunker(
-                max_chunk_size=config.get("max_chunk_size", 1000),
-                overlap_size=config.get("overlap_size", 200)
-            )
-            self.rag_integration = RAGIntegrationService(self.rag_service, content_chunker)
     
     async def generate_character_sheets(self, story_elements: str, additional_context: str, settings: GenerationSettings) -> None:
         """Generate character sheets for all characters identified in story elements."""
@@ -139,37 +132,52 @@ class CharacterManager:
         return unique_names[:10]  # Limit to 10 characters max
     
     async def generate_single_character_sheet(self, character_name: str, story_elements: str, additional_context: str, settings: GenerationSettings) -> None:
-        """Generate a character sheet for a single character using chunked generation for optimal RAG indexing."""
+        """Generate a character sheet for a single character using multistep conversation for optimal RAG indexing."""
         model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
         
         try:
-            # Generate the full character sheet first
-            response = await execute_prompt_with_savepoint(
-                handler=self.prompt_handler,
-                prompt_id="characters/create",
-                variables={
-                    "character_name": character_name,
-                    "story_elements": story_elements,
-                    "additional_context": additional_context
+            # Start the conversation with the character creation prompt
+            character_creation_prompt = self.prompt_handler.prompt_loader.load_prompt("characters/create", {
+                "character_name": character_name,
+                "story_elements": story_elements,
+                "additional_context": additional_context
+            })
+            
+            conversation = [
+                {
+                    "role": "system",
+                    "content": self.system_message
                 },
+                {
+                    "role": "user", 
+                    "content": character_creation_prompt
+                }
+            ]
+            
+            # Execute the initial character creation step
+            response = await execute_messages_with_savepoint(
+                handler=self.prompt_handler,
+                conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/sheet",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
+            # Append the response to continue the conversation
+            conversation.append({
+                "role": "assistant",
+                "content": response.content
+            })
+            
             if settings.debug:
-                print(f"[CHARACTER SHEET] Generated sheet for {character_name}")
+                print(f"[CHARACTER SHEET] Generated initial sheet for {character_name}")
             
-            # Generate chunked character information for optimal RAG indexing
-            await self._generate_character_chunks(character_name, response.content.strip(), story_elements, settings)
+            # Generate chunked character information using the conversation
+            await self._generate_character_chunks(character_name, conversation, settings)
             
-            # Index character content in RAG if available
-            if self.rag_integration:
-                await self.index_character_in_rag(character_name, settings)
+            # Character chunks are now indexed individually after generation
                 
         except Exception as e:
             if settings.debug:
@@ -178,20 +186,20 @@ class CharacterManager:
     async def _generate_character_chunks(
         self, 
         character_name: str, 
-        character_sheet: str, 
-        story_elements: str, 
+        conversation: List[Dict[str, str]], 
+
         settings: GenerationSettings
     ) -> None:
-        """Generate focused character chunks for optimal RAG indexing."""
+        """Generate focused character chunks for optimal RAG indexing using conversation continuation."""
         try:
-            # Generate each chunk using specialized prompts
-            await self._generate_personality_chunk(character_name, character_sheet, story_elements, settings)
-            await self._generate_background_chunk(character_name, character_sheet, story_elements, settings)
-            await self._generate_motivations_chunk(character_name, character_sheet, story_elements, settings)
-            await self._generate_relationships_chunk(character_name, character_sheet, story_elements, settings)
-            await self._generate_skills_chunk(character_name, character_sheet, story_elements, settings)
-            await self._generate_current_state_chunk(character_name, character_sheet, story_elements, settings)
-            await self._generate_growth_arc_chunk(character_name, character_sheet, story_elements, settings)
+            # Generate each chunk using specialized prompts, passing a copy of the conversation
+            await self._generate_personality_chunk(character_name, conversation.copy(), settings)
+            await self._generate_background_chunk(character_name, conversation.copy(), settings)
+            await self._generate_motivations_chunk(character_name, conversation.copy(), settings)
+            await self._generate_relationships_chunk(character_name, conversation.copy(), settings)
+            await self._generate_skills_chunk(character_name, conversation.copy(), settings)
+            await self._generate_current_state_chunk(character_name, conversation.copy(), settings)
+            await self._generate_growth_arc_chunk(character_name, conversation.copy(), settings)
             
             if settings.debug:
                 print(f"[CHARACTER CHUNKS] Generated all chunks for {character_name}")
@@ -203,68 +211,106 @@ class CharacterManager:
     async def _generate_personality_chunk(
         self, 
         character_name: str, 
-        character_sheet: str, 
-        story_elements: str, 
+        conversation: List[Dict[str, str]], 
         settings: GenerationSettings
     ) -> None:
         """Generate personality chunk focusing on core traits and behavioral patterns."""
         model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
-            response = await execute_prompt_with_savepoint(
+            # Continue the conversation with the personality chunk prompt
+            personality_prompt = self.prompt_handler.prompt_loader.load_prompt("characters/create_personality_chunk", {
+                "character_name": character_name,
+            })
+            
+            conversation.append({
+                "role": "user",
+                "content": personality_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="characters/create_personality_chunk",
-                variables={
-                    "character_name": character_name,
-                    "character_sheet": character_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/personality_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[CHARACTER CHUNK] Generated personality chunk for {character_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_character_chunk(character_name, "personality_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
                 print(f"[CHARACTER CHUNK] Error generating personality chunk for {character_name}: {e}")
     
+    async def _index_character_chunk(self, character_name: str, chunk_type: str, settings: GenerationSettings) -> None:
+        """Index a character chunk in RAG."""
+        if not self.rag_integration or not self.savepoint_manager:
+            return
+            
+        try:
+            chunk_key = f"characters/{character_name}/{chunk_type}"
+            chunk_content = await self.savepoint_manager.load_step(chunk_key)
+            
+            if chunk_content:
+                # Index each chunk with appropriate metadata
+                chunk_ids = await self.rag_integration.index_character(
+                    character_content=chunk_content,
+                    character_name=character_name,
+                    metadata={
+                        "character_name": character_name,
+                        "content_type": "character_chunk",
+                        "chunk_type": chunk_type.replace("_chunk", ""),
+                        "generation_stage": "outline"
+                    }
+                )
+                
+                if settings.debug:
+                    print(f"[RAG CHARACTER INDEXING] Indexed {len(chunk_ids)} chunks for {character_name} - {chunk_type}")
+        except Exception as e:
+            if settings.debug:
+                print(f"[RAG CHARACTER INDEXING] Could not index {chunk_type} for {character_name}: {e}")
+
     async def _generate_background_chunk(
         self, 
         character_name: str, 
-        character_sheet: str, 
-        story_elements: str, 
+        conversation: List[Dict[str, str]], 
         settings: GenerationSettings
     ) -> None:
         """Generate background chunk focusing on history and formative experiences."""
         model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
-            response = await execute_prompt_with_savepoint(
+            # Continue the conversation with the background chunk prompt
+            background_prompt = self.prompt_handler.prompt_loader.load_prompt("characters/create_background_chunk", {
+                "character_name": character_name,
+            })
+            
+            conversation.append({
+                "role": "user",
+                "content": background_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="characters/create_background_chunk",
-                variables={
-                    "character_name": character_name,
-                    "character_sheet": character_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/background_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[CHARACTER CHUNK] Generated background chunk for {character_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_character_chunk(character_name, "background_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
@@ -273,33 +319,38 @@ class CharacterManager:
     async def _generate_motivations_chunk(
         self, 
         character_name: str, 
-        character_sheet: str, 
-        story_elements: str, 
+        conversation: List[Dict[str, str]], 
         settings: GenerationSettings
     ) -> None:
         """Generate motivations chunk focusing on goals, driving forces, and values."""
         model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
-            response = await execute_prompt_with_savepoint(
+            # Continue the conversation with the motivations chunk prompt
+            motivations_prompt = self.prompt_handler.prompt_loader.load_prompt("characters/create_motivations_chunk", {
+                "character_name": character_name,
+            })
+            
+            conversation.append({
+                "role": "user",
+                "content": motivations_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="characters/create_motivations_chunk",
-                variables={
-                    "character_name": character_name,
-                    "character_sheet": character_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/motivations_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[CHARACTER CHUNK] Generated motivations chunk for {character_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_character_chunk(character_name, "motivations_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
@@ -308,33 +359,38 @@ class CharacterManager:
     async def _generate_relationships_chunk(
         self, 
         character_name: str, 
-        character_sheet: str, 
-        story_elements: str, 
+        conversation: List[Dict[str, str]], 
         settings: GenerationSettings
     ) -> None:
         """Generate relationships chunk focusing on connections with other characters."""
         model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
-            response = await execute_prompt_with_savepoint(
+            # Continue the conversation with the relationships chunk prompt
+            relationships_prompt = self.prompt_handler.prompt_loader.load_prompt("characters/create_relationships_chunk", {
+                "character_name": character_name,
+            })
+            
+            conversation.append({
+                "role": "user",
+                "content": relationships_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="characters/create_relationships_chunk",
-                variables={
-                    "character_name": character_name,
-                    "character_sheet": character_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/relationships_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[CHARACTER CHUNK] Generated relationships chunk for {character_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_character_chunk(character_name, "relationships_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
@@ -343,33 +399,38 @@ class CharacterManager:
     async def _generate_skills_chunk(
         self, 
         character_name: str, 
-        character_sheet: str, 
-        story_elements: str, 
+        conversation: List[Dict[str, str]], 
         settings: GenerationSettings
     ) -> None:
         """Generate skills chunk focusing on competencies, talents, and limitations."""
         model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
-            response = await execute_prompt_with_savepoint(
+            # Continue the conversation with the skills chunk prompt
+            skills_prompt = self.prompt_handler.prompt_loader.load_prompt("characters/create_skills_chunk", {
+                "character_name": character_name,
+            })
+            
+            conversation.append({
+                "role": "user",
+                "content": skills_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="characters/create_skills_chunk",
-                variables={
-                    "character_name": character_name,
-                    "character_sheet": character_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/skills_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[CHARACTER CHUNK] Generated skills chunk for {character_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_character_chunk(character_name, "skills_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
@@ -378,33 +439,38 @@ class CharacterManager:
     async def _generate_current_state_chunk(
         self, 
         character_name: str, 
-        character_sheet: str, 
-        story_elements: str, 
+        conversation: List[Dict[str, str]], 
         settings: GenerationSettings
     ) -> None:
         """Generate current state chunk focusing on present circumstances and emotional state."""
         model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
-            response = await execute_prompt_with_savepoint(
+            # Continue the conversation with the current state chunk prompt
+            current_state_prompt = self.prompt_handler.prompt_loader.load_prompt("characters/create_current_state_chunk", {
+                "character_name": character_name,
+            })
+            
+            conversation.append({
+                "role": "user",
+                "content": current_state_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="characters/create_current_state_chunk",
-                variables={
-                    "character_name": character_name,
-                    "character_sheet": character_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/current_state_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[CHARACTER CHUNK] Generated current state chunk for {character_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_character_chunk(character_name, "current_state_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
@@ -413,62 +479,44 @@ class CharacterManager:
     async def _generate_growth_arc_chunk(
         self, 
         character_name: str, 
-        character_sheet: str, 
-        story_elements: str, 
+        conversation: List[Dict[str, str]], 
         settings: GenerationSettings
     ) -> None:
         """Generate growth arc chunk focusing on development patterns and character evolution."""
         model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
         
         try:
-            response = await execute_prompt_with_savepoint(
+            # Continue the conversation with the growth arc chunk prompt
+            growth_arc_prompt = self.prompt_handler.prompt_loader.load_prompt("characters/create_growth_arc_chunk", {
+                "character_name": character_name,
+            })
+            
+            conversation.append({
+                "role": "user",
+                "content": growth_arc_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="characters/create_growth_arc_chunk",
-                variables={
-                    "character_name": character_name,
-                    "character_sheet": character_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/growth_arc_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[CHARACTER CHUNK] Generated growth arc chunk for {character_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_character_chunk(character_name, "growth_arc_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
                 print(f"[CHARACTER CHUNK] Error generating growth arc chunk for {character_name}: {e}")
     
-    async def _index_character_in_rag(self, character_name: str, character_content: str, settings: GenerationSettings) -> None:
-        """Index character content in RAG for development tracking."""
-        if not self.rag_integration:
-            return
-        
-        try:
-            # Index character content in RAG
-            chunk_ids = await self.rag_integration.index_character(
-                character_content=character_content,
-                character_name=character_name,
-                metadata={
-                    "character_name": character_name,
-                    "content_type": "character_sheet",
-                    "generation_stage": "outline"
-                }
-            )
-            
-            if settings.debug:
-                print(f"[RAG CHARACTER INDEXING] Indexed {len(chunk_ids)} chunks for character '{character_name}'")
-        
-        except Exception as e:
-            if settings.debug:
-                print(f"[RAG CHARACTER INDEXING] Error indexing character '{character_name}' in RAG: {e}")
-    
+
     async def index_character_in_rag(
         self, 
         character_name: str, 
@@ -479,12 +527,22 @@ class CharacterManager:
             return
         
         try:
-            # Index the full character sheet
-            sheet_key = f"characters/{character_name}/sheet"
-            character_content = await self.savepoint_manager.load_step(sheet_key)
+            # Clean up existing character chunks before reindexing
+            try:
+                deleted_count = await self.rag_integration.cleanup_content_by_type_and_metadata(
+                    content_type="character",
+                    metadata_filters={
+                        "character_name": character_name
+                    }
+                )
+                if settings.debug:
+                    print(f"[RAG CHARACTER INDEXING] Cleaned up {deleted_count} existing chunks for character '{character_name}' before reindexing")
+            except Exception as e:
+                if settings.debug:
+                    print(f"[RAG CHARACTER INDEXING] Warning: Failed to cleanup existing chunks for '{character_name}': {e}")
+                # Continue with indexing even if cleanup fails
             
-            if character_content:
-                await self._index_character_in_rag(character_name, character_content, settings)
+
             
             # Index all character chunks for optimal RAG retrieval
             chunk_types = [

@@ -55,8 +55,10 @@ Create a focused, well-structured description of the story's conflicts and stake
 - Ensure consistency with the established story concept
 - Keep the focus on what creates drama, not what happens in detail
 
-## Example Structure
-```
+Use the following format:
+
+```xml
+<output>
 Conflict and Stakes
 
 Primary Conflicts:
@@ -78,6 +80,7 @@ Tension Patterns:
 Conflict Resolution:
 - [How conflicts should be resolved]
 - [Growth and learning through conflict]
+</output>
 ```
 
 Remember: This chunk should be focused specifically on conflicts and stakes, providing a clear understanding of what creates tension and drama in the story.

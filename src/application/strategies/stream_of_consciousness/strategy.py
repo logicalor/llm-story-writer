@@ -41,9 +41,7 @@ class StreamOfConsciousnessStrategy(StoryStrategy):
         outline_content = response.strip()
         
         return Outline(
-            content=outline_content,
             story_elements="Stream of consciousness narrative",
-            chapter_list="Flowing narrative sections",
             base_context=prompt,
             story_start_date="Now"
         )

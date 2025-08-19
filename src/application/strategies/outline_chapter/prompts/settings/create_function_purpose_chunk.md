@@ -46,6 +46,8 @@ Extract and focus on the setting's function and purpose, creating a comprehensiv
 - Future expansion or modification potential
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the setting's function that is:
 - **Comprehensive**: Covers all major functional aspects
 - **Practical**: Focuses on how the setting is used
@@ -59,9 +61,13 @@ Create a focused, well-structured description of the setting's function that is:
 - Emphasize current use and practical applications
 - Ensure consistency with the established setting function
 - Keep the focus on what the setting does, not what it looks like or what happened there
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Setting Name]'s Function and Purpose
 
 Primary Function:
@@ -83,6 +89,9 @@ User Experience:
 Adaptability:
 - [How it can be modified]
 - [Multi-purpose capabilities]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on function and purpose, providing a clear understanding of what this setting does and how it serves its intended purpose.

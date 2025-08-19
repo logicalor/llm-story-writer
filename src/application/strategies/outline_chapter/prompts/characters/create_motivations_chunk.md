@@ -1,6 +1,6 @@
 # Character Motivations Chunk Generation
 
-You are tasked with extracting and focusing on the motivational aspects of a character from their full character sheet. Create a focused, detailed description of the character's goals, driving forces, values, and what motivates their actions.
+You are tasked with extracting and focusing on the motivational aspects of {character_name} from their full character sheet. Create a focused, detailed description of the character's goals, driving forces, values, and what motivates their actions.
 
 ## Input
 - **Character Name**: The name of the character
@@ -41,6 +41,8 @@ Extract and focus on the character's motivations, creating a comprehensive but f
 - How emotions drive their decisions
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the character's motivations that is:
 - **Comprehensive**: Covers all major motivational aspects
 - **Clear**: Makes their driving forces obvious
@@ -54,9 +56,13 @@ Create a focused, well-structured description of the character's motivations tha
 - Provide specific examples of what motivates them
 - Ensure consistency with the established character motivations
 - Keep the focus on why they do things, not what they do or who they are
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Character Name]'s Motivations
 
 Primary Goals:
@@ -78,6 +84,9 @@ Fears and Insecurities:
 Emotional Motivations:
 - [What fulfills or distresses them]
 - [Emotional needs they seek to meet]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on motivations and driving forces, providing a clear understanding of what makes this character take action and pursue their goals.

@@ -114,7 +114,7 @@ class StoryGenerationService:
 
 ## Outline
 ```
-{story.outline.content}
+{story.outline.story_elements}
 ```
 """
         return content

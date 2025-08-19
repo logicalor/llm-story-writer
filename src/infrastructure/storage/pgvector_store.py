@@ -5,10 +5,7 @@ import json
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 import asyncpg
-try:
-    import asyncpg.pgvector
-except ImportError:
-    asyncpg.pgvector = None
+from pgvector.asyncpg import register_vector
 from domain.exceptions import StorageError
 
 logger = logging.getLogger(__name__)
@@ -36,23 +33,40 @@ class PgVectorStore:
             raise StorageError(f"Failed to initialize PgVector store: {e}")
     
     async def _register_vector_type(self):
-        """Register the vector type handler with asyncpg."""
-        if not asyncpg.pgvector:
-            logger.warning("asyncpg.pgvector not available, vector type handling may not work properly")
-            return
-            
-        async with self._pool.acquire() as conn:
-            # Get the OID of the vector type
-            vector_oid = await conn.fetchval(
-                "SELECT oid FROM pg_type WHERE typname = 'vector'"
-            )
-            
-            if vector_oid:
-                # Register a custom type handler for vector
-                asyncpg.pgvector.register_vector(conn)
-                logger.info("Vector type handler registered successfully")
-            else:
-                logger.warning("Vector type not found, pgvector extension may not be installed")
+        """Register the vector type handler with asyncpg using pgvector.asyncpg."""
+        logger.info("Using pgvector.asyncpg for vector handling")
+        try:
+            # Try to register the vector type handler on the pool itself
+            await register_vector(self._pool)
+            logger.info("Vector type handler registered successfully on pool")
+        except Exception as e:
+            logger.warning(f"Failed to register vector type handler on pool: {e}")
+            # Fallback: try to register on a connection
+            try:
+                async with self._pool.acquire() as conn:
+                    await register_vector(conn)
+                    logger.info("Vector type handler registered successfully on connection")
+            except Exception as conn_e:
+                logger.warning(f"Failed to register vector type handler on connection: {conn_e}")
+                
+        # Additional fallback: manually register the type handler
+        try:
+            async with self._pool.acquire() as conn:
+                # Check if vector type is already registered
+                type_info = await conn.fetchval(
+                    "SELECT oid FROM pg_type WHERE typname = 'vector'"
+                )
+                if type_info:
+                    logger.info(f"Vector type found in database with OID: {type_info}")
+                else:
+                    logger.warning("Vector type not found in database")
+                    
+                # Try to manually register the type handler
+                from pgvector.asyncpg import register_vector
+                await register_vector(conn)
+                logger.info("Vector type handler manually registered on connection")
+        except Exception as manual_e:
+            logger.warning(f"Failed to manually register vector type handler: {manual_e}")
     
     async def close(self):
         """Close the connection pool."""
@@ -118,20 +132,22 @@ class PgVectorStore:
         """Store content with embedding in the vector store."""
         async with self._pool.acquire() as conn:
             try:
-                # Convert embedding list to PostgreSQL vector format
-                vector_str = f"[{','.join(map(str, embedding))}]"
+                # Debug logging to check embedding type at this point
+                logger.debug(f"store_embedding received embedding type: {type(embedding)}, length: {len(embedding) if isinstance(embedding, list) else 'N/A'}")
+                logger.debug(f"store_embedding embedding preview: {str(embedding)[:100]}...")
                 
+                # Pass embedding list directly - PostgreSQL will handle the conversion
                 chunk_id = await conn.fetchval(
                     """
                     INSERT INTO content_chunks 
                     (story_id, content_type, content_subtype, title, content, metadata, 
                      embedding, chapter_number, scene_number)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                     RETURNING id
                     """,
                     story_id, content_type, content_subtype, title, content,
                     json.dumps(metadata) if metadata else None,
-                    vector_str, chapter_number, scene_number
+                    embedding, chapter_number, scene_number
                 )
                 logger.debug(f"Stored embedding for content type '{content_type}' with ID {chunk_id}")
                 return chunk_id
@@ -141,8 +157,8 @@ class PgVectorStore:
     
     async def search_similar(
         self,
-        story_id: int,
         query_embedding: List[float],
+        story_id: Optional[int] = None,
         content_type: Optional[str] = None,
         limit: int = 10,
         similarity_threshold: float = 0.7,
@@ -161,17 +177,23 @@ class PgVectorStore:
                     "SELECT id, content_type, content, metadata, 1 - (embedding <=> $1) as similarity"
                 ]
                 query_parts.append("FROM content_chunks")
-                query_parts.append("WHERE story_id = $2")
                 
-                params = [query_embedding, story_id]
-                param_count = 2
+                params = [query_embedding]
+                param_count = 1
+                
+                if story_id:
+                    query_parts.append("WHERE story_id = $2")
+                    params.append(story_id)
+                    param_count = 2
+                else:
+                    query_parts.append("WHERE 1=1")  # Always true condition for cross-story search
                 
                 if content_type:
                     param_count += 1
                     query_parts.append(f"AND content_type = ${param_count}")
                     params.append(content_type)
                 
-                query_parts.append("AND 1 - (embedding <=> $1) >= $3")
+                query_parts.append(f"AND 1 - (embedding <=> $1) >= ${param_count + 1}")
                 param_count += 1
                 params.append(similarity_threshold)
                 
@@ -316,10 +338,12 @@ class PgVectorStore:
         """Delete all content for a story."""
         async with self._pool.acquire() as conn:
             try:
-                deleted_count = await conn.fetchval(
-                    "DELETE FROM content_chunks WHERE story_id = $1 RETURNING COUNT(*)",
+                # Return deleted row IDs and count them client-side
+                rows = await conn.fetch(
+                    "DELETE FROM content_chunks WHERE story_id = $1 RETURNING id",
                     story_id
                 )
+                deleted_count = len(rows)
                 logger.info(f"Deleted {deleted_count} content chunks for story {story_id}")
                 return deleted_count
             except Exception as e:

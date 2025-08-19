@@ -46,6 +46,8 @@ Extract and focus on the setting's atmosphere and mood, creating a comprehensive
 - Temporal rhythm and pacing
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the setting's atmosphere that is:
 - **Comprehensive**: Covers all major atmospheric aspects
 - **Emotional**: Captures the feeling and mood
@@ -59,9 +61,13 @@ Create a focused, well-structured description of the setting's atmosphere that i
 - Emphasize emotional and psychological impact
 - Ensure consistency with the established setting atmosphere
 - Keep the focus on how the setting feels, not what it looks like or does
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Setting Name]'s Atmosphere and Mood
 
 Emotional Tone:
@@ -83,6 +89,9 @@ Cultural Significance:
 Temporal Mood:
 - [How it changes over time]
 - [Seasonal and daily variations]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on atmosphere and mood, providing a clear understanding of how this setting feels emotionally and psychologically to those who experience it.

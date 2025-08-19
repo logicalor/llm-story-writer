@@ -53,6 +53,8 @@ Extract and focus on the setting's rules and constraints, creating a comprehensi
 - Protective measures and limitations
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the setting's rules and constraints that is:
 - **Comprehensive**: Covers all major constraint aspects
 - **Clear**: Makes limitations and rules obvious
@@ -66,9 +68,13 @@ Create a focused, well-structured description of the setting's rules and constra
 - Provide specific examples of limitations and restrictions
 - Ensure consistency with the established setting rules
 - Keep the focus on what constrains or limits the setting, not what it enables
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Setting Name]'s Rules and Constraints
 
 Physical Limitations:
@@ -94,6 +100,9 @@ Access Constraints:
 Safety Requirements:
 - [Safety regulations and protocols]
 - [Risk factors and restrictions]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on rules and constraints, providing a clear understanding of what limits and governs this setting.

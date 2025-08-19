@@ -1,6 +1,6 @@
 # Character Current State Chunk Generation
 
-You are tasked with extracting and focusing on the current state of a character from their full character sheet. Create a focused, detailed description of the character's present circumstances, emotional state, and current situation.
+You are tasked with extracting and focusing on the current state of {character_name} from their full character sheet. Create a focused, detailed description of the character's present circumstances, emotional state, and current situation.
 
 ## Input
 - **Character Name**: The name of the character
@@ -47,6 +47,8 @@ Extract and focus on the character's current state, creating a comprehensive but
 - What they need to address right now
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the character's current state that is:
 - **Comprehensive**: Covers all major current state aspects
 - **Present-Focused**: Emphasizes current situation over past or future
@@ -61,9 +63,13 @@ Create a focused, well-structured description of the character's current state t
 - Provide specific details about their current situation
 - Ensure consistency with the established character state
 - Keep the focus on where they are now, not where they came from or where they're going
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Character Name]'s Current State
 
 Present Circumstances:
@@ -89,6 +95,9 @@ Current Relationships:
 Immediate Concerns:
 - [What is currently worrying them]
 - [Current priorities and problems]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on current state and circumstances, providing a clear understanding of where this character is right now and how they are currently affected by their situation.

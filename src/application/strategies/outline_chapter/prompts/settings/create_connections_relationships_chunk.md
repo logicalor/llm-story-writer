@@ -53,6 +53,8 @@ Extract and focus on the setting's connections and relationships, creating a com
 - Functional dependencies and relationships
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the setting's connections that is:
 - **Comprehensive**: Covers all major connection aspects
 - **Relational**: Shows how it connects to other elements
@@ -67,9 +69,13 @@ Create a focused, well-structured description of the setting's connections that 
 - Provide specific examples of relationships and connections
 - Ensure consistency with the established setting connections
 - Keep the focus on how it relates to others, not what it is internally
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Setting Name]'s Connections and Relationships
 
 Geographic Position:
@@ -95,6 +101,9 @@ Historical Links:
 Functional Relationships:
 - [How it serves other locations]
 - [Collaborative partnerships]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on connections and relationships, providing a clear understanding of how this setting relates to and connects with other places and elements in the world.

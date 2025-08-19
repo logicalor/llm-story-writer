@@ -46,6 +46,8 @@ Extract and focus on the setting's history and background, creating a comprehens
 - Historical lessons or warnings
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the setting's history that is:
 - **Comprehensive**: Covers all major historical aspects
 - **Chronological**: Organizes information in a logical timeline
@@ -59,9 +61,13 @@ Create a focused, well-structured description of the setting's history that is:
 - Provide specific details about past events and developments
 - Ensure consistency with the established setting history
 - Keep the focus on what has happened to this setting, not what it currently is
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Setting Name]'s History and Background
 
 Historical Development:
@@ -83,6 +89,9 @@ Architectural Evolution:
 Historical Importance:
 - [Why it matters]
 - [Legacy and lasting impact]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on history and background, providing a clear understanding of how this setting developed and what has happened there over time.

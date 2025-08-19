@@ -1,6 +1,6 @@
 # Character Growth Arc Chunk Generation
 
-You are tasked with extracting and focusing on the growth and development aspects of a character from their full character sheet. Create a focused, detailed description of the character's development patterns, learning experiences, and how they have evolved over time.
+You are tasked with extracting and focusing on the growth and development aspects of {character_name} from their full character sheet. Create a focused, detailed description of the character's development patterns, learning experiences, and how they have evolved over time.
 
 ## Input
 - **Character Name**: The name of the character
@@ -47,6 +47,8 @@ Extract and focus on the character's growth and development, creating a comprehe
 - How they have overcome past obstacles
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the character's growth arc that is:
 - **Comprehensive**: Covers all major growth aspects
 - **Progressive**: Shows development over time
@@ -61,9 +63,13 @@ Create a focused, well-structured description of the character's growth arc that
 - Show patterns in their development journey
 - Ensure consistency with the established character growth
 - Keep the focus on their evolution, not just who they currently are
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Character Name]'s Growth Arc
 
 Development Patterns:
@@ -89,6 +95,9 @@ Current Trajectory:
 Growth Obstacles:
 - [What has hindered their development]
 - [How they overcome barriers]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on growth and development, providing a clear understanding of how this character has evolved and continues to grow throughout their journey.

@@ -1,6 +1,6 @@
 # Character Personality Chunk Generation
 
-You are tasked with extracting and focusing on the personality aspects of a character from their full character sheet. Create a focused, detailed description of the character's personality traits, behavioral patterns, and emotional responses.
+You are tasked with extracting and focusing on the personality aspects of {character_name} from their full character sheet. Create a focused, detailed description of the character's personality traits, behavioral patterns, and emotional responses.
 
 ## Input
 - **Character Name**: The name of the character
@@ -35,6 +35,8 @@ Extract and focus on the character's personality, creating a comprehensive but f
 - Values that guide their choices
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the character's personality that is:
 - **Comprehensive**: Covers all major personality aspects
 - **Specific**: Uses concrete examples and clear descriptions
@@ -48,9 +50,13 @@ Create a focused, well-structured description of the character's personality tha
 - Provide specific examples of how their personality manifests
 - Ensure consistency with the established character traits
 - Keep the focus on who they are, not what they've done
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Character Name]'s Personality
 
 Core Traits:
@@ -68,6 +74,9 @@ Social Behavior:
 Decision-Making:
 - [Approach to problems]
 - [Values that guide choices]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on personality and behavioral patterns, providing a clear understanding of who this character is at their core.

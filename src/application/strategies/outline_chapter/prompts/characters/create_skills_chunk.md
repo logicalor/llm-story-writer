@@ -1,6 +1,6 @@
 # Character Skills Chunk Generation
 
-You are tasked with extracting and focusing on the skills and abilities of a character from their full character sheet. Create a focused, detailed description of the character's competencies, talents, limitations, and what they can and cannot do.
+You are tasked with extracting and focusing on the skills and abilities of {character_name} from their full character sheet. Create a focused, detailed description of the character's competencies, talents, limitations, and what they can and cannot do.
 
 ## Input
 - **Character Name**: The name of the character
@@ -47,6 +47,8 @@ Extract and focus on the character's skills and abilities, creating a comprehens
 - Potential for growth and development
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the character's skills that is:
 - **Comprehensive**: Covers all major skill aspects
 - **Specific**: Details what they can and cannot do
@@ -61,9 +63,13 @@ Create a focused, well-structured description of the character's skills that is:
 - Be honest about limitations and weaknesses
 - Ensure consistency with the established character skills
 - Keep the focus on what they can do, not who they are
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Character Name]'s Skills and Abilities
 
 Core Competencies:
@@ -89,6 +95,9 @@ Limitations:
 Development:
 - [How they acquired skills]
 - [Areas for growth and improvement]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on skills and abilities, providing a clear understanding of what this character can accomplish and where they may need help or support.

@@ -55,8 +55,10 @@ Create a focused, well-structured description of the story's themes and messages
 - Ensure consistency with the established story concept
 - Keep the focus on what the story means, not what happens in it
 
-## Example Structure
-```
+Use the following format:
+
+```xml
+<output>
 Theme and Message
 
 Central Themes:
@@ -78,6 +80,7 @@ Character Growth:
 Social Themes:
 - [Broader issues and commentary]
 - [Human nature insights]
+</output>
 ```
 
 Remember: This chunk should be focused specifically on themes and messages, providing a clear understanding of what the story means and what it's trying to communicate to readers.

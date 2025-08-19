@@ -7,7 +7,7 @@ from domain.value_objects.model_config import ModelConfig
 
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
-from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
+from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint, execute_messages_with_savepoint
 from infrastructure.savepoints import SavepointManager
 from application.services.rag_service import RAGService
 from application.services.rag_integration_service import RAGIntegrationService
@@ -32,15 +32,8 @@ class SettingManager:
         self.savepoint_manager = savepoint_manager
         self.rag_service = rag_service
         
-        # Initialize RAG integration if service is provided
+        # RAG integration service will be set by the strategy after story initialization
         self.rag_integration = None
-        if self.rag_service:
-            from application.services.content_chunker import ContentChunker
-            content_chunker = ContentChunker(
-                max_chunk_size=config.get("max_chunk_size", 1000),
-                overlap_size=config.get("overlap_size", 200)
-            )
-            self.rag_integration = RAGIntegrationService(self.rag_service, content_chunker)
     
     async def generate_setting_sheets(self, story_elements: str, additional_context: str, settings: GenerationSettings) -> None:
         """Generate setting sheets for all settings identified in story elements."""
@@ -140,84 +133,76 @@ class SettingManager:
         return unique_names[:10]  # Limit to 10 settings max
     
     async def generate_single_setting_sheet(self, setting_name: str, story_elements: str, additional_context: str, settings: GenerationSettings) -> None:
-        """Generate a setting sheet for a single setting."""
+        """Generate a setting sheet for a single setting using multistep conversation for optimal RAG indexing."""
         model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
         
         try:
-            response = await execute_prompt_with_savepoint(
-                handler=self.prompt_handler,
-                prompt_id="settings/create",
-                variables={
-                    "setting_name": setting_name,
-                    "story_elements": story_elements,
-                    "additional_context": additional_context
+            # Start the conversation with the setting creation prompt
+            setting_creation_prompt = self.prompt_handler.prompt_loader.load_prompt("settings/create", {
+                "setting_name": setting_name,
+                "story_elements": story_elements,
+                "additional_context": additional_context
+            })
+            
+            conversation = [
+                {
+                    "role": "system",
+                    "content": self.system_message
                 },
+                {
+                    "role": "user", 
+                    "content": setting_creation_prompt
+                }
+            ]
+            
+            # Execute the initial setting creation step
+            response = await execute_messages_with_savepoint(
+                handler=self.prompt_handler,
+                conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/sheet",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
+            # Append the response to continue the conversation
+            conversation.append({
+                "role": "assistant",
+                "content": response.content
+            })
+            
             if settings.debug:
-                print(f"[SETTING SHEET] Generated sheet for {setting_name}")
+                print(f"[SETTING SHEET] Generated initial sheet for {setting_name}")
             
-            # Generate setting chunks for optimal RAG indexing
-            await self._generate_setting_chunks(setting_name, response.content.strip(), story_elements, settings)
+            # Generate chunked setting information using the conversation
+            await self._generate_setting_chunks(setting_name, conversation, settings)
             
-            # Index setting content in RAG if available
-            if self.rag_integration:
-                await self.index_setting_in_rag(setting_name, settings)
+            # Setting chunks are now indexed individually after generation
                 
         except Exception as e:
             if settings.debug:
                 print(f"[SETTING SHEET] Error generating sheet for {setting_name}: {e}")
     
-    async def _index_setting_in_rag(self, setting_name: str, setting_content: str, settings: GenerationSettings) -> None:
-        """Index setting content in RAG for world consistency tracking."""
-        if not self.rag_integration:
-            return
-        
-        try:
-            # Index setting content in RAG
-            chunk_ids = await self.rag_integration.index_setting(
-                setting_content=setting_content,
-                location_name=setting_name,
-                metadata={
-                    "setting_name": setting_name,
-                    "content_type": "setting_sheet",
-                    "generation_stage": "outline"
-                }
-            )
-            
-            if settings.debug:
-                print(f"[RAG SETTING INDEXING] Indexed {len(chunk_ids)} chunks for setting '{setting_name}'")
-        
-        except Exception as e:
-            if settings.debug:
-                print(f"[RAG SETTING INDEXING] Error indexing setting '{setting_name}' in RAG: {e}")
-    
+
     async def _generate_setting_chunks(
         self,
         setting_name: str,
-        setting_sheet: str,
-        story_elements: str,
+        conversation: List[Dict[str, str]],
         settings: GenerationSettings
     ) -> None:
-        """Generate focused setting chunks for optimal RAG indexing."""
+        """Generate focused setting chunks for optimal RAG indexing using conversation continuation."""
         try:
             if settings.debug:
                 print(f"[SETTING CHUNKS] Generating chunks for {setting_name}")
             
-            # Generate each type of setting chunk
-            await self._generate_physical_description_chunk(setting_name, setting_sheet, story_elements, settings)
-            await self._generate_history_background_chunk(setting_name, setting_sheet, story_elements, settings)
-            await self._generate_function_purpose_chunk(setting_name, setting_sheet, story_elements, settings)
-            await self._generate_atmosphere_mood_chunk(setting_name, setting_sheet, story_elements, settings)
-            await self._generate_rules_constraints_chunk(setting_name, setting_sheet, story_elements, settings)
-            await self._generate_connections_relationships_chunk(setting_name, setting_sheet, story_elements, settings)
+            # Generate each type of setting chunk, passing a copy of the conversation
+            await self._generate_physical_description_chunk(setting_name, conversation.copy(), settings)
+            await self._generate_history_background_chunk(setting_name, conversation.copy(), settings)
+            await self._generate_function_purpose_chunk(setting_name, conversation.copy(), settings)
+            await self._generate_atmosphere_mood_chunk(setting_name, conversation.copy(), settings)
+            await self._generate_rules_constraints_chunk(setting_name, conversation.copy(), settings)
+            await self._generate_connections_relationships_chunk(setting_name, conversation.copy(), settings)
             
             if settings.debug:
                 print(f"[SETTING CHUNKS] Generated all chunks for {setting_name}")
@@ -229,68 +214,108 @@ class SettingManager:
     async def _generate_physical_description_chunk(
         self,
         setting_name: str,
-        setting_sheet: str,
-        story_elements: str,
+        conversation: List[Dict[str, str]],
         settings: GenerationSettings
     ) -> None:
         """Generate physical description chunk for a setting."""
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+        
         try:
-            model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+            # Continue the conversation with the physical description chunk prompt
+            physical_description_prompt = self.prompt_handler.prompt_loader.load_prompt("settings/create_physical_description_chunk", {
+                "setting_name": setting_name,
+                "setting_sheet": conversation[-1]["content"]  # Use the last assistant response
+            })
             
-            response = await execute_prompt_with_savepoint(
+            conversation.append({
+                "role": "user",
+                "content": physical_description_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="settings/create_physical_description_chunk",
-                variables={
-                    "setting_name": setting_name,
-                    "setting_sheet": setting_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/physical_description_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[SETTING CHUNK] Generated physical description chunk for {setting_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_setting_chunk(setting_name, "physical_description_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
                 print(f"[SETTING CHUNK] Error generating physical description chunk for {setting_name}: {e}")
     
+    async def _index_setting_chunk(self, setting_name: str, chunk_type: str, settings: GenerationSettings) -> None:
+        """Index a setting chunk in RAG."""
+        if not self.rag_integration or not self.savepoint_manager:
+            return
+            
+        try:
+            chunk_key = f"settings/{setting_name}/{chunk_type}"
+            chunk_content = await self.savepoint_manager.load_step(chunk_key)
+            
+            if chunk_content:
+                # Index each chunk with appropriate metadata
+                chunk_ids = await self.rag_integration.index_setting(
+                    setting_content=chunk_content,
+                    location_name=setting_name,
+                    metadata={
+                        "setting_name": setting_name,
+                        "content_type": "setting_chunk",
+                        "chunk_type": chunk_type,
+                        "generation_stage": "outline"
+                    }
+                )
+                
+                if settings.debug:
+                    print(f"[RAG SETTING INDEXING] Indexed {len(chunk_ids)} chunks for setting '{setting_name}' - {chunk_type}")
+        except Exception as e:
+            if settings.debug:
+                print(f"[RAG SETTING INDEXING] Could not index {chunk_type} for {setting_name}: {e}")
+
     async def _generate_history_background_chunk(
         self,
         setting_name: str,
-        setting_sheet: str,
-        story_elements: str,
+        conversation: List[Dict[str, str]],
         settings: GenerationSettings
     ) -> None:
         """Generate history and background chunk for a setting."""
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+        
         try:
-            model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+            # Continue the conversation with the history background chunk prompt
+            history_background_prompt = self.prompt_handler.prompt_loader.load_prompt("settings/create_history_background_chunk", {
+                "setting_name": setting_name,
+                "setting_sheet": conversation[-1]["content"]  # Use the last assistant response
+            })
             
-            response = await execute_prompt_with_savepoint(
+            conversation.append({
+                "role": "user",
+                "content": history_background_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="settings/create_history_background_chunk",
-                variables={
-                    "setting_name": setting_name,
-                    "setting_sheet": setting_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/history_background_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[SETTING CHUNK] Generated history background chunk for {setting_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_setting_chunk(setting_name, "history_background_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
@@ -299,33 +324,39 @@ class SettingManager:
     async def _generate_function_purpose_chunk(
         self,
         setting_name: str,
-        setting_sheet: str,
-        story_elements: str,
+        conversation: List[Dict[str, str]],
         settings: GenerationSettings
     ) -> None:
         """Generate function and purpose chunk for a setting."""
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+        
         try:
-            model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+            # Continue the conversation with the function purpose chunk prompt
+            function_purpose_prompt = self.prompt_handler.prompt_loader.load_prompt("settings/create_function_purpose_chunk", {
+                "setting_name": setting_name,
+                "setting_sheet": conversation[-1]["content"]  # Use the last assistant response
+            })
             
-            response = await execute_prompt_with_savepoint(
+            conversation.append({
+                "role": "user",
+                "content": function_purpose_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="settings/create_function_purpose_chunk",
-                variables={
-                    "setting_name": setting_name,
-                    "setting_sheet": setting_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/function_purpose_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[SETTING CHUNK] Generated function purpose chunk for {setting_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_setting_chunk(setting_name, "function_purpose_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
@@ -334,33 +365,39 @@ class SettingManager:
     async def _generate_atmosphere_mood_chunk(
         self,
         setting_name: str,
-        setting_sheet: str,
-        story_elements: str,
+        conversation: List[Dict[str, str]],
         settings: GenerationSettings
     ) -> None:
         """Generate atmosphere and mood chunk for a setting."""
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+        
         try:
-            model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+            # Continue the conversation with the atmosphere mood chunk prompt
+            atmosphere_mood_prompt = self.prompt_handler.prompt_loader.load_prompt("settings/create_atmosphere_mood_chunk", {
+                "setting_name": setting_name,
+                "setting_sheet": conversation[-1]["content"]  # Use the last assistant response
+            })
             
-            response = await execute_prompt_with_savepoint(
+            conversation.append({
+                "role": "user",
+                "content": atmosphere_mood_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="settings/create_atmosphere_mood_chunk",
-                variables={
-                    "setting_name": setting_name,
-                    "setting_sheet": setting_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/atmosphere_mood_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[SETTING CHUNK] Generated atmosphere mood chunk for {setting_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_setting_chunk(setting_name, "atmosphere_mood_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
@@ -369,33 +406,39 @@ class SettingManager:
     async def _generate_rules_constraints_chunk(
         self,
         setting_name: str,
-        setting_sheet: str,
-        story_elements: str,
+        conversation: List[Dict[str, str]],
         settings: GenerationSettings
     ) -> None:
         """Generate rules and constraints chunk for a setting."""
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+        
         try:
-            model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+            # Continue the conversation with the rules constraints chunk prompt
+            rules_constraints_prompt = self.prompt_handler.prompt_loader.load_prompt("settings/create_rules_constraints_chunk", {
+                "setting_name": setting_name,
+                "setting_sheet": conversation[-1]["content"]  # Use the last assistant response
+            })
             
-            response = await execute_prompt_with_savepoint(
+            conversation.append({
+                "role": "user",
+                "content": rules_constraints_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="settings/create_rules_constraints_chunk",
-                variables={
-                    "setting_name": setting_name,
-                    "setting_sheet": setting_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/rules_constraints_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[SETTING CHUNK] Generated rules constraints chunk for {setting_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_setting_chunk(setting_name, "rules_constraints_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
@@ -404,33 +447,39 @@ class SettingManager:
     async def _generate_connections_relationships_chunk(
         self,
         setting_name: str,
-        setting_sheet: str,
-        story_elements: str,
+        conversation: List[Dict[str, str]],
         settings: GenerationSettings
     ) -> None:
         """Generate connections and relationships chunk for a setting."""
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+        
         try:
-            model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+            # Continue the conversation with the connections relationships chunk prompt
+            connections_relationships_prompt = self.prompt_handler.prompt_loader.load_prompt("settings/create_connections_relationships_chunk", {
+                "setting_name": setting_name,
+                "setting_sheet": conversation[-1]["content"]  # Use the last assistant response
+            })
             
-            response = await execute_prompt_with_savepoint(
+            conversation.append({
+                "role": "user",
+                "content": connections_relationships_prompt
+            })
+            
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
-                prompt_id="settings/create_connections_relationships_chunk",
-                variables={
-                    "setting_name": setting_name,
-                    "setting_sheet": setting_sheet,
-                    "story_elements": story_elements
-                },
+                conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/connections_relationships_chunk",
                 model_config=model_config,
                 seed=settings.seed,
                 debug=settings.debug,
-                stream=settings.stream,
-                log_prompt_inputs=settings.log_prompt_inputs,
-                system_message=self.system_message
+                stream=settings.stream
             )
             
             if settings.debug:
                 print(f"[SETTING CHUNK] Generated connections relationships chunk for {setting_name}")
+            
+            # Index this chunk immediately after generation
+            await self._index_setting_chunk(setting_name, "connections_relationships_chunk", settings)
                 
         except Exception as e:
             if settings.debug:
@@ -446,15 +495,22 @@ class SettingManager:
             return
         
         try:
-            # Load setting sheet content
-            sheet_key = f"settings/{setting_name}/sheet"
-            setting_content = await self.savepoint_manager.load_step(sheet_key)
+            # Clean up existing setting chunks before reindexing
+            try:
+                deleted_count = await self.rag_integration.cleanup_content_by_type_and_metadata(
+                    content_type="setting",
+                    metadata_filters={
+                        "setting_name": setting_name
+                    }
+                )
+                if settings.debug:
+                    print(f"[RAG SETTING INDEXING] Cleaned up {deleted_count} existing chunks for setting '{setting_name}' before reindexing")
+            except Exception as e:
+                if settings.debug:
+                    print(f"[RAG SETTING INDEXING] Warning: Failed to cleanup existing chunks for '{setting_name}': {e}")
+                # Continue with indexing even if cleanup fails
             
-            if setting_content:
-                # Index setting content in RAG
-                await self._index_setting_in_rag(setting_name, setting_content, settings)
-                
-                # Index all setting chunks if available
+            # Index all setting chunks for optimal RAG retrieval
                 chunk_types = [
                     "physical_description_chunk",
                     "history_background_chunk", 

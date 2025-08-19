@@ -1,6 +1,6 @@
 # Character Background Chunk Generation
 
-You are tasked with extracting and focusing on the background aspects of a character from their full character sheet. Create a focused, detailed description of the character's history, formative experiences, and personal background.
+You are tasked with extracting and focusing on the background aspects of {character_name} from their full character sheet. Create a focused, detailed description of the character's history, formative experiences, and personal background.
 
 ## Input
 - **Character Name**: The name of the character
@@ -35,6 +35,8 @@ Extract and focus on the character's background, creating a comprehensive but fo
 - Personal growth and evolution
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the character's background that is:
 - **Comprehensive**: Covers all major background aspects
 - **Chronological**: Organizes information in a logical timeline
@@ -48,9 +50,13 @@ Create a focused, well-structured description of the character's background that
 - Provide specific details about their past experiences
 - Ensure consistency with the established character background
 - Keep the focus on what has happened to them, not who they currently are
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Character Name]'s Background
 
 Early Life:
@@ -68,6 +74,9 @@ Education and Training:
 Significant Experiences:
 - [Major life events]
 - [Lessons learned and growth]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on background and history, providing a clear understanding of what has happened to this character and how it has shaped them.

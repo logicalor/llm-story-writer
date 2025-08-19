@@ -30,7 +30,10 @@ Create a comprehensive character sheet that fits within 800-1200 words. Focus on
 - Character relationships and interactions
 - Character growth and arc development
 
-<TEMPLATE>
+Use this output format:
+
+```xml
+<output>
 # Character Name
 
 **CRITICAL**: This character sheet describes {character_name} at their **INITIAL STATE** before any story events occur. This provides a clean baseline that will evolve as the story progresses.
@@ -106,7 +109,8 @@ Create a comprehensive character sheet that fits within 800-1200 words. Focus on
 - **Relationship Dynamics**: [How they interact with others]
 - **Potential Conflicts**: [What challenges they might face]
 - **Unique Qualities**: [What makes them memorable and distinct]
-</TEMPLATE>
+</output>
+```
 
 ## AVOID
 - Overly detailed physical descriptions, unless the story outline or context specifies a requirement for them
@@ -145,5 +149,3 @@ As you create this character sheet, consider:
 
 ## FINAL OUTPUT
 Provide your complete character sheet following the template above. Ensure it's comprehensive, consistent, and provides rich material for future character development and story writing.
-
-IMPORTANT: Do not include the TEMPLATE tags, commentary, metadata or any other additional content in your answer.

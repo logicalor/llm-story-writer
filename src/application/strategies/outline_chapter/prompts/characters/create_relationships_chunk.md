@@ -1,6 +1,6 @@
 # Character Relationships Chunk Generation
 
-You are tasked with extracting and focusing on the relationship aspects of a character from their full character sheet. Create a focused, detailed description of the character's connections with other characters, social dynamics, and interpersonal relationships.
+You are tasked with extracting and focusing on the relationship aspects of {character_name} from their full character sheet. Create a focused, detailed description of the character's connections with other characters, social dynamics, and interpersonal relationships.
 
 ## Input
 - **Character Name**: The name of the character
@@ -41,6 +41,8 @@ Extract and focus on the character's relationships, creating a comprehensive but
 - Lessons learned from relationships
 
 ## Output Format
+**CRITICAL: You MUST wrap your response in <output> tags. This is REQUIRED for proper processing.**
+
 Create a focused, well-structured description of the character's relationships that is:
 - **Comprehensive**: Covers all major relationship aspects
 - **Specific**: Names other characters and describes dynamics clearly
@@ -55,9 +57,13 @@ Create a focused, well-structured description of the character's relationships t
 - Provide specific examples of relationship dynamics
 - Ensure consistency with the established character relationships
 - Keep the focus on how they connect with others, not who they are individually
+- **MANDATORY: Always wrap your complete response in <output> and </output> tags**
 
-## Example Structure
-```
+## REQUIRED OUTPUT FORMAT
+**You MUST use this exact format with <output> tags:**
+
+```xml
+<output>
 [Character Name]'s Relationships
 
 Key Connections:
@@ -79,6 +85,9 @@ Communication Style:
 Relationship Patterns:
 - [How they build and maintain connections]
 - [Lessons learned from relationships]
+</output>
 ```
+
+**IMPORTANT: Your response MUST begin with <output> and end with </output>. Do not include any text outside these tags.**
 
 Remember: This chunk should be focused specifically on relationships and social connections, providing a clear understanding of how this character interacts with and relates to other characters in the story.

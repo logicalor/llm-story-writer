@@ -106,35 +106,8 @@ class StoryStateManager:
         # State file path
         self.state_file_path: Optional[str] = None
         
-        # RAG integration for story interrogation
+        # RAG integration service will be set by the strategy after story initialization
         self.rag_integration = None
-        if rag_service:
-            # Initialize RAG integration with the provided service
-            try:
-                content_chunker = ContentChunker(
-                    max_chunk_size=config.get("max_chunk_size", 1000),
-                    overlap_size=config.get("overlap_size", 200)
-                )
-                self.rag_integration = RAGIntegrationService(rag_service, content_chunker)
-                
-                if config.get("debug", False):
-                    print("RAG integration initialized with RAG service")
-            except ImportError:
-                if config.get("debug", False):
-                    print("RAG integration not available - using fallback methods")
-        elif self.savepoint_manager and self.savepoint_manager.savepoint_repo:
-            # Fallback to mock RAG integration if no service provided
-            try:
-                # Create a placeholder for now
-                self.rag_integration = type('MockRAGIntegration', (), {
-                    'query_story_content': lambda self, query: f"Mock RAG response to: {query}"
-                })()
-                
-                if config.get("debug", False):
-                    print("RAG integration initialized with mock service")
-            except ImportError:
-                if config.get("debug", False):
-                    print("RAG integration not available - using fallback methods")
         
     def set_story_directory(self, story_name: str) -> None:
         """Set the story directory for state persistence."""

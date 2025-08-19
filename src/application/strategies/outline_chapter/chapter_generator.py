@@ -20,6 +20,7 @@ from .character_manager import CharacterManager
 from .setting_manager import SettingManager
 from .recap_manager import RecapManager
 from .scene_generator import SceneGenerator
+from .story_state_manager import StoryStateManager
 
 
 class ChapterGenerator:
@@ -41,14 +42,8 @@ class ChapterGenerator:
         self.savepoint_manager = savepoint_manager
         self.rag_service = rag_service
         
-        # Initialize RAG integration
+        # RAG integration service will be set by the strategy after story initialization
         self.rag_integration = None
-        if self.rag_service:
-            content_chunker = ContentChunker(
-                max_chunk_size=config.get("max_chunk_size", 1000),
-                overlap_size=config.get("overlap_size", 200)
-            )
-            self.rag_integration = RAGIntegrationService(self.rag_service, content_chunker)
         
         # Initialize managers
         self.character_manager = CharacterManager(
@@ -79,6 +74,16 @@ class ChapterGenerator:
         )
         
         self.scene_generator = SceneGenerator(
+            model_provider=model_provider,
+            config=config,
+            prompt_handler=prompt_handler,
+            system_message=system_message,
+            savepoint_manager=savepoint_manager,
+            rag_service=rag_service
+        )
+        
+        # Initialize story state manager for progressive planning
+        self.story_state_manager = StoryStateManager(
             model_provider=model_provider,
             config=config,
             prompt_handler=prompt_handler,
@@ -522,7 +527,7 @@ class ChapterGenerator:
             prompt_id="chapters/outline_core",
             variables={
                 "chapter_number": chapter_num,
-                "outline": outline.content,
+                "outline": outline.story_elements,
                 "base_context": outline.base_context,
                 "recap": previous_recap,
                 "story_elements": outline.story_elements,
@@ -727,7 +732,7 @@ class ChapterGenerator:
         if chapter_num >= total_chapters:
             return ""
         
-        return await self._get_chapter_outline(chapter_num + 1, outline.content, settings)
+        return await self._get_chapter_outline(chapter_num + 1, outline.story_elements, settings)
     
     async def _get_next_chapter_synopsis_from_savepoint(
         self,
@@ -1118,6 +1123,192 @@ class ChapterGenerator:
     
 
     
+    # Chapter-related outline generation methods moved from OutlineGenerator
+    
+    async def generate_chunked_outline(
+        self,
+        story_elements: str,
+        base_context: str,
+        settings: GenerationSettings
+    ) -> str:
+        """Generate chunked outline by processing chapters in manageable chunks."""
+        if settings.debug:
+            print(f"[CHUNKED OUTLINE] Generating chunked outline for {settings.wanted_chapters} chapters")
+        
+        # Determine chunk size (process 5-10 chapters at a time)
+        chunk_size = min(10, max(5, settings.wanted_chapters // 4))
+        total_chunks = (settings.wanted_chapters + chunk_size - 1) // chunk_size
+        
+        if settings.debug:
+            print(f"[CHUNKED OUTLINE] Using chunk size {chunk_size}, total chunks: {total_chunks}")
+        
+        # Generate outline chunks
+        outline_chunks = []
+        previous_chunks = ""
+        continuity_summary = ""
+        
+        for chunk_num in range(total_chunks):
+            chunk_start = chunk_num * chunk_size + 1
+            chunk_end = min((chunk_num + 1) * chunk_size, settings.wanted_chapters)
+            
+            if settings.debug:
+                print(f"[CHUNKED OUTLINE] Processing chunk {chunk_num + 1}/{total_chunks}: chapters {chunk_start}-{chunk_end}")
+            
+            # Generate chunk outline
+            chunk_outline = await self._generate_outline_chunk(
+                story_elements, base_context, chunk_start, chunk_end, 
+                settings.wanted_chapters, previous_chunks, continuity_summary, 
+                settings
+            )
+            
+            outline_chunks.append(chunk_outline)
+            previous_chunks += f"\n\n{chunk_outline}"
+            
+            # Update continuity summary for next chunk
+            continuity_summary = await self._analyze_chunk_continuity(
+                chunk_outline, previous_chunks, settings
+            )
+        
+        # Combine all chunks into final outline
+        final_outline = "\n\n".join(outline_chunks)
+        
+        if settings.debug:
+            print(f"[CHUNKED OUTLINE] Completed chunked outline generation")
+        
+        return final_outline
+    
+    async def _generate_outline_chunk(
+        self,
+        story_elements: str,
+        base_context: str,
+        chunk_start: int,
+        chunk_end: int,
+        total_chapters: int,
+        previous_chunks: str,
+        continuity_summary: str,
+        settings: GenerationSettings
+    ) -> str:
+        """Generate outline for a specific chunk of chapters."""
+        model_config = ModelConfig.from_string(self.config["models"]["initial_outline_writer"])
+        
+        response = await execute_prompt_with_savepoint(
+            handler=self.prompt_handler,
+            prompt_id="outline/create_chunk",
+            variables={
+                "story_elements": story_elements,
+                "base_context": base_context,
+                "chunk_start": chunk_start,
+                "chunk_end": chunk_end,
+                "total_chapters": total_chapters,
+                "previous_chunks": previous_chunks,
+                "continuity_summary": continuity_summary
+            },
+            savepoint_id=f"outline_chunk_{chunk_start}_{chunk_end}",
+            model_config=model_config,
+            seed=settings.seed,
+            debug=settings.debug,
+            stream=settings.stream,
+            log_prompt_inputs=settings.log_prompt_inputs,
+            system_message=self.system_message
+        )
+        
+        return response.content.strip()
+    
+    async def _analyze_chunk_continuity(
+        self,
+        chunk_outline: str,
+        previous_chunks: str,
+        settings: GenerationSettings
+    ) -> str:
+        """Analyze continuity between chunks to maintain story flow."""
+        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
+        
+        response = await execute_prompt_with_savepoint(
+            handler=self.prompt_handler,
+            prompt_id="outline/analyze_continuity",
+            variables={
+                "chunk_outline": chunk_outline,
+                "previous_chunks": previous_chunks
+            },
+            savepoint_id=f"chunk_continuity_analysis",
+            model_config=model_config,
+            seed=settings.seed,
+            debug=settings.debug,
+            stream=settings.stream,
+            log_prompt_inputs=settings.log_prompt_inputs,
+            system_message=self.system_message
+        )
+        
+        return response.content.strip()
+    
 
     
+    # Progressive Planning Methods moved from OutlineGenerator
+    
+    async def plan_next_chapter_progressive(
+        self, 
+        settings: GenerationSettings
+    ) -> Dict[str, Any]:
+        """Coordinate progressive chapter planning using StoryStateManager."""
+        try:
+            if not hasattr(self, 'story_state_manager') or not self.story_state_manager.story_context:
+                raise StoryGenerationError("Story context must be initialized before progressive planning")
+            
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Coordinating next chapter planning...")
+            
+            # Delegate planning to StoryStateManager
+            chapter_state = await self.story_state_manager.plan_next_chapter(settings)
+            
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Chapter {chapter_state.chapter_number} planning coordinated")
+            
+            # Return planning data for chapter generator to use
+            return {
+                "chapter_number": chapter_state.chapter_number,
+                "title": chapter_state.title,
+                "planned_content": chapter_state.planned_content,
+                "key_events": chapter_state.key_events,
+                "character_developments": chapter_state.character_developments,
+                "plot_advancements": chapter_state.plot_advancements,
+                "themes_explored": chapter_state.themes_explored,
+                "story_context": self.story_state_manager._prepare_planning_context()
+            }
+            
+        except Exception as e:
+            raise StoryGenerationError(f"Failed to coordinate progressive chapter planning: {e}") from e
+    
+    async def revise_outline_progressive(
+        self, 
+        chapter_num: int, 
+        settings: GenerationSettings
+    ) -> Dict[str, Any]:
+        """Coordinate outline revision using StoryStateManager."""
+        try:
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Coordinating outline revision for chapter {chapter_num}...")
+            
+            # Delegate revision to StoryStateManager
+            chapter_state = await self.story_state_manager.revise_chapter_plan(chapter_num, settings)
+            
+            if settings.debug:
+                print(f"[PROGRESSIVE PLANNING] Chapter {chapter_num} revision coordinated")
+            
+            # Return revised planning data
+            return {
+                "chapter_number": chapter_state.chapter_number,
+                "title": chapter_state.title,
+                "planned_content": chapter_state.planned_content,
+                "key_events": chapter_state.key_events,
+                "character_developments": chapter_state.character_developments,
+                "plot_advancements": chapter_state.plot_advancements,
+                "themes_explored": chapter_state.themes_explored,
+                "revision_notes": chapter_state.revision_notes,
+                "story_context": self.story_state_manager._prepare_planning_context()
+            }
+            
+        except Exception as e:
+            raise StoryGenerationError(f"Failed to coordinate outline revision: {e}") from e
+
+
 
