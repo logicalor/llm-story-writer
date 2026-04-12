@@ -166,3 +166,10 @@ Logs/*
 EvalLogs/*
 
 SavePoints/*
+
+# OpenCode runtime artefacts
+.opencode/sessions/
+.opencode/state/
+.opencode/snapshots/
+.opencode/cache/
+.opencode/logs/
