@@ -8,7 +8,7 @@
 
 ## Tools
 
-- [Tools Reference](./tools.md) — Tool architecture pattern, prompt-loader tool, guide for adding new tools
+- [Tools Reference](./tools.md) — Tool architecture pattern, prompt-loader and story-state tools, guide for adding new tools
 
 ## Planning
 
