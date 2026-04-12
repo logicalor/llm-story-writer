@@ -239,7 +239,7 @@ class TestWrite:
         assert result.returncode == 2
 
     def test_write_missing_value(self, story_dir: Path) -> None:
-        _run_tool(
+        result = _run_tool(
             "--operation",
             "write",
             "--name",
@@ -248,6 +248,7 @@ class TestWrite:
             "x",
             stories_dir=story_dir,
         )
+        assert result.returncode == 2
 
 
 class TestList:

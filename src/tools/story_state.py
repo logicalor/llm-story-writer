@@ -100,16 +100,25 @@ def _write_state_atomic(state_path: Path, data: dict) -> None:
     try:
         fd = os.open(str(state_path), os.O_RDWR | os.O_CREAT)
         fcntl.flock(fd, fcntl.LOCK_EX)
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            dir=str(state_path.parent),
-            suffix=".tmp",
-            delete=False,
-        ) as tmp:
-            json.dump(data, tmp, indent=2)
-            tmp.write("\n")
-            tmp_path = tmp.name
-        os.replace(tmp_path, str(state_path))
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=str(state_path.parent),
+                suffix=".tmp",
+                delete=False,
+            ) as tmp:
+                json.dump(data, tmp, indent=2)
+                tmp.write("\n")
+                tmp_path = tmp.name
+            os.replace(tmp_path, str(state_path))
+        except BaseException:
+            if tmp_path is not None:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+            raise
     finally:
         if fd is not None:
             fcntl.flock(fd, fcntl.LOCK_UN)
@@ -156,9 +165,44 @@ def cmd_write(name: str, field: str, value_str: str) -> None:
         print(f"Error: invalid JSON in --value: {e}", file=sys.stderr)
         sys.exit(1)
 
-    data = _read_state(state_path)
-    _set_nested(data, field, value)
-    _write_state_atomic(state_path, data)
+    if not state_path.exists():
+        print(f"Error: state file not found: {state_path}", file=sys.stderr)
+        sys.exit(1)
+
+    fd = None
+    try:
+        fd = os.open(str(state_path), os.O_RDWR)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+
+        # Read, modify, write all under the same lock to prevent TOCTOU
+        with open(state_path) as f:
+            data = json.load(f)
+        _set_nested(data, field, value)
+
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=str(state_path.parent),
+                suffix=".tmp",
+                delete=False,
+            ) as tmp:
+                json.dump(data, tmp, indent=2)
+                tmp.write("\n")
+                tmp_path = tmp.name
+            os.replace(tmp_path, str(state_path))
+        except BaseException:
+            if tmp_path is not None:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+            raise
+    finally:
+        if fd is not None:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+
     print(json.dumps({"status": "updated", "field": field}))
 
 
