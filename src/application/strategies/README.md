@@ -115,13 +115,13 @@ class MyCustomStrategy(StoryStrategy):
         return ["model1", "model2"]  # List required model names
     
     def get_prompt_directory(self) -> str:
-        return "src/application/strategies/my_custom_strategy/prompts"
+        return "prompts/my_custom_strategy"
 ```
 
 2. **Create prompt directory and files**:
 
 ```bash
-mkdir -p src/application/strategies/my_custom_strategy/prompts
+mkdir -p prompts/my_custom_strategy
 # Create your prompt files:
 # - outline.md
 # - content.md
