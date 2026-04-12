@@ -1,6 +1,6 @@
 """Critique service for iterative outline refinement."""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 
