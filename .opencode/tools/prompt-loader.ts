@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
@@ -23,14 +23,14 @@ export default {
     variables?: Record<string, string>;
   }) => {
     const projectRoot = resolve(__dirname, "../..");
-    const args = ["python3", "src/tools/prompt_loader.py", "--prompt-id", promptId];
+    const args = ["src/tools/prompt_loader.py", "--prompt-id", promptId];
 
     if (variables && Object.keys(variables).length > 0) {
       args.push("--variables", JSON.stringify(variables));
     }
 
     try {
-      const stdout = execSync(args.join(" "), {
+      const stdout = execFileSync("python3", args, {
         cwd: projectRoot,
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],

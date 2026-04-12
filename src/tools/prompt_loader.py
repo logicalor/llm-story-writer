@@ -33,8 +33,21 @@ def main() -> None:
         except json.JSONDecodeError as e:
             print(f"Invalid JSON in --variables: {e}", file=sys.stderr)
             sys.exit(1)
+        if not isinstance(variables, dict):
+            print("Error: --variables must be a JSON object", file=sys.stderr)
+            sys.exit(1)
 
     prompts_dir = PROJECT_ROOT / "prompts"
+
+    # Validate prompt_id does not escape the prompts directory
+    resolved_path = (prompts_dir / f"{args.prompt_id}.md").resolve()
+    if not resolved_path.is_relative_to(prompts_dir.resolve()):
+        print(
+            f"Error: prompt ID escapes prompts directory: {args.prompt_id}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     loader = PromptLoader(prompts_dir=str(prompts_dir))
 
     try:

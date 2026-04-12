@@ -13,12 +13,12 @@ Each tool consists of two layers:
 | **Wrapper** | `.opencode/tools/<tool-name>.ts` | TypeScript | Argument parsing (Zod schema), OpenCode integration, subprocess invocation |
 | **Script** | `src/tools/<tool_name>.py` | Python | Domain logic, reuses classes from `src/infrastructure/` and `src/domain/` |
 
-The TypeScript wrapper calls the Python script via `execSync`, passing arguments as CLI flags. The Python script writes its result to stdout and errors to stderr, using conventional exit codes (0 = success, 1 = domain error, 2 = argument error).
+The TypeScript wrapper calls the Python script via `execFileSync`, passing arguments as an array. The Python script writes its result to stdout and errors to stderr, using conventional exit codes (0 = success, 1 = domain error, 2 = argument error).
 
 ```
 ┌──────────────────────┐     subprocess      ┌─────────────────────┐
 │  .opencode/tools/    │ ──────────────────▶  │  src/tools/         │
-│  prompt-loader.ts    │     execSync         │  prompt_loader.py   │
+│  prompt-loader.ts    │     execFileSync     │  prompt_loader.py   │
 │  (Zod schema, I/O)   │ ◀──────────────────  │  (argparse, logic)  │
 └──────────────────────┘     stdout/stderr    └─────────────────────┘
                                                        │
@@ -145,12 +145,12 @@ if __name__ == "__main__":
 
 Create `.opencode/tools/<tool-name>.ts` with:
 - Zod schema for parameter validation
-- `execSync` to call the Python script
+- `execFileSync` to call the Python script
 - Error handling that captures stderr
 
 ```typescript
 import { z } from "zod";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
@@ -161,10 +161,10 @@ export default {
   }),
   execute: async ({ argName }: { argName: string }) => {
     const projectRoot = resolve(__dirname, "../..");
-    const args = ["python3", "src/tools/<tool_name>.py", "--arg-name", argName];
+    const args = ["src/tools/<tool_name>.py", "--arg-name", argName];
 
     try {
-      const stdout = execSync(args.join(" "), {
+      const stdout = execFileSync("python3", args, {
         cwd: projectRoot,
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],
