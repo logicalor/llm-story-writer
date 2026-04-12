@@ -20,6 +20,9 @@ You are the Coder for this project. You implement code changes across the entire
 6. **After any text sweep** (removing/replacing references, renaming, relocating files, changing counts across multiple files) — after the first pass, run a grep for the original term/path across the **entire workspace** (not just changed files) to confirm no residual occurrences remain. Include documentation files (`.md`), READMEs, and config files in the search — stale references in docs are a recurring source of review findings. Include **filenames and directory names** as search terms, not just full paths — inventory-style READMEs and index files list files by name rather than path.
 7. **Before returning to the Orchestrator**, delete all temporary or investigation files created during the task.
 8. **When auto-formatters modify files outside the task scope** (e.g., ruff reformats unrelated files) — flag this to the Orchestrator on handoff so formatting-only changes can be committed separately from functional changes. Do not silently mix formatting fixes with implementation.
+9. **Security: subprocess and path handling.**
+   - **TypeScript tool wrappers:** Never use `execSync()` or `exec()` with string concatenation for subprocess calls. Use `execFileSync()` or `spawnSync()` with explicit argument arrays — these bypass the shell and prevent command injection (CWE-78).
+   - **Python tools with file paths:** When resolving user-provided names to file paths, always validate the resolved absolute path starts with the intended base directory using `resolved.resolve()` and `.is_relative_to(base)`. Reject any path that traverses outside the base (CWE-22).
 
 > **When dispatched by the Orchestrator** (implementation or regression fix), do NOT commit, push, or post PR comments. The Orchestrator owns all git/GitHub operations. Just implement, lint, and return.
 

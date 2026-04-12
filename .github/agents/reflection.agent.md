@@ -203,7 +203,7 @@ See `.github/notes/reflections/TEMPLATE.md` for the canonical template and `.git
 
 1. **Never break existing workflows** — if unsure whether a change is safe, classify as major
 2. **Preserve formatting** — match the existing style of each file type
-3. **Append-only notes** — never delete reflection notes, only archive them
+3. **Append-only notes** — never delete reflection notes from the archive. "Archiving" means **move** the active note to `archive/` (copy, then delete the active copy). Once a note exists in the archive, the active copy is a stale duplicate and must be removed.
 4. **One improvement per edit** — make targeted changes, not wholesale rewrites
 5. **Test mentally** — before applying, trace through how the change affects agent behaviour
 
