@@ -17,16 +17,16 @@ src/application/  → Services, strategies (use cases)
 src/infrastructure/ → Providers, storage (external adapters)
 ```
 
-Each layer depends only on the layers above it. Domain has no external dependencies.
+Each layer depends only on inner layers: infrastructure → application → domain. Domain has no external dependencies.
 
 ### Tools
 
-Tools are **TypeScript wrappers** in `.opencode/tools/` that call **Python scripts** in `src/tools/` via subprocess. The TypeScript layer handles argument parsing and OpenCode integration; the Python layer contains the actual logic.
+Tools are **TypeScript wrappers** in `.opencode/tools/` that call **Python scripts** in `src/tools/` via subprocess. The `src/tools/` directory will be created when the first tool is implemented (see [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md)). The TypeScript layer handles argument parsing and OpenCode integration; the Python layer contains the actual logic.
 
 ### Storage
 
 - Stories are stored in `stories/<name>/` directories with JSON state files
-- Prompt templates are in `src/infrastructure/prompts/` (131 Markdown templates)
+- Prompt templates are Markdown files in `src/application/strategies/*/prompts/`
 - ChromaDB vector collections provide semantic search per story
 
 ### Model Configuration
