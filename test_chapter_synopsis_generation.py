@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.application.strategies.outline_chapter_strategy import OutlineChapterStrategy
 from src.domain.value_objects.generation_settings import GenerationSettings
-from src.domain.entities.story import Outline
 from src.infrastructure.providers.ollama_provider import OllamaProvider
 from src.config.config_loader import ConfigLoader
 from src.infrastructure.prompts.prompt_loader import PromptLoader

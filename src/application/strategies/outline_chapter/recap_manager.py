@@ -2,9 +2,9 @@
 
 import json
 import re
-from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
-from domain.entities.story import Outline, Chapter
+from datetime import datetime
+from typing import Optional, Dict, Any
+from domain.entities.story import Outline
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 
@@ -346,7 +346,7 @@ class RecapManager:
                 # Validate the parsed JSON
                 recap_data = json.loads(response.content.strip())
                 if settings.debug:
-                    print(f"[RECAP FORMAT] Successfully parsed formatted recap from JSON")
+                    print("[RECAP FORMAT] Successfully parsed formatted recap from JSON")
                 return response.content.strip()
             except (json.JSONDecodeError, ValueError) as e:
                 if settings.debug:
@@ -364,7 +364,7 @@ class RecapManager:
         # Since we're always loading from savepoints now, this fallback function is no longer needed
         # The recap should already exist in the savepoint from when the chapter was created
         if settings.debug:
-            print(f"[RECAP FALLBACK] Attempting to load existing recap from savepoint")
+            print("[RECAP FALLBACK] Attempting to load existing recap from savepoint")
         
         try:
             # Try to load the existing recap from savepoint
@@ -374,7 +374,7 @@ class RecapManager:
                 return ""
         except:
             if settings.debug:
-                print(f"[RECAP FALLBACK] No existing recap found in savepoint")
+                print("[RECAP FALLBACK] No existing recap found in savepoint")
             return ""
         
         # Ensure the response is valid JSON
@@ -384,7 +384,7 @@ class RecapManager:
             return response.content.strip()
         except json.JSONDecodeError:
             if settings.debug:
-                print(f"[RECAP FALLBACK] Invalid JSON response, attempting to sanitize")
+                print("[RECAP FALLBACK] Invalid JSON response, attempting to sanitize")
             # Try to sanitize the response to extract JSON
             return await self.sanitize_json_response(response.content.strip())
     
@@ -416,7 +416,7 @@ class RecapManager:
             return response.content.strip()
         except json.JSONDecodeError:
             if settings.debug:
-                print(f"[RECAP SANITIZER] Invalid JSON response, attempting to sanitize")
+                print("[RECAP SANITIZER] Invalid JSON response, attempting to sanitize")
             # Try to sanitize the response to extract JSON
             return await self.sanitize_json_response(response.content.strip())
     
@@ -453,7 +453,7 @@ class RecapManager:
                 json.loads(sanitized_recap)
             except json.JSONDecodeError:
                 if settings.debug:
-                    print(f"[RECAP SANITIZER] Invalid JSON response, attempting to sanitize")
+                    print("[RECAP SANITIZER] Invalid JSON response, attempting to sanitize")
                 sanitized_recap = await self.sanitize_json_response(sanitized_recap)
             
             # Extract current date from the recap to check for consistency
@@ -701,7 +701,7 @@ class RecapManager:
                 # Validate the parsed JSON
                 events_data = json.loads(response.content.strip())
                 if settings.debug:
-                    print(f"[EVENT CLASSIFICATION] Successfully parsed classified events from JSON")
+                    print("[EVENT CLASSIFICATION] Successfully parsed classified events from JSON")
                 return response.content.strip()
             except (json.JSONDecodeError, ValueError) as e:
                 if settings.debug:
@@ -722,7 +722,7 @@ class RecapManager:
             return classified_json
         except json.JSONDecodeError:
             if settings.debug:
-                print(f"[JSON CONVERSION] Invalid JSON, attempting to sanitize")
+                print("[JSON CONVERSION] Invalid JSON, attempting to sanitize")
             return await self.sanitize_json_response(classified_json)
     
     async def compact_events_progressively(self, recap: str, chapter_num: int, settings: GenerationSettings) -> str:
@@ -798,7 +798,7 @@ class RecapManager:
                 # Validate the parsed JSON
                 recap_data = json.loads(response.content.strip())
                 if settings.debug:
-                    print(f"[RECAP COMPACTION] Successfully parsed compacted recap from JSON")
+                    print("[RECAP COMPACTION] Successfully parsed compacted recap from JSON")
                 return response.content.strip()
             except (json.JSONDecodeError, ValueError) as e:
                 if settings.debug:

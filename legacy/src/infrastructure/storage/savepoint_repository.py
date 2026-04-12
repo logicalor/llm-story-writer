@@ -4,7 +4,7 @@ import asyncio
 import yaml
 import re
 from pathlib import Path
-from typing import Optional, Any, Dict, Union
+from typing import Optional, Any, Dict
 from domain.repositories.savepoint_repository import SavepointRepository
 from domain.exceptions import StorageError
 

@@ -1,10 +1,8 @@
 """Critique service for iterative outline refinement."""
 
-import json
 from typing import List, Optional
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
-from domain.exceptions import StoryGenerationError
 
 from ..interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_loader import PromptLoader
@@ -47,7 +45,7 @@ class CritiqueService:
         current_outline = initial_outline
         iteration = 0
         
-        print(f"\n[CRITIQUE] Starting iterative outline refinement...")
+        print("\n[CRITIQUE] Starting iterative outline refinement...")
         print(f"[CRITIQUE] Maximum iterations: {max_iterations}")
         
         while iteration < max_iterations:
@@ -76,15 +74,15 @@ class CritiqueService:
             
             # Print current scores
             print(f"[CRITIQUE] Overall average score: {overall_average:.1f}%")
-            print(f"[CRITIQUE] Criterion averages:")
+            print("[CRITIQUE] Criterion averages:")
             for criterion, score in average_scores.items():
                 print(f"  - {criterion}: {score:.1f}%")
             
             if not should_refine:
-                print(f"[CRITIQUE] Outline meets quality standards! Stopping refinement.")
+                print("[CRITIQUE] Outline meets quality standards! Stopping refinement.")
                 break
             
-            print(f"[CRITIQUE] Refinement needed. Generating improved outline...")
+            print("[CRITIQUE] Refinement needed. Generating improved outline...")
             
             # Generate refined outline based on feedback
             refined_outline = await self._generate_refined_outline(
@@ -95,7 +93,7 @@ class CritiqueService:
             current_outline = refined_outline
         
         if iteration >= max_iterations:
-            print(f"[CRITIQUE] Maximum iterations reached. Using final outline.")
+            print("[CRITIQUE] Maximum iterations reached. Using final outline.")
         
         return current_outline
     
@@ -184,7 +182,7 @@ Criterion Scores:
         for criterion, score in average_scores.items():
             refinement_prompt += f"- {criterion}: {score:.1f}%\n"
         
-        refinement_prompt += f"""
+        refinement_prompt += """
 ## Refinement Instructions
 Based on the critique feedback above, refine the outline to address the identified issues. Focus on:
 

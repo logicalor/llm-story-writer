@@ -6,7 +6,6 @@ A clean, modern AI story generation application built with clean architecture.
 Generate full-length novels with AI using multiple model providers.
 """
 
-import asyncio
 import sys
 from pathlib import Path
 

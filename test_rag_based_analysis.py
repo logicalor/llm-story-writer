@@ -96,7 +96,7 @@ async def test_rag_based_analysis():
         
         # Test evolution analysis
         await story_state_manager.update_story_evolution(1, settings)
-        print(f"✓ Evolution analysis completed")
+        print("✓ Evolution analysis completed")
         print(f"   Evolution log entries: {len(story_state_manager.story_evolution)}")
         
         if story_state_manager.story_evolution:
@@ -109,7 +109,7 @@ async def test_rag_based_analysis():
     print("\n4. Testing RAG-based character analysis...")
     try:
         character_data = await story_state_manager.analyze_character_development_rag("Sarah", settings)
-        print(f"✓ Character analysis completed")
+        print("✓ Character analysis completed")
         print(f"   Current role: {character_data['current_role']}")
         print(f"   Personality traits: {len(character_data['personality_traits'])}")
         print(f"   Motivations: {len(character_data['motivations'])}")
@@ -122,7 +122,7 @@ async def test_rag_based_analysis():
     print("\n5. Testing RAG-based plot analysis...")
     try:
         plot_data = await story_state_manager.analyze_plot_threads_rag(settings)
-        print(f"✓ Plot analysis completed")
+        print("✓ Plot analysis completed")
         print(f"   Active threads: {len(plot_data['active_threads'])}")
         print(f"   Resolved threads: {len(plot_data['resolved_threads'])}")
         print(f"   New threads: {len(plot_data['new_threads'])}")
@@ -134,7 +134,7 @@ async def test_rag_based_analysis():
     print("\n6. Testing story summary...")
     try:
         summary = story_state_manager.get_story_summary()
-        print(f"✓ Story summary generated")
+        print("✓ Story summary generated")
         print(f"   Summary length: {len(summary)} characters")
         print(f"   Summary preview: {summary[:100]}...")
         

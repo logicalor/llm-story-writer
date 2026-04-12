@@ -231,7 +231,7 @@ class CritiqueParser:
                 feedback_parts.append(score.notes)
                 feedback_parts.append("")
             
-            feedback_parts.append(f"### Summary")
+            feedback_parts.append("### Summary")
             feedback_parts.append(result.summary)
             feedback_parts.append("")
         

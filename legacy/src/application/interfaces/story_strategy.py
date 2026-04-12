@@ -1,8 +1,8 @@
 """Abstract story writing strategy interface."""
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
-from domain.entities.story import Story, Outline, Chapter, StoryInfo
+from typing import List
+from domain.entities.story import Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
 from ..interfaces.model_provider import ModelProvider
 

@@ -1,7 +1,5 @@
 """Example usage of the PromptHandler."""
 
-import asyncio
-from typing import Dict, Any
 from domain.value_objects.model_config import ModelConfig
 from domain.value_objects.generation_settings import GenerationSettings
 from .prompt_handler import PromptHandler, PromptRequest

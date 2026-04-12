@@ -173,3 +173,6 @@ SavePoints/*
 .opencode/snapshots/
 .opencode/cache/
 .opencode/logs/
+
+# Chromadb local data
+.chromadb/

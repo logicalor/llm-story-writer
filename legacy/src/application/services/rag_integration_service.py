@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from application.services.rag_service import RAGService
-from application.services.content_chunker import ContentChunker, ContentChunk
+from application.services.content_chunker import ContentChunker
 
 logger = logging.getLogger(__name__)
 

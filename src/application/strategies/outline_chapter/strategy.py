@@ -1,10 +1,9 @@
 """Outline-Chapter story writing strategy."""
 
-import asyncio
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pathlib import Path
-from domain.entities.story import Story, Outline, Chapter, StoryInfo
+from domain.entities.story import Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from domain.exceptions import StoryGenerationError

@@ -1,10 +1,9 @@
 """Stream of Consciousness story writing strategy."""
 
 from typing import List, Dict, Any
-from domain.entities.story import Story, Outline, Chapter, StoryInfo
+from domain.entities.story import Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
-from domain.exceptions import StoryGenerationError
 
 from application.interfaces.story_strategy import StoryStrategy
 from application.interfaces.model_provider import ModelProvider

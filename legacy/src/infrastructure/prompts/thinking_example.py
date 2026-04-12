@@ -1,9 +1,6 @@
 """Example demonstrating the new thinking capture functionality."""
 
-import asyncio
-from typing import Dict, Any
 from domain.value_objects.model_config import ModelConfig
-from domain.value_objects.generation_settings import GenerationSettings
 from .prompt_handler import PromptHandler, PromptRequest
 from .prompt_loader import PromptLoader
 from application.interfaces.model_provider import ModelProvider
@@ -55,7 +52,7 @@ async def example_thinking_capture():
             
             # Access specific metadata
             frontmatter = full_savepoint['_frontmatter']
-            print(f"\n=== Metadata ===")
+            print("\n=== Metadata ===")
             print(f"Prompt ID: {frontmatter.get('prompt_id')}")
             print(f"Model used: {frontmatter.get('model_config', {}).get('name')}")
             print(f"Execution time: {frontmatter.get('execution_time')}")

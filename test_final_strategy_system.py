@@ -48,21 +48,21 @@ def test_strategy_system():
         print("\n✓ Testing prompt loaders:")
         
         outline_loader = PromptLoader(prompts_dir=outline_prompt_dir)
-        print(f"  - outline-chapter prompt loader created")
+        print("  - outline-chapter prompt loader created")
         
         stream_loader = PromptLoader(prompts_dir=stream_prompt_dir)
-        print(f"  - stream-of-consciousness prompt loader created")
+        print("  - stream-of-consciousness prompt loader created")
         
         # Test strategy metadata
         print("\n✓ Testing strategy metadata:")
-        print(f"  - outline-chapter:")
+        print("  - outline-chapter:")
         print(f"    Name: {outline_chapter_strategy.get_strategy_name()}")
         print(f"    Version: {outline_chapter_strategy.get_strategy_version()}")
         print(f"    Description: {outline_chapter_strategy.get_strategy_description()}")
         print(f"    Required models: {outline_chapter_strategy.get_required_models()}")
         print(f"    Prompt directory: {outline_chapter_strategy.get_prompt_directory()}")
         
-        print(f"  - stream-of-consciousness:")
+        print("  - stream-of-consciousness:")
         print(f"    Name: {stream_strategy.get_strategy_name()}")
         print(f"    Version: {stream_strategy.get_strategy_version()}")
         print(f"    Description: {stream_strategy.get_strategy_description()}")

@@ -1,7 +1,6 @@
 """Ollama model provider implementation."""
 
 import asyncio
-import json
 import random
 import subprocess
 import sys
@@ -29,7 +28,6 @@ class OllamaProvider(ModelProvider):
         except ImportError:
             print("Package ollama not found. Installing...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", "ollama"])
-            import ollama
     
     def _filter_think_tags(self, text: str) -> str:
         """Remove <think>...</think> tags from text while preserving the rest."""
@@ -180,7 +178,7 @@ class OllamaProvider(ModelProvider):
             print(f"[CHAT REQUEST] Seed: {seed}")
             print(f"[CHAT REQUEST] Min word count: {min_word_count}")
             if options.get('think'):
-                print(f"[CHAT REQUEST] Thinking: ENABLED")
+                print("[CHAT REQUEST] Thinking: ENABLED")
             print()
             
             response = await asyncio.to_thread(
@@ -311,7 +309,7 @@ class OllamaProvider(ModelProvider):
             except json.JSONDecodeError as e:
                 if debug:
                     print(f"[DEBUG] JSON parsing failed: {e}")
-                    print(f"[DEBUG] Attempting to extract JSON from response...")
+                    print("[DEBUG] Attempting to extract JSON from response...")
                 
                 # Try to extract JSON from the response
                 import re
@@ -353,9 +351,9 @@ class OllamaProvider(ModelProvider):
             print(f"[CHAT REQUEST] Options: {options}")
             print(f"[CHAT REQUEST] Format: {format_type or 'text'}")
             print(f"[CHAT REQUEST] Seed: {seed}")
-            print(f"[CHAT REQUEST] Mode: streaming")
+            print("[CHAT REQUEST] Mode: streaming")
             if options.get('think'):
-                print(f"[CHAT REQUEST] Thinking: ENABLED")
+                print("[CHAT REQUEST] Thinking: ENABLED")
             print()
             
             # Stream response
@@ -569,7 +567,7 @@ class OllamaProvider(ModelProvider):
             print(f"[CHAT REQUEST] Seed: {seed}")
             print(f"[CHAT REQUEST] Min word count: {min_word_count}")
             if options.get('think'):
-                print(f"[CHAT REQUEST] Thinking: ENABLED")
+                print("[CHAT REQUEST] Thinking: ENABLED")
             print()
             
             response = await asyncio.to_thread(

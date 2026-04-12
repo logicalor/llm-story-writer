@@ -1,6 +1,5 @@
 """Prompt loader for reading prompts from markdown files."""
 
-import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 from domain.exceptions import ConfigurationError

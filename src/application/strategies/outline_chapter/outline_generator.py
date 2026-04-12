@@ -1,7 +1,7 @@
 """Outline generation functionality for the outline-chapter strategy."""
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from domain.entities.story import Outline
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
@@ -11,16 +11,13 @@ logger = logging.getLogger(__name__)
 
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
-from infrastructure.prompts.prompt_wrapper import execute_messages_with_savepoint, execute_prompt_with_savepoint, extract_boxed_solution
+from infrastructure.prompts.prompt_wrapper import execute_messages_with_savepoint, execute_prompt_with_savepoint
 from infrastructure.savepoints import SavepointManager
 from .character_manager import CharacterManager
 from .setting_manager import SettingManager
 from .chapter_generator import ChapterGenerator
 from .story_state_manager import StoryStateManager
 from application.services.rag_service import RAGService
-from application.services.rag_integration_service import RAGIntegrationService
-from application.services.content_chunker import ContentChunker
-import json
 
 
 class OutlineGenerator:
@@ -146,7 +143,7 @@ class OutlineGenerator:
         """Initialize the progressive outline system with story context."""
         try:
             if settings.debug:
-                print(f"[PROGRESSIVE PLANNING] Initializing progressive outline system...")
+                print("[PROGRESSIVE PLANNING] Initializing progressive outline system...")
             
             # Initialize story context using story state manager
             story_context = await self.story_state_manager.initialize_story_context(prompt, settings)
@@ -190,7 +187,7 @@ class OutlineGenerator:
         """Generate focused story analysis chunks for optimal RAG indexing."""
         try:
             if settings.debug:
-                print(f"[STORY ANALYSIS] Generating story analysis chunks")
+                print("[STORY ANALYSIS] Generating story analysis chunks")
             
             # Initialize base conversation for understanding the story prompt
             base_conversation = conversation_history
@@ -249,7 +246,7 @@ class OutlineGenerator:
             
             content = response.content.strip()
             if settings.debug:
-                print(f"[STORY ANALYSIS] Generated core story foundation chunk")
+                print("[STORY ANALYSIS] Generated core story foundation chunk")
             
             # Index this chunk immediately
             await self._index_story_analysis_chunk(content, "core_story_foundation", settings)
@@ -291,7 +288,7 @@ class OutlineGenerator:
             
             content = response.content.strip()
             if settings.debug:
-                print(f"[STORY ANALYSIS] Generated character foundation chunk")
+                print("[STORY ANALYSIS] Generated character foundation chunk")
             
             # Index this chunk immediately
             await self._index_story_analysis_chunk(content, "character_foundation", settings)
@@ -333,7 +330,7 @@ class OutlineGenerator:
             
             content = response.content.strip()
             if settings.debug:
-                print(f"[STORY ANALYSIS] Generated setting foundation chunk")
+                print("[STORY ANALYSIS] Generated setting foundation chunk")
             
             # Index this chunk immediately
             await self._index_story_analysis_chunk(content, "setting_foundation", settings)
@@ -375,7 +372,7 @@ class OutlineGenerator:
             
             content = response.content.strip()
             if settings.debug:
-                print(f"[STORY ANALYSIS] Generated plot structure chunk")
+                print("[STORY ANALYSIS] Generated plot structure chunk")
             
             # Index this chunk immediately
             await self._index_story_analysis_chunk(content, "plot_structure", settings)
@@ -417,7 +414,7 @@ class OutlineGenerator:
             
             content = response.content.strip()
             if settings.debug:
-                print(f"[STORY ANALYSIS] Generated theme message chunk")
+                print("[STORY ANALYSIS] Generated theme message chunk")
             
             # Index this chunk immediately
             await self._index_story_analysis_chunk(content, "theme_message", settings)
@@ -459,7 +456,7 @@ class OutlineGenerator:
             
             content = response.content.strip()
             if settings.debug:
-                print(f"[STORY ANALYSIS] Generated tone style chunk")
+                print("[STORY ANALYSIS] Generated tone style chunk")
             
             # Index this chunk immediately
             await self._index_story_analysis_chunk(content, "tone_style", settings)
@@ -501,7 +498,7 @@ class OutlineGenerator:
             
             content = response.content.strip()
             if settings.debug:
-                print(f"[STORY ANALYSIS] Generated conflict stakes chunk")
+                print("[STORY ANALYSIS] Generated conflict stakes chunk")
             
             # Index this chunk immediately
             await self._index_story_analysis_chunk(content, "conflict_stakes", settings)
@@ -543,7 +540,7 @@ class OutlineGenerator:
             
             content = response.content.strip()
             if settings.debug:
-                print(f"[STORY ANALYSIS] Generated world rules logic chunk")
+                print("[STORY ANALYSIS] Generated world rules logic chunk")
             
             # Index this chunk immediately
             await self._index_story_analysis_chunk(content, "world_rules_logic", settings)

@@ -1,6 +1,6 @@
 """Generation settings value objects."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, Dict, Any
 from ..exceptions import ValidationError
 

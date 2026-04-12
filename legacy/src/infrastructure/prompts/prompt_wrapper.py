@@ -85,12 +85,12 @@ def extract_output_tags(text: str) -> Optional[str]:
             else:
                 # Closing tag is before opening tag, treat as unclosed
                 content = text[content_start:].strip()
-                print(f"⚠️ Warning: Found unclosed <output> tag, extracting content to end of text")
+                print("⚠️ Warning: Found unclosed <output> tag, extracting content to end of text")
                 return content
         except ValueError:
             # No closing tag found, extract to end of text
             content = text[content_start:].strip()
-            print(f"⚠️ Warning: Found unclosed <output> tag, extracting content to end of text")
+            print("⚠️ Warning: Found unclosed <output> tag, extracting content to end of text")
             return content
 
     except ValueError:
@@ -266,7 +266,7 @@ async def execute_prompt(
     # Skip validation and parsing if content comes from a savepoint (already parsed)
     if response.was_cached:
         parsed_content = response.content
-        print(f"📋 Using cached content from savepoint - skipping validation/parsing")
+        print("📋 Using cached content from savepoint - skipping validation/parsing")
     else:
         # Apply output validation and parsing for newly generated content
         parsed_content, needs_retry = validate_and_parse_output(response.content, skip_validation)
@@ -393,7 +393,7 @@ async def execute_messages_with_savepoint(
         # Apply output validation and parsing
         parsed_content, needs_retry = validate_and_parse_output(response_content, skip_validation)
         if needs_retry:
-            print(f"🔄 Retrying conversation due to missing output tags...")
+            print("🔄 Retrying conversation due to missing output tags...")
             # Retry the conversation once
             retry_content = await handler.model_provider.generate_text(
                 messages=conversation_history,
@@ -404,7 +404,7 @@ async def execute_messages_with_savepoint(
             )
             parsed_content, needs_retry = validate_and_parse_output(retry_content, skip_validation)
             if needs_retry:
-                print(f"⚠️ Warning: Retry failed for conversation, using raw output")
+                print("⚠️ Warning: Retry failed for conversation, using raw output")
                 parsed_content = retry_content
             else:
                 response_content = retry_content

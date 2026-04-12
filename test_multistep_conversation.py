@@ -170,7 +170,7 @@ async def test_specific_provider_conversation():
             stream=True  # Enable streaming
         )
         
-        print(f"\nFinal Response (Complete):")
+        print("\nFinal Response (Complete):")
         print(f"{'='*40}")
         print(response)
         print(f"{'='*40}")
@@ -245,7 +245,7 @@ async def test_conversation_memory():
             stream=True  # Enable streaming
         )
         
-        print(f"\nFinal Response (Complete):")
+        print("\nFinal Response (Complete):")
         print(f"{'='*40}")
         print(response)
         print(f"{'='*40}")
@@ -351,7 +351,7 @@ async def test_streaming_conversation():
             stream=True  # Enable streaming
         )
         
-        print(f"\nFinal Response (Complete):")
+        print("\nFinal Response (Complete):")
         print(f"{'='*40}")
         print(response)
         print(f"{'='*40}")

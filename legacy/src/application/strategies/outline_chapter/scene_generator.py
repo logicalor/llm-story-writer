@@ -593,7 +593,7 @@ class SceneGenerator:
                 character_names = [str(name).strip() for name in character_names if name and str(name).strip()]
             else:
                 if settings.debug:
-                    print(f"[MULTISTEP SCENE] No 'characters' property found in scene definition or invalid format")
+                    print("[MULTISTEP SCENE] No 'characters' property found in scene definition or invalid format")
         except (json.JSONDecodeError, AttributeError) as e:
             if settings.debug:
                 print(f"[MULTISTEP SCENE] Error parsing scene definition JSON: {e}")
@@ -617,7 +617,7 @@ class SceneGenerator:
                     print(f"[MULTISTEP SCENE] Error getting character summaries: {e}")
         else:
             if settings.debug:
-                print(f"[MULTISTEP SCENE] No character names found in scene definition")
+                print("[MULTISTEP SCENE] No character names found in scene definition")
 
         # Extract setting names from scene definition and get their summaries
         setting_names = []
@@ -635,7 +635,7 @@ class SceneGenerator:
                 setting_names = [str(name).strip() for name in setting_names if name and str(name).strip()]
             else:
                 if settings.debug:
-                    print(f"[MULTISTEP SCENE] No 'setting' property found in scene definition or invalid format")
+                    print("[MULTISTEP SCENE] No 'setting' property found in scene definition or invalid format")
         except (json.JSONDecodeError, AttributeError) as e:
             if settings.debug:
                 print(f"[MULTISTEP SCENE] Error parsing scene definition for settings: {e}")
@@ -658,7 +658,7 @@ class SceneGenerator:
                     print(f"[MULTISTEP SCENE] Error getting setting summaries: {e}")
         else:
             if settings.debug:
-                print(f"[MULTISTEP SCENE] No setting names found in scene definition")
+                print("[MULTISTEP SCENE] No setting names found in scene definition")
 
             # Progressive multi-step conversation building
         conversation_history = []
@@ -690,7 +690,7 @@ class SceneGenerator:
             model_config = ModelConfig.from_string(self.config["models"]["scene_writer"])
             
             if settings.debug:
-                print(f"[MULTISTEP SCENE] Starting progressive multi-step conversation")
+                print("[MULTISTEP SCENE] Starting progressive multi-step conversation")
                 print(f"[MULTISTEP SCENE] System message loaded: {len(system_message)} characters")
             
             # Step 1: First user message (understand elements)
@@ -704,7 +704,7 @@ class SceneGenerator:
                 conversation_history.append({"role": "user", "content": elements_prompt})
 
                 if settings.debug:
-                    print(f"[MULTISTEP SCENE] Step 1: First message added (understand elements)")
+                    print("[MULTISTEP SCENE] Step 1: First message added (understand elements)")
                     print(f"[MULTISTEP SCENE] Message length: {len(elements_prompt)} characters")
                 
                 response = await execute_messages_with_savepoint(
@@ -722,7 +722,7 @@ class SceneGenerator:
                 conversation_history.append({"role": "assistant", "content": response.content})
                 
                 if settings.debug:
-                    print(f"[MULTISTEP SCENE] Step 1 completed")
+                    print("[MULTISTEP SCENE] Step 1 completed")
 
             except Exception as e:
                 if settings.debug:
@@ -739,7 +739,7 @@ class SceneGenerator:
                 conversation_history.append({"role": "user", "content": context_prompt})
                 
                 if settings.debug:
-                    print(f"[MULTISTEP SCENE] Step 2: Second message added (understand context)")
+                    print("[MULTISTEP SCENE] Step 2: Second message added (understand context)")
                     print(f"[MULTISTEP SCENE] Message length: {len(context_prompt)} characters")
 
                 
@@ -757,7 +757,7 @@ class SceneGenerator:
                 conversation_history.append({"role": "assistant", "content": response.content})
 
                 if settings.debug:
-                    print(f"[MULTISTEP SCENE] Step 2 completed")
+                    print("[MULTISTEP SCENE] Step 2 completed")
             
             except Exception as e:
                 if settings.debug:
@@ -770,7 +770,7 @@ class SceneGenerator:
                     conversation_history.append({"role": "user", "content": characters_prompt})
                     
                     if settings.debug:
-                        print(f"[MULTISTEP SCENE] Step 3: Third message added (understand characters)")
+                        print("[MULTISTEP SCENE] Step 3: Third message added (understand characters)")
                         print(f"[MULTISTEP SCENE] Message length: {len(characters_prompt)} characters")
                     
                     response = await execute_messages_with_savepoint(
@@ -787,13 +787,13 @@ class SceneGenerator:
                     conversation_history.append({"role": "assistant", "content": response.content})
                     
                     if settings.debug:
-                        print(f"[MULTISTEP SCENE] Step 3 completed")
+                        print("[MULTISTEP SCENE] Step 3 completed")
                 
                 except Exception as e:
                     if settings.debug:
                         print(f"[MULTISTEP SCENE] Error in step 3: {e}")
             elif not character_names and settings.debug:
-                print(f"[MULTISTEP SCENE] Step 3 skipped - no characters found in scene definition")
+                print("[MULTISTEP SCENE] Step 3 skipped - no characters found in scene definition")
             
             # Step 4: Fourth user message (understand setting) - only if settings exist
             if setting_names:  # Only continue if previous step succeeded and settings exist
@@ -802,7 +802,7 @@ class SceneGenerator:
                     conversation_history.append({"role": "user", "content": setting_prompt})
                     
                     if settings.debug:
-                        print(f"[MULTISTEP SCENE] Step 4: Fourth message added (understand setting)")
+                        print("[MULTISTEP SCENE] Step 4: Fourth message added (understand setting)")
                         print(f"[MULTISTEP SCENE] Message length: {len(setting_prompt)} characters")
                     
                     response = await execute_messages_with_savepoint(
@@ -819,13 +819,13 @@ class SceneGenerator:
                     conversation_history.append({"role": "assistant", "content": response.content})
                     
                     if settings.debug:
-                        print(f"[MULTISTEP SCENE] Step 4 completed")
+                        print("[MULTISTEP SCENE] Step 4 completed")
 
                 except Exception as e:
                     if settings.debug:
                         print(f"[MULTISTEP SCENE] Error in step 4: {e}")
             elif not setting_names and settings.debug:
-                print(f"[MULTISTEP SCENE] Step 4 skipped - no settings found in scene definition")
+                print("[MULTISTEP SCENE] Step 4 skipped - no settings found in scene definition")
 
 
             if scene_num == 1 or scene_num != chapter_count:
@@ -857,7 +857,7 @@ class SceneGenerator:
                     conversation_history.append({"role": "assistant", "content": response.content})
                     
                     if settings.debug:
-                        print(f"[MULTISTEP SCENE] Step 5 completed")
+                        print("[MULTISTEP SCENE] Step 5 completed")
                 
                 except Exception as e:
                     if settings.debug:
@@ -886,7 +886,7 @@ class SceneGenerator:
                     conversation_history.append({"role": "assistant", "content": response.content})
                     
                     if settings.debug:
-                        print(f"[MULTISTEP SCENE] Step 6 completed")
+                        print("[MULTISTEP SCENE] Step 6 completed")
 
                 except Exception as e:
                     if settings.debug:
@@ -915,7 +915,7 @@ class SceneGenerator:
                     conversation_history.append({"role": "assistant", "content": response.content})
                     
                     if settings.debug:
-                        print(f"[MULTISTEP SCENE] Step 7 completed")
+                        print("[MULTISTEP SCENE] Step 7 completed")
                     
                 except Exception as e:
                     if settings.debug:
@@ -977,7 +977,7 @@ class SceneGenerator:
             # 3. Repeat for next step
             
             if settings.debug:
-                print(f"[MULTISTEP SCENE] Progressive conversation completed")
+                print("[MULTISTEP SCENE] Progressive conversation completed")
             
         except Exception as e:
             if settings.debug:

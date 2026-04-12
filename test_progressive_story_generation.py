@@ -13,7 +13,6 @@ from application.strategies.outline_chapter.story_state_manager import StoryStat
 from domain.value_objects.generation_settings import GenerationSettings
 from infrastructure.providers.ollama_provider import OllamaProvider
 from infrastructure.prompts.prompt_loader import PromptLoader
-from infrastructure.savepoints import SavepointManager
 from domain.repositories.savepoint_repository import SavepointRepository
 
 
@@ -84,7 +83,7 @@ async def test_progressive_story_generation():
         log_prompt_inputs=False
     )
     
-    print(f"\n2. Testing progressive story generation...")
+    print("\n2. Testing progressive story generation...")
     print(f"   Prompt: {test_prompt.strip()}")
     print(f"   Target chapters: {settings.wanted_chapters}")
     
@@ -92,7 +91,7 @@ async def test_progressive_story_generation():
         # Test the progressive story generation
         chapters = await strategy.generate_progressive_story(test_prompt, settings)
         
-        print(f"\n✓ Progressive story generation completed!")
+        print("\n✓ Progressive story generation completed!")
         print(f"   Generated {len(chapters)} chapters")
         
         # Display chapter summaries
@@ -102,20 +101,20 @@ async def test_progressive_story_generation():
             print(f"   Preview: {chapter.content[:100]}...")
         
         # Test story state manager directly
-        print(f"\n3. Testing Story State Manager directly...")
+        print("\n3. Testing Story State Manager directly...")
         
         # Get story summary
         summary = strategy.story_state_manager.get_story_summary()
         print(f"   Story Summary:\n{summary}")
         
         # Test planning next chapter
-        print(f"\n4. Testing next chapter planning...")
+        print("\n4. Testing next chapter planning...")
         next_chapter = await strategy.story_state_manager.plan_next_chapter(settings)
         print(f"   Next chapter planned: {next_chapter.title}")
         print(f"   Status: {next_chapter.status}")
         print(f"   Key events: {len(next_chapter.key_events)}")
         
-        print(f"\n=== Progressive Story Generation Test Completed Successfully! ===")
+        print("\n=== Progressive Story Generation Test Completed Successfully! ===")
         
     except Exception as e:
         print(f"\n❌ Error during progressive story generation: {e}")
