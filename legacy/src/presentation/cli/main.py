@@ -7,9 +7,8 @@ from pathlib import Path
 from typing import Optional
 
 from config.config_loader import ConfigLoader
-from domain.exceptions import StoryGenerationError, ConfigurationError
+from domain.exceptions import ConfigurationError
 from infrastructure.container import Container
-from infrastructure.logging.structured_logger import LogLevel
 from .argument_parser import CLIArgumentParser
 
 
@@ -105,7 +104,7 @@ class CLIApplication:
                         duration=duration,
                         output_path=str(output_path))
         
-        print(f"\n✅ Story generated successfully!")
+        print("\n✅ Story generated successfully!")
         print(f"📁 Output saved to: {output_path}")
         print(f"⏱️  Total time: {duration:.2f} seconds")
 

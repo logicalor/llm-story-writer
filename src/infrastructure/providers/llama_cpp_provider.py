@@ -29,7 +29,6 @@ class LlamaCppProvider(ModelProvider):
         except ImportError:
             print("Package requests not found. Installing...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
-            import requests
     
     def _filter_think_tags(self, text: str) -> str:
         """Remove <think>...</think> tags from text while preserving the rest."""
@@ -349,7 +348,7 @@ class LlamaCppProvider(ModelProvider):
             except json.JSONDecodeError as e:
                 if debug:
                     print(f"[DEBUG] JSON parsing failed: {e}")
-                    print(f"[DEBUG] Attempting to extract JSON from response...")
+                    print("[DEBUG] Attempting to extract JSON from response...")
                 
                 # Try to extract JSON from the response
                 json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
@@ -397,7 +396,7 @@ class LlamaCppProvider(ModelProvider):
             print(f"[CHAT REQUEST] Options: {payload}")
             print(f"[CHAT REQUEST] Format: {format_type or 'text'}")
             print(f"[CHAT REQUEST] Seed: {seed}")
-            print(f"[CHAT REQUEST] Mode: streaming")
+            print("[CHAT REQUEST] Mode: streaming")
             print()
             
             # Make streaming request to llama.cpp server
@@ -459,9 +458,9 @@ class LlamaCppProvider(ModelProvider):
         """Download a model in llama.cpp."""
         # llama.cpp models are typically downloaded manually or through other tools
         # This method provides a placeholder for consistency with the interface
-        print(f"llama.cpp models are typically downloaded manually or through other tools.")
+        print("llama.cpp models are typically downloaded manually or through other tools.")
         print(f"Please ensure the model {model_config.name} is available at {model_config.host or self.host}")
-        print(f"Refer to llama.cpp documentation for model download instructions.")
+        print("Refer to llama.cpp documentation for model download instructions.")
     
     async def get_supported_providers(self) -> List[str]:
         """Get list of supported providers."""

@@ -10,7 +10,6 @@ from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint, execute_messages_with_savepoint
 from infrastructure.savepoints import SavepointManager
 from application.services.rag_service import RAGService
-from application.services.rag_integration_service import RAGIntegrationService
 
 
 class CharacterManager:
@@ -917,7 +916,7 @@ class CharacterManager:
         # Check if savepoint manager is available
         if not self.savepoint_manager:
             if settings.debug:
-                print(f"[CHARACTER SUMMARIES] No savepoint manager available, returning character names only")
+                print("[CHARACTER SUMMARIES] No savepoint manager available, returning character names only")
             # Return just the character names as a fallback
             return "\n\n".join([f"**{name}**: Character appears in this scene" for name in character_names])
         
@@ -934,7 +933,7 @@ class CharacterManager:
             return combined_summaries
         else:
             if settings.debug:
-                print(f"[CHARACTER SUMMARIES] No character summaries generated, returning character names only")
+                print("[CHARACTER SUMMARIES] No character summaries generated, returning character names only")
             # Return just the character names as a fallback
             return "\n\n".join([f"**{name}**: Character appears in this scene" for name in character_names])
     
@@ -961,7 +960,7 @@ class CharacterManager:
         # Check if savepoint manager is available
         if not self.savepoint_manager:
             if settings.debug:
-                print(f"[CHARACTER SUMMARIES LIST] No savepoint manager available, returning character names only")
+                print("[CHARACTER SUMMARIES LIST] No savepoint manager available, returning character names only")
             # Return just the character names as a fallback
             return "\n\n---\n\n".join([f"**{name}**\n\nCharacter appears in this scene" for name in character_names])
         
@@ -981,6 +980,6 @@ class CharacterManager:
             return formatted_summaries
         else:
             if settings.debug:
-                print(f"[CHARACTER SUMMARIES LIST] No character summaries generated, returning character names only")
+                print("[CHARACTER SUMMARIES LIST] No character summaries generated, returning character names only")
             # Return just the character names as a fallback
             return "\n\n---\n\n".join([f"**{name}**\n\nCharacter appears in this scene" for name in character_names])

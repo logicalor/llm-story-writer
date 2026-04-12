@@ -14,8 +14,6 @@ from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
 from infrastructure.savepoints import SavepointManager
 from application.services.rag_service import RAGService
-from application.services.rag_integration_service import RAGIntegrationService
-from application.services.content_chunker import ContentChunker
 from .character_manager import CharacterManager
 from .setting_manager import SettingManager
 from .recap_manager import RecapManager
@@ -826,7 +824,7 @@ class ChapterGenerator:
     ) -> str:
         """Extract chapters from combined outline and generate synopses for each."""
         if settings.debug:
-            print(f"[CHAPTER SYNOPSES] Generating synopses for chapters from combined outline")
+            print("[CHAPTER SYNOPSES] Generating synopses for chapters from combined outline")
         
         # Step 1: Extract chapters as JSON list from the combined outline
         chapter_list = await self._extract_chapters_from_outline(
@@ -1173,7 +1171,7 @@ class ChapterGenerator:
         final_outline = "\n\n".join(outline_chunks)
         
         if settings.debug:
-            print(f"[CHUNKED OUTLINE] Completed chunked outline generation")
+            print("[CHUNKED OUTLINE] Completed chunked outline generation")
         
         return final_outline
     
@@ -1230,7 +1228,7 @@ class ChapterGenerator:
                 "chunk_outline": chunk_outline,
                 "previous_chunks": previous_chunks
             },
-            savepoint_id=f"chunk_continuity_analysis",
+            savepoint_id="chunk_continuity_analysis",
             model_config=model_config,
             seed=settings.seed,
             debug=settings.debug,
@@ -1255,7 +1253,7 @@ class ChapterGenerator:
                 raise StoryGenerationError("Story context must be initialized before progressive planning")
             
             if settings.debug:
-                print(f"[PROGRESSIVE PLANNING] Coordinating next chapter planning...")
+                print("[PROGRESSIVE PLANNING] Coordinating next chapter planning...")
             
             # Delegate planning to StoryStateManager
             chapter_state = await self.story_state_manager.plan_next_chapter(settings)

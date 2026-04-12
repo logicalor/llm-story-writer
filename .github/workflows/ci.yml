@@ -1,0 +1,243 @@
+name: CI
+
+on:
+    push:
+        branches: [main, development]
+    pull_request:
+        branches: [main, development]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    php:
+        name: PHP Lint & Test
+        runs-on: ubuntu-latest
+
+        services:
+            postgres:
+                image: postgres:17
+                env:
+                    POSTGRES_DB: db_test
+                    POSTGRES_USER: db
+                    POSTGRES_PASSWORD: db
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+
+        env:
+            DB_HOST: 127.0.0.1
+            DB_PORT: 5432
+            DB_DATABASE: db_test
+            DB_USERNAME: db
+            DB_PASSWORD: db
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Set up PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: "8.4"
+                  extensions: mbstring, pdo, pdo_pgsql, bcmath, ctype, curl, dom, fileinfo, json, openssl, pcre, tokenizer, xml
+                  coverage: none
+
+            - name: Get composer cache directory
+              id: composer-cache
+              run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+            - name: Cache composer dependencies
+              uses: actions/cache@v4
+              with:
+                  path: ${{ steps.composer-cache.outputs.dir }}
+                  key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+                  restore-keys: ${{ runner.os }}-composer-
+
+            - name: Install composer dependencies
+              run: composer install --prefer-dist --no-progress --no-interaction
+
+            - name: Copy environment file
+              run: cp .env.testing .env
+
+            - name: Generate application key
+              run: php artisan key:generate
+
+            - name: Run PHP linting
+              run: composer test:lint
+
+            - name: Determine test scope
+              id: test-scope
+              env:
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+              run: |
+                  # Always run full suite on push to protected branches or manual dispatch
+                  if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+                    echo "run_all=true" >> $GITHUB_OUTPUT
+                    echo "::notice::Full PHPUnit suite (push to protected branch)"
+                    exit 0
+                  fi
+
+                  # Check for [full-test] in the PR title or latest commit message
+                  LATEST_MSG=$(git log -1 --format="%s")
+                  if echo "$LATEST_MSG $PR_TITLE" | grep -qF '[full-test]'; then
+                    echo "run_all=true" >> $GITHUB_OUTPUT
+                    echo "::notice::Full PHPUnit suite ([full-test] flag detected)"
+                    exit 0
+                  fi
+
+                  # Compute changed files
+                  CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD 2>/dev/null || echo "")
+                  if [[ -z "$CHANGED" ]]; then
+                    echo "run_all=true" >> $GITHUB_OUTPUT
+                    echo "::notice::Full PHPUnit suite (no diff detected)"
+                    exit 0
+                  fi
+
+                  # Check ALL changed files for high-risk non-PHP patterns first (before PHP-only filter)
+                  HIGH_RISK_CONFIG=$(echo "$CHANGED" | grep -E '^(app/Providers/|config/|database/migrations/|routes/|bootstrap/app\.php|bootstrap/providers\.php|composer\.json|phpunit\.xml)' || true)
+                  if [[ -n "$HIGH_RISK_CONFIG" ]]; then
+                    echo "run_all=true" >> $GITHUB_OUTPUT
+                    echo "::notice::Full PHPUnit suite (high-risk config/infra files changed)"
+                    exit 0
+                  fi
+
+                  # Only care about PHP files for PHPUnit
+                  PHP_CHANGED=$(echo "$CHANGED" | grep -E '\.php$' || true)
+                  if [[ -z "$PHP_CHANGED" ]]; then
+                    echo "run_all=false" >> $GITHUB_OUTPUT
+                    echo "affected_tests=" >> $GITHUB_OUTPUT
+                    echo "::notice::No PHP files changed — skipping PHPUnit"
+                    exit 0
+                  fi
+
+                  # Pass PHP file paths to resolver via stdin (safe, avoids all word-splitting/injection)
+                  AFFECTED=$(echo "$PHP_CHANGED" | php .github/skills/e2e-testing/scripts/resolve-affected-php-tests.php 2>/dev/null || echo "run-all")
+                  echo "::notice::Resolver output: $AFFECTED"
+
+                  if [[ "$AFFECTED" == "run-all" ]]; then
+                    echo "run_all=true" >> $GITHUB_OUTPUT
+                  else
+                    AFFECTED_SPACE=$(echo "$AFFECTED" | tr '\n' ' ' | sed 's/ $//')
+                    echo "run_all=false" >> $GITHUB_OUTPUT
+                    echo "affected_tests=$AFFECTED_SPACE" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Run PHPUnit tests (full suite)
+              if: steps.test-scope.outputs.run_all == 'true'
+              run: php artisan test
+
+            - name: Run PHPUnit tests (selective)
+              if: steps.test-scope.outputs.run_all == 'false' && steps.test-scope.outputs.affected_tests != ''
+              env:
+                  AFFECTED_TESTS: ${{ steps.test-scope.outputs.affected_tests }}
+              run: |
+                  read -ra TEST_ARRAY <<< "$AFFECTED_TESTS"
+                  php artisan test "${TEST_ARRAY[@]}"
+
+            - name: PHPUnit skipped (no PHP changes)
+              if: steps.test-scope.outputs.run_all == 'false' && steps.test-scope.outputs.affected_tests == ''
+              run: echo "No PHP changes detected — PHPUnit skipped"
+
+    js:
+        name: JS Lint, Test & Build
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+                  cache: "npm"
+
+            - name: Install npm dependencies
+              run: npm ci
+
+            - name: Run JS linting
+              run: npm run lint
+
+            - name: Run TypeScript type check
+              run: npx vue-tsc --noEmit
+
+            - name: Determine Vitest scope
+              id: vitest-scope
+              env:
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+              run: |
+                  # Always run full suite on push to protected branches or manual dispatch
+                  if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+                    echo "run_all=true" >> $GITHUB_OUTPUT
+                    echo "::notice::Full Vitest suite (push to protected branch)"
+                    exit 0
+                  fi
+
+                  # Check for [full-test] in the PR title or latest commit message
+                  LATEST_MSG=$(git log -1 --format="%s")
+                  if echo "$LATEST_MSG $PR_TITLE" | grep -qF '[full-test]'; then
+                    echo "run_all=true" >> $GITHUB_OUTPUT
+                    echo "::notice::Full Vitest suite ([full-test] flag detected)"
+                    exit 0
+                  fi
+
+                  # Compute changed files
+                  CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD 2>/dev/null || echo "")
+                  if [[ -z "$CHANGED" ]]; then
+                    echo "run_all=true" >> $GITHUB_OUTPUT
+                    echo "::notice::Full Vitest suite (no diff detected)"
+                    exit 0
+                  fi
+
+                  # Check for high-risk frontend files
+                  HIGH_RISK_FRONTEND=$(echo "$CHANGED" | grep -E '^(resources/js/types/|resources/js/app\.ts$|resources/js/ssr\.ts$|vite\.config\.ts$|tsconfig\.json$|package\.json$|package-lock\.json$)' || true)
+                  if [[ -n "$HIGH_RISK_FRONTEND" ]]; then
+                    echo "run_all=true" >> $GITHUB_OUTPUT
+                    echo "::notice::Full Vitest suite (high-risk frontend files changed)"
+                    exit 0
+                  fi
+
+                  # Only care about TS/Vue files for Vitest
+                  TS_CHANGED=$(echo "$CHANGED" | grep -E '\.(ts|vue|js)$' || true)
+                  if [[ -z "$TS_CHANGED" ]]; then
+                    echo "run_all=false" >> $GITHUB_OUTPUT
+                    echo "changed_ts_files=" >> $GITHUB_OUTPUT
+                    echo "::notice::No TS/Vue files changed — skipping Vitest"
+                    exit 0
+                  fi
+
+                  echo "run_all=false" >> $GITHUB_OUTPUT
+                  # Convert newlines to spaces for the related flag
+                  RELATED_FILES=$(echo "$TS_CHANGED" | tr '\n' ' ' | sed 's/ $//')
+                  echo "changed_ts_files=$RELATED_FILES" >> $GITHUB_OUTPUT
+                  echo "::notice::Running Vitest --related for: $RELATED_FILES"
+
+            - name: Run Vitest (full suite)
+              if: steps.vitest-scope.outputs.run_all == 'true'
+              env:
+                  LARAVEL_BYPASS_ENV_CHECK: 1
+              run: npm run test:unit:run
+
+            - name: Run Vitest (selective — related files)
+              if: steps.vitest-scope.outputs.run_all == 'false' && steps.vitest-scope.outputs.changed_ts_files != ''
+              env:
+                  LARAVEL_BYPASS_ENV_CHECK: 1
+                  CHANGED_TS_FILES: ${{ steps.vitest-scope.outputs.changed_ts_files }}
+              run: npm run test:unit:run -- --changed HEAD
+
+            - name: Vitest skipped (no TS/Vue changes)
+              if: steps.vitest-scope.outputs.run_all == 'false' && steps.vitest-scope.outputs.changed_ts_files == ''
+              run: echo "No TS/Vue changes detected — Vitest skipped"
+
+            - name: Build frontend
+              run: npm run build

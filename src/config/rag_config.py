@@ -1,8 +1,6 @@
 """RAG configuration loader."""
 
 from dataclasses import dataclass
-from typing import Optional
-from pathlib import Path
 
 from config.config_loader import ConfigLoader
 

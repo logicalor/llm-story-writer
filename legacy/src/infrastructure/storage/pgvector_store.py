@@ -1,6 +1,5 @@
 """PostgreSQL vector store implementation using pgvector."""
 
-import asyncio
 import json
 import logging
 from typing import List, Dict, Any, Optional, Tuple

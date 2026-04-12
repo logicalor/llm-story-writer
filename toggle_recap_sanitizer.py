@@ -3,7 +3,6 @@
 Utility script to toggle between old and new recap sanitizer versions.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -57,7 +56,7 @@ def update_config(use_improved: bool, use_multi_stage: bool = False):
                 new_generation_section = generation_section.rstrip() + f'\n  {setting_name}: {str(setting_value).lower()}\n'
                 yaml_content = yaml_content.replace(generation_section, new_generation_section)
             else:
-                print(f"Error: Could not find generation section in YAML")
+                print("Error: Could not find generation section in YAML")
                 return
     
     # Replace the YAML content in the original file

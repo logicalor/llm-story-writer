@@ -1,0 +1,33 @@
+# Dispatch Failure Recovery
+
+> Retry protocol for agent dispatch failures. **Include in any agent that dispatches sub-agents.**
+
+---
+
+When dispatching to any agent, the following errors are retryable:
+
+- "Response contained no choices"
+- Timeout failures
+- Rate limit errors
+
+**Retry protocol:**
+
+1. Wait 2 seconds, then retry the dispatch
+2. If still fails, wait 4 seconds, then retry
+3. If still fails, wait 8 seconds, then retry
+4. After 3 failed attempts, post a PR comment and notify the user — do not continue
+
+When retrying, include the same context but add: "This is retry attempt N of 3."
+
+---
+
+## Empty Response Handling
+
+If an agent returns successfully but with an empty or "no response" message:
+
+1. **Check if the agent's expected work was completed** — look for file changes, commits, or other side effects
+2. **If work was completed** — proceed; the agent finished but couldn't formulate a return message
+3. **If work was NOT completed** — retry the dispatch (counts against retry limit above)
+4. **Log the empty response pattern** for reflection in the task summary
+
+This pattern occurs occasionally with some models that complete work but return empty responses.

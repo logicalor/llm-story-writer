@@ -1,6 +1,5 @@
 """LM Studio model provider implementation."""
 
-import asyncio
 import json
 import random
 import re
@@ -29,7 +28,6 @@ class LMStudioProvider(ModelProvider):
             import subprocess
             import sys
             subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
-            import requests
     
     def _filter_think_tags(self, text: str) -> str:
         """Remove <think>...</think> tags from text while preserving the rest."""
@@ -290,7 +288,7 @@ class LMStudioProvider(ModelProvider):
             except json.JSONDecodeError as e:
                 if debug:
                     print(f"[DEBUG] JSON parsing failed: {e}")
-                    print(f"[DEBUG] Attempting to extract JSON from response...")
+                    print("[DEBUG] Attempting to extract JSON from response...")
                 
                 # Try to extract JSON from the response
                 json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
@@ -330,7 +328,7 @@ class LMStudioProvider(ModelProvider):
             print(f"[CHAT REQUEST] Options: {options}")
             print(f"[CHAT REQUEST] Format: {format_type or 'text'}")
             print(f"[CHAT REQUEST] Seed: {seed}")
-            print(f"[CHAT REQUEST] Mode: streaming")
+            print("[CHAT REQUEST] Mode: streaming")
             print()
             
             # Prepare the request payload
@@ -364,7 +362,7 @@ class LMStudioProvider(ModelProvider):
         """Download a model in LM Studio."""
         # LM Studio handles model downloads through its own interface
         # This method is a no-op for LM Studio
-        print(f"LM Studio handles model downloads through its own interface.")
+        print("LM Studio handles model downloads through its own interface.")
         print(f"Please download the model '{model_config.name}' through the LM Studio application.")
     
     async def get_supported_providers(self) -> List[str]:

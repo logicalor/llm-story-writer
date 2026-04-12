@@ -10,7 +10,6 @@ from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint, execute_messages_with_savepoint
 from infrastructure.savepoints import SavepointManager
 from application.services.rag_service import RAGService
-from application.services.rag_integration_service import RAGIntegrationService
 
 
 class SettingManager:
@@ -804,7 +803,7 @@ class SettingManager:
         # Check if savepoint manager is available
         if not self.savepoint_manager:
             if settings.debug:
-                print(f"[SETTING SUMMARIES] No savepoint manager available, returning setting names only")
+                print("[SETTING SUMMARIES] No savepoint manager available, returning setting names only")
             # Return just the setting names as a fallback
             return "\n\n".join([f"**{name}**: Setting appears in this scene" for name in setting_names])
         
@@ -821,7 +820,7 @@ class SettingManager:
             return combined_summaries
         else:
             if settings.debug:
-                print(f"[SETTING SUMMARIES] No setting summaries generated, returning setting names only")
+                print("[SETTING SUMMARIES] No setting summaries generated, returning setting names only")
             # Return just the setting names as a fallback
             return "\n\n".join([f"**{name}**: Setting appears in this scene" for name in setting_names])
     
@@ -848,7 +847,7 @@ class SettingManager:
         # Check if savepoint manager is available
         if not self.savepoint_manager:
             if settings.debug:
-                print(f"[SETTING SUMMARIES LIST] No savepoint manager available, returning setting names only")
+                print("[SETTING SUMMARIES LIST] No savepoint manager available, returning setting names only")
             # Return just the setting names as a fallback
             return "\n\n---\n\n".join([f"**{name}**\n\nSetting appears in this scene" for name in setting_names])
         
@@ -868,6 +867,6 @@ class SettingManager:
             return formatted_summaries
         else:
             if settings.debug:
-                print(f"[SETTING SUMMARIES LIST] No setting summaries generated, returning setting names only")
+                print("[SETTING SUMMARIES LIST] No setting summaries generated, returning setting names only")
             # Return just the setting names as a fallback
             return "\n\n---\n\n".join([f"**{name}**\n\nSetting appears in this scene" for name in setting_names])

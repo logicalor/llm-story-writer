@@ -1,0 +1,10 @@
+{
+    "servers": {
+        "chroma": {
+            "type": "stdio",
+            "command": "uvx",
+            "args": ["chroma-mcp", "--client-type", "persistent", "--data-dir", ".chromadb"],
+            "cwd": "."
+        }
+    }
+}

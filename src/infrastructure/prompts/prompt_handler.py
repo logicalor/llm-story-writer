@@ -68,7 +68,6 @@ class PromptHandler:
         Returns:
             PromptResponse with the generated content and metadata
         """
-        import time
         start_time = time.time()
         
         # Check if we should use a savepoint
@@ -259,7 +258,6 @@ class PromptHandler:
         Returns:
             Dictionary containing the JSON response
         """
-        import time
         start_time = time.time()
         
         # Check if we should use a savepoint

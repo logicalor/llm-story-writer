@@ -1,19 +1,16 @@
 """Story State Manager for progressive chapter generation."""
 
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 import json
 import os
-from domain.entities.story import Chapter, Scene
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
 from infrastructure.savepoints import SavepointManager
-from application.services.rag_integration_service import RAGIntegrationService
-from application.services.content_chunker import ContentChunker
 
 
 @dataclass
@@ -760,7 +757,7 @@ class StoryStateManager:
     def _get_basic_character_data(self, character_name: str) -> Dict[str, Any]:
         """Fallback method for basic character data when RAG is not available."""
         return {
-            "current_role": f"Character in story",
+            "current_role": "Character in story",
             "personality_traits": [f"{character_name} has developed personality traits"],
             "motivations": [f"{character_name} has motivations"],
             "current_goals": [f"{character_name} has goals"],

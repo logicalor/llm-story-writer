@@ -1,9 +1,5 @@
 """Chapter generation service."""
 
-from typing import List, Optional
-from domain.entities.story import Chapter, Outline
-from domain.value_objects.generation_settings import GenerationSettings
-from domain.exceptions import StoryGenerationError
 
 from ..interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_loader import PromptLoader

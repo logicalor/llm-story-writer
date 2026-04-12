@@ -20,7 +20,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -28,7 +28,6 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from config.rag_config import RAGConfigLoader, RAGConfig
 from infrastructure.providers.ollama_embedding_provider import OllamaEmbeddingProvider
 from infrastructure.storage.pgvector_store import PgVectorStore
-from application.services.rag_service import RAGService
 
 
 class EmbeddingMigrator:
@@ -151,7 +150,7 @@ class EmbeddingMigrator:
             "needs_migration": current_dimensions != self.config.vector_dimensions
         }
         
-        print(f"📊 Migration Analysis:")
+        print("📊 Migration Analysis:")
         print(f"   Current vector dimensions: {current_dimensions}")
         print(f"   New vector dimensions: {self.config.vector_dimensions}")
         print(f"   Stories to migrate: {len(stories)}")
@@ -159,9 +158,9 @@ class EmbeddingMigrator:
         print(f"   Content types: {', '.join(f'{k}: {v}' for k, v in content_summary.items())}")
         
         if migration_info["needs_migration"]:
-            print(f"   🔄 Migration required: dimension mismatch")
+            print("   🔄 Migration required: dimension mismatch")
         else:
-            print(f"   ✅ No migration needed: dimensions match")
+            print("   ✅ No migration needed: dimensions match")
         
         return migration_info
     
@@ -299,7 +298,7 @@ class EmbeddingMigrator:
             
             migration_stats["stories_processed"] += 1
         
-        print(f"📊 Migration completed:")
+        print("📊 Migration completed:")
         print(f"   Stories processed: {migration_stats['stories_processed']}")
         print(f"   Chunks migrated: {migration_stats['chunks_migrated']}")
         print(f"   Errors: {migration_stats['errors']}")
@@ -400,7 +399,7 @@ class EmbeddingMigrator:
                     )
                     print(f"   📝 Migration status recorded (ID: {result})")
             else:
-                print(f"   ⚠️  Warning: No vector store pool available for status recording")
+                print("   ⚠️  Warning: No vector store pool available for status recording")
         except Exception as e:
             print(f"   ⚠️  Warning: Could not record migration start: {e}")
             import traceback
@@ -424,7 +423,7 @@ class EmbeddingMigrator:
                     """, status, error_message)
                     print(f"   📝 Migration completion recorded: {status}")
             else:
-                print(f"   ⚠️  Warning: No vector store pool available for completion recording")
+                print("   ⚠️  Warning: No vector store pool available for completion recording")
         except Exception as e:
             print(f"   ⚠️  Warning: Could not record migration completion: {e}")
             import traceback
@@ -497,7 +496,7 @@ async def main():
                 print(f"   - {error}")
             return 1
         
-        print(f"🚀 Starting embedding model migration...")
+        print("🚀 Starting embedding model migration...")
         print(f"   New model: {args.new_model}")
         print(f"   New dimensions: {config.vector_dimensions}")
         

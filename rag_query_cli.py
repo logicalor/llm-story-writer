@@ -309,7 +309,7 @@ async def show_all_stats(rag_service, vector_store):
                     if count > 0:
                         print(f"  - {content_type}: {count}")
         
-        print(f"\n📊 Overall Statistics:")
+        print("\n📊 Overall Statistics:")
         print(f"  Total Stories: {len(stories)}")
         print(f"  Total Chunks: {total_chunks_all}")
         print(f"  Content Types: {', '.join(sorted(content_types_all))}")
@@ -566,7 +566,7 @@ async def interactive_conversation(rag_service, story_id, limit, threshold, cont
     while True:
         try:
             # Get user input
-            user_input = input(f"\n💬 You: ").strip()
+            user_input = input("\n💬 You: ").strip()
             
             if not user_input:
                 continue
@@ -603,7 +603,7 @@ async def interactive_conversation(rag_service, story_id, limit, threshold, cont
                     print("\n📚 No conversation history yet")
                 continue
             
-            print(f"\n🤖 AI is thinking...")
+            print("\n🤖 AI is thinking...")
             
             # Search for relevant RAG content with lower threshold for interactive mode
             search_threshold = min(threshold, 0.3)  # Use lower threshold for interactive

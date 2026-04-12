@@ -1,7 +1,5 @@
 """Ollama embedding provider implementation."""
 
-import asyncio
-import json
 import logging
 from typing import List, Optional
 import aiohttp

@@ -33,10 +33,6 @@ class LangChainProvider(ModelProvider):
             import sys
             subprocess.check_call([sys.executable, "-m", "pip", "install", 
                                  "langchain", "langchain-openai", "langchain-anthropic", "langchain-community"])
-            import langchain
-            import langchain_openai
-            import langchain_anthropic
-            import langchain_community
     
     def _filter_think_tags(self, text: str) -> str:
         """Remove <think>...</think> tags from text while preserving the rest."""
@@ -485,7 +481,7 @@ class LangChainProvider(ModelProvider):
             except json.JSONDecodeError as e:
                 if debug:
                     print(f"[DEBUG] JSON parsing failed: {e}")
-                    print(f"[DEBUG] Attempting to extract JSON from response...")
+                    print("[DEBUG] Attempting to extract JSON from response...")
                 
                 # Try to extract JSON from the response
                 json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
@@ -526,7 +522,7 @@ class LangChainProvider(ModelProvider):
             print(f"[CHAT REQUEST] Options: {options}")
             print(f"[CHAT REQUEST] Format: {format_type or 'text'}")
             print(f"[CHAT REQUEST] Seed: {seed}")
-            print(f"[CHAT REQUEST] Mode: streaming")
+            print("[CHAT REQUEST] Mode: streaming")
             print()
             
             # Convert messages to LangChain format
@@ -551,7 +547,7 @@ class LangChainProvider(ModelProvider):
     async def download_model(self, model_config: ModelConfig) -> None:
         """Download a model through LangChain."""
         # LangChain handles model downloads through the underlying providers
-        print(f"LangChain handles model downloads through the underlying providers.")
+        print("LangChain handles model downloads through the underlying providers.")
         print(f"Please ensure the model '{model_config.name}' is available through the configured provider.")
     
     async def get_supported_providers(self) -> List[str]:
@@ -835,7 +831,7 @@ class LangChainProvider(ModelProvider):
             
         except ImportError:
             # Fallback if langchain.memory is not available
-            from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+            from langchain_core.messages import HumanMessage, AIMessage
             
             # Create a simple memory implementation
             class SimpleMemory:

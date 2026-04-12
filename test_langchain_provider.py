@@ -73,13 +73,13 @@ async def test_langchain_provider():
         print(f"\n--- Test {i}: {model_config.provider} - {model_config.name} ---")
         
         # Test model availability
-        print(f"Testing model availability...")
+        print("Testing model availability...")
         try:
             is_available = await provider.is_model_available(model_config)
             print(f"Model available: {is_available}")
             
             if not is_available:
-                print(f"Model not available, skipping...")
+                print("Model not available, skipping...")
                 continue
                 
         except Exception as e:
@@ -87,7 +87,7 @@ async def test_langchain_provider():
             continue
         
         # Test text generation
-        print(f"Testing text generation...")
+        print("Testing text generation...")
         messages = [
             {"role": "user", "content": "Hello! Please respond with a short greeting."}
         ]

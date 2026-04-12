@@ -1,0 +1,102 @@
+# Review Checklist — Shared Protocol
+
+> Shared Phase 2–7 review checklist for agents performing code reviews, both local (diff-based) and PR-based (GitHub API). Used by `code-review-process.md` and `pr-review-process.md`.
+
+---
+
+## Review Phases
+
+### Phase 2 — Code Review
+
+Review each changed source file systematically:
+
+#### General
+
+- [ ] Code follows project conventions defined in `.github/copilot-instructions.md`
+- [ ] Naming conventions are consistent with the codebase
+- [ ] No overly complex functions — decompose if needed
+- [ ] No code duplication — extract shared logic where appropriate
+- [ ] Import ordering follows project conventions
+
+#### Architecture
+
+- [ ] Separation of concerns — business logic not in controllers/handlers
+- [ ] Proper use of dependency injection where applicable
+- [ ] No tight coupling between unrelated modules
+- [ ] Follows the project's architectural patterns (see ADRs if any)
+
+#### Data Access
+
+- [ ] Input validation — all user input validated at system boundaries
+- [ ] Proper error handling — no swallowed exceptions
+- [ ] Database queries are parameterized (no raw user input in queries)
+- [ ] Missing indexes on foreign keys and frequently queried columns
+- [ ] Migrations have proper rollback support
+
+---
+
+### Phase 3 — Frontend Review (if applicable)
+
+Review each changed frontend file systematically:
+
+- [ ] Follows the project's component conventions
+- [ ] Proper typing — no `any` types (TypeScript projects)
+- [ ] Accessibility — ARIA attributes where needed
+- [ ] No hardcoded URLs — use routing helpers
+- [ ] Error states handled in forms and async operations
+- [ ] Loading/processing states shown during async operations
+
+---
+
+### Phase 4 — Security Review
+
+Check for common security issues:
+
+- [ ] **Authorization** — every action checks permissions
+- [ ] **Input validation** — all user input validated
+- [ ] **SQL injection** — parameterized queries, no raw SQL with user input
+- [ ] **XSS** — no rendering of untrusted HTML content
+- [ ] **CSRF** — protection in place for state-changing operations
+- [ ] **Mass assignment** — only expected fields are writable
+- [ ] **File uploads** — validated type, size, stored securely
+- [ ] **Sensitive data** — no credentials, API keys in code
+- [ ] **Access control** — proper scoping for multi-user/multi-tenant systems
+
+---
+
+### Phase 5 — Testing Review
+
+Check test coverage:
+
+- [ ] **New features** — have corresponding tests
+- [ ] **Test conventions** — follow project testing patterns (see `copilot-instructions.md`)
+- [ ] **Edge cases** — error paths tested
+- [ ] **No skipped tests** — all tests run
+- [ ] **Assertions** — meaningful assertions, not just absence of errors
+
+---
+
+### Phase 6 — Performance Review
+
+Check for performance issues:
+
+- [ ] **N+1 queries** — eager loading or batch queries where applicable
+- [ ] **Database indexes** — on foreign keys and query columns
+- [ ] **Caching** — appropriate for expensive operations
+- [ ] **Asset size** — no large unnecessary imports
+- [ ] **Pagination** — for large result sets
+
+---
+
+### Phase 7 — Documentation Review
+
+Check documentation:
+
+- [ ] **Docblocks** — public methods documented
+- [ ] **README** — updated for new features
+- [ ] **ADRs** — architectural changes recorded
+- [ ] **Inline comments** — for complex logic
+- [ ] **Code matches docs** — if documentation describes a behavior (validation, fallback, default), verify the implementation actually provides it; a mismatch means the documented contract is a false promise
+- [ ] **Code example drift** — if this PR changes the semantics of an API method, removes a method, or makes a field immutable, grep docs (`.github/skills/`, `docs/`, `.github/notes/`) for code examples that use the old pattern; examples using removed or changed methods silently become misleading
+- [ ] **Role/taxonomy renames** — if a role or taxonomy name was changed in prose (e.g. a role table), grep the same file for old names in embedded code examples, comments, and annotation blocks; stale names in examples are equally misleading
+- [ ] **File paths and links** — verify all file paths, directory tree diagrams, and relative links in documentation exist on disk and resolve correctly from the doc's location

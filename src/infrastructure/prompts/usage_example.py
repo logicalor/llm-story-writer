@@ -1,6 +1,5 @@
 """Practical example of integrating PromptHandler with existing strategy."""
 
-import asyncio
 from typing import Dict, Any, Optional
 from domain.value_objects.model_config import ModelConfig
 from domain.value_objects.generation_settings import GenerationSettings

@@ -1,7 +1,6 @@
 """Savepoint decorator for automatic model response saving."""
 
 import functools
-import inspect
 from typing import Any, Callable, Optional
 from domain.repositories.savepoint_repository import SavepointRepository
 
