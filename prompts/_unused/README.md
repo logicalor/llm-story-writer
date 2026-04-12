@@ -6,7 +6,7 @@ This directory contains prompt files that were identified as unused in the outli
 
 - **Total prompts analyzed**: 58
 - **Used prompts**: 41
-- **Unused prompts**: 17 (moved to this directory)
+- **Unused prompts**: 11 (moved to this directory)
 
 ## Unused Prompt Files
 
@@ -28,15 +28,6 @@ This directory contains prompt files that were identified as unused in the outli
 - `recap_format_historical.md` - Historical format variant not used
 - `recap_format_output.md` - Output format variant not used
 - `recap_format_recent.md` - Recent format variant not used
-
-### Outline Review System
-- `outline_review/` - Entire directory of critic-type prompts not used
-  - `audiobook-producer.md`
-  - `book-club-moderator.md`
-  - `commercial-fiction-editor.md`
-  - `literary-fiction-reviewer.md`
-  - `publishing-acquisitions-editor.md`
-  - `subject-expert.md`
 
 ## Notes
 
@@ -69,5 +60,5 @@ If you need to restore any of these prompts:
 ## Last Updated
 
 Analysis performed on: 2025-08-13
-Prompt files moved: 17
+Prompt files moved: 11
 **Recent update**: Abridged prompts reintegrated into workflow

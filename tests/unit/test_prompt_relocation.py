@@ -27,10 +27,15 @@ def test_prompts_directory_exists():
 
 def test_no_prompts_in_old_location():
     """Verify src/application/strategies/outline_chapter/prompts/ does NOT exist."""
-    old_dir = PROJECT_ROOT / "src" / "application" / "strategies" / "outline_chapter" / "prompts"
-    assert not old_dir.exists(), (
-        f"Old prompts directory still exists at {old_dir}"
+    old_dir = (
+        PROJECT_ROOT
+        / "src"
+        / "application"
+        / "strategies"
+        / "outline_chapter"
+        / "prompts"
     )
+    assert not old_dir.exists(), f"Old prompts directory still exists at {old_dir}"
 
 
 def test_prompt_subdirectories_exist():
@@ -41,6 +46,7 @@ def test_prompt_subdirectories_exist():
         "characters",
         "multistep",
         "outline",
+        "outline_review",
         "recap",
         "scenes",
         "settings",
@@ -94,7 +100,7 @@ def test_outline_chapter_prompt_directory():
     source = strategy_file.read_text(encoding="utf-8")
     # The method should contain: return "prompts"
     assert 'return "prompts"' in source, (
-        "get_prompt_directory() should return \"prompts\" but pattern not found in source"
+        'get_prompt_directory() should return "prompts" but pattern not found in source'
     )
 
 
