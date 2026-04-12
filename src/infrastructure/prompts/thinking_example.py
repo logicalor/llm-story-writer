@@ -9,79 +9,78 @@ from domain.repositories.savepoint_repository import SavepointRepository
 
 async def example_thinking_capture():
     """Example of how thinking is captured and saved to savepoints."""
-    
+
     # Setup dependencies (these would typically come from your DI container)
     model_provider: ModelProvider = None  # Your model provider instance
-    prompt_loader = PromptLoader("src/application/strategies/prompts/outline-chapter")
+    prompt_loader = PromptLoader("prompts")
     savepoint_repo: SavepointRepository = None  # Your savepoint repository instance
-    
+
     # Create the prompt handler
     handler = PromptHandler(
         model_provider=model_provider,
         prompt_loader=prompt_loader,
-        savepoint_repo=savepoint_repo
+        savepoint_repo=savepoint_repo,
     )
-    
+
     # Set story directory for savepoints
     handler.set_story_directory("thinking_example_story")
-    
+
     # Example 1: Text prompt with thinking capture
     model_config = ModelConfig.from_string("ollama://llama3:70b?think=true")
-    
+
     request = PromptRequest(
         prompt_id="extract_story_start_date",
-        variables={
-            "prompt": "A story set in Victorian London in 1892..."
-        },
+        variables={"prompt": "A story set in Victorian London in 1892..."},
         savepoint_id="extract_story_start_date_with_thinking",
-        model_config=model_config
+        model_config=model_config,
     )
-    
+
     response = await handler.execute_prompt(request)
     print(f"Response content: {response.content}")
     print(f"Was cached: {response.was_cached}")
     print(f"Execution time: {response.execution_time}")
-    
+
     # Example 2: Load the full savepoint with metadata
     if savepoint_repo:
-        full_savepoint = await savepoint_repo.load_savepoint_with_metadata("extract_story_start_date_with_thinking")
+        full_savepoint = await savepoint_repo.load_savepoint_with_metadata(
+            "extract_story_start_date_with_thinking"
+        )
         if full_savepoint:
             print("\n=== Full Savepoint Data ===")
             print(f"Frontmatter: {full_savepoint['_frontmatter']}")
             print(f"Body content: {full_savepoint['_body']}")
-            
+
             # Access specific metadata
-            frontmatter = full_savepoint['_frontmatter']
+            frontmatter = full_savepoint["_frontmatter"]
             print("\n=== Metadata ===")
             print(f"Prompt ID: {frontmatter.get('prompt_id')}")
             print(f"Model used: {frontmatter.get('model_config', {}).get('name')}")
             print(f"Execution time: {frontmatter.get('execution_time')}")
             print(f"Thinking captured: {frontmatter.get('thinking') is not None}")
-            if frontmatter.get('thinking'):
+            if frontmatter.get("thinking"):
                 print(f"Thinking content: {frontmatter['thinking']}")
-    
+
     # Example 3: JSON prompt with thinking capture
     json_request = PromptRequest(
         prompt_id="extract_base_context",
-        variables={
-            "prompt": "A sci-fi story about space exploration..."
-        },
+        variables={"prompt": "A sci-fi story about space exploration..."},
         savepoint_id="extract_base_context_json_with_thinking",
-        model_config=model_config
+        model_config=model_config,
     )
-    
+
     json_response = await handler.execute_json_prompt(
-        json_request, 
-        required_attributes=["setting", "time_period", "main_conflict"]
+        json_request, required_attributes=["setting", "time_period", "main_conflict"]
     )
     print(f"\nJSON response: {json_response}")
-    
+
     # Example 4: Load JSON savepoint with metadata
     if savepoint_repo:
-        json_savepoint = await savepoint_repo.load_savepoint_with_metadata("extract_base_context_json_with_thinking")
+        json_savepoint = await savepoint_repo.load_savepoint_with_metadata(
+            "extract_base_context_json_with_thinking"
+        )
         if json_savepoint:
             print("\n=== JSON Savepoint Data ===")
-            frontmatter = json_savepoint['_frontmatter']
+            frontmatter = json_savepoint["_frontmatter"]
             print(f"Frontmatter: {frontmatter}")
             print(f"JSON body: {json_savepoint['_body']}")
 
@@ -142,4 +141,6 @@ if __name__ == "__main__":
     # Note: These examples require actual model provider and savepoint repository instances
     # asyncio.run(example_thinking_capture())
     explain_savepoint_structure()
-    print("\nExamples are provided for reference. Uncomment and provide actual dependencies to run.") 
+    print(
+        "\nExamples are provided for reference. Uncomment and provide actual dependencies to run."
+    )

@@ -362,4 +362,4 @@ llm-story-writer/
 - [Karpathy LLM Wiki gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — Foundational pattern
 - [Current config](../../config.md) — Active generation settings
 - `src/application/strategies/outline_chapter/` — Current pipeline implementation
-- `src/application/strategies/outline_chapter/prompts/` — 131 prompt templates (9 categories)
+- `prompts/` — 131 prompt templates (9 categories), relocated to top-level in issue #5

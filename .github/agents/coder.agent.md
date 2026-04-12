@@ -17,8 +17,9 @@ You are the Coder for this project. You implement code changes across the entire
 3. **Never hardcode URLs or credentials.**
 4. **Consult `.github/notes/`** before starting — read any available `architecture.md`, `patterns.md`, and `gotchas.md` for context relevant to the task.
 5. **Load ONLY skills relevant to the task domain** — use `read_file` on `.github/skills/{name}/SKILL.md`. Each skill costs ~1,000–5,000 tokens. Load selectively. **Never load all skills at once.**
-6. **After any text sweep** (removing/replacing references, renaming, changing counts across multiple files) — after the first pass, run a grep for the original term across all changed files to confirm no residual occurrences remain.
+6. **After any text sweep** (removing/replacing references, renaming, relocating files, changing counts across multiple files) — after the first pass, run a grep for the original term/path across the **entire workspace** (not just changed files) to confirm no residual occurrences remain. Include documentation files (`.md`), READMEs, and config files in the search — stale references in docs are a recurring source of review findings.
 7. **Before returning to the Orchestrator**, delete all temporary or investigation files created during the task.
+8. **When auto-formatters modify files outside the task scope** (e.g., ruff reformats unrelated files) — flag this to the Orchestrator on handoff so formatting-only changes can be committed separately from functional changes. Do not silently mix formatting fixes with implementation.
 
 > **When dispatched by the Orchestrator** (implementation or regression fix), do NOT commit, push, or post PR comments. The Orchestrator owns all git/GitHub operations. Just implement, lint, and return.
 

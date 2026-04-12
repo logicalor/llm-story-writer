@@ -68,16 +68,21 @@ Move the 131 prompt templates from `src/application/strategies/outline_chapter/p
 
 **Acceptance Criteria:**
 
-- [ ] `prompts/` directory exists at project root with all 131 templates in their subdirectories
-- [ ] No prompt templates remain in `src/application/strategies/outline_chapter/prompts/` (replaced by symlink or config update)
-- [ ] Legacy code can still load prompts (either via symlink or updated path)
-- [ ] Template content is byte-identical to the originals
+- [x] `prompts/` directory exists at project root with all 131 templates in their subdirectories
+- [x] No prompt templates remain in `src/application/strategies/outline_chapter/prompts/` (removed; all path references updated)
+- [x] Legacy code can still load prompts (path references updated in PromptLoader, container, strategy_factory)
+- [x] Template content is byte-identical to the originals
+
+**Completed:** PR #29 (issue #5)
 
 **Key Files:**
 
-- `prompts/` — new top-level prompt directory
+- `prompts/` — top-level prompt directory
 - `prompts/chapters/`, `prompts/characters/`, etc. — template subdirectories
-- `src/application/strategies/outline_chapter/prompts/` — original location (symlinked or removed)
+- `src/infrastructure/prompts/prompt_loader.py` — default path updated to `prompts`
+- `src/infrastructure/container.py` — DI container path updated
+- `src/application/strategies/strategy_factory.py` — factory fallback updated
+- `src/application/strategies/outline_chapter/strategy.py` — `get_prompt_directory()` returns `"prompts"`
 
 ---
 

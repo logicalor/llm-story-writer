@@ -44,7 +44,7 @@ The recap sanitizer is responsible for formatting and organizing story recap dat
 ## Files Added/Modified
 
 ### New Files
-- `src/application/strategies/prompts/outline-chapter/chapter_outline_recap_sanitizer_v2.md` - Improved sanitizer prompt
+- `prompts/recap/sanitize.md` - Improved sanitizer prompt
 - `toggle_recap_sanitizer.py` - Utility script to switch between versions
 - `RECAP_SANITIZER_IMPROVEMENTS.md` - This documentation
 
@@ -160,5 +160,5 @@ If you encounter issues with the improved sanitizer:
 
 1. Check the current status: `python toggle_recap_sanitizer.py status`
 2. Try switching back to the original: `python toggle_recap_sanitizer.py old`
-3. Review the prompt file: `src/application/strategies/prompts/outline-chapter/chapter_outline_recap_sanitizer_v2.md`
+3. Review the prompt file: `prompts/recap/sanitize.md`
 4. Check the logs for detailed error information 

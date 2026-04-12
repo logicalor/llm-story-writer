@@ -65,7 +65,7 @@ The system uses named model roles, each mapping to a model string:
 
 ### Prompt Template Categories (131 total)
 
-Prompt templates are **Markdown files** stored in `src/application/strategies/*/prompts/` (one directory per strategy). The primary strategy is `outline_chapter`. Note: `src/infrastructure/prompts/` contains only the Python prompt-loading infrastructure (PromptLoader, PromptHandler, PromptWrapper), not the templates themselves.
+Prompt templates are **Markdown files** stored in the top-level `prompts/` directory (relocated from `src/application/strategies/outline_chapter/prompts/` in issue #5). The subdirectory structure is preserved. Note: `src/infrastructure/prompts/` contains only the Python prompt-loading infrastructure (PromptLoader, PromptHandler, PromptWrapper), not the templates themselves.
 
 | Category | Count | Purpose |
 |----------|-------|---------|
