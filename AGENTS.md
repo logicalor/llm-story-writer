@@ -26,7 +26,7 @@ Tools are **TypeScript wrappers** in `.opencode/tools/` that call **Python scrip
 ### Storage
 
 - Stories are stored in `stories/<name>/` directories with JSON state files
-- Prompt templates are Markdown files in `src/application/strategies/*/prompts/`
+- Prompt templates are Markdown files in the top-level `prompts/` directory
 - ChromaDB vector collections provide semantic search per story
 
 ### Model Configuration
