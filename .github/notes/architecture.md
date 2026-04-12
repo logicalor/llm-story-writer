@@ -1,0 +1,99 @@
+# Architecture Notes
+
+## Current Architecture (Pre-Migration)
+
+**Stack:** Python 3.x, clean architecture, dependency-injector, OpenAI-compatible API (local LLM), PostgreSQL/pgvector (RAG)
+
+**Codebase size:** 72 Python files, ~18k LoC, 131 prompt templates (Markdown)
+
+### Layer Structure
+
+- `src/presentation/cli/` — CLI entry point, argument parsing
+- `src/application/services/` — Services: story generation, outline, chapter, critique, RAG, etc.
+- `src/application/strategies/` — Strategy pattern: outline-chapter (primary), stream-of-consciousness
+- `src/application/interfaces/` — Abstractions: ModelProvider, StorageProvider, StoryStrategy
+- `src/domain/entities/` — Story, Chapter, Scene, Outline, StoryInfo
+- `src/domain/value_objects/` — GenerationSettings, ModelConfig
+- `src/domain/repositories/` — SavepointRepository, StoryRepository
+- `src/infrastructure/providers/` — OpenAI-compatible, LM Studio, LangChain, llama.cpp providers
+- `src/infrastructure/prompts/` — PromptLoader, PromptHandler, PromptWrapper
+- `src/infrastructure/savepoints/` — SavepointManager, SavepointDecorator
+- `src/infrastructure/storage/` — FileStorage, PgVectorStore, SavepointRepository impl
+- `src/infrastructure/container.py` — DI container (dependency-injector)
+- `src/config/` — ConfigLoader (reads config.md YAML frontmatter)
+
+### Pipeline Flow (outline-chapter strategy)
+
+1. Read prompt file → load config.md
+2. **Outline phase:**
+   - Understand prompt (multistep conversation)
+   - Generate story analysis chunks (8 categories: core foundation, character foundation, setting foundation, conflict/stakes, plot structure, theme/message, tone/style, world rules)
+   - Extract story start date
+   - Extract base context
+   - Generate story elements
+   - Generate initial outline (optional: chunked, `outline_chunk_size` chapters at a time)
+   - Generate chapter list
+   - (Optional) Critique loop: 6 critic types evaluate outline, refine if below quality threshold
+3. **Character/Setting phase:**
+   - Extract character names from story elements
+   - Generate chunked character sheets (7 chunks: background, personality, motivations, relationships, skills, growth arc, current state)
+   - Extract setting names
+   - Generate chunked setting sheets
+4. **Chapter generation loop (per chapter):**
+   - Generate chapter outline expansion
+   - Generate chapter synopsis
+   - Load previous chapter recap (from savepoint)
+   - Parse scene definitions from chapter outline
+   - Per-scene: load relevant character/setting sheets → generate scene content
+   - Assemble scenes into chapter
+   - Generate chapter recap
+   - Multi-stage recap sanitization
+   - (Optional) Quality evaluation + revision loop
+   - Update story state (character arcs, plot threads)
+   - Save savepoints
+5. **Assembly:** Combine all chapters into story Markdown + JSON
+
+### Model Configuration (from config.md)
+
+The system uses named model roles, each mapping to a model string:
+- initial_outline_writer, chapter_outline_writer, chapter_stage{1-4}_writer
+- chapter_revision_writer, revision_model, eval_model
+- info_model, scrub_model, checker_model, translator_model
+- sanity_model (small, fast — DeepSeek R1 7b)
+- logical_model (Qwen 2.5 Coder 7b — JSON extraction)
+- scene_writer, creative_model
+
+### Prompt Template Categories (131 total)
+
+Prompt templates are **Markdown files** stored in `src/application/strategies/*/prompts/` (one directory per strategy). The primary strategy is `outline_chapter`. Note: `src/infrastructure/prompts/` contains only the Python prompt-loading infrastructure (PromptLoader, PromptHandler, PromptWrapper), not the templates themselves.
+
+| Category | Count | Purpose |
+|----------|-------|---------|
+| chapters/ | 15 | Chapter outline, content, synopsis, titles |
+| characters/ | 14 | Character extraction, sheet generation (7 chunks), updates |
+| multistep/ | 36 | Multi-turn conversation for outline + chapter enrichment |
+| outline/ | 10 | Outline generation, expansion, validation |
+| recap/ | 7 | Chapter recap generation, sanitization |
+| scenes/ | 7 | Scene parsing, generation, revision |
+| settings/ | 12 | Setting extraction, sheet generation |
+| story_state/ | 6 | Story state tracking, progression |
+| _unused/ | 12 | Deprecated templates |
+| root-level | 3 | Base context extraction, story start date, chapter events |
+
+## Planned Architecture (Post-Migration)
+
+See [PRD](docs/planning/opencode-migration/prd.md) and ADRs:
+- [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md) — Hybrid agent-tool architecture
+- [ADR 002](docs/planning/adr/002-context-window-budget-strategy.md) — Context window budget strategy
+- [ADR 003](docs/planning/adr/003-chromadb-replaces-pgvector.md) — ChromaDB replaces pgvector
+- [ADR 004](docs/planning/adr/004-progressive-wiki-memory-system.md) — Progressive wiki memory system
+- [ADR 005](docs/planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md) — Hybrid wiki context retrieval pipeline
+
+### Wiki Context Retrieval Pipeline (ADR 005)
+
+The wiki-snapshot tool uses a three-stage pipeline to assemble scene context:
+1. **Hybrid retrieval** — 4 tiers: deterministic entity matching (primary signal) → metadata-filtered query → semantic vector search → wikilink graph traversal (1-2 hops). Merged via RRF.
+2. **Detail level selection** — Pre-computed L1/L2/L3 summaries per page. Token budget (~15K) enforced by demoting lower-priority pages L3→L2→L1. POV character + primary location are protected (always L3).
+3. **Structured assembly** — Deterministic template assembly (default) or optional LLM synthesis pass for complex scenes. Fixed markdown structure: Characters → Location → Plot Threads → World Rules → Recent Events → Relationships.
+
+Delta caching between consecutive scenes targets >60% cache hit rate. Relevance scoring: 0.40 entity_match + 0.20 wikilink + 0.20 semantic + 0.10 recency + 0.10 type_priority.
