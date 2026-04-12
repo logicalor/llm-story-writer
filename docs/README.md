@@ -6,6 +6,10 @@
 
 - [Architecture Notes](../.github/notes/architecture.md) — System architecture, layer structure, pipeline flow, prompt template categories
 
+## Tools
+
+- [Tools Reference](./tools.md) — Tool architecture pattern, prompt-loader tool, guide for adding new tools
+
 ## Planning
 
 - [PRD: OpenCode Migration](./planning/opencode-migration/prd.md) — Full product requirements for the agentic architecture migration

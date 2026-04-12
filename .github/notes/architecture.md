@@ -80,6 +80,14 @@ Prompt templates are **Markdown files** stored in the top-level `prompts/` direc
 | _unused/ | 12 | Deprecated templates |
 | root-level | 3 | Base context extraction, story start date, chapter events |
 
+## Tools
+
+The first custom tool — `prompt-loader` — implements the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md). TypeScript wrapper (`.opencode/tools/prompt-loader.ts`) calls Python script (`src/tools/prompt_loader.py`) via subprocess. The Python script reuses `PromptLoader` from `src/infrastructure/prompts/prompt_loader.py`.
+
+Pattern: `.opencode/tools/*.ts` (Zod schema + execSync) → `src/tools/*.py` (argparse + domain logic) → `src/infrastructure/` or `src/domain/`.
+
+See [Tools Reference](docs/tools.md) for full documentation.
+
 ## Planned Architecture (Post-Migration)
 
 See [PRD](docs/planning/opencode-migration/prd.md) and ADRs:
