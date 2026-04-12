@@ -52,7 +52,7 @@ src/application/strategies/
   2. Generate detailed outline
   3. Create chapter-by-chapter content
   4. Generate metadata (title, summary, tags)
-- **Prompt Directory**: `src/application/strategies/outline_chapter/prompts/`
+- **Prompt Directory**: `prompts/`
 
 ### 2. Stream-of-Consciousness Strategy (`stream-of-consciousness`)
 - **Description**: Generates stories in a stream-of-consciousness style with flowing, associative narrative
