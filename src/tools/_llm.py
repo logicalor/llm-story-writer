@@ -65,6 +65,49 @@ def generate_text(
         raise RuntimeError(f"Unexpected LLM API response structure: {exc}") from exc
 
 
+def generate_text_messages(
+    messages: list[dict[str, str]],
+    *,
+    model: str | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> str:
+    """Call OpenAI-compatible chat completions with a full message list.
+
+    ``messages`` is a list of ``{"role": "...", "content": "..."}`` dicts.
+    Returns the assistant response text.
+
+    Raises ``RuntimeError`` on HTTP or API errors.
+    """
+    api_base = _get_api_base().rstrip("/")
+    url = f"{api_base}/chat/completions"
+
+    payload: dict[str, object] = {
+        "model": model or _get_model(),
+        "messages": messages,
+    }
+    if temperature is not None:
+        payload["temperature"] = temperature
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+
+    try:
+        resp = requests.post(url, json=payload, timeout=600)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise RuntimeError(f"LLM API request failed: {exc}") from exc
+
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        raise RuntimeError(f"LLM API returned non-JSON response: {exc}") from exc
+
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError(f"Unexpected LLM API response structure: {exc}") from exc
+
+
 def _strip_markdown_fences(text: str) -> str:
     """Remove markdown code fences from text and extract JSON content."""
     text = text.strip()
