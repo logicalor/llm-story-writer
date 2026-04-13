@@ -322,7 +322,7 @@ Character sheets are stored as JSON files at `stories/<name>/characters/<slug>.j
 | `name` | string | Yes | Story name (maps to directory under `stories/`) |
 | `character` | string | For `generate-sheet`, `update-sheet`, `load-sheet`, `generate-abridged` | Character name (converted to slug for file lookup) |
 | `data` | string | For `extract-names`, `generate-sheet`, `update-sheet` | JSON string input |
-| `budget` | number | No | Token budget for `generate-abridged` (default: 500) |
+| `budget` | number | No | Word budget for `generate-abridged` (default: 500) |
 | `abridged` | boolean | No | If true, `load-sheet` returns only name, summary, and timestamp |
 
 ### CLI Interface (Python script)
@@ -447,7 +447,7 @@ Setting sheets are stored as JSON files at `stories/<name>/settings/<slug>.json`
 | `name` | string | Yes | Story name (maps to directory under `stories/`) |
 | `setting` | string | For `generate-sheet`, `update-sheet`, `load-sheet`, `generate-abridged` | Setting name (converted to slug for file lookup) |
 | `data` | string | For `extract-names`, `generate-sheet`, `update-sheet` | JSON string input |
-| `budget` | number | No | Token budget for `generate-abridged` (default: 500) |
+| `budget` | number | No | Word budget for `generate-abridged` (default: 500) |
 | `abridged` | boolean | No | If true, `load-sheet` returns only name, summary, and timestamp |
 
 ### CLI Interface (Python script)

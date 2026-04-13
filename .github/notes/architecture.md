@@ -82,7 +82,7 @@ Prompt templates are **Markdown files** stored in the top-level `prompts/` direc
 
 ## Tools
 
-Four tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
+Five tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
 
 | Tool | Wrapper | Script | Infrastructure |
 |------|---------|--------|---------------|
