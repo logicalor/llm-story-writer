@@ -54,6 +54,47 @@ def test_generate_text_missing_api_base(monkeypatch: pytest.MonkeyPatch) -> None
         generate_text("test prompt")
 
 
+def test_generate_text_messages_missing_api_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """generate_text_messages raises RuntimeError when API unreachable."""
+    from src.tools._llm import generate_text_messages
+
+    monkeypatch.setenv("LLM_API_BASE", "http://127.0.0.1:1")
+    with pytest.raises(RuntimeError, match="LLM API request failed"):
+        generate_text_messages([{"role": "user", "content": "test"}])
+
+
+def test_generate_text_delegates_to_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """generate_text() builds correct messages list and delegates."""
+    from src.tools._llm import generate_text
+
+    captured: list[list[dict[str, str]]] = []
+
+    def fake_generate_text_messages(
+        messages: list[dict[str, str]], **kwargs: object
+    ) -> str:
+        captured.append(messages)
+        return "ok"
+
+    monkeypatch.setattr(
+        "src.tools._llm.generate_text_messages", fake_generate_text_messages
+    )
+
+    # Without system_message
+    generate_text("test")
+    assert captured[-1] == [{"role": "user", "content": "test"}]
+
+    # With system_message
+    generate_text("test", system_message="sys")
+    assert captured[-1] == [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "test"},
+    ]
+
+
 def test_default_config(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify default LLM_API_BASE and LLM_MODEL values."""
     monkeypatch.delenv("LLM_API_BASE", raising=False)
