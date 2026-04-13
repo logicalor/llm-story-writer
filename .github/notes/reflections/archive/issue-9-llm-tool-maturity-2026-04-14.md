@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/coder.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Sixth tool implementation confirms maturity — shared LLM module, pattern carry-forward, false-positive handling

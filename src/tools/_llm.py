@@ -29,15 +29,36 @@ def generate_text(
 ) -> str:
     """Call OpenAI-compatible chat completions API and return assistant content.
 
+    Builds a messages list and delegates to :func:`generate_text_messages`.
+
     Raises ``RuntimeError`` on HTTP or API errors.
     """
-    api_base = _get_api_base().rstrip("/")
-    url = f"{api_base}/chat/completions"
-
     messages: list[dict[str, str]] = []
     if system_message:
         messages.append({"role": "system", "content": system_message})
     messages.append({"role": "user", "content": prompt})
+
+    return generate_text_messages(
+        messages, model=model, temperature=temperature, max_tokens=max_tokens
+    )
+
+
+def generate_text_messages(
+    messages: list[dict[str, str]],
+    *,
+    model: str | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> str:
+    """Call OpenAI-compatible chat completions with a full message list.
+
+    ``messages`` is a list of ``{"role": "...", "content": "..."}`` dicts.
+    Returns the assistant response text.
+
+    Raises ``RuntimeError`` on HTTP or API errors.
+    """
+    api_base = _get_api_base().rstrip("/")
+    url = f"{api_base}/chat/completions"
 
     payload: dict[str, object] = {
         "model": model or _get_model(),

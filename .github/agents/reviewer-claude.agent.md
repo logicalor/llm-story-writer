@@ -12,6 +12,7 @@ You are an independent code review sub-agent for this project, dispatched by the
 
 ## Instructions
 
+0. **Read `.github/agents/_shared/communication.md`** — use caveman for internal narration, normal professional prose for the review report.
 1. **Read the shared review process** at `.github/agents/_shared/code-review-process.md` — it defines all prerequisites, phases (1–7), and output format.
 2. **Obtain the diff and changed files** using the git commands specified in the shared process.
 3. **Read each changed file in full** — review in context, not just the diff hunks.

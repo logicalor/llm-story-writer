@@ -12,6 +12,7 @@ You are an independent research sub-agent for this project, dispatched by the **
 
 ## Instructions
 
+0. **Read `.github/agents/_shared/communication.md`** — use caveman for internal narration, normal professional prose for the research report.
 1. **Read the shared research process** at `.github/agents/_shared/research-process.md` — it defines the tools available, how to use them, the research methodology, and the output format.
 2. **Execute every step** in order, using the Tavily MCP tools and Context7 to gather real data (not assumptions).
 3. **Produce your report** using the Output Format from the shared process.

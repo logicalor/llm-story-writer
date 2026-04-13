@@ -82,7 +82,7 @@ Prompt templates are **Markdown files** stored in the top-level `prompts/` direc
 
 ## Tools
 
-Six tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
+Seven tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
 
 | Tool | Wrapper | Script | Infrastructure |
 |------|---------|--------|---------------|
@@ -92,6 +92,7 @@ Six tools implemented following the hybrid pattern from [ADR 001](docs/planning/
 | `character-mgr` | `.opencode/tools/character-mgr.ts` | `src/tools/character_manager.py` | Direct filesystem — character sheet JSON I/O with deep-merge updates |
 | `setting-mgr` | `.opencode/tools/setting-mgr.ts` | `src/tools/setting_manager.py` | Direct filesystem — setting sheet JSON I/O with deep-merge updates |
 | `recap-manager` | `.opencode/tools/recap-manager.ts` | `src/tools/recap_manager.py` | `_llm.py` + `FilesystemSavepointRepository` — 5-stage recap pipeline with LLM |
+| `outline-generator` | `.opencode/tools/outline-generator.ts` | `src/tools/outline_generator.py` | `_llm.py` + `FilesystemSavepointRepository` + `PromptLoader` — multi-step outline pipeline with conversation history |
 
 Pattern: `.opencode/tools/*.ts` (Zod schema + execFileSync) → `src/tools/*.py` (argparse + domain logic) → `src/infrastructure/` or `src/domain/`.
 

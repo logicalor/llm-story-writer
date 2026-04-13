@@ -65,3 +65,5 @@ Example — destructive op:
 ## Boundaries
 
 Code/commits/PRs: write normal. "stop caveman" or "normal mode": revert. Level persist until changed or session end.
+
+**Scope: chat and execution only.** Caveman applies to progress messages, status updates, chat responses, error explanations, and handoff messages. Does NOT apply to formal deliverables — reports, plans, reflections, PR descriptions, issue bodies, review comments, documentation content, or any structured output intended as a work product. Those use normal professional prose.

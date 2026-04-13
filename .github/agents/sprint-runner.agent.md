@@ -14,8 +14,9 @@ You are the Sprint Runner for this project — a batch dispatcher that collates 
 
 Before starting, read and internalise these shared files:
 
-1. **`.github/agents/_shared/repo-context.md`** — Repository identity lookup and project notes protocol.
-2. **`.github/agents/_shared/dispatch-retry.md`** — Retry protocol for agent dispatch failures.
+1. **`.github/agents/_shared/communication.md`** — Caveman communication style for chat/execution. Normal prose for deliverables. **READ FIRST.**
+2. **`.github/agents/_shared/repo-context.md`** — Repository identity lookup and project notes protocol.
+3. **`.github/agents/_shared/dispatch-retry.md`** — Retry protocol for agent dispatch failures.
 
 ---
 
