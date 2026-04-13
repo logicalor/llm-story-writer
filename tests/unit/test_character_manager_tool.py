@@ -321,3 +321,21 @@ def test_missing_required_args(story_env: tuple[Path, str]) -> None:
         stories_dir=stories_dir,
     )
     assert result.returncode == 2
+
+
+def test_extract_names_double_wrapped_json(story_env: tuple[Path, str]) -> None:
+    stories_dir, story_name = story_env
+    inner = json.dumps(["Alice", "Bob"])
+    data = json.dumps(inner)  # double-wrapped
+    result = _run_tool(
+        "--operation",
+        "extract-names",
+        "--name",
+        story_name,
+        "--data",
+        data,
+        stories_dir=stories_dir,
+    )
+    assert result.returncode == 0
+    parsed = json.loads(result.stdout)
+    assert parsed["names"] == ["Alice", "Bob"]

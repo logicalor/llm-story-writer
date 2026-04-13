@@ -33,7 +33,7 @@ export default {
     budget: z
       .number()
       .optional()
-      .describe("Token budget for generate-abridged (default: 500)"),
+      .describe("Word budget for generate-abridged (default: 500)"),
     abridged: z
       .boolean()
       .optional()

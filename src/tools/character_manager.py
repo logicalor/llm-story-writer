@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,6 +25,20 @@ def _validate_story_name(name: str) -> Path:
         )
         sys.exit(1)
     return story_dir
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write content atomically using tempfile + os.replace."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        os.write(fd, content.encode())
+        os.close(fd)
+        os.replace(tmp, str(path))
+    except BaseException:
+        os.close(fd)
+        os.unlink(tmp)
+        raise
 
 
 def _slugify(character_name: str) -> str:
@@ -88,6 +103,10 @@ def cmd_extract_names(args: argparse.Namespace) -> None:
         print("Error: expected JSON array of names", file=sys.stderr)
         sys.exit(1)
 
+    if not all(isinstance(n, str) for n in names):
+        print("Error: all names must be strings", file=sys.stderr)
+        sys.exit(1)
+
     print(json.dumps({"names": names}, indent=2))
 
 
@@ -121,8 +140,7 @@ def cmd_generate_sheet(args: argparse.Namespace) -> None:
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    char_path.parent.mkdir(parents=True, exist_ok=True)
-    char_path.write_text(json.dumps(sheet_data, indent=2))
+    _atomic_write(char_path, json.dumps(sheet_data, indent=2))
 
     rel_path = str(char_path.relative_to(STORIES_DIR.resolve().parent))
     print(json.dumps({"status": "ok", "path": rel_path}, indent=2))
@@ -144,7 +162,11 @@ def cmd_update_sheet(args: argparse.Namespace) -> None:
         print(f"Error: character sheet not found: {args.character}", file=sys.stderr)
         sys.exit(1)
 
-    existing = json.loads(char_path.read_text())
+    try:
+        existing = json.loads(char_path.read_text())
+    except json.JSONDecodeError:
+        print(f"Error: corrupted character sheet: {args.character}", file=sys.stderr)
+        sys.exit(1)
 
     try:
         updates = json.loads(args.data)
@@ -168,7 +190,7 @@ def cmd_update_sheet(args: argparse.Namespace) -> None:
 
     existing["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-    char_path.write_text(json.dumps(existing, indent=2))
+    _atomic_write(char_path, json.dumps(existing, indent=2))
 
     rel_path = str(char_path.relative_to(STORIES_DIR.resolve().parent))
     print(json.dumps({"status": "ok", "path": rel_path}, indent=2))
@@ -187,7 +209,11 @@ def cmd_load_sheet(args: argparse.Namespace) -> None:
         print(f"Error: character sheet not found: {args.character}", file=sys.stderr)
         sys.exit(1)
 
-    data = json.loads(char_path.read_text())
+    try:
+        data = json.loads(char_path.read_text())
+    except json.JSONDecodeError:
+        print(f"Error: corrupted character sheet: {args.character}", file=sys.stderr)
+        sys.exit(1)
 
     if args.abridged:
         data = {
@@ -232,9 +258,14 @@ def cmd_generate_abridged(args: argparse.Namespace) -> None:
         print(f"Error: character sheet not found: {args.character}", file=sys.stderr)
         sys.exit(1)
 
-    data = json.loads(char_path.read_text())
+    try:
+        data = json.loads(char_path.read_text())
+    except json.JSONDecodeError:
+        print(f"Error: corrupted character sheet: {args.character}", file=sys.stderr)
+        sys.exit(1)
+
     sheet_text = data.get("sheet", "")
-    budget = args.budget or 500
+    budget = args.budget
     word_limit = int(budget * 0.75)
 
     words = sheet_text.split()
@@ -242,7 +273,7 @@ def cmd_generate_abridged(args: argparse.Namespace) -> None:
 
     data["summary"] = truncated
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    char_path.write_text(json.dumps(data, indent=2))
+    _atomic_write(char_path, json.dumps(data, indent=2))
 
     rel_path = str(char_path.relative_to(STORIES_DIR.resolve().parent))
     print(json.dumps({"summary": truncated, "path": rel_path}, indent=2))
@@ -278,7 +309,7 @@ def main() -> None:
         "--budget",
         type=int,
         default=500,
-        help="Token budget for generate-abridged (default: 500)",
+        help="Word budget for generate-abridged (default: 500)",
     )
     parser.add_argument(
         "--abridged",

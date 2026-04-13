@@ -367,7 +367,7 @@ python3 src/tools/character_manager.py --operation generate-abridged --name my-s
 | Operation | Effect | Output |
 |-----------|--------|--------|
 | `extract-names` | Parses a JSON array of character names from `--data` | `{"names": ["Alice", "Bob", ...]}` |
-| `generate-sheet` | Creates a new character sheet JSON file with name, sheet text, chunks, summary, and timestamp | `{"status": "ok", "path": "stories/<name>/characters/<slug>.json"}` |
+| `generate-sheet` | Creates a new character sheet JSON file with name, sheet text, chunks, summary, and timestamp. **Note:** overwrites any existing sheet for the character — use `update-sheet` for partial updates that preserve existing data. | `{"status": "ok", "path": "stories/<name>/characters/<slug>.json"}` |
 | `update-sheet` | Deep-merges `--data` into an existing sheet; preserves sibling chunk keys | `{"status": "ok", "path": "stories/<name>/characters/<slug>.json"}` |
 | `load-sheet` | Loads a character sheet; with `--abridged`, returns only name, summary, and timestamp | Full or abridged JSON sheet object |
 | `list` | Scans `characters/` directory for `.json` files, reads the `name` field from each | `{"characters": ["Alice", "Bob", ...]}` |
