@@ -40,7 +40,10 @@ def _atomic_write(path: Path, content: str) -> None:
     except BaseException:
         if not fd_closed:
             os.close(fd)
-        os.unlink(tmp)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
         raise
 
 
