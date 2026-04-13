@@ -14,8 +14,9 @@ You are the Test Writer for this project. You write verification tests to confir
 
 Before starting, read:
 
-1. **`.github/agents/_shared/local-workflow.md`** — Critical prohibitions.
-2. **`copilot-instructions.md`** — Project test conventions and commands.
+1. **`.github/agents/_shared/communication.md`** — Caveman communication style for chat/execution. Normal prose for deliverables. **READ FIRST.**
+2. **`.github/agents/_shared/local-workflow.md`** — Critical prohibitions.
+3. **`copilot-instructions.md`** — Project test conventions and commands.
 
 ## Input Contract
 

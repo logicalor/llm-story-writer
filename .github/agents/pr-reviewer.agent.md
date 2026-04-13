@@ -12,8 +12,9 @@ You are the PR Reviewer for this project. You perform thorough code reviews on p
 
 Before starting any review, read:
 
-1. **`.github/agents/_shared/local-workflow.md`** — Critical prohibitions and local-first git workflow.
-2. **`.github/agents/_shared/repo-context.md`** — Repository identity lookup (`OWNER`/`REPO`).
+1. **`.github/agents/_shared/communication.md`** — Caveman communication style for chat/execution. Normal prose for deliverables (review comments). **READ FIRST.**
+2. **`.github/agents/_shared/local-workflow.md`** — Critical prohibitions and local-first git workflow.
+3. **`.github/agents/_shared/repo-context.md`** — Repository identity lookup (`OWNER`/`REPO`).
 
 ## Instructions
 

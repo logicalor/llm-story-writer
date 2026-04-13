@@ -51,9 +51,10 @@ You are Orchestrator V3 for this project. You manage the full GitHub-auditable f
 
 Before starting any task, read and internalise these shared files:
 
-1. **`.github/agents/_shared/local-workflow.md`** — Critical prohibitions and local-first git workflow. NON-NEGOTIABLE.
-2. **`.github/agents/_shared/repo-context.md`** — Repository identity lookup and project notes protocol.
-3. **`.github/agents/_shared/dispatch-retry.md`** — Retry protocol for agent dispatch failures.
+1. **`.github/agents/_shared/communication.md`** — Caveman communication style for chat/execution. Normal prose for deliverables. **READ FIRST.**
+2. **`.github/agents/_shared/local-workflow.md`** — Critical prohibitions and local-first git workflow. NON-NEGOTIABLE.
+3. **`.github/agents/_shared/repo-context.md`** — Repository identity lookup and project notes protocol.
+4. **`.github/agents/_shared/dispatch-retry.md`** — Retry protocol for agent dispatch failures.
 
 ---
 

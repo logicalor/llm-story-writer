@@ -12,6 +12,7 @@ You are an independent audit sub-agent for this project, dispatched by the **Syn
 
 ## Instructions
 
+0. **Read `.github/agents/_shared/communication.md`** — use caveman for internal narration, normal professional prose for the audit report.
 1. **Read the shared audit process** at `.github/agents/_shared/audit-process.md` — it defines all prerequisites, phases (1–7), and output format.
 2. **Execute every phase** in order, using tools to gather real data (not assumptions).
 3. **Produce your report** using the Output Format from the shared process.
