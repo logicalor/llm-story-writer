@@ -300,6 +300,131 @@ Savepoint files use **Markdown with YAML frontmatter** format. The `FilesystemSa
 
 ---
 
+## character-mgr
+
+Manages story character sheets — extract names, generate/update/load character sheets, list characters, and create abridged summaries.
+
+**Source files:**
+- `.opencode/tools/character-mgr.ts` — TypeScript wrapper
+- `src/tools/character_manager.py` — Python CLI script
+
+### Purpose
+
+During story generation, the pipeline extracts character names from story elements and generates structured character sheets (with chunked sections like background, personality, motivations, etc.). This tool provides file I/O for those character sheets so agents can create, update, inspect, and summarise character data without managing file paths or JSON merging logic.
+
+Character sheets are stored as JSON files at `stories/<name>/characters/<slug>.json`, where `<slug>` is the character name lowercased with spaces replaced by hyphens and non-alphanumeric characters stripped.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"extract-names" \| "generate-sheet" \| "update-sheet" \| "load-sheet" \| "list" \| "generate-abridged"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name (maps to directory under `stories/`) |
+| `character` | string | For `generate-sheet`, `update-sheet`, `load-sheet`, `generate-abridged` | Character name (converted to slug for file lookup) |
+| `data` | string | For `extract-names`, `generate-sheet`, `update-sheet` | JSON string input |
+| `budget` | number | No | Token budget for `generate-abridged` (default: 500) |
+| `abridged` | boolean | No | If true, `load-sheet` returns only name, summary, and timestamp |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/character_manager.py --operation <op> --name <name> [--character <name>] [--data '<json>'] [--budget N] [--abridged]
+```
+
+**Examples:**
+
+```bash
+# Parse a JSON array of character names
+python3 src/tools/character_manager.py --operation extract-names --name my-story \
+  --data '["Alice", "Bob", "The Dark Knight"]'
+
+# Store a generated character sheet
+python3 src/tools/character_manager.py --operation generate-sheet --name my-story \
+  --character "Alice" --data '{"sheet": "Full text...", "chunks": {"background": "..."}, "summary": "Brief"}'
+
+# Deep-merge updates into an existing sheet
+python3 src/tools/character_manager.py --operation update-sheet --name my-story \
+  --character "Alice" --data '{"chunks": {"personality": "Updated traits..."}}'
+
+# Load a full character sheet
+python3 src/tools/character_manager.py --operation load-sheet --name my-story \
+  --character "Alice"
+
+# Load an abridged version (name + summary only)
+python3 src/tools/character_manager.py --operation load-sheet --name my-story \
+  --character "Alice" --abridged
+
+# List all characters for a story
+python3 src/tools/character_manager.py --operation list --name my-story
+
+# Generate a token-budgeted abridged summary
+python3 src/tools/character_manager.py --operation generate-abridged --name my-story \
+  --character "Alice" --budget 300
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `extract-names` | Parses a JSON array of character names from `--data` | `{"names": ["Alice", "Bob", ...]}` |
+| `generate-sheet` | Creates a new character sheet JSON file with name, sheet text, chunks, summary, and timestamp | `{"status": "ok", "path": "stories/<name>/characters/<slug>.json"}` |
+| `update-sheet` | Deep-merges `--data` into an existing sheet; preserves sibling chunk keys | `{"status": "ok", "path": "stories/<name>/characters/<slug>.json"}` |
+| `load-sheet` | Loads a character sheet; with `--abridged`, returns only name, summary, and timestamp | Full or abridged JSON sheet object |
+| `list` | Scans `characters/` directory for `.json` files, reads the `name` field from each | `{"characters": ["Alice", "Bob", ...]}` |
+| `generate-abridged` | Truncates the `sheet` text to a word limit (budget × 0.75), saves as `summary`, updates the file | `{"summary": "...", "path": "stories/<name>/characters/<slug>.json"}` |
+
+### Character Sheet JSON Format
+
+```json
+{
+  "name": "Alice",
+  "sheet": "Full character sheet text...",
+  "chunks": {
+    "background": "Born in a small village...",
+    "personality": "Introverted but fiercely loyal...",
+    "motivations": "Seeks to restore her family honour..."
+  },
+  "summary": "Abridged summary text...",
+  "updated_at": "2026-04-13T10:30:00+00:00"
+}
+```
+
+### Deep Merge Semantics
+
+The `update-sheet` operation merges at the `chunks` level: new chunk keys are added, existing chunk keys are overwritten, and sibling chunk keys are preserved. Top-level fields (`sheet`, `summary`) are replaced if present in the update data. The `updated_at` timestamp is always refreshed.
+
+### Slug Generation
+
+Character names are converted to filesystem-safe slugs:
+1. Lowercase the name
+2. Replace spaces with hyphens
+3. Strip non-alphanumeric characters (except hyphens)
+4. Collapse consecutive hyphens
+5. Trim leading/trailing hyphens
+
+| Character Name | Slug | File Path |
+|----------------|------|-----------|
+| `Alice` | `alice` | `characters/alice.json` |
+| `The Dark Knight` | `the-dark-knight` | `characters/the-dark-knight.json` |
+| `Dr. Smith` | `dr-smith` | `characters/dr-smith.json` |
+
+### Exit Codes
+
+| Code | Meaning |
+|------|----------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — character sheet not found (update/load/generate-abridged), invalid JSON in `--data` |
+| 2 | Argument error — missing required `--character` or `--data` flag for the chosen operation |
+
+### Security
+
+- **Path traversal prevention (story name)** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
+- **Path traversal prevention (character name)** — character names are checked for `..` segments and the resolved file path is validated with `is_relative_to()` to prevent escaping the `characters/` directory
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
 ## Adding a New Tool
 
 Follow this pattern to add tools to the system:
