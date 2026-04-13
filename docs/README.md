@@ -8,7 +8,7 @@
 
 ## Tools
 
-- [Tools Reference](./tools.md) — Tool architecture pattern, prompt-loader, story-state, and savepoint-mgr tools, guide for adding new tools
+- [Tools Reference](./tools.md) — Tool architecture pattern, prompt-loader, story-state, savepoint-mgr, and character-mgr tools, guide for adding new tools
 
 ## Planning
 
