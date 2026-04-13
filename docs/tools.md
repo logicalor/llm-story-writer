@@ -550,6 +550,116 @@ Setting names are converted to filesystem-safe slugs:
 
 ---
 
+## recap-manager
+
+Manages chapter recaps — load, generate (5-stage pipeline), sanitize, and compact. Recaps are JSON event timelines stored as savepoints.
+
+**Source files:**
+- `.opencode/tools/recap-manager.ts` — TypeScript wrapper
+- `src/tools/recap_manager.py` — Python CLI script
+- `src/tools/_llm.py` — Shared LLM client (OpenAI-compatible API)
+- `src/application/strategies/outline_chapter/recap_manager.py` — Original `RecapManager` class (reference for business logic)
+
+### Purpose
+
+During story generation, each chapter produces a structured recap of events with timing, importance, and character development details. This tool wraps the recap generation pipeline so agents can generate, refine, and compact recaps without managing the multi-stage LLM workflow directly.
+
+Recaps are stored as savepoints at `chapter_N/recap` under `stories/<name>/savepoints/`.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"load" \| "generate" \| "sanitize" \| "compact"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name (maps to directory under `stories/`) |
+| `chapter` | number | Yes | Chapter number |
+| `storyStartDate` | string | For `generate`, `sanitize` | Story start date in YYYY-MM-DD format |
+| `enableProgrammaticClassification` | boolean | No | Enable programmatic recency classification during sanitize (default: false) |
+| `model` | string | No | Override LLM model identifier |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/recap_manager.py --operation <op> --name <name> --chapter <N> [--story-start-date <date>] [--enable-programmatic-classification] [--model <model>]
+```
+
+**Examples:**
+
+```bash
+# Load an existing recap
+python3 src/tools/recap_manager.py --operation load --name my-story --chapter 3
+
+# Generate a recap using the 5-stage pipeline
+python3 src/tools/recap_manager.py --operation generate --name my-story \
+  --chapter 3 --story-start-date 2024-01-15
+
+# Sanitize and reorganise a recap
+python3 src/tools/recap_manager.py --operation sanitize --name my-story \
+  --chapter 3 --story-start-date 2024-01-15
+
+# Sanitize with programmatic recency classification
+python3 src/tools/recap_manager.py --operation sanitize --name my-story \
+  --chapter 3 --story-start-date 2024-01-15 --enable-programmatic-classification
+
+# Compact a recap based on chapter age
+python3 src/tools/recap_manager.py --operation compact --name my-story --chapter 12
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `load` | Reads recap from savepoint `chapter_N/recap` | `{"status": "success", "operation": "load", "data": <recap>}` |
+| `generate` | Runs 5-stage pipeline (extract → time → enrich → format → filter), saves intermediates | `{"status": "success", "operation": "generate", "data": <recap>}` |
+| `sanitize` | Merges and organises recap via LLM, optionally classifies event recency | `{"status": "success", "operation": "sanitize", "data": <recap>}` |
+| `compact` | Applies progressive compaction based on chapter number (none/light/moderate/heavy) | `{"status": "success", "operation": "compact", "data": <recap>}` |
+
+### Generate Pipeline (5 stages)
+
+1. **Extract events** — `recap/extract_events` prompt extracts events from chapter content as JSON array
+2. **Assign timing** — `recap/assign_event_timing` prompt assigns start/end times using story timeline
+3. **Enrich details** — `recap/enrich_event_details` prompt adds character development, locations, symbols
+4. **Format output** — `recap/format_json` prompt structures events into standardised recap JSON
+5. **Filter aged events** — Programmatic: keeps only high-importance events (matches `RecapManager._should_keep_event` logic)
+
+Intermediate results are saved to savepoints: `chapter_N/events`, `chapter_N/timed_events`, `chapter_N/enriched_events`, `chapter_N/formatted_recap`.
+
+### Compaction Levels
+
+| Chapter Range | Compaction Level |
+|---------------|-----------------|
+| 1–5 | None (returned as-is) |
+| 6–10 | Light |
+| 11–20 | Moderate |
+| 21+ | Heavy |
+
+### LLM Configuration
+
+The tool uses `src/tools/_llm.py` for LLM access, configured via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_API_BASE` | `http://localhost:11434/v1` | OpenAI-compatible API base URL |
+| `LLM_MODEL` | `huihui_ai/magistral-abliterated:24b` | Default model identifier |
+
+The `--model` argument overrides `LLM_MODEL` for a single invocation.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — story/recap not found, LLM failure, invalid JSON |
+| 2 | Argument error — missing required `--chapter` or `--story-start-date` flag |
+
+### Security
+
+- **Path traversal prevention** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
 ## Adding a New Tool
 
 Follow this pattern to add tools to the system:
