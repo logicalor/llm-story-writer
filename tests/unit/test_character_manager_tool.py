@@ -344,7 +344,7 @@ def test_extract_names_double_wrapped_json(story_env: tuple[Path, str]) -> None:
 
 def test_atomic_write_no_double_close_on_replace_failure(tmp_path: Path) -> None:
     """Verify os.close called exactly once when os.replace fails (Issue #37)."""
-    from src.tools.character_manager import _atomic_write
+    from src.tools._io import _atomic_write
 
     target = tmp_path / "output.json"
     fake_fd = 42
@@ -352,16 +352,16 @@ def test_atomic_write_no_double_close_on_replace_failure(tmp_path: Path) -> None
 
     with (
         patch(
-            "src.tools.character_manager.tempfile.mkstemp",
+            "src.tools._io.tempfile.mkstemp",
             return_value=(fake_fd, fake_tmp),
         ),
-        patch("src.tools.character_manager.os.write"),
-        patch("src.tools.character_manager.os.close") as mock_close,
+        patch("src.tools._io.os.write"),
+        patch("src.tools._io.os.close") as mock_close,
         patch(
-            "src.tools.character_manager.os.replace",
+            "src.tools._io.os.replace",
             side_effect=OSError("replace failed"),
         ),
-        patch("src.tools.character_manager.os.unlink") as mock_unlink,
+        patch("src.tools._io.os.unlink") as mock_unlink,
     ):
         with pytest.raises(OSError, match="replace failed"):
             _atomic_write(target, "test content")
@@ -374,7 +374,7 @@ def test_atomic_write_no_double_close_on_replace_failure(tmp_path: Path) -> None
 
 def test_atomic_write_unlink_failure_preserves_original_error(tmp_path: Path) -> None:
     """Verify original error propagates when os.unlink also fails (Issue #39)."""
-    from src.tools.character_manager import _atomic_write
+    from src.tools._io import _atomic_write
 
     target = tmp_path / "output.json"
     fake_fd = 42
@@ -382,17 +382,17 @@ def test_atomic_write_unlink_failure_preserves_original_error(tmp_path: Path) ->
 
     with (
         patch(
-            "src.tools.character_manager.tempfile.mkstemp",
+            "src.tools._io.tempfile.mkstemp",
             return_value=(fake_fd, fake_tmp),
         ),
-        patch("src.tools.character_manager.os.write"),
-        patch("src.tools.character_manager.os.close"),
+        patch("src.tools._io.os.write"),
+        patch("src.tools._io.os.close"),
         patch(
-            "src.tools.character_manager.os.replace",
+            "src.tools._io.os.replace",
             side_effect=OSError("replace failed"),
         ),
         patch(
-            "src.tools.character_manager.os.unlink",
+            "src.tools._io.os.unlink",
             side_effect=FileNotFoundError("tmp already gone"),
         ),
     ):

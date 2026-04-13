@@ -7,11 +7,15 @@ import json
 import os
 import re
 import sys
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.tools._io import _atomic_write  # noqa: E402
+
 STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
 
 
@@ -25,26 +29,6 @@ def _validate_story_name(name: str) -> Path:
         )
         sys.exit(1)
     return story_dir
-
-
-def _atomic_write(path: Path, content: str) -> None:
-    """Write content atomically using tempfile + os.replace."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-    fd_closed = False
-    try:
-        os.write(fd, content.encode())
-        os.close(fd)
-        fd_closed = True
-        os.replace(tmp, str(path))
-    except BaseException:
-        if not fd_closed:
-            os.close(fd)
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
 
 
 def _slugify(character_name: str) -> str:
