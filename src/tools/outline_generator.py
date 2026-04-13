@@ -306,26 +306,26 @@ def cmd_generate_outline(
         _error("--prompt is required when understand_prompt savepoint missing")
         return  # unreachable
 
-    try:
-        outline_prompt = _load_prompt(
-            "outline/create",
-            {
-                "prompt": prompt_text,
-                "story_elements": story_elements,
-                "base_context": base_context,
-                "desired_chapters": str(desired_chapters),
-            },
-        )
-        if _has_savepoint(repo, "initial_outline"):
-            outline_text = _load_savepoint(repo, "initial_outline")
-            if not isinstance(outline_text, str):
-                outline_text = json.dumps(outline_text, default=str)
-        else:
+    if _has_savepoint(repo, "initial_outline"):
+        outline_text = _load_savepoint(repo, "initial_outline")
+        if not isinstance(outline_text, str):
+            outline_text = json.dumps(outline_text, default=str)
+    else:
+        try:
+            outline_prompt = _load_prompt(
+                "outline/create",
+                {
+                    "prompt": prompt_text,
+                    "story_elements": story_elements,
+                    "base_context": base_context,
+                    "desired_chapters": str(desired_chapters),
+                },
+            )
             outline_text = _call_llm(outline_prompt, model=model)
             _save_savepoint(repo, "initial_outline", outline_text)
-        _success("generate-outline", {"outline": outline_text})
-    except Exception as exc:
-        _error(f"outline generation failed: {exc}")
+        except Exception as exc:
+            _error(f"outline generation failed: {exc}")
+    _success("generate-outline", {"outline": outline_text})
 
 
 def cmd_expand_chapter(
