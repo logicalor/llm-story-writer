@@ -97,6 +97,108 @@ Both are replaced with the string value from the variables dictionary.
 
 ---
 
+## story-state
+
+Manages story state on disk — initialises story directory structures, reads/writes state fields with deep-merge semantics, and lists available stories.
+
+**Source files:**
+- `.opencode/tools/story-state.ts` — TypeScript wrapper
+- `src/tools/story_state.py` — Python CLI script
+
+### Purpose
+
+Each story is stored as a directory under `stories/<name>/` containing a `state.json` file and subdirectories for chapters, characters, settings, and savepoints. This tool provides atomic, locked access to the state file so agents can safely initialise, inspect, and update story state without race conditions or data loss.
+
+The state JSON schema matches the legacy `StoryContext`, `CharacterState`, `PlotThread`, and `ChapterState` structures:
+
+```json
+{
+  "story_context": {
+    "story_direction": "",
+    "tone_style": "",
+    "target_audience": "",
+    "story_pacing": "medium",
+    "current_themes": [],
+    "world_rules": [],
+    "genre_conventions": [],
+    "current_tension": 1,
+    "story_goals": [],
+    "completed_arcs": []
+  },
+  "characters": {},
+  "plot_threads": {},
+  "chapters": {}
+}
+```
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"init" \| "read" \| "write" \| "list"` | Yes | Operation to perform |
+| `name` | string | For `init`, `read`, `write` | Story name (maps to directory under `stories/`) |
+| `field` | string | For `write`; optional for `read` | Dot-notation path into the state JSON (e.g., `story_context.tone_style`) |
+| `value` | string | For `write` | JSON-encoded value to set at the target field |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/story_state.py --operation <op> [--name <name>] [--field <path>] [--value '<json>']
+```
+
+**Examples:**
+
+```bash
+# Initialise a new story
+python3 src/tools/story_state.py --operation init --name my-story
+
+# Read full state
+python3 src/tools/story_state.py --operation read --name my-story
+
+# Read a nested field
+python3 src/tools/story_state.py --operation read --name my-story --field story_context.current_tension
+
+# Write a field (deep-merges dicts, replaces scalars)
+python3 src/tools/story_state.py --operation write --name my-story \
+  --field story_context --value '{"tone_style": "noir", "current_tension": 7}'
+
+# List all stories
+python3 src/tools/story_state.py --operation list
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `init` | Creates `stories/<name>/` with subdirectories (`chapters/`, `characters/`, `settings/`, `savepoints/`) and an empty `state.json` | `{"status": "created", "story": "<name>"}` |
+| `read` | Reads full state or a nested field via `--field` dot-notation | JSON state object or field value |
+| `write` | Deep-merges a JSON value into the field at `--field`; sibling fields are preserved | `{"status": "updated", "field": "<path>"}` |
+| `list` | Scans `stories/` for directories containing `state.json` | JSON array of story names |
+
+### Deep Merge Semantics
+
+The `write` operation uses deep merge when both the existing value and the new value are dictionaries. This means writing to `story_context` with `{"tone_style": "noir"}` updates only `tone_style` — all sibling fields (`story_direction`, `current_themes`, etc.) remain unchanged.
+
+For non-dict values (scalars, arrays), the new value replaces the old one entirely.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — story already exists (init), story/field not found (read/write), invalid JSON in `--value` |
+| 2 | Argument error — missing required flag for the chosen operation |
+
+### Security
+
+- **Path traversal prevention** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory (e.g., `../../etc/passwd` is rejected)
+- **Atomic writes** — state is written to a temporary file then moved into place with `os.replace()`, preventing partial writes on crash
+- **File locking** — `fcntl.flock(LOCK_EX)` prevents concurrent writes from corrupting state
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
 ## Adding a New Tool
 
 Follow this pattern to add tools to the system:
