@@ -82,7 +82,7 @@ Prompt templates are **Markdown files** stored in the top-level `prompts/` direc
 
 ## Tools
 
-Four tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
+Five tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
 
 | Tool | Wrapper | Script | Infrastructure |
 |------|---------|--------|---------------|
@@ -90,6 +90,7 @@ Four tools implemented following the hybrid pattern from [ADR 001](docs/planning
 | `story-state` | `.opencode/tools/story-state.ts` | `src/tools/story_state.py` | Direct filesystem — atomic writes with `fcntl` locking |
 | `savepoint-mgr` | `.opencode/tools/savepoint-mgr.ts` | `src/tools/savepoint_manager.py` | `FilesystemSavepointRepository` — checkpoint save/load/list/clear |
 | `character-mgr` | `.opencode/tools/character-mgr.ts` | `src/tools/character_manager.py` | Direct filesystem — character sheet JSON I/O with deep-merge updates |
+| `setting-mgr` | `.opencode/tools/setting-mgr.ts` | `src/tools/setting_manager.py` | Direct filesystem — setting sheet JSON I/O with deep-merge updates |
 
 Pattern: `.opencode/tools/*.ts` (Zod schema + execFileSync) → `src/tools/*.py` (argparse + domain logic) → `src/infrastructure/` or `src/domain/`.
 
