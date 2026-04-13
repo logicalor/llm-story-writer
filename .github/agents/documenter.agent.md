@@ -81,6 +81,8 @@ Based on the changes, determine what documentation needs to be created or update
 > - For directory tree diagrams: re-run `ls` or `find` on the actual directory and regenerate from real disk state — never infer file paths or replacement names. When a task removes a file entry from a diagram, always check the directory's current contents to determine the correct updated listing; do not pattern-match from the task description.
 > - For file paths referenced in prose: verify each path exists on disk before writing it.
 > - For relative links: test they resolve from the doc's directory (e.g., from `docs/` to `.github/` requires `../`).
+> - For tool output formats: read the Python tool's `cmd_*` functions to verify the exact JSON structure returned (dict vs array, field names, status codes).
+> - For file extensions: check the Python tool's save/load logic to verify the actual file format used on disk — do not infer from the domain name.
 > - No hardcoded URLs — reference the project's routing conventions instead.
 > - Scan the entire file for `TODO`, `[placeholder]`, `...` stubs, and trivially short sections (3 lines or fewer where substance is expected). Remove or complete them before committing.
 
