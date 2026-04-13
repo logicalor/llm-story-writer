@@ -660,6 +660,165 @@ The `--model` argument overrides `LLM_MODEL` for a single invocation.
 
 ---
 
+## outline-generator
+
+Multi-step outline generation pipeline: analyses a story prompt via an 8-chunk LLM conversation, assembles story elements, generates an initial outline, expands chapters in chunks with continuity analysis, and refines via critique feedback.
+
+**Source files:**
+- `.opencode/tools/outline-generator.ts` — TypeScript wrapper
+- `src/tools/outline_generator.py` — Python CLI script
+- `src/tools/_llm.py` — LLM access layer (`generate_text`, `generate_text_messages`)
+- `src/infrastructure/prompts/prompt_loader.py` — Prompt template loading
+- `src/infrastructure/storage/savepoint_repository.py` — Savepoint persistence
+
+### Purpose
+
+The outline generator is the most complex tool in the system. It orchestrates the entire story analysis and outline creation pipeline — from initial prompt understanding through structured analysis, outline generation, chunked chapter expansion, and refinement. Every sub-step saves its result to a savepoint, making the pipeline fully resumable if interrupted.
+
+The tool uses `generate_text_messages()` from `src/tools/_llm.py` to maintain multi-turn conversation history during the analysis phase, providing coherent context across all 8 analysis chunks.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"analyze-prompt" \| "generate-elements" \| "generate-outline" \| "expand-chapter" \| "refine"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name (directory under `stories/`) |
+| `prompt` | string | For `analyze-prompt`; optional for `generate-outline` | Story prompt text |
+| `desiredChapters` | number | For `generate-outline` | Number of desired chapters |
+| `chunkStart` | number | For `expand-chapter` | Start chapter for chunk expansion |
+| `chunkEnd` | number | For `expand-chapter` | End chapter for chunk expansion |
+| `totalChapters` | number | For `expand-chapter` | Total chapters in the story |
+| `previousChunks` | string | No | Previous chunk outlines text (for `expand-chapter` continuity) |
+| `continuitySummary` | string | No | Continuity summary from prior chunks (for `expand-chapter`) |
+| `feedback` | string | For `refine` | Critique/feedback text to apply |
+| `model` | string | No | Override LLM model identifier |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/outline_generator.py --operation <op> --name <name> [options]
+```
+
+**Examples:**
+
+```bash
+# Analyze a story prompt (full multi-step pipeline)
+python3 src/tools/outline_generator.py --operation analyze-prompt \
+  --name my-story --prompt "A detective in 1920s Chicago..."
+
+# Combine analysis chunks into story elements
+python3 src/tools/outline_generator.py --operation generate-elements \
+  --name my-story
+
+# Generate initial outline with 12 chapters
+python3 src/tools/outline_generator.py --operation generate-outline \
+  --name my-story --desired-chapters 12
+
+# Expand chapters 1-4 of a 12-chapter story
+python3 src/tools/outline_generator.py --operation expand-chapter \
+  --name my-story --chunk-start 1 --chunk-end 4 --total-chapters 12
+
+# Expand chapters 5-8 with continuity from prior chunks
+python3 src/tools/outline_generator.py --operation expand-chapter \
+  --name my-story --chunk-start 5 --chunk-end 8 --total-chapters 12 \
+  --previous-chunks "<chapters 1-4 text>" --continuity-summary "<summary>"
+
+# Refine outline with critique feedback
+python3 src/tools/outline_generator.py --operation refine \
+  --name my-story --feedback "The pacing in chapters 3-5 needs tightening..."
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `analyze-prompt` | Runs 4-step pipeline: understand prompt → generate 8 analysis chunks → extract start date → extract base context. Each step saved to savepoint. | `{"status": "success", "operation": "analyze-prompt", "data": {"chunks_generated": 8, "story_start_date": "...", "base_context": "..."}}` |
+| `generate-elements` | Concatenates all 8 analysis chunks (with headers) into a single `story_elements` savepoint | `{"status": "success", "operation": "generate-elements", "data": {"story_elements": "..."}}` |
+| `generate-outline` | Generates initial outline from story elements + base context using `outline/create` prompt | `{"status": "success", "operation": "generate-outline", "data": {"outline": "..."}}` |
+| `expand-chapter` | Generates outline chunk for a chapter range, then runs continuity analysis for the next chunk | `{"status": "success", "operation": "expand-chapter", "data": {"chunk_outline": "...", "continuity_analysis": "..."}}` |
+| `refine` | Applies enrichment analysis using `outline/analyze_enrichment` prompt against current outline | `{"status": "success", "operation": "refine", "data": {"refined_outline": "..."}}` |
+
+### Analyze-Prompt Pipeline Detail
+
+The `analyze-prompt` operation executes 4 sequential steps, each checking for existing savepoints before calling the LLM:
+
+1. **Understand prompt** — Sends the story prompt through `multistep/outline/understand_prompt` template. Builds initial conversation context.
+2. **Generate 8 analysis chunks** — Iterates through chunk types, appending each as a user/assistant turn in the conversation history:
+   - Core Story Foundation
+   - Character Foundation
+   - Setting Foundation
+   - Plot Structure
+   - Theme & Message
+   - Tone & Style
+   - Conflict & Stakes
+   - World Rules & Logic
+3. **Extract story start date** — Uses the core story foundation chunk to extract a timeline starting point via `multistep/outline/story_start_date` prompt. Falls back to "Present day" on failure.
+4. **Extract base context** — Saves the core story foundation chunk as the `base_context` savepoint.
+
+### Savepoint Structure
+
+All intermediate results are persisted under `stories/<name>/savepoints/`:
+
+| Savepoint Key | Created By | Content |
+|---------------|-----------|---------|
+| `understand_prompt` | `analyze-prompt` | LLM response to prompt analysis |
+| `story_analysis/core_story_foundation_chunk` | `analyze-prompt` | Core story foundation analysis |
+| `story_analysis/character_foundation_chunk` | `analyze-prompt` | Character foundation analysis |
+| `story_analysis/setting_foundation_chunk` | `analyze-prompt` | Setting foundation analysis |
+| `story_analysis/plot_structure_chunk` | `analyze-prompt` | Plot structure analysis |
+| `story_analysis/theme_message_chunk` | `analyze-prompt` | Theme & message analysis |
+| `story_analysis/tone_style_chunk` | `analyze-prompt` | Tone & style analysis |
+| `story_analysis/conflict_stakes_chunk` | `analyze-prompt` | Conflict & stakes analysis |
+| `story_analysis/world_rules_logic_chunk` | `analyze-prompt` | World rules & logic analysis |
+| `story_start_date` | `analyze-prompt` | Extracted story timeline start |
+| `base_context` | `analyze-prompt` | Core foundation as base context |
+| `story_elements` | `generate-elements` | Combined text of all 8 chunks |
+| `initial_outline` | `generate-outline` | Generated outline text |
+| `outline_chunk_N_M` | `expand-chapter` | Expanded outline for chapters N–M |
+| `continuity_N_M` | `expand-chapter` | Continuity analysis for chunk N–M |
+| `enrichment_suggestions` | `refine` | Refinement/enrichment suggestions |
+
+### Resumability
+
+Each sub-step checks `_has_savepoint()` before calling the LLM. If a savepoint exists, the saved result is loaded and the LLM call is skipped. This means:
+
+- If `analyze-prompt` fails on chunk 5, re-running it resumes from chunk 5 — chunks 1–4 are loaded from savepoints
+- Conversation history is reconstructed from saved chunks to maintain coherent multi-turn context
+- The `generate-elements` operation is purely deterministic (no LLM) — it concatenates saved chunks
+
+### Conversation History Support
+
+The `analyze-prompt` operation uses `generate_text_messages()` from `src/tools/_llm.py` to pass full conversation history to the LLM. This function accepts a list of `{"role": "...", "content": "..."}` message dicts and calls the OpenAI-compatible chat completions endpoint with the full message array.
+
+This ensures the LLM has context from earlier analysis chunks when generating later ones, producing more coherent and cross-referenced analysis.
+
+### LLM Configuration
+
+The tool uses `src/tools/_llm.py` for LLM access, configured via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_API_BASE` | `http://localhost:11434/v1` | OpenAI-compatible API base URL |
+| `LLM_MODEL` | `huihui_ai/magistral-abliterated:24b` | Default model identifier |
+
+The `--model` argument overrides `LLM_MODEL` for a single invocation.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — missing prerequisite savepoints, LLM failure |
+| 2 | Argument error — missing required flag for the chosen operation |
+
+### Security
+
+- **Path traversal prevention** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
 ## Adding a New Tool
 
 Follow this pattern to add tools to the system:
