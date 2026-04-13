@@ -199,6 +199,107 @@ For non-dict values (scalars, arrays), the new value replaces the old one entire
 
 ---
 
+## savepoint-mgr
+
+Manages story savepoints — save, load, check, list, and clear checkpoint data used to resume story generation from intermediate steps.
+
+**Source files:**
+- `.opencode/tools/savepoint-mgr.ts` — TypeScript wrapper
+- `src/tools/savepoint_manager.py` — Python CLI script
+- `src/infrastructure/storage/savepoint_repository.py` — Underlying `FilesystemSavepointRepository` class
+
+### Purpose
+
+During story generation, intermediate results (outlines, character sheets, chapter recaps, etc.) are saved as savepoints under `stories/<name>/savepoints/`. This tool provides CLI access to the `FilesystemSavepointRepository` so agents can checkpoint and resume multi-step generation pipelines without re-running expensive LLM calls.
+
+Savepoints support **hierarchical step names** (e.g., `chapter_1/scene_2`) for organising checkpoints by phase and sub-step.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"save" \| "load" \| "has" \| "list" \| "clear"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name (maps to directory under `stories/`) |
+| `step` | string | For `save`, `load`, `has` | Step name, supports hierarchical paths like `chapter_1/scene_2` |
+| `data` | string | For `save` | JSON string of the data to save |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/savepoint_manager.py --operation <op> --name <name> [--step <step>] [--data '<json>']
+```
+
+**Examples:**
+
+```bash
+# Save a chapter outline checkpoint
+python3 src/tools/savepoint_manager.py --operation save --name my-story \
+  --step chapter_1/outline --data '{"title": "The Beginning", "scenes": 3}'
+
+# Load a savepoint
+python3 src/tools/savepoint_manager.py --operation load --name my-story \
+  --step chapter_1/outline
+
+# Check if a savepoint exists
+python3 src/tools/savepoint_manager.py --operation has --name my-story \
+  --step chapter_1/outline
+
+# List all savepoints for a story
+python3 src/tools/savepoint_manager.py --operation list --name my-story
+
+# Clear all savepoints for a story
+python3 src/tools/savepoint_manager.py --operation clear --name my-story
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `save` | Serialises `--data` as a savepoint file under `savepoints/<step>.md` | `{"status": "saved", "step": "<step>"}` |
+| `load` | Reads and deserialises a savepoint file | `{"step": "<step>", "data": <value>}` |
+| `has` | Checks whether a savepoint file exists for the given step | `{"step": "<step>", "exists": true/false}` |
+| `list` | Scans the `savepoints/` directory for all saved steps | `{"savepoints": {"step_1": <data>, "step_2": <data>, ...}}` |
+| `clear` | Removes all savepoint files for the story | `{"status": "cleared"}` |
+
+### Hierarchical Step Names
+
+Step names can contain `/` separators to create a hierarchy:
+
+```
+savepoints/
+├── chapter_1/
+│   ├── outline.md
+│   ├── scene_1.md
+│   └── scene_2.md
+├── chapter_2/
+│   └── outline.md
+└── characters.md
+```
+
+This maps naturally to the story generation pipeline phases (outline, character sheets, per-chapter scenes, recaps).
+
+### Backward Compatibility
+
+Savepoint files use **Markdown with YAML frontmatter** format. The `FilesystemSavepointRepository` reads and writes `.md` files with YAML frontmatter containing the serialised data.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — story not found, savepoint not found |
+| 2 | Argument error — missing required `--step` or `--data` flag for the chosen operation |
+
+### Security
+
+- **Path traversal prevention (story name)** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
+- **Path traversal prevention (step name)** — step names are checked for `..` segments and validated with `is_relative_to()` to prevent escaping the `savepoints/` directory
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Async bridging** — the Python script bridges from sync CLI to async repository methods using `asyncio.run()`
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
 ## Adding a New Tool
 
 Follow this pattern to add tools to the system:
