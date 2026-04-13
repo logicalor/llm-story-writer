@@ -306,21 +306,26 @@ def cmd_generate_outline(
         _error("--prompt is required when understand_prompt savepoint missing")
         return  # unreachable
 
-    try:
-        outline_prompt = _load_prompt(
-            "outline/create",
-            {
-                "prompt": prompt_text,
-                "story_elements": story_elements,
-                "base_context": base_context,
-                "desired_chapters": str(desired_chapters),
-            },
-        )
-        outline_text = _call_llm(outline_prompt, model=model)
-        _save_savepoint(repo, "initial_outline", outline_text)
-        _success("generate-outline", {"outline": outline_text})
-    except Exception as exc:
-        _error(f"outline generation failed: {exc}")
+    if _has_savepoint(repo, "initial_outline"):
+        outline_text = _load_savepoint(repo, "initial_outline")
+        if not isinstance(outline_text, str):
+            outline_text = json.dumps(outline_text, default=str)
+    else:
+        try:
+            outline_prompt = _load_prompt(
+                "outline/create",
+                {
+                    "prompt": prompt_text,
+                    "story_elements": story_elements,
+                    "base_context": base_context,
+                    "desired_chapters": str(desired_chapters),
+                },
+            )
+            outline_text = _call_llm(outline_prompt, model=model)
+            _save_savepoint(repo, "initial_outline", outline_text)
+        except Exception as exc:
+            _error(f"outline generation failed: {exc}")
+    _success("generate-outline", {"outline": outline_text})
 
 
 def cmd_expand_chapter(
@@ -352,76 +357,85 @@ def cmd_expand_chapter(
 
     # --- Generate chunk outline ---
     chunk_step = f"outline_chunk_{chunk_start}_{chunk_end}"
-    try:
-        chunk_prompt = _load_prompt(
-            "outline/create_chunk",
-            {
-                "story_elements": story_elements,
-                "base_context": base_context,
-                "chunk_start": str(chunk_start),
-                "chunk_end": str(chunk_end),
-                "total_chapters": str(total_chapters),
-                "previous_chunks": previous_chunks,
-                "continuity_summary": continuity_summary,
-            },
-        )
-        chunk_text = _call_llm(chunk_prompt, model=model)
-        _save_savepoint(repo, chunk_step, chunk_text)
-    except Exception as exc:
-        _error(f"chunk expansion failed: {exc}")
-        return  # unreachable
+    if _has_savepoint(repo, chunk_step):
+        chunk_text = _load_savepoint(repo, chunk_step)
+        if not isinstance(chunk_text, str):
+            chunk_text = json.dumps(chunk_text, default=str)
+    else:
+        try:
+            chunk_prompt = _load_prompt(
+                "outline/create_chunk",
+                {
+                    "story_elements": story_elements,
+                    "base_context": base_context,
+                    "chunk_start": str(chunk_start),
+                    "chunk_end": str(chunk_end),
+                    "total_chapters": str(total_chapters),
+                    "previous_chunks": previous_chunks,
+                    "continuity_summary": continuity_summary,
+                },
+            )
+            chunk_text = _call_llm(chunk_prompt, model=model)
+            _save_savepoint(repo, chunk_step, chunk_text)
+        except Exception as exc:
+            _error(f"chunk expansion failed: {exc}")
+            return  # unreachable
 
     # --- Analyze continuity ---
-    continuity_analysis = ""
-    try:  # noqa: SIM105
-        # Determine last chapter in previous chunks
-        last_prev = str(chunk_start - 1) if chunk_start > 1 else "0"
+    continuity_step = f"continuity_{chunk_start}_{chunk_end}"
+    if _has_savepoint(repo, continuity_step):
+        continuity_analysis = _load_savepoint(repo, continuity_step)
+        if not isinstance(continuity_analysis, str):
+            continuity_analysis = json.dumps(continuity_analysis, default=str)
+    else:
+        continuity_analysis = ""
+        try:
+            # Determine last chapter in previous chunks
+            last_prev = str(chunk_start - 1) if chunk_start > 1 else "0"
 
-        # Load enrichment suggestions if available
-        enrichment = ""
-        if _has_savepoint(repo, "enrichment_suggestions"):
-            enr_data = _load_savepoint(repo, "enrichment_suggestions")
-            enrichment = (
-                enr_data
-                if isinstance(enr_data, str)
-                else json.dumps(enr_data, default=str)
+            # Load enrichment suggestions if available
+            enrichment = ""
+            if _has_savepoint(repo, "enrichment_suggestions"):
+                enr_data = _load_savepoint(repo, "enrichment_suggestions")
+                enrichment = (
+                    enr_data
+                    if isinstance(enr_data, str)
+                    else json.dumps(enr_data, default=str)
+                )
+
+            # Build combined previous chunks text including this new chunk
+            all_previous = previous_chunks
+            if all_previous:
+                all_previous += "\n\n"
+            all_previous += chunk_text
+
+            continuity_prompt = _load_prompt(
+                "outline/analyze_continuity",
+                {
+                    "story_elements": story_elements,
+                    "base_context": base_context,
+                    "enrichment_suggestions": enrichment,
+                    "previous_chunks": all_previous,
+                    "chunk_start": str(chunk_end + 1),
+                    "chunk_end": str(
+                        min(chunk_end + (chunk_end - chunk_start + 1), total_chapters)
+                    ),
+                    "total_chapters": str(total_chapters),
+                    "last_chapter_in_previous": last_prev,
+                },
             )
-
-        # Build combined previous chunks text including this new chunk
-        all_previous = previous_chunks
-        if all_previous:
-            all_previous += "\n\n"
-        all_previous += chunk_text
-
-        continuity_prompt = _load_prompt(
-            "outline/analyze_continuity",
-            {
-                "story_elements": story_elements,
-                "base_context": base_context,
-                "enrichment_suggestions": enrichment,
-                "previous_chunks": all_previous,
-                "chunk_start": str(chunk_end + 1),
-                "chunk_end": str(
-                    min(chunk_end + (chunk_end - chunk_start + 1), total_chapters)
-                ),
-                "total_chapters": str(total_chapters),
-                "last_chapter_in_previous": last_prev,
-            },
-        )
-        continuity_analysis = _call_llm(continuity_prompt, model=model)
-        _save_savepoint(
-            repo, f"continuity_{chunk_start}_{chunk_end}", continuity_analysis
-        )
-    except Exception as exc:
-        print(
-            f"Warning: continuity analysis failed: {exc}",
-            file=sys.stderr,
-        )
+            continuity_analysis = _call_llm(continuity_prompt, model=model)
+            _save_savepoint(repo, continuity_step, continuity_analysis)
+        except Exception as exc:
+            print(
+                f"Warning: continuity analysis failed: {exc}",
+                file=sys.stderr,
+            )
 
     _success(
         "expand-chapter",
         {
-            "chunk_outline": chunk_text,  # bound in try above; _error exits on failure
+            "chunk_outline": chunk_text,
             "continuity_analysis": continuity_analysis,
         },
     )
@@ -585,6 +599,8 @@ def main() -> None:
                 file=sys.stderr,
             )
             sys.exit(2)
+        if args.desired_chapters < 1:
+            _error("--desired-chapters must be >= 1")
         cmd_generate_outline(
             args.name,
             args.desired_chapters,
@@ -603,6 +619,12 @@ def main() -> None:
                 file=sys.stderr,
             )
             sys.exit(2)
+        if args.chunk_start < 1:
+            _error("--chunk-start must be >= 1")
+        if args.chunk_end < args.chunk_start:
+            _error("--chunk-end must be >= --chunk-start")
+        if args.total_chapters < args.chunk_end:
+            _error("--total-chapters must be >= --chunk-end")
         cmd_expand_chapter(
             args.name,
             args.chunk_start,
