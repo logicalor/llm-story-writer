@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 
@@ -145,29 +144,3 @@ def _extract_json_block(text: str) -> str:
 
     # Fallback — return from start to end
     return text[start:]
-
-
-def generate_json(
-    prompt: str,
-    *,
-    system_message: str | None = None,
-    model: str | None = None,
-) -> dict | list:
-    """Call LLM, extract JSON from response, parse and return.
-
-    Raises ``RuntimeError`` on API errors; ``ValueError`` on parse errors.
-    """
-    raw = generate_text(prompt, system_message=system_message, model=model)
-    json_str = _extract_json_block(raw)
-
-    try:
-        result = json.loads(json_str)
-    except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"Failed to parse JSON from LLM response: {exc}\n"
-            f"Extracted text: {json_str[:500]}"
-        ) from exc
-
-    if not isinstance(result, (dict, list)):
-        raise ValueError(f"Expected JSON object or array, got {type(result).__name__}")
-    return result

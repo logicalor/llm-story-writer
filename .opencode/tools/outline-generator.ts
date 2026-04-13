@@ -25,18 +25,26 @@ export default {
       ),
     desiredChapters: z
       .number()
+      .int()
+      .min(1)
       .optional()
       .describe("Number of desired chapters (required for generate-outline)"),
     chunkStart: z
       .number()
+      .int()
+      .min(1)
       .optional()
       .describe("Start chapter for chunk expansion (required for expand-chapter)"),
     chunkEnd: z
       .number()
+      .int()
+      .min(1)
       .optional()
       .describe("End chapter for chunk expansion (required for expand-chapter)"),
     totalChapters: z
       .number()
+      .int()
+      .min(1)
       .optional()
       .describe(
         "Total chapters in story (required for expand-chapter)"
