@@ -255,10 +255,10 @@ python3 src/tools/savepoint_manager.py --operation clear --name my-story
 
 | Operation | Effect | Output |
 |-----------|--------|--------|
-| `save` | Serialises `--data` as a savepoint file under `savepoints/<step>.json` | `{"status": "saved", "step": "<step>"}` |
+| `save` | Serialises `--data` as a savepoint file under `savepoints/<step>.md` | `{"status": "saved", "step": "<step>"}` |
 | `load` | Reads and deserialises a savepoint file | `{"step": "<step>", "data": <value>}` |
 | `has` | Checks whether a savepoint file exists for the given step | `{"step": "<step>", "exists": true/false}` |
-| `list` | Scans the `savepoints/` directory for all saved steps | `{"savepoints": ["step_1", "step_2", ...]}` |
+| `list` | Scans the `savepoints/` directory for all saved steps | `{"savepoints": {"step_1": <data>, "step_2": <data>, ...}}` |
 | `clear` | Removes all savepoint files for the story | `{"status": "cleared"}` |
 
 ### Hierarchical Step Names
@@ -268,19 +268,19 @@ Step names can contain `/` separators to create a hierarchy:
 ```
 savepoints/
 ├── chapter_1/
-│   ├── outline.json
-│   ├── scene_1.json
-│   └── scene_2.json
+│   ├── outline.md
+│   ├── scene_1.md
+│   └── scene_2.md
 ├── chapter_2/
-│   └── outline.json
-└── characters.json
+│   └── outline.md
+└── characters.md
 ```
 
 This maps naturally to the story generation pipeline phases (outline, character sheets, per-chapter scenes, recaps).
 
 ### Backward Compatibility
 
-The tool handles legacy savepoint files that use **Markdown with YAML frontmatter** format (from the original codebase). The `FilesystemSavepointRepository.load_savepoint()` method detects frontmatter-formatted files and parses them correctly, while new saves always use JSON format.
+Savepoint files use **Markdown with YAML frontmatter** format. The `FilesystemSavepointRepository` reads and writes `.md` files with YAML frontmatter containing the serialised data.
 
 ### Exit Codes
 

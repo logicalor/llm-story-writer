@@ -1,11 +1,19 @@
 """CLI tool for managing story savepoints (save, load, has, list, clear)."""
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from infrastructure.storage.savepoint_repository import (
+        FilesystemSavepointRepository,
+    )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
@@ -42,7 +50,7 @@ def _validate_step(step: str, savepoints_dir: Path) -> None:
         sys.exit(1)
 
 
-def _make_repo(name: str) -> object:
+def _make_repo(name: str) -> FilesystemSavepointRepository:
     """Create a FilesystemSavepointRepository for the given story."""
     from infrastructure.storage.savepoint_repository import (
         FilesystemSavepointRepository,
@@ -111,7 +119,10 @@ def cmd_list(name: str) -> None:
 
 def cmd_clear(name: str) -> None:
     """Clear all savepoints for a story."""
-    _validate_story_name(name)
+    story_dir = _validate_story_name(name)
+    if not story_dir.exists():
+        print(f"Error: story not found: {name}", file=sys.stderr)
+        sys.exit(1)
 
     repo = _make_repo(name)
     asyncio.run(repo.clear_all_savepoints())

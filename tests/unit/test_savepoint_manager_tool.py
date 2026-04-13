@@ -305,3 +305,17 @@ def test_missing_data_for_save(story_env: tuple[Path, str]) -> None:
         stories_dir=stories_dir,
     )
     assert result.returncode == 2
+
+
+def test_clear_nonexistent_story(tmp_path: Path) -> None:
+    stories_dir = tmp_path / "stories"
+    stories_dir.mkdir()
+    result = _run_tool(
+        "--operation",
+        "clear",
+        "--name",
+        "no-such-story",
+        stories_dir=stories_dir,
+    )
+    assert result.returncode == 1
+    assert "story not found" in result.stderr
