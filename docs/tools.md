@@ -425,6 +425,131 @@ Character names are converted to filesystem-safe slugs:
 
 ---
 
+## setting-mgr
+
+Manages story setting/location sheets — extract names, generate/update/load setting sheets, list settings, and create abridged summaries.
+
+**Source files:**
+- `.opencode/tools/setting-mgr.ts` — TypeScript wrapper
+- `src/tools/setting_manager.py` — Python CLI script
+
+### Purpose
+
+During story generation, the pipeline extracts setting/location names from story elements and generates structured setting sheets (with chunked sections like geography, atmosphere, history, etc.). This tool provides file I/O for those setting sheets so agents can create, update, inspect, and summarise setting data without managing file paths or JSON merging logic.
+
+Setting sheets are stored as JSON files at `stories/<name>/settings/<slug>.json`, where `<slug>` is the setting name lowercased with spaces replaced by hyphens and non-alphanumeric characters stripped.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"extract-names" \| "generate-sheet" \| "update-sheet" \| "load-sheet" \| "list" \| "generate-abridged"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name (maps to directory under `stories/`) |
+| `setting` | string | For `generate-sheet`, `update-sheet`, `load-sheet`, `generate-abridged` | Setting name (converted to slug for file lookup) |
+| `data` | string | For `extract-names`, `generate-sheet`, `update-sheet` | JSON string input |
+| `budget` | number | No | Token budget for `generate-abridged` (default: 500) |
+| `abridged` | boolean | No | If true, `load-sheet` returns only name, summary, and timestamp |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/setting_manager.py --operation <op> --name <name> [--setting <name>] [--data '<json>'] [--budget N] [--abridged]
+```
+
+**Examples:**
+
+```bash
+# Parse a JSON array of setting names
+python3 src/tools/setting_manager.py --operation extract-names --name my-story \
+  --data '["The Grand Library", "Shadow Market", "Crystal Caves"]'
+
+# Store a generated setting sheet
+python3 src/tools/setting_manager.py --operation generate-sheet --name my-story \
+  --setting "The Grand Library" --data '{"sheet": "Full text...", "chunks": {"geography": "..."}, "summary": "Brief"}'
+
+# Deep-merge updates into an existing sheet
+python3 src/tools/setting_manager.py --operation update-sheet --name my-story \
+  --setting "The Grand Library" --data '{"chunks": {"atmosphere": "Updated description..."}}'
+
+# Load a full setting sheet
+python3 src/tools/setting_manager.py --operation load-sheet --name my-story \
+  --setting "The Grand Library"
+
+# Load an abridged version (name + summary only)
+python3 src/tools/setting_manager.py --operation load-sheet --name my-story \
+  --setting "The Grand Library" --abridged
+
+# List all settings for a story
+python3 src/tools/setting_manager.py --operation list --name my-story
+
+# Generate a token-budgeted abridged summary
+python3 src/tools/setting_manager.py --operation generate-abridged --name my-story \
+  --setting "The Grand Library" --budget 300
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `extract-names` | Parses a JSON array of setting names from `--data` | `{"names": ["The Grand Library", "Shadow Market", ...]}` |
+| `generate-sheet` | Creates a new setting sheet JSON file with name, sheet text, chunks, summary, and timestamp. **Note:** overwrites any existing sheet for the setting — use `update-sheet` for partial updates that preserve existing data. | `{"status": "ok", "path": "stories/<name>/settings/<slug>.json"}` |
+| `update-sheet` | Deep-merges `--data` into an existing sheet; preserves sibling chunk keys | `{"status": "ok", "path": "stories/<name>/settings/<slug>.json"}` |
+| `load-sheet` | Loads a setting sheet; with `--abridged`, returns only name, summary, and timestamp | Full or abridged JSON sheet object |
+| `list` | Scans `settings/` directory for `.json` files, reads the `name` field from each | `{"settings": ["The Grand Library", "Shadow Market", ...]}` |
+| `generate-abridged` | Truncates the `sheet` text to a word limit (budget × 0.75), saves as `summary`, updates the file | `{"summary": "...", "path": "stories/<name>/settings/<slug>.json"}` |
+
+### Setting Sheet JSON Format
+
+```json
+{
+  "name": "The Grand Library",
+  "sheet": "Full setting sheet text...",
+  "chunks": {
+    "geography": "Located in the heart of the old city...",
+    "atmosphere": "Dust motes float through shafts of light...",
+    "history": "Founded three centuries ago by the Scholar King..."
+  },
+  "summary": "Abridged summary text...",
+  "updated_at": "2026-04-13T10:30:00+00:00"
+}
+```
+
+### Deep Merge Semantics
+
+The `update-sheet` operation merges at the `chunks` level: new chunk keys are added, existing chunk keys are overwritten, and sibling chunk keys are preserved. Top-level fields (`sheet`, `summary`) are replaced if present in the update data. The `updated_at` timestamp is always refreshed.
+
+### Slug Generation
+
+Setting names are converted to filesystem-safe slugs:
+1. Lowercase the name
+2. Replace spaces with hyphens
+3. Strip non-alphanumeric characters (except hyphens)
+4. Collapse consecutive hyphens
+5. Trim leading/trailing hyphens
+
+| Setting Name | Slug | File Path |
+|--------------|------|-----------|
+| `The Grand Library` | `the-grand-library` | `settings/the-grand-library.json` |
+| `Shadow Market` | `shadow-market` | `settings/shadow-market.json` |
+| `Dr. Voss's Lab` | `dr-vosss-lab` | `settings/dr-vosss-lab.json` |
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — setting sheet not found (update/load/generate-abridged), invalid JSON in `--data` |
+| 2 | Argument error — missing required `--setting` or `--data` flag for the chosen operation |
+
+### Security
+
+- **Path traversal prevention (story name)** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
+- **Path traversal prevention (setting name)** — setting names are checked for `..` segments and the resolved file path is validated with `is_relative_to()` to prevent escaping the `settings/` directory
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
 ## Adding a New Tool
 
 Follow this pattern to add tools to the system:
