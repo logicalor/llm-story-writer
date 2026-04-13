@@ -37,6 +37,10 @@ N. **Before handing off a multi-operation tool**, trace the data flow of each op
 
 This is complementary to existing rules: Rule 9 ensures secure patterns, proposed Rule 10 ensures established patterns carry forward, and this new rule ensures semantic correctness of the implemented logic.
 
+### Supporting Evidence
+
+- **Issue #46 (PR #47):** Coder applied savepoint-before-prompt ordering correctly in `cmd_expand_chapter()` but incorrectly in `cmd_generate_outline()` — same file, same dispatch. Intra-task variant of pattern inconsistency that data-flow tracing would catch. See `issue-46-intra-task-ordering-consistency.md`. Suggests the proposed rule should explicitly mention intra-tool consistency between similar operations.
+
 ### Action Taken
 
 Proposed for approval — this adds a new numbered rule to the Coder agent addressing a class of defect not covered by pattern-matching rules.
