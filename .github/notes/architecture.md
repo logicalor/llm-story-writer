@@ -82,9 +82,15 @@ Prompt templates are **Markdown files** stored in the top-level `prompts/` direc
 
 ## Tools
 
-The first custom tool — `prompt-loader` — implements the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md). TypeScript wrapper (`.opencode/tools/prompt-loader.ts`) calls Python script (`src/tools/prompt_loader.py`) via subprocess. The Python script reuses `PromptLoader` from `src/infrastructure/prompts/prompt_loader.py`.
+Three tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
 
-Pattern: `.opencode/tools/*.ts` (Zod schema + execSync) → `src/tools/*.py` (argparse + domain logic) → `src/infrastructure/` or `src/domain/`.
+| Tool | Wrapper | Script | Infrastructure |
+|------|---------|--------|---------------|
+| `prompt-loader` | `.opencode/tools/prompt-loader.ts` | `src/tools/prompt_loader.py` | `PromptLoader` — template loading + variable substitution |
+| `story-state` | `.opencode/tools/story-state.ts` | `src/tools/story_state.py` | Direct filesystem — atomic writes with `fcntl` locking |
+| `savepoint-mgr` | `.opencode/tools/savepoint-mgr.ts` | `src/tools/savepoint_manager.py` | `FilesystemSavepointRepository` — checkpoint save/load/list/clear |
+
+Pattern: `.opencode/tools/*.ts` (Zod schema + execFileSync) → `src/tools/*.py` (argparse + domain logic) → `src/infrastructure/` or `src/domain/`.
 
 See [Tools Reference](docs/tools.md) for full documentation.
 
