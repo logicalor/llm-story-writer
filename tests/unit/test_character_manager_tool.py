@@ -370,3 +370,31 @@ def test_atomic_write_no_double_close_on_replace_failure(tmp_path: Path) -> None
         mock_close.assert_called_once_with(fake_fd)
         # Temp file cleaned up
         mock_unlink.assert_called_once_with(fake_tmp)
+
+
+def test_atomic_write_unlink_failure_preserves_original_error(tmp_path: Path) -> None:
+    """Verify original error propagates when os.unlink also fails (Issue #39)."""
+    from src.tools.character_manager import _atomic_write
+
+    target = tmp_path / "output.json"
+    fake_fd = 42
+    fake_tmp = str(tmp_path / "tmpXXXXXX.tmp")
+
+    with (
+        patch(
+            "src.tools.character_manager.tempfile.mkstemp",
+            return_value=(fake_fd, fake_tmp),
+        ),
+        patch("src.tools.character_manager.os.write"),
+        patch("src.tools.character_manager.os.close"),
+        patch(
+            "src.tools.character_manager.os.replace",
+            side_effect=OSError("replace failed"),
+        ),
+        patch(
+            "src.tools.character_manager.os.unlink",
+            side_effect=FileNotFoundError("tmp already gone"),
+        ),
+    ):
+        with pytest.raises(OSError, match="replace failed"):
+            _atomic_write(target, "test content")
