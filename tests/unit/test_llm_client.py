@@ -54,18 +54,9 @@ def test_generate_text_missing_api_base(monkeypatch: pytest.MonkeyPatch) -> None
         generate_text("test prompt")
 
 
-def test_default_config() -> None:
+def test_default_config(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify default LLM_API_BASE and LLM_MODEL values."""
-    import os
-
-    # Save and clear env vars to test defaults
-    saved_base = os.environ.pop("LLM_API_BASE", None)
-    saved_model = os.environ.pop("LLM_MODEL", None)
-    try:
-        assert _get_api_base() == "http://localhost:11434/v1"
-        assert _get_model() == "huihui_ai/magistral-abliterated:24b"
-    finally:
-        if saved_base is not None:
-            os.environ["LLM_API_BASE"] = saved_base
-        if saved_model is not None:
-            os.environ["LLM_MODEL"] = saved_model
+    monkeypatch.delenv("LLM_API_BASE", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    assert _get_api_base() == "http://localhost:11434/v1"
+    assert _get_model() == "huihui_ai/magistral-abliterated:24b"

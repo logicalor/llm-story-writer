@@ -19,8 +19,12 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
 
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
-sys.path.insert(0, str(PROJECT_ROOT))
+_src_path = str(PROJECT_ROOT / "src")
+_root_path = str(PROJECT_ROOT)
+if _src_path not in sys.path:
+    sys.path.insert(0, _src_path)
+if _root_path not in sys.path:
+    sys.path.insert(0, _root_path)
 
 
 def _validate_story_name(name: str) -> Path:
@@ -81,13 +85,6 @@ def _call_llm(prompt: str, *, model: str | None = None) -> str:
     from src.tools._llm import generate_text
 
     return generate_text(prompt, model=model)
-
-
-def _call_llm_json(prompt: str, *, model: str | None = None) -> dict | list:
-    """Call LLM with a prompt and return parsed JSON."""
-    from src.tools._llm import generate_json
-
-    return generate_json(prompt, model=model)
 
 
 def _extract_json_from_response(text: str) -> str:
@@ -233,14 +230,16 @@ def cmd_generate(
         _success("generate", formatted_recap)
         return
 
-    filtered = _filter_aged_events(recap_data, story_start_date)
+    filtered = _filter_low_importance_events(recap_data, story_start_date)
     final_recap = json.dumps(filtered, indent=2)
 
     _save_savepoint(repo, f"chapter_{chapter}/recap", final_recap)
     _success("generate", filtered)
 
 
-def _filter_aged_events(recap_data: dict | list, story_start_date: str) -> Any:
+def _filter_low_importance_events(
+    recap_data: dict | list, story_start_date: str
+) -> Any:
     """Filter events: keep only high-importance events (matching RecapManager logic)."""
     if not isinstance(recap_data, dict):
         return recap_data

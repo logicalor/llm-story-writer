@@ -210,3 +210,74 @@ def test_load_returns_json_output(story_env: tuple[Path, str]) -> None:
     assert "data" in out
     assert out["status"] == "success"
     assert out["operation"] == "load"
+
+
+# ---------------------------------------------------------------------------
+# Pure helper function tests (direct import)
+# ---------------------------------------------------------------------------
+
+
+class TestFilterLowImportanceEvents:
+    """Tests for _filter_low_importance_events helper."""
+
+    def test_filter_keeps_high_importance_events(self) -> None:
+        """Mixed importance events — only high-importance survive."""
+        from src.tools.recap_manager import _filter_low_importance_events
+
+        recap_data = {
+            "events": [
+                {"description": "Hero born", "importance": "high"},
+                {"description": "Bought bread", "importance": "low"},
+                {"description": "Battle won", "importance": "high"},
+                {"description": "Napped", "importance": "medium"},
+            ],
+            "meta": {"total_events": 4},
+        }
+        result = _filter_low_importance_events(recap_data, "2025-01-01")
+        assert len(result["events"]) == 2
+        descs = [e["description"] for e in result["events"]]
+        assert "Hero born" in descs
+        assert "Battle won" in descs
+        assert "Bought bread" not in descs
+        assert "Napped" not in descs
+        assert result["meta"]["total_events"] == 2
+
+    def test_filter_handles_empty_events(self) -> None:
+        """Empty events list passes through cleanly."""
+        from src.tools.recap_manager import _filter_low_importance_events
+
+        recap_data = {
+            "events": [],
+            "meta": {"total_events": 0},
+        }
+        result = _filter_low_importance_events(recap_data, "2025-01-01")
+        assert result["events"] == []
+        assert result["meta"]["total_events"] == 0
+
+
+class TestClassifyEventRecency:
+    """Tests for _classify_event_recency helper."""
+
+    def test_classify_recency_current_events(self) -> None:
+        """Events from today classified as 'current'."""
+        from src.tools.recap_manager import _classify_event_recency
+
+        data = {
+            "events": [
+                {"description": "Fight today", "date_start": "2025-06-15"},
+            ],
+        }
+        _classify_event_recency(data, "2025-06-15")
+        assert data["events"][0]["recency"] == "current"
+
+    def test_classify_recency_historical_events(self) -> None:
+        """Events from 30+ days ago classified as 'historical'."""
+        from src.tools.recap_manager import _classify_event_recency
+
+        data = {
+            "events": [
+                {"description": "Ancient battle", "date_start": "2025-01-01"},
+            ],
+        }
+        _classify_event_recency(data, "2025-06-15")
+        assert data["events"][0]["recency"] == "historical"
