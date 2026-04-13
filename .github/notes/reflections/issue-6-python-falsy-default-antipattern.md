@@ -6,7 +6,7 @@ category: instruction
 targets:
   - ".github/notes/gotchas.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Python `args.X or default` anti-pattern masks falsy-zero values

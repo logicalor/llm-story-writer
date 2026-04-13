@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/coder.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Boundary validation must check element types, not just container types
