@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -339,3 +340,33 @@ def test_extract_names_double_wrapped_json(story_env: tuple[Path, str]) -> None:
     assert result.returncode == 0
     parsed = json.loads(result.stdout)
     assert parsed["names"] == ["Alice", "Bob"]
+
+
+def test_atomic_write_no_double_close_on_replace_failure(tmp_path: Path) -> None:
+    """Verify os.close called exactly once when os.replace fails (Issue #37)."""
+    from src.tools.character_manager import _atomic_write
+
+    target = tmp_path / "output.json"
+    fake_fd = 42
+    fake_tmp = str(tmp_path / "tmpXXXXXX.tmp")
+
+    with (
+        patch(
+            "src.tools.character_manager.tempfile.mkstemp",
+            return_value=(fake_fd, fake_tmp),
+        ),
+        patch("src.tools.character_manager.os.write"),
+        patch("src.tools.character_manager.os.close") as mock_close,
+        patch(
+            "src.tools.character_manager.os.replace",
+            side_effect=OSError("replace failed"),
+        ),
+        patch("src.tools.character_manager.os.unlink") as mock_unlink,
+    ):
+        with pytest.raises(OSError, match="replace failed"):
+            _atomic_write(target, "test content")
+
+        # os.close called exactly once — not double-closed
+        mock_close.assert_called_once_with(fake_fd)
+        # Temp file cleaned up
+        mock_unlink.assert_called_once_with(fake_tmp)
