@@ -667,7 +667,7 @@ Multi-step outline generation pipeline: analyses a story prompt via an 8-chunk L
 **Source files:**
 - `.opencode/tools/outline-generator.ts` — TypeScript wrapper
 - `src/tools/outline_generator.py` — Python CLI script
-- `src/tools/_llm.py` — LLM access layer (`generate_text`, `generate_text_messages`)
+- `src/tools/_llm.py` — Shared LLM client (`generate_text`, `generate_text_messages`, `_extract_json_block`)
 - `src/infrastructure/prompts/prompt_loader.py` — Prompt template loading
 - `src/infrastructure/storage/savepoint_repository.py` — Savepoint persistence
 
@@ -684,10 +684,10 @@ The tool uses `generate_text_messages()` from `src/tools/_llm.py` to maintain mu
 | `operation` | `"analyze-prompt" \| "generate-elements" \| "generate-outline" \| "expand-chapter" \| "refine"` | Yes | Operation to perform |
 | `name` | string | Yes | Story name (directory under `stories/`) |
 | `prompt` | string | For `analyze-prompt`; optional for `generate-outline` | Story prompt text |
-| `desiredChapters` | number | For `generate-outline` | Number of desired chapters |
-| `chunkStart` | number | For `expand-chapter` | Start chapter for chunk expansion |
-| `chunkEnd` | number | For `expand-chapter` | End chapter for chunk expansion |
-| `totalChapters` | number | For `expand-chapter` | Total chapters in the story |
+| `desiredChapters` | integer | For `generate-outline` | Number of desired chapters (must be ≥ 1) |
+| `chunkStart` | integer | For `expand-chapter` | Start chapter for chunk expansion (must be ≥ 1) |
+| `chunkEnd` | integer | For `expand-chapter` | End chapter for chunk expansion (must be ≥ `chunkStart`) |
+| `totalChapters` | integer | For `expand-chapter` | Total chapters in the story (must be ≥ `chunkEnd`) |
 | `previousChunks` | string | No | Previous chunk outlines text (for `expand-chapter` continuity) |
 | `continuitySummary` | string | No | Continuity summary from prior chunks (for `expand-chapter`) |
 | `feedback` | string | For `refine` | Critique/feedback text to apply |
@@ -780,9 +780,11 @@ All intermediate results are persisted under `stories/<name>/savepoints/`:
 
 ### Resumability
 
-Each sub-step checks `_has_savepoint()` before calling the LLM. If a savepoint exists, the saved result is loaded and the LLM call is skipped. This means:
+All LLM-calling operations check `_has_savepoint()` before invoking the model. If a savepoint exists, the saved result is loaded and the LLM call is skipped. This means:
 
 - If `analyze-prompt` fails on chunk 5, re-running it resumes from chunk 5 — chunks 1–4 are loaded from savepoints
+- `generate-outline` checks for an existing `initial_outline` savepoint before calling the LLM
+- `expand-chapter` checks for existing `outline_chunk_N_M` and `continuity_N_M` savepoints before calling the LLM
 - Conversation history is reconstructed from saved chunks to maintain coherent multi-turn context
 - The `generate-elements` operation is purely deterministic (no LLM) — it concatenates saved chunks
 
@@ -803,12 +805,21 @@ The tool uses `src/tools/_llm.py` for LLM access, configured via environment var
 
 The `--model` argument overrides `LLM_MODEL` for a single invocation.
 
+### Argument Validation
+
+Numeric arguments are validated at both layers:
+
+- **TypeScript (Zod)** — `desiredChapters`, `chunkStart`, `chunkEnd`, and `totalChapters` are validated as positive integers (`.int().min(1)`)
+- **Python (argparse)** — `--desired-chapters` must be ≥ 1; `--chunk-start` must be ≥ 1; `--chunk-end` must be ≥ `--chunk-start`; `--total-chapters` must be ≥ `--chunk-end`
+
+Invalid values produce exit code 1 with a descriptive error message.
+
 ### Exit Codes
 
 | Code | Meaning |
 |------|---------|
 | 0 | Success — result printed to stdout as JSON |
-| 1 | Domain error — missing prerequisite savepoints, LLM failure |
+| 1 | Domain error — missing prerequisite savepoints, LLM failure, invalid numeric arguments |
 | 2 | Argument error — missing required flag for the chosen operation |
 
 ### Security
