@@ -776,7 +776,7 @@ All intermediate results are persisted under `stories/<name>/savepoints/`:
 | `initial_outline` | `generate-outline` | Generated outline text |
 | `outline_chunk_N_M` | `expand-chapter` | Expanded outline for chapters N–M |
 | `continuity_N_M` | `expand-chapter` | Continuity analysis for chunk N–M |
-| `enrichment_suggestions` | `refine` | Refinement/enrichment suggestions |
+| `refined_outline` | `refine` | Refined outline incorporating user feedback |
 
 ### Resumability
 

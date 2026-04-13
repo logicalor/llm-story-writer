@@ -318,10 +318,9 @@ def cmd_generate_outline(
         )
         outline_text = _call_llm(outline_prompt, model=model)
         _save_savepoint(repo, "initial_outline", outline_text)
+        _success("generate-outline", {"outline": outline_text})
     except Exception as exc:
         _error(f"outline generation failed: {exc}")
-
-    _success("generate-outline", {"outline": outline_text})
 
 
 def cmd_expand_chapter(
@@ -374,7 +373,7 @@ def cmd_expand_chapter(
 
     # --- Analyze continuity ---
     continuity_analysis = ""
-    try:
+    try:  # noqa: SIM105
         # Determine last chapter in previous chunks
         last_prev = str(chunk_start - 1) if chunk_start > 1 else "0"
 
@@ -413,14 +412,16 @@ def cmd_expand_chapter(
         _save_savepoint(
             repo, f"continuity_{chunk_start}_{chunk_end}", continuity_analysis
         )
-    except Exception:
-        # Continuity analysis is best-effort; don't fail the whole operation
-        pass
+    except Exception as exc:
+        print(
+            f"Warning: continuity analysis failed: {exc}",
+            file=sys.stderr,
+        )
 
     _success(
         "expand-chapter",
         {
-            "chunk_outline": chunk_text,
+            "chunk_outline": chunk_text,  # bound in try above; _error exits on failure
             "continuity_analysis": continuity_analysis,
         },
     )
@@ -455,9 +456,22 @@ def cmd_refine(
     if not isinstance(base_context, str):
         base_context = json.dumps(base_context, default=str)
 
-    # Load optional context for enrichment
+    # Load optional context from savepoints if available
     character_context = ""
+    if _has_savepoint(repo, "character_sheets"):
+        cs_data = _load_savepoint(repo, "character_sheets")
+        character_context = (
+            cs_data if isinstance(cs_data, str) else json.dumps(cs_data, default=str)
+        )
+
     setting_context = ""
+    if _has_savepoint(repo, "setting_sheets"):
+        ss_data = _load_savepoint(repo, "setting_sheets")
+        setting_context = (
+            ss_data if isinstance(ss_data, str) else json.dumps(ss_data, default=str)
+        )
+
+    # TODO: load wanted_chapters from story config when available
     wanted_chapters = ""
 
     try:
@@ -472,13 +486,17 @@ def cmd_refine(
                 "current_scope": current_outline,
             },
         )
+        # Incorporate user feedback into the prompt so the LLM sees the critique
+        refinement_prompt += (
+            "\n\n## USER FEEDBACK / CRITIQUE\n\n"
+            "Apply the following feedback when refining the outline:\n\n"
+            f"{feedback}"
+        )
         refined_text = _call_llm(refinement_prompt, model=model)
-        _save_savepoint(repo, "enrichment_suggestions", refined_text)
+        _save_savepoint(repo, "refined_outline", refined_text)
+        _success("refine", {"refined_outline": refined_text})
     except Exception as exc:
         _error(f"refinement failed: {exc}")
-        return  # unreachable
-
-    _success("refine", {"refined_outline": refined_text})
 
 
 # ---------------------------------------------------------------------------

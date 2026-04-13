@@ -29,40 +29,18 @@ def generate_text(
 ) -> str:
     """Call OpenAI-compatible chat completions API and return assistant content.
 
+    Builds a messages list and delegates to :func:`generate_text_messages`.
+
     Raises ``RuntimeError`` on HTTP or API errors.
     """
-    api_base = _get_api_base().rstrip("/")
-    url = f"{api_base}/chat/completions"
-
     messages: list[dict[str, str]] = []
     if system_message:
         messages.append({"role": "system", "content": system_message})
     messages.append({"role": "user", "content": prompt})
 
-    payload: dict[str, object] = {
-        "model": model or _get_model(),
-        "messages": messages,
-    }
-    if temperature is not None:
-        payload["temperature"] = temperature
-    if max_tokens is not None:
-        payload["max_tokens"] = max_tokens
-
-    try:
-        resp = requests.post(url, json=payload, timeout=600)
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        raise RuntimeError(f"LLM API request failed: {exc}") from exc
-
-    try:
-        data = resp.json()
-    except ValueError as exc:
-        raise RuntimeError(f"LLM API returned non-JSON response: {exc}") from exc
-
-    try:
-        return data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise RuntimeError(f"Unexpected LLM API response structure: {exc}") from exc
+    return generate_text_messages(
+        messages, model=model, temperature=temperature, max_tokens=max_tokens
+    )
 
 
 def generate_text_messages(
