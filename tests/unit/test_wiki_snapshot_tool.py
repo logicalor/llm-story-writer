@@ -62,7 +62,7 @@ def _make_page_content(
     return (
         f"---\n"
         f"type: {page_type}\n"
-        f"name: \"{name}\"\n"
+        f'name: "{name}"\n'
         f"slug: {slug}\n"
         f"confidence: {confidence}\n"
         f"aliases: {alias_str}\n"
@@ -121,11 +121,16 @@ def _snapshot_args(
     scene_type: str | None = None,
 ) -> list[str]:
     args = [
-        "--operation", "snapshot",
-        "--name", "test-story",
-        "--chapter", str(chapter),
-        "--scene", str(scene),
-        "--outline", outline,
+        "--operation",
+        "snapshot",
+        "--name",
+        "test-story",
+        "--chapter",
+        str(chapter),
+        "--scene",
+        str(scene),
+        "--outline",
+        outline,
     ]
     if pov_character:
         args += ["--pov-character", pov_character]
@@ -139,9 +144,7 @@ def _snapshot_args(
 
 
 class TestSnapshotBasic:
-    def test_snapshot_basic_output_structure(
-        self, wiki_env: tuple[Path, Path]
-    ) -> None:
+    def test_snapshot_basic_output_structure(self, wiki_env: tuple[Path, Path]) -> None:
         stories, wiki = wiki_env
 
         # Write index
@@ -302,9 +305,7 @@ class TestPovAndLocation:
 
 
 class TestWikilinkTraversal:
-    def test_wikilink_traversal_capped_at_5(
-        self, wiki_env: tuple[Path, Path]
-    ) -> None:
+    def test_wikilink_traversal_capped_at_5(self, wiki_env: tuple[Path, Path]) -> None:
         stories, wiki = wiki_env
 
         # Create a root page that links to 8 other pages
@@ -423,17 +424,17 @@ class TestRelevanceScoring:
         # Alice should be included, irrelevant NPC should be excluded
         assert "alice" in snapshot
         # The irrelevant NPC has no entity match, no wikilink, no semantic match
-        # Its score: 0.40*0 + 0.20*0 + 0.20*0 + 0.10*0.2 + 0.10*1.0 = 0.12 < 0.15
+        # Its score: 0.35*0 + 0.20*0 + 0.15*0 + 0.10*0 + 0.10*0.2 + 0.10*1.0 = 0.12 < 0.15
         assert "irrelevant npc" not in snapshot
 
 
 class TestProtectedTier:
-    def test_protected_tier_always_l3(
-        self, wiki_env: tuple[Path, Path]
-    ) -> None:
+    def test_protected_tier_always_l3(self, wiki_env: tuple[Path, Path]) -> None:
         stories, wiki = wiki_env
 
-        l3_content = "Alice Smith is the protagonist. Full L3 backstory with all details."
+        l3_content = (
+            "Alice Smith is the protagonist. Full L3 backstory with all details."
+        )
         l2_content = "Alice Smith is the protagonist detective."
         l1_content = "Alice Smith — protagonist"
 
@@ -458,7 +459,9 @@ class TestProtectedTier:
             ),
         )
 
-        loc_l3 = "The Old Library is grand. Full L3 location with all architectural details."
+        loc_l3 = (
+            "The Old Library is grand. Full L3 location with all architectural details."
+        )
         _write_wiki_page(
             wiki,
             "locations",
@@ -518,9 +521,7 @@ class TestTokenBudget:
         (wiki / "index.md").write_text(_make_index(*entries))
         return stories, wiki
 
-    def test_token_budget_enforcement(
-        self, large_wiki: tuple[Path, Path]
-    ) -> None:
+    def test_token_budget_enforcement(self, large_wiki: tuple[Path, Path]) -> None:
         stories, _wiki = large_wiki
 
         # Mention all characters to ensure they're retrieved
@@ -572,8 +573,13 @@ class TestSectionStructure:
             "characters",
             "alice",
             _make_page_content(
-                "alice", "character", "Alice", "Alice is brave.",
-                l1="Alice", l2="Alice is brave.", l3="Alice is brave. Full.",
+                "alice",
+                "character",
+                "Alice",
+                "Alice is brave.",
+                l1="Alice",
+                l2="Alice is brave.",
+                l3="Alice is brave. Full.",
             ),
         )
         _write_wiki_page(
@@ -581,8 +587,12 @@ class TestSectionStructure:
             "locations",
             "castle",
             _make_page_content(
-                "castle", "location", "Castle", "The castle stands tall.",
-                l1="Castle", l2="The castle stands tall.",
+                "castle",
+                "location",
+                "Castle",
+                "The castle stands tall.",
+                l1="Castle",
+                l2="The castle stands tall.",
                 l3="The castle stands tall. Full.",
             ),
         )
@@ -591,8 +601,12 @@ class TestSectionStructure:
             "plot-threads",
             "quest",
             _make_page_content(
-                "quest", "plot_thread", "The Quest", "A dangerous quest.",
-                l1="The Quest", l2="A dangerous quest.",
+                "quest",
+                "plot_thread",
+                "The Quest",
+                "A dangerous quest.",
+                l1="The Quest",
+                l2="A dangerous quest.",
                 l3="A dangerous quest. Full.",
             ),
         )
@@ -601,8 +615,12 @@ class TestSectionStructure:
             "world-rules",
             "magic-rule",
             _make_page_content(
-                "magic-rule", "world_rule", "Magic Rule", "Magic follows rules.",
-                l1="Magic Rule", l2="Magic follows rules.",
+                "magic-rule",
+                "world_rule",
+                "Magic Rule",
+                "Magic follows rules.",
+                l1="Magic Rule",
+                l2="Magic follows rules.",
                 l3="Magic follows rules. Full.",
             ),
         )
@@ -638,8 +656,13 @@ class TestMissingPages:
             "characters",
             "alice",
             _make_page_content(
-                "alice", "character", "Alice", "Alice is brave.",
-                l1="Alice", l2="Alice is brave.", l3="Alice is brave. Full.",
+                "alice",
+                "character",
+                "Alice",
+                "Alice is brave.",
+                l1="Alice",
+                l2="Alice is brave.",
+                l3="Alice is brave. Full.",
             ),
         )
 
@@ -658,9 +681,7 @@ class TestMissingPages:
 
 
 class TestDeltaCache:
-    def test_delta_cache_reuse_unchanged(
-        self, wiki_env: tuple[Path, Path]
-    ) -> None:
+    def test_delta_cache_reuse_unchanged(self, wiki_env: tuple[Path, Path]) -> None:
         stories, wiki = wiki_env
 
         (wiki / "index.md").write_text(
@@ -673,8 +694,13 @@ class TestDeltaCache:
             "characters",
             "alice",
             _make_page_content(
-                "alice", "character", "Alice", "Alice is brave.",
-                l1="Alice", l2="Alice is brave.", l3="Alice is brave. Full.",
+                "alice",
+                "character",
+                "Alice",
+                "Alice is brave.",
+                l1="Alice",
+                l2="Alice is brave.",
+                l3="Alice is brave. Full.",
             ),
         )
 
@@ -712,8 +738,13 @@ class TestDeltaCache:
             "characters",
             "alice",
             _make_page_content(
-                "alice", "character", "Alice", "Alice is brave.",
-                l1="Alice", l2="Alice is brave.", l3="Alice is brave. Full.",
+                "alice",
+                "character",
+                "Alice",
+                "Alice is brave.",
+                l1="Alice",
+                l2="Alice is brave.",
+                l3="Alice is brave. Full.",
             ),
         )
 
@@ -737,9 +768,7 @@ class TestDeltaCache:
 
 
 class TestCacheStatus:
-    def test_cache_status_operation(
-        self, wiki_env: tuple[Path, Path]
-    ) -> None:
+    def test_cache_status_operation(self, wiki_env: tuple[Path, Path]) -> None:
         stories, wiki = wiki_env
 
         (wiki / "index.md").write_text(
@@ -752,8 +781,13 @@ class TestCacheStatus:
             "characters",
             "alice",
             _make_page_content(
-                "alice", "character", "Alice", "Alice is brave.",
-                l1="Alice", l2="Alice is brave.", l3="Alice is brave. Full.",
+                "alice",
+                "character",
+                "Alice",
+                "Alice is brave.",
+                l1="Alice",
+                l2="Alice is brave.",
+                l3="Alice is brave. Full.",
             ),
         )
 
@@ -765,9 +799,12 @@ class TestCacheStatus:
 
         # Then: check cache status
         result = _run_tool(
-            "--operation", "cache-status",
-            "--name", "test-story",
-            "--chapter", "1",
+            "--operation",
+            "cache-status",
+            "--name",
+            "test-story",
+            "--chapter",
+            "1",
             stories_dir=stories,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
@@ -778,21 +815,22 @@ class TestCacheStatus:
 
 
 class TestInputValidation:
-    def test_invalid_slug_rejected(
-        self, wiki_env: tuple[Path, Path]
-    ) -> None:
+    def test_invalid_slug_rejected(self, wiki_env: tuple[Path, Path]) -> None:
         stories, wiki = wiki_env
 
-        (wiki / "index.md").write_text(
-            _make_index(("alice", "character", "Alice", ""))
-        )
+        (wiki / "index.md").write_text(_make_index(("alice", "character", "Alice", "")))
         _write_wiki_page(
             wiki,
             "characters",
             "alice",
             _make_page_content(
-                "alice", "character", "Alice", "Alice is brave.",
-                l1="Alice", l2="Alice is brave.", l3="Alice is brave. Full.",
+                "alice",
+                "character",
+                "Alice",
+                "Alice is brave.",
+                l1="Alice",
+                l2="Alice is brave.",
+                l3="Alice is brave. Full.",
             ),
         )
 
@@ -805,7 +843,9 @@ class TestInputValidation:
         )
         # Should fail with non-zero exit code
         assert result.returncode != 0
-        assert "invalid slug" in result.stderr.lower() or "error" in result.stderr.lower()
+        assert (
+            "invalid slug" in result.stderr.lower() or "error" in result.stderr.lower()
+        )
 
 
 class TestDefaultBudget:
@@ -825,7 +865,9 @@ class TestDefaultBudget:
                 "characters",
                 slug,
                 _make_page_content(
-                    slug, "character", name,
+                    slug,
+                    "character",
+                    name,
                     f"{name} is a character in the story. " * 10,
                     l1=f"{name} — character",
                     l2=f"{name} is a character in the story.",
@@ -840,7 +882,9 @@ class TestDefaultBudget:
             "locations",
             "castle",
             _make_page_content(
-                "castle", "location", "Castle",
+                "castle",
+                "location",
+                "Castle",
                 "The castle is a grand fortress. " * 10,
                 l1="Castle — grand fortress",
                 l2="The castle is a grand fortress.",
@@ -856,7 +900,9 @@ class TestDefaultBudget:
                 "plot-threads",
                 slug,
                 _make_page_content(
-                    slug, "plot_thread", name,
+                    slug,
+                    "plot_thread",
+                    name,
                     f"{name} is an active plot thread. " * 10,
                     l1=f"{name}",
                     l2=f"{name} is an active plot thread.",

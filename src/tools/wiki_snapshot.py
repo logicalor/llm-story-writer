@@ -194,8 +194,8 @@ def _tier2_metadata_query(story_name: str) -> list[dict]:
                         "metadata": metadatas[i] if i < len(metadatas) else {},
                     }
                 )
-    except Exception:
-        pass  # ChromaDB may not support compound filters; skip gracefully
+    except (KeyError, ValueError, TypeError) as e:
+        print(f"Warning: T2 plot thread query failed: {e}", file=sys.stderr)
 
     # World rules
     try:
@@ -215,8 +215,8 @@ def _tier2_metadata_query(story_name: str) -> list[dict]:
                         "metadata": metadatas[i] if i < len(metadatas) else {},
                     }
                 )
-    except Exception:
-        pass
+    except (KeyError, ValueError, TypeError) as e:
+        print(f"Warning: T2 world rule query failed: {e}", file=sys.stderr)
 
     return results
 
@@ -239,7 +239,8 @@ def _tier3_semantic_search(
             query_texts=[outline],
             n_results=min(n_results, collection.count()),
         )
-    except Exception:
+    except (ValueError, TypeError, RuntimeError) as e:
+        print(f"Warning: T3 semantic search failed: {e}", file=sys.stderr)
         return []
 
     results: list[dict] = []
@@ -426,6 +427,7 @@ def _merge_and_score(
         merged[slug] = page
 
     # Compute final relevance scores
+    # Formula: 0.35×entity + 0.20×rrf + 0.15×wikilink + 0.10×semantic + 0.10×recency + 0.10×type_priority
     now = datetime.now(timezone.utc)
     for slug, page in merged.items():
         entity_match = page.get("entity_match_score", 0.0)
@@ -436,11 +438,13 @@ def _merge_and_score(
             page.get("type", ""),
             DEFAULT_TYPE_PRIORITY,
         )
+        rrf = rrf_scores.get(slug, 0.0)
 
         page["relevance_score"] = (
-            0.40 * entity_match
-            + 0.20 * wikilink_prox
-            + 0.20 * semantic_sim
+            0.35 * entity_match
+            + 0.20 * rrf
+            + 0.15 * wikilink_prox
+            + 0.10 * semantic_sim
             + 0.10 * recency
             + 0.10 * type_prio
         )
@@ -572,27 +576,35 @@ def _enforce_token_budget(
     """Iteratively demote lowest-scoring non-protected pages until within budget."""
     protected = {s for s in (pov_character, primary_location) if s}
 
-    def _total_tokens() -> int:
-        total = 0
-        for slug in sorted_slugs:
-            level = pages[slug].get("detail_level", "L1")
-            content = _get_page_content_at_level(pages[slug], level)
-            total += count_tokens(content)
-        return total
+    # Pre-compute token counts per slug and running total
+    slug_tokens: dict[str, int] = {}
+    current_total = 0
+    for slug in sorted_slugs:
+        level = pages[slug].get("detail_level", "L1")
+        content = _get_page_content_at_level(pages[slug], level)
+        tokens = count_tokens(content)
+        slug_tokens[slug] = tokens
+        current_total += tokens
 
     # Demote from bottom of the sorted list upward
-    while _total_tokens() > budget:
+    while current_total > budget:
         demoted = False
         for slug in reversed(sorted_slugs):
             if slug in protected:
                 continue
             current = pages[slug].get("detail_level", "L1")
+            new_level: str | None = None
             if current == "L3":
-                pages[slug]["detail_level"] = "L2"
-                demoted = True
-                break
+                new_level = "L2"
             elif current == "L2":
-                pages[slug]["detail_level"] = "L1"
+                new_level = "L1"
+            if new_level is not None:
+                pages[slug]["detail_level"] = new_level
+                old_tokens = slug_tokens[slug]
+                new_content = _get_page_content_at_level(pages[slug], new_level)
+                new_tokens = count_tokens(new_content)
+                current_total += new_tokens - old_tokens
+                slug_tokens[slug] = new_tokens
                 demoted = True
                 break
         if not demoted:
@@ -612,10 +624,20 @@ def _assemble_context(
     scene: int,
     outline: str,
     scene_type: str | None,
+    cached_content: dict[str, str] | None = None,
 ) -> str:
     """Assemble pages into structured markdown context."""
     sections: list[str] = []
     sections.append(f"# Scene Context — Chapter {chapter}, Scene {scene}")
+
+    _cache = cached_content or {}
+
+    def _content_for(slug: str, page: dict, fallback_level: str) -> str:
+        if slug in _cache:
+            return _cache[slug]
+        return _get_page_content_at_level(
+            page, page.get("detail_level", fallback_level)
+        )
 
     # --- Characters ---
     char_pages = {s: p for s, p in pages.items() if p.get("type") == "character"}
@@ -625,7 +647,7 @@ def _assemble_context(
     # POV Character
     if pov_character and pov_character in char_pages:
         page = char_pages.pop(pov_character)
-        content = _get_page_content_at_level(page, page.get("detail_level", "L3"))
+        content = _content_for(pov_character, page, "L3")
         sections.append(f"\n### POV Character\n{content}")
 
     # Remaining characters sorted by relevance score
@@ -645,14 +667,14 @@ def _assemble_context(
     if scene_chars:
         sections.append("\n### Scene Characters")
         for slug, page in scene_chars:
-            content = _get_page_content_at_level(page, page.get("detail_level", "L2"))
+            content = _content_for(slug, page, "L2")
             name = page.get("metadata", {}).get("name", slug)
             sections.append(f"\n#### {name}\n{content}")
 
     if bg_chars:
         sections.append("\n### Background Characters")
         for slug, page in bg_chars:
-            content = _get_page_content_at_level(page, "L1")
+            content = _content_for(slug, page, "L1")
             name = page.get("metadata", {}).get("name", slug)
             sections.append(f"- **{name}**: {content}")
 
@@ -663,10 +685,7 @@ def _assemble_context(
         # Primary location first
         if primary_location and primary_location in loc_pages:
             page = loc_pages.pop(primary_location)
-            content = _get_page_content_at_level(
-                page,
-                page.get("detail_level", "L3"),
-            )
+            content = _content_for(primary_location, page, "L3")
             sections.append(f"\n{content}")
         # Other locations
         for slug, page in sorted(
@@ -674,10 +693,7 @@ def _assemble_context(
             key=lambda kv: kv[1].get("relevance_score", 0.0),
             reverse=True,
         ):
-            content = _get_page_content_at_level(
-                page,
-                page.get("detail_level", "L2"),
-            )
+            content = _content_for(slug, page, "L2")
             name = page.get("metadata", {}).get("name", slug)
             sections.append(f"\n### {name}\n{content}")
 
@@ -690,10 +706,7 @@ def _assemble_context(
             key=lambda kv: kv[1].get("relevance_score", 0.0),
             reverse=True,
         ):
-            content = _get_page_content_at_level(
-                page,
-                page.get("detail_level", "L2"),
-            )
+            content = _content_for(slug, page, "L2")
             name = page.get("metadata", {}).get("name", slug)
             sections.append(f"\n### {name}\n{content}")
 
@@ -706,10 +719,7 @@ def _assemble_context(
             key=lambda kv: kv[1].get("relevance_score", 0.0),
             reverse=True,
         ):
-            content = _get_page_content_at_level(
-                page,
-                page.get("detail_level", "L2"),
-            )
+            content = _content_for(slug, page, "L2")
             name = page.get("metadata", {}).get("name", slug)
             sections.append(f"\n### {name}\n{content}")
 
@@ -724,10 +734,7 @@ def _assemble_context(
             reverse=True,
         )[:3]
         for slug, page in sorted_events:
-            content = _get_page_content_at_level(
-                page,
-                page.get("detail_level", "L2"),
-            )
+            content = _content_for(slug, page, "L2")
             name = page.get("metadata", {}).get("name", slug)
             sections.append(f"\n### {name}\n{content}")
 
@@ -740,10 +747,7 @@ def _assemble_context(
             key=lambda kv: kv[1].get("relevance_score", 0.0),
             reverse=True,
         ):
-            content = _get_page_content_at_level(
-                page,
-                page.get("detail_level", "L2"),
-            )
+            content = _content_for(slug, page, "L2")
             name = page.get("metadata", {}).get("name", slug)
             sections.append(f"\n### {name}\n{content}")
 
@@ -1048,6 +1052,7 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
         args.scene,
         args.outline,
         scene_type,
+        cached_content=rendered_content,
     )
 
     # Optional LLM synthesis
