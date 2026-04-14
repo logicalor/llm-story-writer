@@ -79,15 +79,6 @@ def _call_llm(prompt: str, *, model: str | None = None) -> str:
     return generate_text(prompt, model=model)
 
 
-def _call_llm_messages(
-    messages: list[dict[str, str]], *, model: str | None = None
-) -> str:
-    """Call LLM with full conversation history and return text response."""
-    from src.tools._llm import generate_text_messages
-
-    return generate_text_messages(messages, model=model)
-
-
 def _success(operation: str, data: Any) -> None:
     """Print success response and exit."""
     print(
@@ -265,18 +256,23 @@ def cmd_assemble_chapter(
 
     title = chapter_title or f"Chapter {chapter_num}"
     missing: list[int] = []
-    scenes: list[str] = []
 
     for i in range(1, scene_count + 1):
         step = f"chapter_{chapter_num}/scene_{i}"
         if not _has_savepoint(repo, step):
             missing.append(i)
-        else:
-            scenes.append("")  # placeholder
 
     if missing:
         _error(f"missing scenes: {missing}")
         return  # unreachable
+
+    # Load scene definitions once for title lookup
+    defs_step = f"chapter_{chapter_num}/scene_definitions"
+    defs: list[Any] | None = None
+    if _has_savepoint(repo, defs_step):
+        loaded = _load_savepoint(repo, defs_step)
+        if isinstance(loaded, list):
+            defs = loaded
 
     parts: list[str] = []
     for i in range(1, scene_count + 1):
@@ -285,15 +281,12 @@ def cmd_assemble_chapter(
         if not isinstance(content, str):
             content = json.dumps(content, default=str)
 
-        # Try to get scene title from definitions savepoint
+        # Try to get scene title from definitions
         scene_title = f"Scene {i}"
-        defs_step = f"chapter_{chapter_num}/scene_definitions"
-        if _has_savepoint(repo, defs_step):
-            defs = _load_savepoint(repo, defs_step)
-            if isinstance(defs, list) and len(defs) >= i:
-                entry = defs[i - 1]
-                if isinstance(entry, dict) and "title" in entry:
-                    scene_title = entry["title"]
+        if defs is not None and len(defs) >= i:
+            entry = defs[i - 1]
+            if isinstance(entry, dict) and "title" in entry:
+                scene_title = entry["title"]
 
         parts.append(f"## {scene_title}\n\n{content}")
 

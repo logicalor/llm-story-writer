@@ -42,7 +42,7 @@ Loads a prompt template by ID and substitutes variables, returning the rendered 
 
 ### Purpose
 
-Prompt templates are Markdown files in the `prompts/` directory (131 templates across 10 categories). This tool provides deterministic template loading and variable substitution so agents can retrieve rendered prompts without managing file paths or parsing logic.
+Prompt templates are Markdown files in the `prompts/` directory (132 templates across 10 categories). This tool provides deterministic template loading and variable substitution so agents can retrieve rendered prompts without managing file paths or parsing logic.
 
 ### Arguments
 
