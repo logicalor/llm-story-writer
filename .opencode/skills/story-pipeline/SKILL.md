@@ -135,7 +135,7 @@ Executes for each chapter from 1 to `wanted_chapters`.
 | Sub-phase | Purpose | Tools / Subagents |
 |-----------|---------|-------------------|
 | **8a** Expand outline | Break chapter outline into scene-level detail | `outline-generator`, `story-state` |
-| **8b** Scene generation | Generate scenes sequentially with wiki context | `scene-writer` subagent, `wiki-snapshot` |
+| **8b** Scene generation | Generate scenes sequentially with wiki context | `chapter-writer` subagent, `wiki-snapshot` |
 | **8c** Wiki update | Record new facts, state changes, events | `wiki-maintainer` subagent |
 | **8d** Recap | Generate chapter recap | `recap-manager` |
 | **8e** Wiki lint | Check chapter consistency against wiki | `wiki-lint` |

@@ -91,14 +91,14 @@ The orchestrator delegates specialised work to three subagents:
 | Subagent | Purpose | Invoked In |
 |----------|---------|------------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 |
-| `scene-writer` | Generate individual scenes within chapters | Phase 8b |
+| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b |
 | `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 7, 8c |
 
 These subagents are referenced by name in the orchestrator's agent definition. They will be implemented in subsequent migration tasks (Tasks 18–20).
 
 ## Tools
 
-The orchestrator uses 16 deterministic tools for file I/O, state management, and wiki operations. See [Tools Reference](../tools.md) for full documentation of each tool.
+The orchestrator uses 15 deterministic tools for file I/O, state management, and wiki operations. See [Tools Reference](../tools.md) for full documentation of each tool.
 
 | Tool | Purpose |
 |------|---------|
@@ -193,7 +193,7 @@ The skill is automatically available to the story-orchestrator agent and can be 
 
 ## Related
 
-- [Tools Reference](../tools.md) — Full documentation for all 16 tools
+- [Tools Reference](../tools.md) — Full documentation for all 15 tools
 - [Architecture Notes](../../.github/notes/architecture.md) — System architecture overview
 - [ADR 001: Hybrid Agent-Tool Architecture](../planning/adr/001-hybrid-agent-tool-architecture.md) — Establishes agent-tool separation
 - [ADR 004: Progressive Wiki Memory System](../planning/adr/004-progressive-wiki-memory-system.md) — Wiki page format and lifecycle

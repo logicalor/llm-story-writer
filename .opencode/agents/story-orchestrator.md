@@ -41,6 +41,13 @@ Execute these phases sequentially. Each phase completes fully before the next be
 - `generation.scene_generation_pipeline` (default: true)
 - `generation.use_chunked_outline_generation` (default: true)
 - `generation.outline_chunk_size` (default: 10)
+- `generation.outline_min_revisions` (default: 0)
+- `generation.chapter_min_revisions` (default: 0)
+- `generation.enable_final_edit` (default: false)
+- `generation.enable_scrubbing` (default: true)
+- `generation.stream` (default: true)
+- `generation.debug` (default: true)
+- `generation.strategy` (default: "outline-chapter")
 
 ### Phase 2: Outline
 
@@ -115,7 +122,7 @@ If `expand_outline` is true:
 #### 8b. Scene Generation
 
 If `scene_generation_pipeline` is true:
-1. Delegate scene generation to the `scene-writer` subagent
+1. Delegate scene generation to the `chapter-writer` subagent
 2. The subagent generates each scene in the chapter sequentially, using `wiki-snapshot` for pre-generation context assembly
 3. Collect all generated scenes and assemble into the chapter
 
@@ -137,7 +144,7 @@ If `scene_generation_pipeline` is false:
 
 #### 8e. Wiki Lint
 
-1. Call `wiki-lint` (operation: `check-chapter`, chapter: N) to detect:
+1. Call `wiki-lint` (operation: `check-chapter`, chapter_number: N) to detect:
    - Contradictions between the chapter content and established wiki facts
    - Timeline inconsistencies
    - Character trait or appearance drift
@@ -197,7 +204,7 @@ Delegate specialised creative work to these subagents (referenced by name):
 | Subagent | Purpose | Delegated In |
 |----------|---------|-------------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 |
-| `scene-writer` | Generate individual scenes within chapters | Phase 8b |
+| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 7, 8c |
 
 ---
