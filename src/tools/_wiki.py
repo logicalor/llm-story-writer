@@ -170,10 +170,10 @@ _TYPE_TO_DIR = {
 
 
 def _validate_slug(slug: str) -> None:
-    """Reject slugs containing path traversal sequences."""
-    if ".." in slug or "/" in slug:
+    """Reject slugs containing path traversal sequences or backslashes."""
+    if ".." in slug or "/" in slug or "\\" in slug:
         print(
-            f"Error: invalid slug (contains '..' or '/'): {slug}",
+            f"Error: invalid slug (contains '..', '/' or '\\'): {slug}",
             file=sys.stderr,
         )
         sys.exit(1)
