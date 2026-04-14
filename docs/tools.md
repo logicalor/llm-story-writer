@@ -1548,6 +1548,171 @@ Cache file: `stories/<name>/wiki/.cache/snapshot_cache.json`. Cache is invalidat
 
 ---
 
+## wiki-update
+
+Creates, updates, and manages wiki pages — the structured CRUD layer for the wiki memory system.
+
+**Source files:**
+- `.opencode/tools/wiki-update.ts` — TypeScript wrapper
+- `src/tools/wiki_update.py` — Python CLI script
+- `src/tools/_wiki.py` — Shared wiki utilities (`parse_frontmatter`, `render_frontmatter`, `find_pages`, `read_index`, `write_index`)
+- `src/tools/_io.py` — Shared I/O utilities (`_atomic_write`, `_validate_story_name`)
+
+### Purpose
+
+After a scene is generated, the wiki-maintainer agent extracts entities, events, and state changes from the text and produces structured update payloads. This tool consumes those payloads and applies them to the wiki — creating new pages, updating existing ones, appending timeline events, and re-embedding changed content into ChromaDB.
+
+The tool does NOT perform entity extraction itself — that is the agent's job. This tool is a deterministic CRUD layer that ensures atomic writes, version tracking, index maintenance, and ChromaDB synchronisation.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"create" \| "update" \| "append-timeline" \| "batch" \| "log"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name (maps to directory under `stories/`) |
+| `slug` | string | For `create`, `update` | Page slug (lowercase, hyphenated identifier) |
+| `pageType` | string | For `create` | Page type: `character`, `location`, `event`, `faction`, `item`, `plot_thread`, `world_rule`, `theme`, `relationship`, `timeline_entry`, `chapter_synopsis` |
+| `pageName` | string | For `create` | Display name for the page |
+| `body` | string | No | Page body markdown (replaces existing body on update) |
+| `mergeBody` | string | No | Content to append to existing body (update only) |
+| `confidence` | `"verified" \| "planned" \| "speculative"` | No | Confidence level (default: `verified`) |
+| `firstAppearance` | integer | No | Chapter number of first appearance (default: 1) |
+| `aliases` | string | No | JSON array string of alternative names |
+| `detailLevels` | string | No | JSON object string with `L1`, `L2`, `L3` keys for pre-computed detail summaries |
+| `frontmatter` | string | No | JSON object of frontmatter fields to merge (update only) |
+| `role` | string | No | Character role — `protagonist`, `antagonist`, `supporting`, `minor` |
+| `status` | string | No | Character or plot thread status — `alive`, `dead`, `unknown`, `active`, `resolved`, `dormant` |
+| `region` | string | No | Location region (parent area) |
+| `chapter` | integer | No | Event chapter number |
+| `impact` | string | No | Event impact — `major`, `moderate`, `minor` |
+| `events` | string | For `append-timeline` | JSON array of timeline event objects |
+| `payload` | string | For `batch` | JSON payload containing `creates`, `updates`, and `timeline_events` arrays |
+| `message` | string | For `log` | Log message text |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/wiki_update.py --operation <op> --name <name> [options]
+```
+
+**Examples:**
+
+```bash
+# Create a new character page
+python3 src/tools/wiki_update.py --operation create --name my-story \
+  --slug elena-blackwood --page-type character --page-name "Elena Blackwood" \
+  --body "A rogue cartographer who maps forbidden territories." \
+  --role protagonist --status alive --confidence verified \
+  --first-appearance 1 \
+  --aliases '["Elena", "The Cartographer"]' \
+  --detail-levels '{"L1": "Rogue cartographer protagonist", "L2": "Elena Blackwood is a rogue cartographer who maps forbidden territories.", "L3": "Elena Blackwood is a rogue cartographer..."}'
+
+# Update an existing page (merge frontmatter, append body)
+python3 src/tools/wiki_update.py --operation update --name my-story \
+  --slug elena-blackwood \
+  --frontmatter '{"status": "transformed"}' \
+  --merge-body "## Chapter 5\n\nElena discovered her true heritage."
+
+# Append events to the main timeline
+python3 src/tools/wiki_update.py --operation append-timeline --name my-story \
+  --events '[{"time": "Day 3, morning", "description": "Elena enters the Shadow Market", "chapter": 2}]'
+
+# Batch operation (creates + updates + timeline in one atomic call)
+python3 src/tools/wiki_update.py --operation batch --name my-story \
+  --payload '{"creates": [{"slug": "shadow-market", "page_type": "location", "page_name": "Shadow Market", "body": "An underground bazaar.", "region": "Old Quarter"}], "updates": [{"slug": "elena-blackwood", "frontmatter": {"status": "active"}, "merge_body": "Visited the Shadow Market."}], "timeline_events": [{"time": "Day 3, morning", "description": "Elena enters the Shadow Market", "chapter": 2}]}'
+
+# Append a custom log entry
+python3 src/tools/wiki_update.py --operation log --name my-story \
+  --message "Agent completed chapter 2 wiki updates"
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `create` | Creates a new wiki page with YAML frontmatter and body in the appropriate type subdirectory; adds entry to `index.md`; appends to `log.md`; upserts into ChromaDB | `{"status": "ok", "slug": "<slug>", "path": "<file_path>"}` |
+| `update` | Updates an existing page — merges frontmatter fields, replaces or appends body text, increments `version`, updates `last_updated`; updates `index.md` if name/aliases changed; appends to `log.md`; upserts into ChromaDB | `{"status": "ok", "slug": "<slug>", "version": <n>}` |
+| `append-timeline` | Appends events to `timeline/main-timeline.md`, maintaining chronological sort order | `{"status": "ok", "events_added": <n>}` |
+| `batch` | Executes multiple creates, updates, and timeline appends in a single atomic operation with rollback on failure | `{"status": "ok", "created": <n>, "updated": <n>, "timeline_events": <n>}` |
+| `log` | Appends a timestamped entry to `wiki/log.md` | `{"status": "ok"}` |
+
+### Batch Operations
+
+The `batch` operation accepts a JSON payload with three optional arrays:
+
+```json
+{
+  "creates": [
+    {
+      "slug": "new-entity",
+      "page_type": "character",
+      "page_name": "New Entity",
+      "body": "Description text",
+      "confidence": "verified",
+      "first_appearance": 3,
+      "aliases": ["Alias1"],
+      "detail_levels": {"L1": "...", "L2": "...", "L3": "..."},
+      "role": "supporting",
+      "status": "alive"
+    }
+  ],
+  "updates": [
+    {
+      "slug": "existing-entity",
+      "frontmatter": {"status": "dead"},
+      "detail_levels": {"L1": "updated headline"},
+      "body": "Full replacement body",
+      "merge_body": "Content appended to existing body"
+    }
+  ],
+  "timeline_events": [
+    {
+      "time": "Day 5, evening",
+      "description": "The siege begins",
+      "chapter": 3
+    }
+  ]
+}
+```
+
+**Rollback semantics:** If any operation in the batch fails, previously modified files are restored from in-memory backups and newly created files are deleted. The response includes a `rollback` field (`"full"` or `"partial"`) indicating rollback success.
+
+```json
+{
+  "status": "error",
+  "message": "page 'nonexistent' not found for update",
+  "rollback": "full"
+}
+```
+
+### Version Tracking
+
+Every `update` or batch update increments the page's `version` counter in the YAML frontmatter and sets `last_updated` to the current UTC timestamp. The `wiki-snapshot` tool uses the version counter for delta caching — if a page's version has not changed since the last retrieval, cached content is reused.
+
+### ChromaDB Integration
+
+After every `create` or `update`, the tool upserts the page body and metadata into a per-story ChromaDB collection named `wiki-<story_name>`. The ChromaDB document ID is the page slug. Metadata fields stored include `type`, `name`, `slug`, `confidence`, `first_appearance`, and any type-specific fields (`role`, `status`, `region`, `chapter`, `impact`).
+
+ChromaDB failures are non-fatal — the tool logs a warning to stderr and continues. The `CHROMADB_DIR` environment variable overrides the default `.chromadb` data directory path.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — wiki not initialised, page already exists (create), page not found (update), batch operation failure |
+| 2 | Argument error — missing required flag, invalid JSON in arguments, invalid page type |
+
+### Security
+
+- **Path traversal prevention** — story names are validated with `Path.is_relative_to()` via `_validate_story_name()`; page slugs are validated with `_validate_slug()` to reject traversal patterns
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Atomic writes** — all file writes use `_atomic_write()` (write to temp file, then `os.replace()`)
+- **Batch rollback** — batch operations back up modified files in memory before applying changes, restoring them on failure
+- **Test isolation** — the `STORIES_DIR` and `CHROMADB_DIR` environment variables override default paths, ensuring tests never touch production data
+
+---
+
 ## Adding a New Tool
 
 Follow this pattern to add tools to the system:

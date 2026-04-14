@@ -16,7 +16,7 @@ Review each changed source file systematically:
 - [ ] Naming conventions are consistent with the codebase
 - [ ] No overly complex functions — decompose if needed
 - [ ] No code duplication — extract shared logic where appropriate
-- [ ] Import ordering follows project conventions
+- [ ] Import ordering and placement follows project conventions — imports at module level, not inside functions or loops
 
 #### Architecture
 
@@ -32,6 +32,7 @@ Review each changed source file systematically:
 - [ ] Database queries are parameterized (no raw user input in queries)
 - [ ] Missing indexes on foreign keys and frequently queried columns
 - [ ] Migrations have proper rollback support
+- [ ] **Batch/composite operations** — if a function wraps multiple state-changing operations, verify: (1) pre-flight snapshot or backup is taken before the batch starts, (2) failures mid-batch trigger rollback or at minimum leave state consistent, (3) a final sync/consistency check runs after the batch completes
 
 ---
 
