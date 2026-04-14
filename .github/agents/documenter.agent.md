@@ -87,6 +87,7 @@ Based on the changes, determine what documentation needs to be created or update
 > - For relative links: test they resolve from the doc's directory (e.g., from `docs/` to `.github/` requires `../`).
 > - For tool output formats: read the Python tool's `cmd_*` functions to verify the exact JSON structure returned (dict vs array, field names, status codes).
 > - For file extensions: check the Python tool's save/load logic to verify the actual file format used on disk — do not infer from the domain name.
+> - For inventory tables (tools, collections, agents, categories): cross-check table entries against the actual source of truth on disk (e.g., `ls .opencode/tools/` for tool tables, `ls src/tools/` for script tables). Verify both that every row has a matching file AND that every file has a matching row — pre-existing missing entries compound with new additions to produce wrong counts.
 > - No hardcoded URLs — reference the project's routing conventions instead.
 > - Scan the entire file for `TODO`, `[placeholder]`, `...` stubs, and trivially short sections (3 lines or fewer where substance is expected). Remove or complete them before committing.
 
