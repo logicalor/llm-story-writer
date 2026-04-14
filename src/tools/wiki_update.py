@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -242,6 +243,7 @@ def cmd_update(args: argparse.Namespace) -> None:
     metadata, body = parse_frontmatter(content)
 
     # Merge frontmatter from --frontmatter arg
+    fm_update: dict = {}
     if args.frontmatter:
         try:
             fm_update = json.loads(args.frontmatter)
@@ -292,18 +294,16 @@ def cmd_update(args: argparse.Namespace) -> None:
     _atomic_write(page_path, new_content)
 
     # Update index if name or aliases changed
-    if args.frontmatter:
-        fm_update = json.loads(args.frontmatter)
-        if "name" in fm_update or "aliases" in fm_update:
-            index_entries = read_index(wiki_dir)
-            for entry in index_entries:
-                if entry["slug"] == slug:
-                    if "name" in fm_update:
-                        entry["name"] = fm_update["name"]
-                    if "aliases" in fm_update:
-                        entry["aliases"] = fm_update["aliases"]
-                    break
-            write_index(wiki_dir, index_entries)
+    if fm_update and ("name" in fm_update or "aliases" in fm_update):
+        index_entries = read_index(wiki_dir)
+        for entry in index_entries:
+            if entry["slug"] == slug:
+                if "name" in fm_update:
+                    entry["name"] = fm_update["name"]
+                if "aliases" in fm_update:
+                    entry["aliases"] = fm_update["aliases"]
+                break
+        write_index(wiki_dir, index_entries)
 
     # Log
     _append_log(wiki_dir, f"[update] {slug}: Updated to version {metadata['version']}")
@@ -363,8 +363,6 @@ def cmd_append_timeline(args: argparse.Namespace) -> None:
             if not line.startswith("- **Chapter"):
                 continue
             # Parse: - **Chapter N** — TIME — DESCRIPTION
-            import re
-
             m = re.match(r"- \*\*Chapter (\d+)\*\* — (.+?) — (.+)", line)
             if m:
                 existing_entries.append(
@@ -442,6 +440,16 @@ def cmd_batch(args: argparse.Namespace) -> None:
         print("Error: timeline_events must be an array", file=sys.stderr)
         sys.exit(2)
 
+    # Pre-validate all slugs to prevent sys.exit() during writes
+    for create_spec in creates:
+        slug = create_spec.get("slug")
+        if slug:
+            _validate_slug(slug)
+    for update_spec in updates:
+        slug = update_spec.get("slug")
+        if slug:
+            _validate_slug(slug)
+
     created_files: list[Path] = []
     modified_backups: list[tuple[Path, str]] = []
     created_count = 0
@@ -509,6 +517,9 @@ def cmd_batch(args: argparse.Namespace) -> None:
 
         # Update index with all new creates
         if creates:
+            index_path = wiki_dir / "index.md"
+            if index_path.exists():
+                modified_backups.append((index_path, index_path.read_text()))
             index_entries = read_index(wiki_dir)
             for item in creates:
                 slug = item["slug"]
@@ -573,6 +584,35 @@ def cmd_batch(args: argparse.Namespace) -> None:
 
             _upsert_to_chromadb(args.name, slug, body, metadata)
 
+        # --- Index sync for name/alias changes in updates ---
+        needs_index_sync = False
+        for item in updates:
+            fm = item.get("frontmatter", {})
+            if isinstance(fm, dict) and ("name" in fm or "aliases" in fm):
+                needs_index_sync = True
+                break
+        if needs_index_sync:
+            idx_path = wiki_dir / "index.md"
+            if idx_path.exists() and not any(
+                p == idx_path for p, _ in modified_backups
+            ):
+                modified_backups.append((idx_path, idx_path.read_text()))
+            index_entries = read_index(wiki_dir)
+            for item in updates:
+                fm = item.get("frontmatter", {})
+                if not isinstance(fm, dict):
+                    continue
+                item_slug = item.get("slug", "")
+                if "name" in fm or "aliases" in fm:
+                    for entry in index_entries:
+                        if entry["slug"] == item_slug:
+                            if "name" in fm:
+                                entry["name"] = fm["name"]
+                            if "aliases" in fm:
+                                entry["aliases"] = fm["aliases"]
+                            break
+            write_index(wiki_dir, index_entries)
+
         # --- Timeline events ---
         timeline_added = 0
         if timeline_events:
@@ -592,8 +632,6 @@ def cmd_batch(args: argparse.Namespace) -> None:
                 modified_backups.append((timeline_path, timeline_path.read_text()))
 
             # Read existing entries
-            import re
-
             existing_entries: list[dict] = []
             if timeline_path.exists():
                 tl_content = timeline_path.read_text()
@@ -651,6 +689,8 @@ def cmd_batch(args: argparse.Namespace) -> None:
 
     except Exception as exc:
         # Rollback: restore modified files
+        # NOTE: ChromaDB upserts are intentionally not rolled back.
+        # ChromaDB is a derived index that can be re-derived from wiki Markdown source.
         rollback = "full"
         for backup_path, backup_content in modified_backups:
             try:

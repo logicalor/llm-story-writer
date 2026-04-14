@@ -507,6 +507,47 @@ class TestBatch:
             "Rollback should have deleted the first created file"
         )
 
+    def test_batch_with_timeline_events(self, story_dir: Path) -> None:
+        """Test batch operation including timeline events."""
+        payload = json.dumps(
+            {
+                "creates": [],
+                "updates": [],
+                "timeline_events": [
+                    {
+                        "time": "Day 1",
+                        "description": "Something happened",
+                        "chapter": 1,
+                    },
+                    {
+                        "time": "Day 2",
+                        "description": "Another thing happened",
+                        "chapter": 1,
+                    },
+                ],
+            }
+        )
+        result = _run_tool(
+            "--operation",
+            "batch",
+            "--name",
+            "test-story",
+            "--payload",
+            payload,
+            stories_dir=story_dir,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        data = json.loads(result.stdout)
+        assert data["status"] == "ok"
+        assert data["timeline_events"] == 2
+
+        # Verify events in timeline file
+        timeline = (
+            story_dir / "test-story" / "wiki" / "timeline" / "main-timeline.md"
+        ).read_text()
+        assert "Something happened" in timeline
+        assert "Another thing happened" in timeline
+
 
 class TestLog:
     def test_log_append(self, story_dir: Path) -> None:
