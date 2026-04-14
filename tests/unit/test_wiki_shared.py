@@ -28,6 +28,11 @@ class TestValidateSlug:
             _validate_slug("path/slug")
         assert exc_info.value.code == 1
 
+    def test_validate_slug_rejects_windows_traversal(self) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            _validate_slug("..\\..\\etc\\passwd")
+        assert exc_info.value.code == 1
+
     def test_validate_slug_accepts_valid_slug(self) -> None:
         # Should not raise or exit
         _validate_slug("valid-slug")
