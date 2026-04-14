@@ -242,7 +242,10 @@ def cmd_should_refine(
     average_scores: dict[str, float] = data.get("average_scores", {})
     overall_average: float = data.get("overall_average", 0.0)
 
+    # 75% per-criterion floor is a domain invariant — any criterion scoring below
+    # this indicates a fundamental quality issue regardless of overall average
     any_criterion_low = any(score < 75.0 for score in average_scores.values())
+    # overall_average is raw score sum (max 100) — effectively a percentage
     overall_low = overall_average < quality_threshold
 
     should_refine = any_criterion_low or overall_low
