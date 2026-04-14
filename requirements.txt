@@ -10,6 +10,8 @@ termcolor>=2.0.0
 google-generativeai>=0.3.0
 python-dotenv>=1.0.0
 
+chromadb>=0.5.0
+
 # New dependencies for refactored version
 pydantic>=2.0.0
 dependency-injector>=4.0.0
