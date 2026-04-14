@@ -322,12 +322,12 @@ Create the `critique-runner` tool wrapping `CritiqueService` logic. Operations: 
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/critique-runner.ts` exists with tool definition
-- [ ] `src/tools/critique_runner.py` exists with all operations
-- [ ] All 6 critic types run and return structured scores
-- [ ] Quality threshold comparison uses configurable `outline_quality` / `chapter_quality` from config.md
-- [ ] Critique results are saved as savepoints per iteration
-- [ ] `should-refine` correctly calculates average scores and determines if refinement needed
+- [x] `.opencode/tools/critique-runner.ts` exists with tool definition
+- [x] `src/tools/critique_runner.py` exists with all operations
+- [x] All 6 critic types run and return structured scores
+- [x] Quality threshold comparison uses configurable `outline_quality` / `chapter_quality` from config.md
+- [x] Critique results are saved as savepoints per iteration
+- [x] `should-refine` correctly calculates average scores and determines if refinement needed
 
 **Key Files:**
 

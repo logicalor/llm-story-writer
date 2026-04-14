@@ -42,7 +42,7 @@ Loads a prompt template by ID and substitutes variables, returning the rendered 
 
 ### Purpose
 
-Prompt templates are Markdown files in the `prompts/` directory (132 templates across 10 categories). This tool provides deterministic template loading and variable substitution so agents can retrieve rendered prompts without managing file paths or parsing logic.
+Prompt templates are Markdown files in the `prompts/` directory (117 templates across 10 categories). This tool provides deterministic template loading and variable substitution so agents can retrieve rendered prompts without managing file paths or parsing logic.
 
 ### Arguments
 
@@ -987,6 +987,114 @@ The `--model` argument overrides `LLM_MODEL` for a single invocation.
 |------|---------|
 | 0 | Success — result printed to stdout as JSON |
 | 1 | Domain error — missing scenes for assembly, LLM failure, path traversal detected, invalid arguments |
+| 2 | Argument error — missing required flag for the chosen operation |
+
+### Security
+
+- **Path traversal prevention** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
+## critique-runner
+
+Runs critics against story outlines, parses scores, checks quality thresholds, and generates structured feedback for iterative outline refinement.
+
+**Source files:**
+- `.opencode/tools/critique-runner.ts` — TypeScript wrapper
+- `src/tools/critique_runner.py` — Python CLI script
+- `src/application/services/critique_parser.py` — Underlying `CritiqueParser` class
+
+### Purpose
+
+During outline refinement, six specialised critic personas evaluate an outline against seven scoring criteria. This tool orchestrates the critique loop: running all critics, parsing their scores, determining whether the outline meets a quality threshold, and formatting feedback for the next refinement iteration.
+
+The six critic types (evaluated in order):
+1. `audiobook-producer`
+2. `book-club-moderator`
+3. `commercial-fiction-editor`
+4. `literary-fiction-reviewer`
+5. `publishing-acquisitions-editor`
+6. `subject-expert`
+
+The seven scoring criteria:
+
+| Criterion | Max Score |
+|-----------|-----------|
+| Pacing | 15 |
+| Details | 15 |
+| Flow | 15 |
+| Genre | 10 |
+| Consistency | 10 |
+| Character Arc & Theme | 20 |
+| Structure | 15 |
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"run-critics" \| "parse-scores" \| "should-refine" \| "generate-feedback"` | Yes | Operation to perform |
+| `name` | string | For `run-critics`, `should-refine`, `generate-feedback` | Story name (maps to directory under `stories/`) |
+| `iteration` | number | No | Critique iteration number (default: 1) |
+| `content` | string | No | Content to critique; if omitted, loads outline from savepoint |
+| `criticType` | string | For `parse-scores` | Critic type identifier |
+| `responseText` | string | For `parse-scores` | Raw critic response text to parse |
+| `qualityThreshold` | number | No | Quality threshold percentage for `should-refine` (default: 85.0) |
+| `model` | string | No | Override LLM model identifier |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/critique_runner.py --operation <op> [--name <name>] [--iteration N] [--content '<text>'] [--critic-type <type>] [--response-text '<text>'] [--quality-threshold N] [--model <model>]
+```
+
+**Examples:**
+
+```bash
+# Run all 6 critics against an outline (loads from savepoint)
+python3 src/tools/critique_runner.py --operation run-critics --name my-story --iteration 1
+
+# Run critics with inline content
+python3 src/tools/critique_runner.py --operation run-critics --name my-story \
+  --content "Chapter 1: The Beginning..."
+
+# Parse scores from a single critic response
+python3 src/tools/critique_runner.py --operation parse-scores \
+  --critic-type commercial-fiction-editor --response-text "### Pacing (12/15)..."
+
+# Check if outline needs further refinement
+python3 src/tools/critique_runner.py --operation should-refine --name my-story \
+  --iteration 1 --quality-threshold 85.0
+
+# Generate formatted feedback from critique results
+python3 src/tools/critique_runner.py --operation generate-feedback --name my-story \
+  --iteration 1
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `run-critics` | Runs all 6 critics via LLM, parses scores, saves results as savepoint `critique_results_iteration_{N}` | JSON with `iteration`, `critic_results`, `average_scores`, `overall_average` |
+| `parse-scores` | Parses scores from a single critic response text | Serialized `CritiqueResult` as JSON |
+| `should-refine` | Loads critique results from savepoint, checks if any criterion avg < 75% or overall avg < threshold | `{should_refine, average_scores, overall_average, threshold}` |
+| `generate-feedback` | Loads critique results from savepoint, formats as structured markdown | `{feedback: "<markdown>"}` |
+
+### Quality Threshold Logic
+
+The `should-refine` operation determines refinement need using two conditions:
+- **Any criterion average < 75%** — individual weakness detected
+- **Overall average < quality_threshold** — general quality below standard (default: 85.0)
+
+If either condition is true, `should_refine` returns `true`.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — story not found, savepoint not found, critic failed |
 | 2 | Argument error — missing required flag for the chosen operation |
 
 ### Security
