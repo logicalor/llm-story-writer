@@ -1713,6 +1713,173 @@ ChromaDB failures are non-fatal — the tool logs a warning to stderr and contin
 
 ---
 
+## wiki-lint
+
+Runs consistency checks across the story wiki — post-chapter contradiction detection, comprehensive periodic lint, and single entity validation. Uses the ConStory-Bench taxonomy for finding classification.
+
+**Source files:**
+- `.opencode/tools/wiki-lint.ts` — TypeScript wrapper
+- `src/tools/wiki_lint.py` — Python CLI script
+- `src/tools/_wiki.py` — Shared wiki utilities (`parse_frontmatter`, `find_pages`, `read_index`, `match_entities_in_text`, `WIKI_SUBDIRS`, `_TYPE_TO_DIR`)
+- `src/tools/_io.py` — Shared I/O utilities (`_atomic_write`, `_validate_story_name`)
+
+### Purpose
+
+As a story progresses, the wiki accumulates pages across characters, locations, events, factions, and other entity types. Inconsistencies can develop: dead characters mentioned in new chapters, broken wikilinks, orphan pages missing from the index, stale pages not updated for many chapters, or pages placed in the wrong type directory. This tool provides automated detection of these issues.
+
+All three operations produce findings in a common format with severity levels (error, warning, info), ConStory-Bench categories, and suggested fixes. Findings from `check-chapter` and `check-full` are also appended to `wiki/contradictions.md` for persistent tracking.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"check-chapter" \| "check-full" \| "check-entity"` | Yes | Lint operation to perform |
+| `name` | string | Yes | Story name (maps to directory under `stories/`) |
+| `chapter_number` | integer | For `check-chapter` | Chapter number being checked |
+| `chapter_text` | string | For `check-chapter` | File path to chapter content (must be within `stories/` directory) |
+| `current_chapter` | integer | For `check-full` | Current chapter number (used for staleness calculations) |
+| `slug` | string | For `check-entity` | Entity slug to validate |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/wiki_lint.py --operation <op> --name <name> [options]
+```
+
+**Examples:**
+
+```bash
+# Check a newly written chapter for contradictions
+python3 src/tools/wiki_lint.py --operation check-chapter --name my-story \
+  --chapter-number 5 --chapter-text stories/my-story/chapters/chapter_5.md
+
+# Run a full wiki lint at chapter 12
+python3 src/tools/wiki_lint.py --operation check-full --name my-story \
+  --current-chapter 12
+
+# Validate a single entity page
+python3 src/tools/wiki_lint.py --operation check-entity --name my-story \
+  --slug elena-blackwood
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `check-chapter` | Scans chapter text for entity mentions, broken wikilinks, and timeline ordering issues. Appends findings to `contradictions.md`. | Findings JSON (see Output Format below) |
+| `check-full` | Comprehensive lint: orphan pages, stale claims, broken wikilinks, timeline ordering, confidence downgrades, index/frontmatter mismatches, wrong directory placement. Appends findings to `contradictions.md`. | Findings JSON |
+| `check-entity` | Validates a single entity page: required frontmatter fields, detail levels, wikilink resolution, index presence, correct type directory. Appends findings to `contradictions.md`. | Findings JSON |
+
+### Output Format
+
+All operations return the same JSON structure:
+
+```json
+{
+  "status": "ok",
+  "operation": "<operation>",
+  "findings": [
+    {
+      "severity": "error",
+      "category": "characterization",
+      "subtype": "status_contradiction",
+      "pages": ["elena-blackwood"],
+      "message": "Character 'Elena Blackwood' has status 'dead' in wiki but is mentioned in chapter 5",
+      "suggested_fix": "Verify if 'Elena Blackwood' should be alive or if the mention is a flashback/memory"
+    }
+  ],
+  "summary": {
+    "errors": 1,
+    "warnings": 0,
+    "info": 0,
+    "total": 1
+  }
+}
+```
+
+### check-chapter Checks
+
+Post-chapter contradiction detection runs these checks against the chapter text:
+
+| Check | Severity | Category / Subtype | Description |
+|-------|----------|-------------------|-------------|
+| Missing entity page | warning | `factual_consistency` / `missing_entity` | Entity mentioned in chapter has no wiki page |
+| Dead character mention | error | `characterization` / `status_contradiction` | Character with `status: dead` in wiki is mentioned in the chapter |
+| Broken wikilink | warning | `factual_consistency` / `broken_wikilink` | `[[slug]]` in chapter text points to non-existent page |
+| Timeline ordering | warning | `timeline_plot_logic` / `chapter_ordering_violation` | Timeline contains entries for chapters ahead of the current one |
+
+### check-full Checks
+
+Comprehensive periodic lint runs these checks across the entire wiki:
+
+| Check | Severity | Category / Subtype | Description |
+|-------|----------|-------------------|-------------|
+| Orphan page (no index entry) | warning | `factual_consistency` / `orphan_reference` | Page exists on disk but is not listed in `index.md` |
+| Orphan index entry (no file) | warning | `factual_consistency` / `orphan_reference` | Index entry has no corresponding `.md` file |
+| Stale claim | info | `narrative_style` / `stale_claim` | Page not updated for 5+ chapters |
+| Confidence downgrade | info | `narrative_style` / `confidence_downgrade` | Page has `confidence: verified` but not updated for 10+ chapters |
+| Broken wikilink | warning | `factual_consistency` / `broken_wikilink` | Wikilink in page body points to non-existent page |
+| Timeline ordering | error | `timeline_plot_logic` / `temporal_ordering` | Timeline chapter numbers are not monotonically non-decreasing |
+| Type mismatch | warning | `factual_consistency` / `naming_inconsistency` | Index type does not match page frontmatter type |
+| Wrong directory | warning | `factual_consistency` / `naming_inconsistency` | Page is in the wrong subdirectory for its type |
+
+### check-entity Checks
+
+Single entity validation runs these checks on one page:
+
+| Check | Severity | Category / Subtype | Description |
+|-------|----------|-------------------|-------------|
+| Missing page | error | `factual_consistency` / `missing_entity` | No wiki page found for the given slug |
+| Missing required field | error | `factual_consistency` / `missing_entity` | Page is missing a required frontmatter field (`type`, `name`, `slug`, `confidence`, `first_appearance`) |
+| Missing detail level | warning | `narrative_style` / `stale_claim` | Page is missing L1, L2, or L3 in `detail_levels` |
+| Broken wikilink | warning | `factual_consistency` / `broken_wikilink` | Wikilink in page body points to non-existent page |
+| Not in index | warning | `factual_consistency` / `orphan_reference` | Page exists but is not listed in `index.md` |
+| Wrong directory | warning | `factual_consistency` / `naming_inconsistency` | Page is in the wrong subdirectory for its type |
+
+### ConStory-Bench Categories
+
+Findings are classified using categories from the ConStory-Bench contradiction taxonomy:
+
+| Category | Used For |
+|----------|----------|
+| `timeline_plot_logic` | Timeline ordering violations |
+| `characterization` | Character status contradictions (e.g., dead character mentioned) |
+| `factual_consistency` | Missing entities, broken wikilinks, orphans, type mismatches |
+| `narrative_style` | Stale claims, missing detail levels, confidence downgrades |
+| `world_building` | Reserved for future world-rule violation checks |
+
+### Contradictions Log
+
+The `check-chapter` and `check-full` operations append findings to `wiki/contradictions.md` with a timestamped header:
+
+```markdown
+## 2026-04-15T10:30:00Z — Chapter 5 check
+
+- **error** characterization/status_contradiction: Character 'Elena' has status 'dead' — Pages: elena-blackwood
+- **warning** factual_consistency/broken_wikilink: Wikilink [[old-castle]] points to non-existent page — Pages: old-castle
+```
+
+The `check-entity` operation also appends its findings to `contradictions.md`.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — story not found, chapter-text file not found, chapter-text path outside stories directory |
+| 2 | Argument error — missing required flag for the chosen operation |
+
+### Security
+
+- **Path traversal prevention (story name)** — story names are validated with `_validate_story_name()` (uses `Path.is_relative_to()`)
+- **Path traversal prevention (chapter-text)** — chapter text file paths are resolved and validated to be within the `stories/` directory
+- **Path traversal prevention (slug)** — slugs are validated with `_validate_slug()` to reject traversal patterns
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Graceful empty state** — returns `{"findings": []}` if the wiki directory does not exist
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
 ## Adding a New Tool
 
 Follow this pattern to add tools to the system:
