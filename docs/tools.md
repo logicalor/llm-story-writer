@@ -42,7 +42,7 @@ Loads a prompt template by ID and substitutes variables, returning the rendered 
 
 ### Purpose
 
-Prompt templates are Markdown files in the `prompts/` directory (117 templates across 10 categories). This tool provides deterministic template loading and variable substitution so agents can retrieve rendered prompts without managing file paths or parsing logic.
+Prompt templates are Markdown files in the `prompts/` directory (132 templates across 11 categories). This tool provides deterministic template loading and variable substitution so agents can retrieve rendered prompts without managing file paths or parsing logic.
 
 ### Arguments
 
@@ -1102,6 +1102,328 @@ If either condition is true, `should_refine` returns `true`.
 - **Path traversal prevention** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
 - **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
 - **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
+## wiki-init
+
+Initialises a story wiki directory structure with subdirectories, schema template, index, log, and contradictions files.
+
+**Source files:**
+- `.opencode/tools/wiki-init.ts` — TypeScript wrapper
+- `src/tools/wiki_init.py` — Python CLI script
+- `src/tools/_wiki.py` — Shared wiki utilities (`WIKI_SUBDIRS` constant)
+- `src/tools/wiki_schema_template.md` — Default schema template (copied as `_schema.md`)
+
+### Purpose
+
+The wiki system ([ADR 004](./planning/adr/004-progressive-wiki-memory-system.md)) stores structured knowledge about a story's world — characters, locations, events, factions, items, plot threads, world rules, themes, relationships, timeline entries, and chapter synopses. Each wiki page is a Markdown file with YAML frontmatter containing typed metadata and pre-computed detail level summaries (L1/L2/L3).
+
+This tool creates the wiki directory structure for a story. It is idempotent — calling it on a story that already has a wiki directory reports success without modifying the existing wiki.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"init"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name (maps to directory under `stories/`) |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/wiki_init.py --operation init --name <name>
+```
+
+**Examples:**
+
+```bash
+# Initialise a wiki for a new story
+python3 src/tools/wiki_init.py --operation init --name my-story
+
+# Safe to call again — reports already_exists
+python3 src/tools/wiki_init.py --operation init --name my-story
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `init` | Creates `stories/<name>/wiki/` with 11 subdirectories, `_schema.md`, `index.md`, `log.md`, and `contradictions.md`. If wiki already exists, returns without modification. | `{"status": "ok", "wiki_dir": "<path>", "created": true}` or `{"status": "ok", "wiki_dir": "<path>", "created": false, "already_exists": true}` |
+
+### Directory Structure
+
+After initialisation, the wiki directory contains:
+
+```
+stories/<name>/wiki/
+├── _schema.md            # Page type definitions with YAML frontmatter fields
+├── index.md              # Entity index (slug | type | name | aliases)
+├── log.md                # Wiki change log
+├── contradictions.md     # Contradictions log
+├── characters/
+├── locations/
+├── events/
+├── factions/
+├── items/
+├── plot-threads/
+├── world-rules/
+├── themes/
+├── relationships/
+├── timeline/
+└── chapters/
+```
+
+### Page Types (from `_schema.md`)
+
+The schema template defines 12 page types, each with specific YAML frontmatter fields:
+
+| Page Type | Subdirectory | Extra Fields |
+|-----------|-------------|--------------|
+| `character` | `characters/` | `role` (protagonist/antagonist/supporting/minor), `status` (alive/dead/unknown/transformed) |
+| `location` | `locations/` | `region` (parent region or area) |
+| `event` | `events/` | `chapter` (chapter number), `impact` (major/moderate/minor) |
+| `faction` | `factions/` | — |
+| `item` | `items/` | — |
+| `plot_thread` | `plot-threads/` | `status` (active/resolved/dormant) |
+| `world_rule` | `world-rules/` | — |
+| `theme` | `themes/` | — |
+| `relationship` | `relationships/` | — |
+| `timeline_entry` | `timeline/` | — |
+| `chapter_synopsis` | `chapters/` | — |
+| `contradiction` | — | — |
+
+All page types share common frontmatter fields: `type`, `name`, `slug`, `confidence` (verified/planned/speculative), `first_appearance`, `aliases`, `last_updated`, `version`, and `detail_levels` (L1/L2/L3 summaries at ~30/~150/~500 tokens).
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — story directory not found, path traversal detected |
+
+### Security
+
+- **Path traversal prevention** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Idempotent** — calling `init` on an existing wiki does not modify or overwrite any files
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
+## wiki-read
+
+Reads wiki pages by slug, type, or glob pattern with configurable detail levels, or matches entity names in text against the wiki index.
+
+**Source files:**
+- `.opencode/tools/wiki-read.ts` — TypeScript wrapper
+- `src/tools/wiki_read.py` — Python CLI script
+- `src/tools/_wiki.py` — Shared wiki utilities (`parse_frontmatter`, `find_pages`, `read_index`, `match_entities_in_text`)
+
+### Purpose
+
+During story generation, agents need to retrieve wiki page content at varying levels of detail — a headline for context budget management, a brief summary for scene planning, or full content for deep reference. This tool provides structured access to wiki pages with parsed YAML frontmatter and configurable detail levels.
+
+The `match-entities` operation supports the entity matching tier of the context retrieval pipeline ([ADR 005](./planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md)): given a block of text (e.g., a scene outline), it identifies which wiki entities are mentioned by name or alias.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"read" \| "match-entities"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name (maps to directory under `stories/`) |
+| `slug` | string | No | Page slug to read (for `read`) |
+| `type` | string | No | Page type to filter by, e.g., `character`, `location`, `event` (for `read`) |
+| `glob` | string | No | Glob pattern for page matching (for `read`) |
+| `detailLevel` | `"headline" \| "brief" \| "full"` | No | Detail level for returned content (default: `brief`) |
+| `text` | string | For `match-entities` | Text to match entity names against |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/wiki_read.py --operation <op> --name <name> [options]
+```
+
+**Examples:**
+
+```bash
+# Read a specific page by slug
+python3 src/tools/wiki_read.py --operation read --name my-story --slug elena-blackwood
+
+# Read all character pages at headline level
+python3 src/tools/wiki_read.py --operation read --name my-story --type character \
+  --detail-level headline
+
+# Read pages matching a glob pattern
+python3 src/tools/wiki_read.py --operation read --name my-story --glob "characters/*.md"
+
+# Read all wiki pages (no filter)
+python3 src/tools/wiki_read.py --operation read --name my-story --detail-level full
+
+# Find which wiki entities are mentioned in text
+python3 src/tools/wiki_read.py --operation match-entities --name my-story \
+  --text "Elena walked through the Shadow Market, remembering what Captain Rowe had said"
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `read` | Finds pages by slug, type, or glob; parses YAML frontmatter; returns content at the requested detail level | `{"status": "ok", "pages": [{"slug": "...", "type": "...", "metadata": {...}, "content": "..."}]}` |
+| `match-entities` | Scans text for entity names and aliases from `index.md` | `{"status": "ok", "matches": [{"name": "...", "slug": "...", "type": "...", "aliases": [...]}]}` |
+
+### Detail Levels
+
+The `read` operation returns content at three detail levels, using pre-computed summaries from the page's YAML frontmatter `detail_levels` field:
+
+| Level | Source | Fallback | Typical Size |
+|-------|--------|----------|-------------|
+| `headline` | `detail_levels.L1` | First line of body | ~30 tokens |
+| `brief` | `detail_levels.L2` | First 3 sentences of body | ~150 tokens |
+| `full` | Full body text | — | ~500+ tokens |
+
+### Page Lookup
+
+When filtering by `type`, the tool maps page type names to subdirectories:
+
+| Page Type | Subdirectory |
+|-----------|-------------|
+| `character` | `characters/` |
+| `location` | `locations/` |
+| `event` | `events/` |
+| `faction` | `factions/` |
+| `item` | `items/` |
+| `plot_thread` | `plot-threads/` |
+| `world_rule` | `world-rules/` |
+| `theme` | `themes/` |
+| `relationship` | `relationships/` |
+| `timeline_entry` | `timeline/` |
+| `chapter_synopsis` | `chapters/` |
+
+When filtering by `slug`, all subdirectories and the wiki root are searched for `{slug}.md`.
+
+### Entity Matching
+
+The `match-entities` operation reads `index.md` (format: `- slug | type | name | aliases`) and performs case-insensitive substring matching of each entity's name and aliases against the provided text. Each entity is returned at most once. This is the deterministic Tier 1 signal in the retrieval pipeline.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — path traversal detected |
+| 2 | Argument error — missing `--text` for `match-entities` |
+
+### Security
+
+- **Path traversal prevention** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Graceful empty state** — returns `{"pages": []}` or `{"matches": []}` if the wiki directory does not exist
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
+## wiki-search
+
+Searches wiki pages via ChromaDB: semantic vector search by query text, or metadata-filtered query by JSON where clause. Read-only — does not create or modify collections.
+
+**Source files:**
+- `.opencode/tools/wiki-search.ts` — TypeScript wrapper
+- `src/tools/wiki_search.py` — Python CLI script
+
+### Purpose
+
+This tool provides the semantic search (Tier 3) and metadata query (Tier 2) capabilities of the context retrieval pipeline ([ADR 005](./planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md)). Wiki pages are embedded into per-story ChromaDB collections (named `wiki-<story-name>`), and this tool queries those collections.
+
+The tool is strictly read-only — it does not create collections or embed documents. If the collection does not exist or is empty, it returns an empty result set.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"semantic" \| "metadata"` | Yes | Search mode |
+| `name` | string | Yes | Story name (used to derive collection name `wiki-<name>`) |
+| `query` | string | For `semantic` | Natural language search query |
+| `where` | string | For `metadata` | JSON string of ChromaDB where-filter (e.g., `'{"type": "character"}'`) |
+| `nResults` | number | No | Maximum results to return (default: 10) |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/wiki_search.py --operation <op> --name <name> [options]
+```
+
+**Examples:**
+
+```bash
+# Semantic search for relevant wiki pages
+python3 src/tools/wiki_search.py --operation semantic --name my-story \
+  --query "magical artifacts with healing powers" --n-results 5
+
+# Metadata-filtered query for all character pages
+python3 src/tools/wiki_search.py --operation metadata --name my-story \
+  --where '{"type": "character"}'
+
+# Metadata query with comparison operator
+python3 src/tools/wiki_search.py --operation metadata --name my-story \
+  --where '{"first_appearance": {"$lte": 5}}'
+
+# Metadata query with logical operators
+python3 src/tools/wiki_search.py --operation metadata --name my-story \
+  --where '{"$and": [{"type": "event"}, {"impact": "major"}]}'
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `semantic` | Performs vector similarity search over the `wiki-<name>` ChromaDB collection using `query_texts` | `{"status": "ok", "results": [{"slug": "...", "score": 0.85, "excerpt": "...", "metadata": {...}}]}` |
+| `metadata` | Filters the `wiki-<name>` collection using ChromaDB `where` clause on document metadata | `{"status": "ok", "results": [{"slug": "...", "score": 1.0, "excerpt": "...", "metadata": {...}}]}` |
+
+### Result Format
+
+Each result in the `results` array contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `slug` | string | Document ID (typically the page slug) |
+| `score` | number | Relevance score: `1.0 - distance` for semantic, `1.0` for metadata |
+| `excerpt` | string | First 500 characters of the document content |
+| `metadata` | object | ChromaDB document metadata (frontmatter fields) |
+
+### ChromaDB Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `CHROMADB_DIR` | `<project-root>/.chromadb` | Path to the ChromaDB persistent storage directory |
+
+The tool uses `chromadb.PersistentClient` with the configured path. Collections are named `wiki-<story-name>` by convention.
+
+### Where Filter Syntax
+
+The `--where` argument accepts ChromaDB's query operator syntax as a JSON string:
+
+| Pattern | Example |
+|---------|---------|
+| Simple equality | `{"type": "character"}` |
+| Comparison | `{"first_appearance": {"$gt": 5}}` |
+| Logical AND | `{"$and": [{"type": "event"}, {"impact": "major"}]}` |
+| Logical OR | `{"$or": [{"type": "character"}, {"type": "location"}]}` |
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — ChromaDB query failed, path traversal detected |
+| 2 | Argument error — missing `--query` for semantic, missing or invalid `--where` for metadata |
+
+### Security
+
+- **Path traversal prevention** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Read-only** — the tool never creates, modifies, or deletes ChromaDB collections or documents
+- **Graceful empty state** — returns `{"results": []}` if the collection does not exist or is empty
+- **Test isolation** — the `STORIES_DIR` and `CHROMADB_DIR` environment variables override default paths, ensuring tests never touch production data
 
 ---
 

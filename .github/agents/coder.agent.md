@@ -28,6 +28,7 @@ Read **`.github/agents/_shared/communication.md`** — use caveman for chat/prog
    - **TypeScript tool wrappers:** Never use `execSync()` or `exec()` with string concatenation for subprocess calls. Use `execFileSync()` or `spawnSync()` with explicit argument arrays — these bypass the shell and prevent command injection (CWE-78).
    - **Python tools with file paths:** When resolving user-provided names to file paths, always validate the resolved absolute path starts with the intended base directory using `resolved.resolve()` and `.is_relative_to(base)`. Reject any path that traverses outside the base (CWE-22).
    - **Boundary validation depth:** When validating data at system boundaries (LLM output, file reads, API responses), validate both the container type *and* the element types. E.g., checking `isinstance(result, list)` is insufficient — also verify each element matches the expected type (e.g., `all(isinstance(el, str) for el in result)`).
+   - **Shared utility path components:** When writing shared functions (e.g., `_wiki.py`, `_io.py`) that accept parameters used as directory names, glob patterns, or path segments, validate each component individually — not just the final resolved path. Reject `..`, `/`, and characters outside the expected set (e.g., `^[a-z0-9_-]+$` for slugs). Apply `is_relative_to()` as a belt-and-suspenders final check.
 
 > **When dispatched by the Orchestrator** (implementation or regression fix), do NOT commit, push, or post PR comments. The Orchestrator owns all git/GitHub operations. Just implement, lint, and return.
 

@@ -4,7 +4,7 @@
 
 **Stack:** Python 3.x, clean architecture, dependency-injector, OpenAI-compatible API (local LLM), PostgreSQL/pgvector (RAG)
 
-**Codebase size:** 72 Python files, ~18k LoC, 131 prompt templates (Markdown)
+**Codebase size:** 72 Python files, ~18k LoC, 132 prompt templates (Markdown)
 
 ### Layer Structure
 
@@ -63,26 +63,27 @@ The system uses named model roles, each mapping to a model string:
 - logical_model (Qwen 2.5 Coder 7b — JSON extraction)
 - scene_writer, creative_model
 
-### Prompt Template Categories (131 total)
+### Prompt Template Categories (132 total)
 
 Prompt templates are **Markdown files** stored in the top-level `prompts/` directory (relocated from `src/application/strategies/outline_chapter/prompts/` in issue #5). The subdirectory structure is preserved. Note: `src/infrastructure/prompts/` contains only the Python prompt-loading infrastructure (PromptLoader, PromptHandler, PromptWrapper), not the templates themselves.
 
 | Category | Count | Purpose |
 |----------|-------|---------|
-| chapters/ | 15 | Chapter outline, content, synopsis, titles |
-| characters/ | 14 | Character extraction, sheet generation (7 chunks), updates |
-| multistep/ | 36 | Multi-turn conversation for outline + chapter enrichment |
-| outline/ | 10 | Outline generation, expansion, validation |
-| recap/ | 7 | Chapter recap generation, sanitization |
-| scenes/ | 7 | Scene parsing, generation, revision |
-| settings/ | 12 | Setting extraction, sheet generation |
+| chapters/ | 16 | Chapter outline, content, synopsis, titles |
+| characters/ | 15 | Character extraction, sheet generation (7 chunks), updates |
+| multistep/ | 38 | Multi-turn conversation for outline + chapter enrichment |
+| outline/ | 11 | Outline generation, expansion, validation |
+| outline_review/ | 6 | Outline critique and quality review |
+| recap/ | 8 | Chapter recap generation, sanitization |
+| scenes/ | 9 | Scene parsing, generation, revision |
+| settings/ | 13 | Setting extraction, sheet generation |
 | story_state/ | 6 | Story state tracking, progression |
-| _unused/ | 12 | Deprecated templates |
+| _unused/ | 7 | Deprecated templates |
 | root-level | 3 | Base context extraction, story start date, chapter events |
 
 ## Tools
 
-Seven tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
+Twelve tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
 
 | Tool | Wrapper | Script | Infrastructure |
 |------|---------|--------|---------------|
@@ -93,6 +94,11 @@ Seven tools implemented following the hybrid pattern from [ADR 001](docs/plannin
 | `setting-mgr` | `.opencode/tools/setting-mgr.ts` | `src/tools/setting_manager.py` | Direct filesystem — setting sheet JSON I/O with deep-merge updates |
 | `recap-manager` | `.opencode/tools/recap-manager.ts` | `src/tools/recap_manager.py` | `_llm.py` + `FilesystemSavepointRepository` — 5-stage recap pipeline with LLM |
 | `outline-generator` | `.opencode/tools/outline-generator.ts` | `src/tools/outline_generator.py` | `_llm.py` + `FilesystemSavepointRepository` + `PromptLoader` — multi-step outline pipeline with conversation history |
+| `scene-writer` | `.opencode/tools/scene-writer.ts` | `src/tools/scene_writer.py` | `_llm.py` + `FilesystemSavepointRepository` + `PromptLoader` — per-scene generation, revision, and chapter assembly |
+| `critique-runner` | `.opencode/tools/critique-runner.ts` | `src/tools/critique_runner.py` | `_llm.py` + `CritiqueParser` — 6-critic evaluation with scoring and threshold logic |
+| `wiki-init` | `.opencode/tools/wiki-init.ts` | `src/tools/wiki_init.py` | `_wiki.py` — idempotent wiki directory + schema creation |
+| `wiki-read` | `.opencode/tools/wiki-read.ts` | `src/tools/wiki_read.py` | `_wiki.py` — page reading with detail levels, entity matching |
+| `wiki-search` | `.opencode/tools/wiki-search.ts` | `src/tools/wiki_search.py` | ChromaDB `PersistentClient` — semantic + metadata search over `wiki-<name>` collections |
 
 Pattern: `.opencode/tools/*.ts` (Zod schema + execFileSync) → `src/tools/*.py` (argparse + domain logic) → `src/infrastructure/` or `src/domain/`.
 
