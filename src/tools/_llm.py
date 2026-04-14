@@ -85,6 +85,11 @@ def generate_text_messages(
         raise RuntimeError(f"Unexpected LLM API response structure: {exc}") from exc
 
 
+def count_tokens(text: str) -> int:
+    """Estimate token count using word-based approximation."""
+    return int(len(text.split()) * 1.33)
+
+
 def _strip_markdown_fences(text: str) -> str:
     """Remove markdown code fences from text and extract JSON content."""
     text = text.strip()
