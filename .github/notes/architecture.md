@@ -83,7 +83,7 @@ Prompt templates are **Markdown files** stored in the top-level `prompts/` direc
 
 ## Tools
 
-Thirteen tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
+Fifteen tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
 
 | Tool | Wrapper | Script | Infrastructure |
 |------|---------|--------|---------------|
@@ -100,6 +100,8 @@ Thirteen tools implemented following the hybrid pattern from [ADR 001](docs/plan
 | `wiki-read` | `.opencode/tools/wiki-read.ts` | `src/tools/wiki_read.py` | `_wiki.py` — page reading with detail levels, entity matching |
 | `wiki-search` | `.opencode/tools/wiki-search.ts` | `src/tools/wiki_search.py` | ChromaDB `PersistentClient` — semantic + metadata search over `wiki-<name>` collections |
 | `wiki-snapshot` | `.opencode/tools/wiki-snapshot.ts` | `src/tools/wiki_snapshot.py` | `_wiki.py` + `_llm.py` + ChromaDB — three-stage hybrid retrieval and context assembly pipeline (ADR 005) |
+| `wiki-update` | `.opencode/tools/wiki-update.ts` | `src/tools/wiki_update.py` | `_wiki.py` — page create/update/batch/timeline-append/log operations |
+| `wiki-lint` | `.opencode/tools/wiki-lint.ts` | `src/tools/wiki_lint.py` | `_wiki.py` + `_io.py` — post-chapter, full, and single-entity consistency checks with ConStory-Bench taxonomy |
 
 Pattern: `.opencode/tools/*.ts` (Zod schema + execFileSync) → `src/tools/*.py` (argparse + domain logic) → `src/infrastructure/` or `src/domain/`.
 
