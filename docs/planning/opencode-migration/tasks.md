@@ -542,15 +542,17 @@ Create the `story-pipeline` skill with detailed instructions for pipeline orderi
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/agents/story-orchestrator.md` exists with complete agent definition
-- [ ] Agent correctly sequences pipeline phases via subagent delegation
-- [ ] Agent invokes `wiki-init` during story initialization
-- [ ] Agent invokes wiki-maintainer after each scene and at chapter boundaries
-- [ ] In interactive mode, agent pauses for human approval at outline stage
-- [ ] In batch mode, agent auto-proceeds through all phases
-- [ ] `.opencode/skills/story-pipeline/SKILL.md` exists with pipeline instructions (including wiki cycle)
-- [ ] Agent respects generation settings from config.md (quality thresholds, revision counts, etc.)
-- [ ] Agent creates and manages savepoints at each major phase transition
+- [x] `.opencode/agents/story-orchestrator.md` exists with complete agent definition
+- [x] Agent correctly sequences pipeline phases via subagent delegation
+- [x] Agent invokes `wiki-init` during story initialization
+- [x] Agent invokes wiki-maintainer after each scene and at chapter boundaries
+- [x] In interactive mode, agent pauses for human approval at outline stage
+- [x] In batch mode, agent auto-proceeds through all phases
+- [x] `.opencode/skills/story-pipeline/SKILL.md` exists with pipeline instructions (including wiki cycle)
+- [x] Agent respects generation settings from config.md (quality thresholds, revision counts, etc.)
+- [x] Agent creates and manages savepoints at each major phase transition
+
+**Completed:** PR #62 (issue #20)
 
 **Key Files:**
 
