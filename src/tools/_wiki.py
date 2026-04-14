@@ -180,10 +180,10 @@ def _validate_slug(slug: str) -> None:
 
 
 def _validate_glob_pattern(pattern: str) -> None:
-    """Reject glob patterns containing path traversal sequences."""
-    if ".." in pattern:
+    """Reject glob patterns containing path traversal sequences or slashes."""
+    if ".." in pattern or "/" in pattern or "\\" in pattern:
         print(
-            f"Error: invalid glob pattern (contains '..'): {pattern}",
+            f"Error: invalid glob pattern (contains '..', '/' or '\\'): {pattern}",
             file=sys.stderr,
         )
         sys.exit(1)
