@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -14,23 +13,10 @@ _src = str(Path(__file__).resolve().parents[1])
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-from src.tools._io import _atomic_write  # noqa: E402
+from src.tools._io import _atomic_write, _validate_story_name  # noqa: E402
 from src.tools._wiki import WIKI_SUBDIRS  # noqa: E402
 
-STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
 SCHEMA_TEMPLATE = Path(__file__).resolve().parent / "wiki_schema_template.md"
-
-
-def _validate_story_name(name: str) -> Path:
-    """Validate story name does not escape the stories directory."""
-    story_dir = (STORIES_DIR / name).resolve()
-    if not story_dir.is_relative_to(STORIES_DIR.resolve()):
-        print(
-            f"Error: story name escapes stories directory: {name}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    return story_dir
 
 
 def cmd_init(args: argparse.Namespace) -> None:

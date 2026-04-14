@@ -9,7 +9,10 @@ import tempfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
 
 INITIAL_STATE = {
     "story_context": {
@@ -28,18 +31,6 @@ INITIAL_STATE = {
     "plot_threads": {},
     "chapters": {},
 }
-
-
-def _validate_story_name(name: str) -> Path:
-    """Validate story name does not escape the stories directory."""
-    story_dir = (STORIES_DIR / name).resolve()
-    if not story_dir.is_relative_to(STORIES_DIR.resolve()):
-        print(
-            f"Error: story name escapes stories directory: {name}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    return story_dir
 
 
 def _get_nested(data: dict, field: str) -> object:

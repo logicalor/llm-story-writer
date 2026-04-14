@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -14,21 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.tools._io import _atomic_write  # noqa: E402
-
-STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
-
-
-def _validate_story_name(name: str) -> Path:
-    """Validate story name does not escape the stories directory."""
-    story_dir = (STORIES_DIR / name).resolve()
-    if not story_dir.is_relative_to(STORIES_DIR.resolve()):
-        print(
-            f"Error: story name escapes stories directory: {name}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    return story_dir
+from src.tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
 
 
 def _slugify(character_name: str) -> str:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -13,6 +12,7 @@ _src = str(Path(__file__).resolve().parents[1])
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
+from src.tools._io import _validate_story_name  # noqa: E402
 from src.tools._wiki import (  # noqa: E402
     find_pages,
     get_wiki_dir,
@@ -20,20 +20,6 @@ from src.tools._wiki import (  # noqa: E402
     parse_frontmatter,
     read_index,
 )
-
-STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
-
-
-def _validate_story_name(name: str) -> Path:
-    """Validate story name does not escape the stories directory."""
-    story_dir = (STORIES_DIR / name).resolve()
-    if not story_dir.is_relative_to(STORIES_DIR.resolve()):
-        print(
-            f"Error: story name escapes stories directory: {name}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    return story_dir
 
 
 def _extract_sentences(text: str, count: int) -> str:
