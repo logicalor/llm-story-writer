@@ -105,9 +105,9 @@ def test_outline_chapter_prompt_directory():
 
 
 def test_prompt_file_count():
-    """Count all .md files under prompts/ and verify there are 131."""
+    """Count all .md files under prompts/ and verify there are 132."""
     prompts_dir = PROJECT_ROOT / "prompts"
     md_files = list(prompts_dir.rglob("*.md"))
-    assert len(md_files) == 131, (
-        f"Expected 131 .md files under prompts/, found {len(md_files)}"
+    assert len(md_files) == 132, (
+        f"Expected 132 .md files under prompts/, found {len(md_files)}"
     )
