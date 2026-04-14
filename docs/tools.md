@@ -1427,6 +1427,126 @@ The `--where` argument accepts ChromaDB's query operator syntax as a JSON string
 
 ---
 
+## wiki-snapshot
+
+Assembles a pre-generation context snapshot for a scene using the three-stage hybrid retrieval pipeline defined in [ADR 005](./planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md).
+
+**Source files:**
+- `.opencode/tools/wiki-snapshot.ts` — TypeScript wrapper
+- `src/tools/wiki_snapshot.py` — Python CLI script
+
+### Purpose
+
+Before generating a scene, the writing agent needs relevant context from the wiki — character details, location descriptions, active plot threads, world rules, and recent events. This tool automates the retrieval, scoring, budget allocation, and assembly of that context into a structured markdown payload.
+
+The pipeline has three stages:
+
+1. **Hybrid Multi-Tier Retrieval** — four retrieval tiers (entity matching, metadata filtering, semantic search, wikilink graph traversal) merged via Reciprocal Rank Fusion
+2. **Detail Level Selection & Token Budgeting** — assigns L1/L2/L3 detail levels by relevance rank, with scene-type adaptation and iterative demotion to fit the token budget
+3. **Structured Context Assembly** — renders pages at their assigned detail levels into a fixed markdown structure, with optional LLM synthesis for complex scenes
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"snapshot" \| "cache-status"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name |
+| `chapter` | integer | Yes | Chapter number |
+| `scene` | integer | For snapshot | Scene number |
+| `outline` | string | For snapshot | Scene outline text (used for entity matching and semantic search) |
+| `povCharacter` | string | No | POV character slug (always gets full detail) |
+| `primaryLocation` | string | No | Primary location slug (always gets full detail) |
+| `characters` | string | No | Comma-separated additional character slugs |
+| `locations` | string | No | Comma-separated additional location slugs |
+| `sceneType` | `"dialogue" \| "action" \| "exposition" \| "mixed"` | No | Scene type for detail level adaptation |
+| `budget` | integer | No | Token budget (default: 15000) |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/wiki_snapshot.py --operation snapshot \
+  --name <story_name> \
+  --chapter <int> \
+  --scene <int> \
+  --outline "<scene_outline_text>" \
+  --pov-character <slug> \
+  --primary-location <slug> \
+  --characters <slug1,slug2,...> \
+  --scene-type dialogue \
+  --budget 15000
+```
+
+```bash
+python3 src/tools/wiki_snapshot.py --operation cache-status \
+  --name <story_name> \
+  --chapter <int>
+```
+
+### Output
+
+**snapshot operation:**
+```json
+{
+  "snapshot": "# Scene Context — Chapter 3, Scene 2\n\n## Characters\n...",
+  "stats": {
+    "pages_retrieved": 12,
+    "pages_included": 10,
+    "token_count": 8450,
+    "cache_hits": 3,
+    "cache_misses": 7,
+    "tiers": {"t1": 4, "t2": 2, "t3": 3, "t4": 1}
+  }
+}
+```
+
+**cache-status operation:**
+```json
+{
+  "cached": true,
+  "chapter": 3,
+  "scene": 2,
+  "entity_count": 10,
+  "stats": {...}
+}
+```
+
+### Retrieval Tiers
+
+| Tier | Method | Signal |
+|------|--------|--------|
+| T1 | Deterministic entity matching | Entity name or alias in scene outline |
+| T2 | Metadata-filtered ChromaDB query | Active plot threads, world rules |
+| T3 | Semantic vector search | Scene outline embedding similarity |
+| T4 | Wikilink graph traversal (1-2 hop) | Pages linked from T1-T3 results (max 5 additional) |
+
+### Relevance Scoring
+
+```
+score(p) = 0.40 × entity_match + 0.20 × wikilink_proximity + 0.20 × semantic_similarity + 0.10 × recency + 0.10 × type_priority
+```
+
+Pages scoring below 0.15 are dropped.
+
+### Delta Caching
+
+Cache file: `stories/<name>/wiki/.cache/snapshot_cache.json`. Cache is invalidated when the chapter changes. Within a chapter, individual page versions are tracked — only changed pages are re-fetched.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — invalid slug, path traversal, LLM failure |
+| 2 | Argument error — missing required arguments |
+
+### Security
+
+- **Path traversal prevention** — story names validated with `Path.is_relative_to()`, all slugs validated with `_validate_slug()`
+- **Shell injection prevention** — TypeScript wrapper uses `execFileSync` with argument array
+- **Cache isolation** — cache files scoped to individual story wiki directories
+
+---
+
 ## Adding a New Tool
 
 Follow this pattern to add tools to the system:
