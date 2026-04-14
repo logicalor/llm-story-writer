@@ -16,7 +16,9 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
+_src_path = str(PROJECT_ROOT / "src")
+if _src_path not in sys.path:
+    sys.path.insert(0, _src_path)
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
