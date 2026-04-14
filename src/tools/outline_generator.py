@@ -8,7 +8,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 if TYPE_CHECKING:
     from infrastructure.storage.savepoint_repository import (
@@ -111,7 +111,7 @@ def _success(operation: str, data: Any) -> None:
     )
 
 
-def _error(message: str, exit_code: int = 1) -> None:
+def _error(message: str, exit_code: int = 1) -> NoReturn:
     """Print error to stderr and exit."""
     print(f"Error: {message}", file=sys.stderr)
     sys.exit(exit_code)
@@ -151,7 +151,6 @@ def cmd_analyze_prompt(
             _save_savepoint(repo, "understand_prompt", understand_response)
         except Exception as exc:
             _error(f"understand prompt failed: {exc}")
-            return  # unreachable
 
     # Rebuild conversation history with understand step
     if not conversation:
@@ -194,7 +193,6 @@ def cmd_analyze_prompt(
             conversation.append({"role": "assistant", "content": chunk_response})
         except Exception as exc:
             _error(f"chunk generation failed ({chunk_type}): {exc}")
-            return  # unreachable
 
     # --- Step 3: Extract story start date from core_story_foundation ---
     if _has_savepoint(repo, "story_start_date"):
@@ -304,7 +302,6 @@ def cmd_generate_outline(
             prompt_text = json.dumps(prompt_text, default=str)
     else:
         _error("--prompt is required when understand_prompt savepoint missing")
-        return  # unreachable
 
     if _has_savepoint(repo, "initial_outline"):
         outline_text = _load_savepoint(repo, "initial_outline")
@@ -379,7 +376,6 @@ def cmd_expand_chapter(
             _save_savepoint(repo, chunk_step, chunk_text)
         except Exception as exc:
             _error(f"chunk expansion failed: {exc}")
-            return  # unreachable
 
     # --- Analyze continuity ---
     continuity_step = f"continuity_{chunk_start}_{chunk_end}"

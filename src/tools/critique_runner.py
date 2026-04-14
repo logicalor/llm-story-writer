@@ -8,7 +8,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 if TYPE_CHECKING:
     from infrastructure.storage.savepoint_repository import (
@@ -101,7 +101,7 @@ def _success(operation: str, data: Any) -> None:
     )
 
 
-def _error(message: str, exit_code: int = 1) -> None:
+def _error(message: str, exit_code: int = 1) -> NoReturn:
     """Print error to stderr and exit."""
     print(f"Error: {message}", file=sys.stderr)
     sys.exit(exit_code)
@@ -161,7 +161,6 @@ def cmd_run_critics(
             outline = data if isinstance(data, str) else json.dumps(data, default=str)
         else:
             _error("no outline content provided and no outline savepoint found")
-            return  # unreachable
 
     parser = CritiqueParser()
     critique_results = []
@@ -237,7 +236,6 @@ def cmd_should_refine(
     data = _load_savepoint(repo, step)
     if not isinstance(data, dict):
         _error("invalid critique results format")
-        return  # unreachable
 
     average_scores: dict[str, float] = data.get("average_scores", {})
     overall_average: float = data.get("overall_average", 0.0)
@@ -281,12 +279,10 @@ def cmd_generate_feedback(name: str, iteration: int) -> None:
     data = _load_savepoint(repo, step)
     if not isinstance(data, dict):
         _error("invalid critique results format")
-        return  # unreachable
 
     raw_results = data.get("critic_results", [])
     if not isinstance(raw_results, list):
         _error("invalid critic_results format: expected list")
-        return  # unreachable
 
     # Reconstruct CritiqueResult objects from serialized data
     critique_results: list[CritiqueResult] = []

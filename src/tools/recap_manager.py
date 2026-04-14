@@ -9,7 +9,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 if TYPE_CHECKING:
     from infrastructure.storage.savepoint_repository import (
@@ -105,7 +105,7 @@ def _success(operation: str, data: Any) -> None:
     )
 
 
-def _error(message: str, exit_code: int = 1) -> None:
+def _error(message: str, exit_code: int = 1) -> NoReturn:
     """Print error to stderr and exit."""
     print(f"Error: {message}", file=sys.stderr)
     sys.exit(exit_code)
@@ -370,7 +370,6 @@ def cmd_sanitize(
         sanitized = _extract_json_from_response(sanitized_raw)
     except Exception as exc:
         _error(f"sanitize LLM call failed: {exc}")
-        return  # unreachable but keeps type checker happy
 
     # Optional: programmatic recency classification
     if enable_programmatic_classification:
@@ -492,7 +491,6 @@ def cmd_compact(
         compacted = _extract_json_from_response(compacted_raw)
     except Exception as exc:
         _error(f"compact LLM call failed: {exc}")
-        return  # unreachable
 
     # Save compacted recap
     _save_savepoint(repo, f"chapter_{chapter}/compacted_recap", compacted)

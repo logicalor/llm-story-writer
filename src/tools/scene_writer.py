@@ -8,7 +8,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 if TYPE_CHECKING:
     from infrastructure.storage.savepoint_repository import (
@@ -90,7 +90,7 @@ def _success(operation: str, data: Any) -> None:
     )
 
 
-def _error(message: str, exit_code: int = 1) -> None:
+def _error(message: str, exit_code: int = 1) -> NoReturn:
     """Print error to stderr and exit."""
     print(f"Error: {message}", file=sys.stderr)
     sys.exit(exit_code)
@@ -201,7 +201,6 @@ def cmd_generate(
         content = _call_llm(prompt_text, model=model)
     except RuntimeError as exc:
         _error(f"scene generation failed: {exc}")
-        return  # unreachable
 
     _save_savepoint(repo, step, content)
     _success("generate", content)
@@ -237,7 +236,6 @@ def cmd_revise(
         revised = _call_llm(prompt_text, model=model)
     except RuntimeError as exc:
         _error(f"scene revision failed: {exc}")
-        return  # unreachable
 
     _save_savepoint(repo, step, revised)
     _success("revise", revised)
@@ -264,7 +262,6 @@ def cmd_assemble_chapter(
 
     if missing:
         _error(f"missing scenes: {missing}")
-        return  # unreachable
 
     # Load scene definitions once for title lookup
     defs_step = f"chapter_{chapter_num}/scene_definitions"
