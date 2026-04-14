@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +16,6 @@ if TYPE_CHECKING:
     )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
 
 _src_path = str(PROJECT_ROOT / "src")
 _root_path = str(PROJECT_ROOT)
@@ -26,17 +24,7 @@ if _src_path not in sys.path:
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
-
-def _validate_story_name(name: str) -> Path:
-    """Validate story name does not escape the stories directory."""
-    story_dir = (STORIES_DIR / name).resolve()
-    if not story_dir.is_relative_to(STORIES_DIR.resolve()):
-        print(
-            f"Error: story name escapes stories directory: {name}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    return story_dir
+from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
 
 
 def _validate_chapter(chapter: int) -> None:

@@ -21,7 +21,7 @@ _src = str(Path(__file__).resolve().parents[1])
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-from src.tools._io import _atomic_write  # noqa: E402
+from src.tools._io import _atomic_write, _validate_story_name  # noqa: E402
 from src.tools._llm import count_tokens, generate_text  # noqa: E402
 from src.tools._wiki import (  # noqa: E402
     _validate_slug,
@@ -33,7 +33,6 @@ from src.tools._wiki import (  # noqa: E402
 )
 from src.tools.wiki_search import _get_collection  # noqa: E402
 
-STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
 CHROMADB_DIR = os.environ.get("CHROMADB_DIR", str(PROJECT_ROOT / ".chromadb"))
 
 # --- Scoring constants ---
@@ -55,14 +54,6 @@ def _error(msg: str) -> None:
     """Write error to stderr and exit with code 1."""
     sys.stderr.write(f"Error: {msg}\n")
     sys.exit(1)
-
-
-def _validate_story_name(name: str) -> Path:
-    """Validate story name does not escape the stories directory."""
-    story_dir = (STORIES_DIR / name).resolve()
-    if not story_dir.is_relative_to(STORIES_DIR.resolve()):
-        _error(f"story name escapes stories directory: {name}")
-    return story_dir
 
 
 # ---------------------------------------------------------------------------
