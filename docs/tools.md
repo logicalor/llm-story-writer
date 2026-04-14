@@ -830,6 +830,173 @@ Invalid values produce exit code 1 with a descriptive error message.
 
 ---
 
+## scene-writer
+
+Scene writing pipeline: parse a chapter outline into scene definitions, generate individual scenes, revise scenes with feedback, or assemble scenes into a chapter.
+
+**Source files:**
+- `.opencode/tools/scene-writer.ts` — TypeScript wrapper
+- `src/tools/scene_writer.py` — Python CLI script
+- `src/tools/_llm.py` — Shared LLM client (`generate_text`, `_extract_json_block`, `count_tokens`)
+- `src/infrastructure/prompts/prompt_loader.py` — Prompt template loading
+- `src/infrastructure/storage/savepoint_repository.py` — Savepoint persistence
+
+### Purpose
+
+The scene writer breaks chapter-level generation into finer-grained scene units. A chapter outline is first parsed into individual scene definitions (structured JSON), then each scene is generated independently. Scenes can be revised with targeted feedback, and once all scenes in a chapter are complete they are assembled into a single chapter document with section headers and separators.
+
+All LLM-backed operations save their results to savepoints, making the pipeline fully resumable if interrupted.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"parse-definitions" \| "generate" \| "revise" \| "assemble-chapter"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name (directory under `stories/`) |
+| `chapterNum` | integer | For all except as noted | Chapter number (must be ≥ 1) |
+| `sceneNum` | integer | For `generate`, `revise` | Scene number within the chapter (must be ≥ 1) |
+| `sceneCount` | integer | For `assemble-chapter` | Total number of scenes in the chapter (must be ≥ 1) |
+| `chapterOutline` | string | For `parse-definitions`, `generate`; optional for `revise` | Chapter outline text |
+| `sceneDefinition` | string | For `generate`; optional for `revise` | Scene definition as JSON string |
+| `sceneContent` | string | For `revise` | Current scene content to revise |
+| `feedback` | string | For `revise` | Revision feedback describing what to improve |
+| `chapterTitle` | string | No | Chapter title for `assemble-chapter` (defaults to `"Chapter N"`) |
+| `baseContext` | string | No | Base story context (for `generate`) |
+| `storyElements` | string | No | Story elements text (for `generate`) |
+| `characterSheets` | string | No | Character sheets (for `generate`) |
+| `settingSheets` | string | No | Setting sheets (for `generate`) |
+| `previousRecap` | string | No | Previous chapter recap (for `generate`) |
+| `previousScene` | string | No | Previous scene content (for `generate`) |
+| `nextSceneDefinition` | string | No | Next scene definition (for `generate`) |
+| `nextChapterSynopsis` | string | No | Next chapter synopsis (for `generate`) |
+| `model` | string | No | Override LLM model identifier |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/scene_writer.py --operation <op> --name <name> [options]
+```
+
+**Examples:**
+
+```bash
+# Parse chapter outline into scene definitions
+python3 src/tools/scene_writer.py --operation parse-definitions \
+  --name my-story --chapter-num 3 \
+  --chapter-outline "Elena arrives at the ancient city..."
+
+# Generate a single scene
+python3 src/tools/scene_writer.py --operation generate \
+  --name my-story --chapter-num 3 --scene-num 1 \
+  --scene-definition '{"title": "The Arrival", "description": "Elena enters the gate"}' \
+  --chapter-outline "Chapter 3 outline text" \
+  --base-context "Fantasy world context" \
+  --previous-scene "Previous scene text"
+
+# Revise a scene with feedback
+python3 src/tools/scene_writer.py --operation revise \
+  --name my-story --chapter-num 3 --scene-num 1 \
+  --scene-content "The sun set over the city..." \
+  --feedback "Add more tension in the dialogue" \
+  --scene-definition '{"title": "The Arrival"}' \
+  --chapter-outline "Chapter 3 outline"
+
+# Assemble all scenes into a chapter
+python3 src/tools/scene_writer.py --operation assemble-chapter \
+  --name my-story --chapter-num 3 --scene-count 4 \
+  --chapter-title "The Ancient City"
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `parse-definitions` | Sends chapter outline through `scenes/parse_definitions` prompt; LLM returns a JSON array of scene objects. Falls back to a single scene if JSON parsing fails. Saves to savepoint. | `{"status": "success", "operation": "parse-definitions", "data": [{"title": "...", "description": "..."}, ...]}` |
+| `generate` | Renders `scenes/create_content` prompt with scene definition and full story context, calls LLM, saves result to savepoint | `{"status": "success", "operation": "generate", "data": "<scene text>"}` |
+| `revise` | Renders `scenes/revise_content` prompt with current content, feedback, and optional context, calls LLM, overwrites the scene savepoint | `{"status": "success", "operation": "revise", "data": "<revised text>"}` |
+| `assemble-chapter` | Loads all scene savepoints for the chapter, retrieves scene titles from definitions savepoint, concatenates with `## <title>` headers and `---` separators | `{"status": "success", "operation": "assemble-chapter", "data": "# <title>\n\n## Scene 1\n\n..."}` |
+
+### Scene Definition Format
+
+The `parse-definitions` operation produces (and `generate` consumes) scene definition objects:
+
+```json
+[
+  {
+    "title": "The Arrival",
+    "description": "Elena steps through the city gate for the first time",
+    "characters": ["Elena", "Guard Captain"],
+    "setting": "City Gate",
+    "conflict": "Elena must prove her identity",
+    "tone": "Tense, anticipatory",
+    "key_events": ["Elena presents her papers", "Guard recognises the seal"],
+    "dialogue": "Sample dialogue snippet",
+    "ending": "Elena is admitted to the city",
+    "lead_in_to_next_scene": "As Elena enters, she notices...",
+    "literary_devices": "Foreshadowing of the seal's significance"
+  }
+]
+```
+
+### Prompt Templates
+
+The tool uses three prompt templates from the `prompts/scenes/` directory:
+
+| Template | Used By | Purpose |
+|----------|---------|---------|
+| `scenes/parse_definitions` | `parse-definitions` | Analyse a chapter outline and extract scene objects as JSON |
+| `scenes/create_content` | `generate` | Generate 750–1500 words of scene prose from a definition and context |
+| `scenes/revise_content` | `revise` | Revise scene content based on specific feedback |
+
+### Savepoint Structure
+
+All intermediate results are persisted under `stories/<name>/savepoints/`:
+
+| Savepoint Key | Created By | Content |
+|---------------|-----------|---------|
+| `chapter_N/scene_definitions` | `parse-definitions` | JSON array of scene definition objects |
+| `chapter_N/scene_M` | `generate`, `revise` | Scene prose text |
+
+### Resumability
+
+The `parse-definitions` and `generate` operations check for existing savepoints before calling the LLM. If a savepoint exists, the saved result is returned immediately and the LLM call is skipped. This means:
+
+- If `parse-definitions` has already run for a chapter, re-running returns the cached definitions
+- If a scene has already been generated, re-running `generate` returns the cached content
+- The `revise` operation always calls the LLM and overwrites the scene savepoint, since revisions are intentional changes
+- `assemble-chapter` is purely deterministic (no LLM) — it reads scene savepoints and concatenates them
+
+### Fallback Behaviour
+
+If the LLM response from `parse-definitions` cannot be parsed as valid JSON, or the parsed result is not a list of dictionaries, the tool falls back to a single scene definition containing the chapter number and the full chapter outline text as description.
+
+### LLM Configuration
+
+The tool uses `src/tools/_llm.py` for LLM access, configured via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_API_BASE` | `http://localhost:11434/v1` | OpenAI-compatible API base URL |
+| `LLM_MODEL` | `huihui_ai/magistral-abliterated:24b` | Default model identifier |
+
+The `--model` argument overrides `LLM_MODEL` for a single invocation.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — missing scenes for assembly, LLM failure, path traversal detected, invalid arguments |
+| 2 | Argument error — missing required flag for the chosen operation |
+
+### Security
+
+- **Path traversal prevention** — story names are validated with `Path.is_relative_to()` to ensure they cannot escape the `stories/` directory
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
 ## Adding a New Tool
 
 Follow this pattern to add tools to the system:
