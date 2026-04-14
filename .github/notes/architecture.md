@@ -83,7 +83,7 @@ Prompt templates are **Markdown files** stored in the top-level `prompts/` direc
 
 ## Tools
 
-Twelve tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
+Thirteen tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
 
 | Tool | Wrapper | Script | Infrastructure |
 |------|---------|--------|---------------|
@@ -99,6 +99,7 @@ Twelve tools implemented following the hybrid pattern from [ADR 001](docs/planni
 | `wiki-init` | `.opencode/tools/wiki-init.ts` | `src/tools/wiki_init.py` | `_wiki.py` — idempotent wiki directory + schema creation |
 | `wiki-read` | `.opencode/tools/wiki-read.ts` | `src/tools/wiki_read.py` | `_wiki.py` — page reading with detail levels, entity matching |
 | `wiki-search` | `.opencode/tools/wiki-search.ts` | `src/tools/wiki_search.py` | ChromaDB `PersistentClient` — semantic + metadata search over `wiki-<name>` collections |
+| `wiki-snapshot` | `.opencode/tools/wiki-snapshot.ts` | `src/tools/wiki_snapshot.py` | `_wiki.py` + `_llm.py` + ChromaDB — three-stage hybrid retrieval and context assembly pipeline (ADR 005) |
 
 Pattern: `.opencode/tools/*.ts` (Zod schema + execFileSync) → `src/tools/*.py` (argparse + domain logic) → `src/infrastructure/` or `src/domain/`.
 

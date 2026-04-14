@@ -1,7 +1,7 @@
 # ADR 005: Hybrid Wiki Context Retrieval and Synthesis Pipeline
 
 **Date:** 2026-04-12
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 
