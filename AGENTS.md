@@ -23,6 +23,14 @@ Each layer depends only on inner layers: infrastructure → application → doma
 
 Tools are **TypeScript wrappers** in `.opencode/tools/` that call **Python scripts** in `src/tools/` via subprocess. The `src/tools/` directory will be created when the first tool is implemented (see [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md)). The TypeScript layer handles argument parsing and OpenCode integration; the Python layer contains the actual logic.
 
+### Agents
+
+Story generation agents are defined in `.opencode/agents/`. The primary agent is `story-orchestrator`, which coordinates the full generation pipeline. Subagents (`outline-planner`, `chapter-writer`, `wiki-maintainer`) handle specialised creative tasks.
+
+### Skills
+
+Story generation skills are defined in `.opencode/skills/`. The `story-pipeline` skill provides the pipeline reference (phases, quality gates, savepoints, config settings).
+
 ### Storage
 
 - Stories are stored in `stories/<name>/` directories with JSON state files
