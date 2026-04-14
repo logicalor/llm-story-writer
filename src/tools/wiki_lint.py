@@ -14,7 +14,7 @@ _src = str(Path(__file__).resolve().parents[1])
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-from src.tools._io import _atomic_write, _validate_story_name  # noqa: E402
+from src.tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
 from src.tools._wiki import (  # noqa: E402
     WIKI_SUBDIRS,
     _TYPE_TO_DIR,
@@ -24,10 +24,6 @@ from src.tools._wiki import (  # noqa: E402
     match_entities_in_text,
     parse_frontmatter,
     read_index,
-)
-
-STORIES_DIR = Path(
-    __import__("os").environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories"))
 )
 
 # Wikilink pattern: [[slug]] or [[slug|display text]]
@@ -365,16 +361,15 @@ def cmd_check_full(args: argparse.Namespace) -> None:
         first_app = metadata.get("first_appearance")
         last_updated = metadata.get("last_updated")
 
-        # Try to extract a chapter number from last_updated or version
-        # Use first_appearance as the page's chapter reference
+        # Use last_updated if it's a chapter number (int); otherwise fall back to first_appearance
         page_chapter = None
+        reference_field = "first_appearance"
         if isinstance(first_app, int):
             page_chapter = first_app
 
-        # Check version field for a chapter-based staleness heuristic
-        # Use last_updated if it's a chapter number (int)
         if isinstance(last_updated, int):
             page_chapter = last_updated
+            reference_field = "last_updated"
         elif isinstance(last_updated, str):
             # last_updated is a timestamp string; check first_appearance instead
             pass
@@ -386,7 +381,7 @@ def cmd_check_full(args: argparse.Namespace) -> None:
                     "narrative_style",
                     "stale_claim",
                     [slug],
-                    f"Page '{slug}' (first_appearance: {first_app}) "
+                    f"Page '{slug}' ({reference_field}: {page_chapter}) "
                     f"has not been updated in {current_chapter - page_chapter}+ chapters "
                     f"(current: {current_chapter})",
                     f"Review and update '{slug}' for current chapter relevance",

@@ -451,6 +451,115 @@ class TestCheckFull:
         assert output["status"] == "ok"
         assert output["summary"]["total"] == 0
 
+    def test_detects_confidence_downgrade(self, tmp_path: Path) -> None:
+        stories = tmp_path / "stories"
+        wiki = _create_wiki(stories)
+        _create_page(
+            wiki,
+            "character",
+            "ancient-hero",
+            "AncientHero",
+            extra_frontmatter={"confidence": "verified", "first_appearance": 1},
+        )
+        _add_to_index(wiki, "ancient-hero", "character", "AncientHero")
+
+        result = _run_tool(
+            "--operation",
+            "check-full",
+            "--name",
+            "test-story",
+            "--current-chapter",
+            "15",
+            stories_dir=stories,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        output = json.loads(result.stdout)
+        assert output["status"] == "ok"
+
+        downgrades = [
+            f for f in output["findings"] if f["subtype"] == "confidence_downgrade"
+        ]
+        assert len(downgrades) >= 1
+        assert downgrades[0]["severity"] == "info"
+        assert downgrades[0]["category"] == "narrative_style"
+
+    def test_detects_type_mismatch(self, tmp_path: Path) -> None:
+        stories = tmp_path / "stories"
+        wiki = _create_wiki(stories)
+        _create_page(wiki, "character", "mistyped", "Mistyped")
+        # Index lists it as 'location' — mismatched with frontmatter 'character'
+        _add_to_index(wiki, "mistyped", "location", "Mistyped")
+
+        result = _run_tool(
+            "--operation",
+            "check-full",
+            "--name",
+            "test-story",
+            "--current-chapter",
+            "5",
+            stories_dir=stories,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        output = json.loads(result.stdout)
+        assert output["status"] == "ok"
+
+        type_findings = [
+            f
+            for f in output["findings"]
+            if f["subtype"] == "naming_inconsistency" and "type" in f["message"].lower()
+        ]
+        assert len(type_findings) >= 1
+        assert type_findings[0]["severity"] == "warning"
+        assert type_findings[0]["category"] == "factual_consistency"
+        assert "character" in type_findings[0]["message"]
+        assert "location" in type_findings[0]["message"]
+
+    def test_detects_wrong_directory(self, tmp_path: Path) -> None:
+        stories = tmp_path / "stories"
+        wiki = _create_wiki(stories)
+        # Create a character page but place it in locations/ directory
+        metadata = {
+            "type": "character",
+            "name": "Misplaced",
+            "slug": "misplaced",
+            "confidence": "verified",
+            "first_appearance": 1,
+            "aliases": [],
+            "last_updated": "2026-01-01T00:00:00Z",
+            "version": 1,
+            "detail_levels": {"L1": "Short", "L2": "Medium", "L3": "Full"},
+        }
+        content = f"---\n{yaml.dump(metadata, default_flow_style=False)}---\nBody.\n"
+        page_path = wiki / "locations" / "misplaced.md"
+        page_path.write_text(content)
+        # Index type matches frontmatter (character), but file is in locations/
+        _add_to_index(wiki, "misplaced", "character", "Misplaced")
+
+        result = _run_tool(
+            "--operation",
+            "check-full",
+            "--name",
+            "test-story",
+            "--current-chapter",
+            "5",
+            stories_dir=stories,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        output = json.loads(result.stdout)
+        assert output["status"] == "ok"
+
+        dir_findings = [
+            f
+            for f in output["findings"]
+            if f["subtype"] == "naming_inconsistency"
+            and "directory" in f["message"].lower()
+        ]
+        assert len(dir_findings) >= 1
+        assert dir_findings[0]["severity"] == "warning"
+        assert dir_findings[0]["category"] == "factual_consistency"
+        assert "locations" in dir_findings[0]["message"]
+        assert "characters" in dir_findings[0]["message"]
+
 
 # ---------------------------------------------------------------------------
 # TestCheckEntity
