@@ -1472,6 +1472,7 @@ python3 src/tools/wiki_snapshot.py --operation snapshot \
   --pov-character <slug> \
   --primary-location <slug> \
   --characters <slug1,slug2,...> \
+  --locations <slug1,slug2,...> \
   --scene-type dialogue \
   --budget 15000
 ```
