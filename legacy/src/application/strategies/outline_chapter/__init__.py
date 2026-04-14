@@ -2,4 +2,4 @@
 
 from .strategy import OutlineChapterStrategy
 
-__all__ = ["OutlineChapterStrategy"]
+__all__ = ['OutlineChapterStrategy']

@@ -229,6 +229,34 @@ class TestRead:
         assert result.returncode == 1
         assert "escapes" in result.stderr
 
+    def test_read_slug_traversal_blocked(self, wiki_env: tuple[Path, Path]) -> None:
+        stories, _wiki = wiki_env
+        result = _run_tool(
+            "--operation",
+            "read",
+            "--name",
+            "test-story",
+            "--slug",
+            "../../etc/passwd",
+            stories_dir=stories,
+        )
+        assert result.returncode == 1
+        assert "invalid slug" in result.stderr
+
+    def test_read_glob_traversal_blocked(self, wiki_env: tuple[Path, Path]) -> None:
+        stories, _wiki = wiki_env
+        result = _run_tool(
+            "--operation",
+            "read",
+            "--name",
+            "test-story",
+            "--glob",
+            "../**/*.md",
+            stories_dir=stories,
+        )
+        assert result.returncode == 1
+        assert "invalid glob" in result.stderr
+
     def test_read_missing_operation(self) -> None:
         result = _run_tool("--name", "test-story")
         assert result.returncode == 2

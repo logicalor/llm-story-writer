@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import yaml
@@ -152,6 +153,48 @@ def get_wiki_dir(story_dir: Path) -> Path:
     return story_dir / "wiki"
 
 
+_TYPE_TO_DIR = {
+    "character": "characters",
+    "location": "locations",
+    "event": "events",
+    "faction": "factions",
+    "item": "items",
+    "plot_thread": "plot-threads",
+    "world_rule": "world-rules",
+    "theme": "themes",
+    "relationship": "relationships",
+    "timeline_entry": "timeline",
+    "chapter_synopsis": "chapters",
+    "contradiction": "characters",  # stored alongside, or root
+}
+
+
+def _validate_slug(slug: str) -> None:
+    """Reject slugs containing path traversal sequences."""
+    if ".." in slug or "/" in slug:
+        print(
+            f"Error: invalid slug (contains '..' or '/'): {slug}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def _validate_glob_pattern(pattern: str) -> None:
+    """Reject glob patterns containing path traversal sequences."""
+    if ".." in pattern:
+        print(
+            f"Error: invalid glob pattern (contains '..'): {pattern}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def _filter_within_wiki(wiki_dir: Path, paths: list[Path]) -> list[Path]:
+    """Filter paths to only those within the wiki directory."""
+    resolved_wiki = wiki_dir.resolve()
+    return [p for p in paths if p.resolve().is_relative_to(resolved_wiki)]
+
+
 def find_pages(
     wiki_dir: Path,
     slug: str | None = None,
@@ -162,6 +205,7 @@ def find_pages(
     results: list[Path] = []
 
     if slug:
+        _validate_slug(slug)
         # Search all subdirectories for {slug}.md
         for subdir in WIKI_SUBDIRS:
             candidate = wiki_dir / subdir / f"{slug}.md"
@@ -173,27 +217,15 @@ def find_pages(
             results.append(root_candidate)
 
     elif page_type:
-        # Map page_type to subdirectory name
-        type_to_dir = {
-            "character": "characters",
-            "location": "locations",
-            "event": "events",
-            "faction": "factions",
-            "item": "items",
-            "plot_thread": "plot-threads",
-            "world_rule": "world-rules",
-            "theme": "themes",
-            "relationship": "relationships",
-            "timeline_entry": "timeline",
-            "chapter_synopsis": "chapters",
-            "contradiction": "characters",  # stored alongside, or root
-        }
-        subdir_name = type_to_dir.get(page_type, page_type)
+        if page_type not in _TYPE_TO_DIR:
+            return []
+        subdir_name = _TYPE_TO_DIR[page_type]
         subdir_path = wiki_dir / subdir_name
         if subdir_path.exists():
             results.extend(sorted(subdir_path.glob("*.md")))
 
     elif glob_pattern:
+        _validate_glob_pattern(glob_pattern)
         results.extend(sorted(wiki_dir.glob(glob_pattern)))
 
     else:
@@ -203,4 +235,5 @@ def find_pages(
             if subdir_path.exists():
                 results.extend(sorted(subdir_path.glob("*.md")))
 
-    return results
+    # Belt-and-suspenders: ensure all results are within wiki_dir
+    return _filter_within_wiki(wiki_dir, results)

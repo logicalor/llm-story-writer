@@ -35,13 +35,14 @@ def _get_collection(story_name: str):  # type: ignore[no-untyped-def]
     Returns None if collection does not exist.
     """
     import chromadb  # type: ignore[import-not-found]
+    from chromadb.errors import NotFoundError  # type: ignore[import-not-found]
 
     client = chromadb.PersistentClient(path=CHROMADB_DIR)
     collection_name = f"wiki-{story_name}"
 
     try:
         return client.get_collection(name=collection_name)
-    except Exception:
+    except NotFoundError:
         return None
 
 
@@ -85,7 +86,9 @@ def cmd_semantic(args: argparse.Namespace) -> None:
         for i, doc_id in enumerate(ids):
             entry: dict = {
                 "slug": doc_id,
-                "score": round(1.0 - distances[i], 4) if i < len(distances) else 0.0,
+                "score": round(1.0 / (1.0 + distances[i]), 4)
+                if i < len(distances)
+                else 0.0,
                 "excerpt": documents[i][:500] if i < len(documents) else "",
                 "metadata": metadatas[i] if i < len(metadatas) else {},
             }

@@ -2,4 +2,4 @@
 
 from .strategy import StreamOfConsciousnessStrategy
 
-__all__ = ["StreamOfConsciousnessStrategy"]
+__all__ = ['StreamOfConsciousnessStrategy']

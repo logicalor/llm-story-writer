@@ -1,1 +1,1 @@
-# Domain entities - Core business objects
+# Domain entities - Core business objects 

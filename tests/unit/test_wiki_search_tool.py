@@ -103,6 +103,38 @@ class TestSemantic:
         assert "score" in output["results"][0]
         assert "excerpt" in output["results"][0]
 
+    def test_semantic_scores_normalized_0_to_1(
+        self, search_env: tuple[Path, Path]
+    ) -> None:
+        """Scores use 1/(1+distance), always in (0, 1] range."""
+        stories, chroma_dir = search_env
+        client = chromadb.PersistentClient(path=str(chroma_dir))
+        collection = client.create_collection(name="wiki-test-story")
+        collection.add(
+            ids=["far-away"],
+            documents=["Completely unrelated content about quantum physics."],
+            metadatas=[{"type": "event", "slug": "far-away"}],
+        )
+        del client
+
+        result = _run_tool(
+            "--operation",
+            "semantic",
+            "--name",
+            "test-story",
+            "--query",
+            "medieval sword battle",
+            "--n-results",
+            "1",
+            stories_dir=stories,
+            chromadb_dir=chroma_dir,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        output = json.loads(result.stdout)
+        assert len(output["results"]) == 1
+        score = output["results"][0]["score"]
+        assert 0 < score <= 1.0, f"Score {score} not in (0, 1]"
+
 
 class TestMetadata:
     def test_metadata_empty_collection(self, search_env: tuple[Path, Path]) -> None:
