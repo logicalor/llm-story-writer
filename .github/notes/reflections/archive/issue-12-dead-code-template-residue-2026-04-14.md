@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/coder.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Dead code from template-copying persists despite Rule 7

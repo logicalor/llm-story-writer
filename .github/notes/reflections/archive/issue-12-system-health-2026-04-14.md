@@ -7,7 +7,7 @@ targets:
   - ".github/agents/coder.agent.md"
   - ".github/agents/orchestrator-v3.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Eighth tool implementation — clean pattern adherence, stale count recurrence

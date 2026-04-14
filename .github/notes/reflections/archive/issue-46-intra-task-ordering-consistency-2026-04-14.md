@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/coder.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Coder applies operation ordering inconsistently between similar functions in the same tool
