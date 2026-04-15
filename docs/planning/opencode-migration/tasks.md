@@ -680,13 +680,15 @@ Create OpenCode custom commands that serve as the user interface:
 
 **Acceptance Criteria:**
 
-- [ ] All commands defined in `.opencode/commands/`
-- [ ] `/new-story` validates prompt file exists, initializes wiki, and starts orchestrator
-- [ ] `/continue` lists available stories if no name given, resumes correct story
-- [ ] `/regenerate` correctly identifies chapter/scene and triggers regeneration (including wiki rollback)
-- [ ] `/status` reads story state and displays human-readable progress
-- [ ] `/settings` reads config.md and displays/modifies settings
-- [ ] `/wiki` displays wiki page counts, last update timestamp, and recent lint results
+- [x] All commands defined in `.opencode/commands/`
+- [x] `/new-story` validates prompt file exists, initializes wiki, and starts orchestrator
+- [x] `/continue` lists available stories if no name given, resumes correct story
+- [x] `/regenerate` correctly identifies chapter/scene and triggers regeneration (including wiki rollback)
+- [x] `/status` reads story state and displays human-readable progress
+- [x] `/settings` reads config.md and displays/modifies settings
+- [x] `/wiki` displays wiki page counts, last update timestamp, and recent lint results
+
+**Completed:** PR #66 (issue #21)
 
 **Key Files:**
 
