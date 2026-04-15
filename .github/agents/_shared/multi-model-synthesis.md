@@ -31,6 +31,18 @@ Dispatch all three sub-agents **sequentially** — invoke each `runSubagent` cal
 
 > **Do NOT dispatch sub-agents in parallel.** Parallel execution causes stability issues and is forbidden. Always wait for each sub-agent to return before dispatching the next.
 
+### Pre-Compute Shared Data
+
+When sub-agents will perform heavy I/O (reading files, running git commands, grepping the workspace), the synthesizing agent should **collect the data once** and include it in each dispatch prompt. This eliminates N× redundant tool calls that compound across models and risk destabilising the extension host.
+
+The synthesizing agent's own workflow should define the specific data to collect. The general pattern:
+
+1. Run all I/O-heavy commands in the synthesizing agent's context
+2. Assemble the output into a labeled text block
+3. Include the block in each sub-agent's dispatch prompt
+4. Instruct sub-agents to use the provided data instead of re-running the commands
+5. Sub-agents may still run **targeted** verification commands, but must not re-collect bulk data
+
 ---
 
 ## Cross-Reference and Classify

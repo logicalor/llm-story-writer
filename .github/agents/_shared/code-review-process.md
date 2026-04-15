@@ -13,6 +13,18 @@ Before reviewing:
 3. **Read each changed file** — use `read` to view the full file (not just the diff) for context
 4. **Check commit messages** — run `git log --oneline development..HEAD` to review commit quality
 
+### Pre-Computed Package Mode
+
+When dispatched by the **Synthesizing Reviewer**, your prompt includes a **Review Package** (delimited by `== REVIEW PACKAGE ==` / `== END REVIEW PACKAGE ==`) containing the branch name, commit log, changed file list, full diff, and full file contents — all pre-collected by the synthesizer.
+
+In this mode:
+
+- **Skip Prerequisites 1–4** — the data is already in the package
+- Use the package data for all review phases
+- You may still run **targeted** commands for specific verification (e.g., checking if a file referenced in the code exists on disk, grepping for a specific pattern across the workspace) — but do not re-run the bulk data collection commands
+
+This eliminates redundant I/O when multiple reviewer models are dispatched against the same branch.
+
 ---
 
 ## Review Phases
