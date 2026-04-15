@@ -109,24 +109,28 @@ See [Tools Reference](docs/tools.md) for full documentation.
 
 ## Agents
 
-Two agents defined in `.opencode/agents/`, registered in `opencode.json`:
+Three agents defined in `.opencode/agents/`, registered in `opencode.json`:
 
 | Agent | Definition | Skills | Purpose |
-|-------|-----------|--------|---------|
+|-------|-----------|--------|--------|
 | `story-orchestrator` | `.opencode/agents/story-orchestrator.md` | `story-pipeline` | Primary pipeline controller — coordinates 9-phase story generation lifecycle, delegates to subagents |
 | `chapter-writer` | `.opencode/agents/chapter-writer.md` | `scene-writing`, `character-voice` | Per-chapter scene generation — invoked by orchestrator during Phase 8b, generates scenes sequentially using wiki-snapshot context |
+| `outline-planner` | `.opencode/agents/outline-planner.md` | `story-pipeline`, `outline-structure` | Outline generation — invoked by orchestrator during Phase 2, runs 5-phase pipeline: prompt analysis, element synthesis, outline generation (chunked/monolithic), optional critique & refinement |
 
 The `chapter-writer` is named to avoid collision with the existing `scene-writer` tool. The orchestrator delegates to `chapter-writer` for the per-chapter scene generation loop; the agent in turn calls the `scene-writer` tool for individual scene generation.
 
+The `outline-planner` uses `outline-generator` and `critique-runner` tools to drive the outline pipeline end-to-end, creating savepoints at each stage for resumability.
+
 ## Skills
 
-Three skills defined in `.opencode/skills/`:
+Four skills defined in `.opencode/skills/`:
 
 | Skill | File | Used By | Purpose |
-|-------|------|---------|---------|
-| `story-pipeline` | `.opencode/skills/story-pipeline/SKILL.md` | `story-orchestrator` | Pipeline reference — phases, quality gates, savepoints, config settings |
+|-------|------|---------|--------|
+| `story-pipeline` | `.opencode/skills/story-pipeline/SKILL.md` | `story-orchestrator`, `outline-planner` | Pipeline reference — phases, quality gates, savepoints, config settings |
 | `scene-writing` | `.opencode/skills/scene-writing/SKILL.md` | `chapter-writer` | Scene writing conventions — narrative structure, pacing, transitions, generation best practices |
 | `character-voice` | `.opencode/skills/character-voice/SKILL.md` | `chapter-writer` | Character voice consistency — dialogue patterns, internal thought, behavioural coherence across scenes |
+| `outline-structure` | `.opencode/skills/outline-structure/SKILL.md` | `outline-planner` | Outline data structures — JSON schemas, analysis chunk categories, savepoint naming, quality criteria, config reference |
 
 ## Planned Architecture (Post-Migration)
 

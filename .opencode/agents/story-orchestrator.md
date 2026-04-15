@@ -53,12 +53,9 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
 **Purpose:** Generate the full story outline.
 
-1. Delegate outline generation to the `outline-planner` subagent
-2. If `use_chunked_outline_generation` is true, instruct `outline-planner` to generate in chunks of `outline_chunk_size` chapters
-3. If `enable_outline_critique` is true, run critique/revision loop up to `outline_critique_iterations` times:
-   - Run `critique-runner` on the outline
-   - If score < `outline_quality`, revise (up to `outline_max_revisions` total revisions)
-   - If score >= `outline_quality`, accept and proceed
+1. Delegate outline generation to the `outline-planner` subagent, passing all relevant config values (`use_chunked_outline_generation`, `outline_chunk_size`, `enable_outline_critique`, `outline_quality`, `outline_critique_iterations`, `outline_min_revisions`, `wanted_chapters`)
+2. The `outline-planner` handles the full pipeline internally — prompt analysis, element synthesis, outline generation (chunked or monolithic), and the critique/refinement loop. Do **not** run critique or revision steps at the orchestrator level.
+3. Receive the finalised outline from `outline-planner`. If the orchestrator's own revision cap (`outline_max_revisions`) has not been reached and the user requests further revisions (Phase 3 feedback), re-invoke `outline-planner` with feedback.
 4. Store the finalised outline via `story-state` (operation: `update`, field: `outline`)
 5. Create savepoint: `outline_complete`
 

@@ -37,3 +37,12 @@ The Orchestrator references `bash scripts/verify-green.sh` in Step 7 for post-fi
 **Source:** Reflection — issue #1
 
 `copilot-instructions.md` specifies `ruff check --fix .` and `ruff format .` as the project's lint/format commands. `ruff` is not currently installed in the Python environment. The Orchestrator's Step 5c will fail until ruff is available. Should be resolved as part of the development environment setup migration task.
+
+---
+
+## Investigate hanging test in `pytest tests/`
+
+**Date:** 2026-04-15
+**Source:** Reflection — issue #18
+
+Running `pytest tests/` hangs after ~176 tests; `pytest tests/unit/` completes cleanly (241 passed). The hang is likely caused by root-level `test_*.py` files that attempt network calls or wait for input. Investigate and either fix (add timeouts/mocks) or exclude from default collection (add to `pyproject.toml` `testpaths` or a `conftest.py` `collect_ignore`).

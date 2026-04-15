@@ -575,12 +575,12 @@ Create the `outline-structure` skill with outline format specifications.
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/agents/outline-planner.md` exists with agent definition
-- [ ] Agent uses `outline-generator` and `critique-runner` tools correctly
-- [ ] Optional critique loop runs up to `outline_critique_iterations` times
-- [ ] `.opencode/skills/outline-structure/SKILL.md` exists
-- [ ] Agent returns completed outline to the orchestrator
-- [ ] All intermediate steps are saved as savepoints
+- [x] `.opencode/agents/outline-planner.md` exists with agent definition
+- [x] Agent uses `outline-generator` and `critique-runner` tools correctly
+- [x] Optional critique loop runs up to `outline_critique_iterations` times
+- [x] `.opencode/skills/outline-structure/SKILL.md` exists
+- [x] Agent returns completed outline to the orchestrator
+- [x] All intermediate steps are saved as savepoints
 
 **Key Files:**
 
