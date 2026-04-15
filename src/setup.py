@@ -18,7 +18,9 @@ requirements_path = Path(__file__).parent.parent / "requirements_refactored.txt"
 requirements = []
 if requirements_path.exists():
     with open(requirements_path, "r", encoding="utf-8") as f:
-        requirements = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        requirements = [
+            line.strip() for line in f if line.strip() and not line.startswith("#")
+        ]
 
 setup(
     name="ai-story-writer-refactored",
@@ -56,4 +58,4 @@ setup(
         "Source": "https://github.com/datacrystals/AIStoryWriter",
         "Documentation": "https://github.com/datacrystals/AIStoryWriter#readme",
     },
-) 
+)

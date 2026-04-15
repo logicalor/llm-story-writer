@@ -1,1 +1,1 @@
-# Logging implementations 
+# Logging implementations

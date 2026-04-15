@@ -85,9 +85,8 @@ def test_continue_injects_story_list():
 
 def test_status_injects_shell_commands():
     _, body = _parse_command("status.md")
-    assert "!python3" in body or "!find" in body, (
-        "status.md should contain shell injection syntax"
-    )
+    assert "!python3" in body, "status.md should contain !python3 shell command"
+    assert "!find" in body, "status.md should contain !find shell command"
 
 
 def test_settings_includes_config():

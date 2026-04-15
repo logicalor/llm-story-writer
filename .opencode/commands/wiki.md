@@ -7,14 +7,16 @@ Show wiki summary and health status for the story.
 Available stories:
 !python3 src/tools/story_state.py --operation list
 
-Wiki page count (if story name "$1" was provided):
-!find stories/$1/wiki -name "*.md" -not -name "_*" | wc -l
+Wiki page count:
+!find "stories/$1/wiki" -name "*.md" -not -name "_*" | wc -l
 
-Wiki subdirectories (if story name "$1" was provided):
-!ls -la stories/$1/wiki/
+Wiki subdirectories:
+!ls -la "stories/$1/wiki/"
 
-Wiki lint results (if story name "$1" was provided):
-!python3 src/tools/wiki_lint.py --operation check-full --name $1
+Wiki lint results:
+!python3 src/tools/wiki_lint.py --operation check-full --name "$1"
+
+Note: The shell commands above will fail if no story name was provided. Handle errors from these commands gracefully.
 
 Format the output as a wiki health report including:
 - Total number of wiki pages
