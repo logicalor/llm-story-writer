@@ -119,76 +119,58 @@ New ways entities are referenced in the scene text. Apply alias identification r
 
 ## Structured Output Format
 
-All wiki operations produced by the agent use this JSON batch payload format, passed to `wiki-update` (operation: `batch`) via the `payload` parameter.
+All wiki operations produced by the agent use this JSON batch payload format, passed to `wiki-update` (operation: `batch`) via the `payload` parameter. The payload contains three top-level arrays: `creates`, `updates`, and `timeline_events`.
 
-### Create Operation
+### Batch Payload
 ```json
 {
-  "operations": [
+  "creates": [
     {
-      "type": "create",
       "slug": "entity-slug",
-      "pageType": "character",
-      "pageName": "Display Name",
+      "page_type": "character",
+      "page_name": "Display Name",
       "confidence": "verified",
-      "firstAppearance": 1,
+      "first_appearance": 1,
       "aliases": ["alias1", "alias2"],
       "body": "Full description with [[related-entity]] wikilinks to related entities.",
-      "detailLevels": {
+      "detail_levels": {
         "L1": "~30 token headline",
         "L2": "~150 token brief",
         "L3": "~500 token full description"
       },
-      "frontmatter": { "role": "supporting", "status": "alive" }
+      "role": "supporting",
+      "status": "alive"
     }
-  ]
-}
-```
-
-### Update Operation
-```json
-{
-  "operations": [
+  ],
+  "updates": [
     {
-      "type": "update",
       "slug": "existing-entity",
-      "mergeBody": "New information to merge into existing page body.",
-      "confidence": "verified",
+      "merge_body": "New information to merge into existing page body.",
+      "frontmatter": { "confidence": "verified" },
       "aliases": ["new-alias"],
-      "detailLevels": { "L1": "...", "L2": "...", "L3": "..." }
+      "detail_levels": { "L1": "...", "L2": "...", "L3": "..." }
     }
-  ]
-}
-```
-
-### Timeline Operation
-```json
-{
-  "operations": [
+  ],
+  "timeline_events": [
     {
-      "type": "timeline",
-      "slug": "entity-slug",
-      "events": [
-        {
-          "chapter": 3,
-          "scene": 2,
-          "summary": "Event description",
-          "type": "action"
-        }
-      ]
+      "time": "Day 3, evening",
+      "description": "Event description [Ch.3/Sc.2, verified]",
+      "chapter": 3
     }
   ]
 }
 ```
 
-### Event Types for Timeline
-- `action` — physical events, combat, movement
-- `dialogue` — significant conversations, revelations through speech
-- `revelation` — information revealed to characters or reader
-- `transition` — scene/chapter transitions, time skips, location changes
+### Field Reference
+
+**Create entries** require `slug`, `page_type`, and `page_name`. Optional fields: `body`, `confidence`, `first_appearance`, `aliases`, `detail_levels`, and type-specific fields (`role`, `status`, `region`, `chapter`, `impact`).
+
+**Update entries** require `slug`. Optional fields: `frontmatter` (object of fields to merge), `detail_levels`, `body` (full replacement), `merge_body` (appended to existing body).
+
+**Timeline entries** require `time`, `description`, and `chapter`. Events are appended to `timeline/main-timeline.md` in chronological order.
 
 ### Mixed Batch
-A single payload can combine `create`, `update`, and `timeline` operations. Group all operations for a scene into one batch call.
+A single payload can combine creates, updates, and timeline events. Group all operations for a scene into one batch call. All three arrays are optional — include only the arrays that contain entries.
 
 ---
 

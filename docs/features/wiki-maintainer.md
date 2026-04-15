@@ -172,7 +172,7 @@ The smaller model keeps wiki maintenance lightweight. Instructions are structure
 ## Related
 
 - [Story Orchestrator](./story-orchestrator.md) — Parent agent that invokes the wiki maintainer
-- [Tools Reference](../tools.md) — Full documentation for wiki-read, wiki-update, wiki-lint, wiki-search, wiki-snapshot
+- [Tools Reference](../tools.md) — Full documentation for wiki-read, wiki-update, wiki-lint, wiki-search, story-state
 - [ADR 004: Progressive Wiki Memory System](../planning/adr/004-progressive-wiki-memory-system.md) — Wiki page format, YAML frontmatter, wikilinks
 - [ADR 005: Hybrid Wiki Context Retrieval Pipeline](../planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md) — Three-stage retrieval pipeline using wiki detail levels
 - Issue [#22](https://github.com/logicalor/llm-story-writer/issues/22) — Initial implementation

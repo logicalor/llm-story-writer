@@ -636,22 +636,22 @@ The agent's workflow per scene:
 4. Identify aliases for each entity (common references, titles, nicknames used in the text) and include them in the entity's `aliases` frontmatter field
 5. Produce a structured update payload (JSON) specifying creates, updates, timeline entries
 6. Call `wiki-update` with the payload (which auto-generates pre-computed L1/L2/L3 detail levels and increments version counters)
-6. At chapter boundaries: call `wiki-lint check-chapter` and log results
+7. At chapter boundaries: call `wiki-lint check-chapter` and log results
 
 Create the `wiki-maintenance` skill with extraction rules, confidence scoring guidelines, and the entity extraction prompt templates.
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/agents/wiki-maintainer.md` exists with agent definition
-- [ ] Agent extracts new entities and state changes from scene text
-- [ ] Agent identifies entity aliases (titles, nicknames, common references) from scene text
-- [ ] Agent produces structured update payloads consumed by `wiki-update`
-- [ ] Agent uses `wiki-lint` at chapter boundaries
-- [ ] Agent assigns correct `confidence` levels (verified for explicit statements, speculative for implied)
-- [ ] Agent tracks provenance (source chapter/scene for every fact)
-- [ ] `.opencode/skills/wiki-maintenance/SKILL.md` exists with extraction rules and confidence taxonomy
-- [ ] Agent can run on a 7b model without tool-use failures
-- [ ] Agent handles initial wiki population from outline (creating planned/speculative entries)
+- [x] `.opencode/agents/wiki-maintainer.md` exists with agent definition
+- [x] Agent extracts new entities and state changes from scene text
+- [x] Agent identifies entity aliases (titles, nicknames, common references) from scene text
+- [x] Agent produces structured update payloads consumed by `wiki-update`
+- [x] Agent uses `wiki-lint` at chapter boundaries
+- [x] Agent assigns correct `confidence` levels (verified for explicit statements, speculative for implied)
+- [x] Agent tracks provenance (source chapter/scene for every fact)
+- [x] `.opencode/skills/wiki-maintenance/SKILL.md` exists with extraction rules and confidence taxonomy
+- [x] Agent can run on a 7b model without tool-use failures
+- [x] Agent handles initial wiki population from outline (creating planned/speculative entries)
 
 **Key Files:**
 
