@@ -90,7 +90,7 @@ The orchestrator delegates specialised work to three subagents:
 
 | Subagent | Purpose | Invoked In | Status |
 |----------|---------|------------|--------|
-| `outline-planner` | Generate and refine the story outline | Phase 2 | Planned |
+| `outline-planner` | Generate and refine the story outline | Phase 2 | Implemented (PR #64) |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b | Implemented (PR #63) |
 | `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 7, 8c | Planned |
 
@@ -108,6 +108,22 @@ The agent uses two skills:
 - **character-voice** — dialogue patterns, internal thought consistency, voice differentiation across characters
 
 Named `chapter-writer` (not `scene-writer`) to avoid collision with the existing `scene-writer` tool. See the [agent definition](../../.opencode/agents/chapter-writer.md) for the full workflow, savepoint strategy, and error handling.
+
+### outline-planner
+
+The `outline-planner` subagent handles Phase 2 — transforming the raw story prompt into a structured, critiqued outline. It receives the story name, prompt text, and config values from the orchestrator, then executes a 5-phase pipeline:
+
+1. **Prompt Analysis** — Calls `outline-generator` with `analyze-prompt` to run the multi-step analysis pipeline: understand prompt, generate 8 analysis chunks (`core_story_foundation`, `character_foundation`, `setting_foundation`, `conflict_stakes`, `plot_structure`, `theme_message`, `tone_style`, `world_rules_logic`), extract story start date, and extract base context
+2. **Elements Synthesis** — Calls `outline-generator` with `generate-elements` to combine all 8 chunks into a unified `story_elements` savepoint
+3. **Outline Generation** — Either chunked (`expand-chapter` in loops of `outline_chunk_size`) or monolithic (`generate-outline`), controlled by `use_chunked_outline_generation` config
+4. **Critique & Refinement** (optional) — When `enable_outline_critique` is enabled, runs `critique-runner` critics against the outline and refines via `outline-generator` until the quality threshold (`outline_quality`, default 87) is met or `outline_critique_iterations` is exhausted
+5. **Return** — Reports final outline, critique score, and iteration count to the orchestrator
+
+The agent uses two skills:
+- **story-pipeline** — overall pipeline context, phase definitions, and config settings
+- **outline-structure** — outline JSON schemas, analysis chunk categories, savepoint naming conventions, quality criteria, and critic types
+
+See the [agent definition](../../.opencode/agents/outline-planner.md) for the full workflow, savepoint strategy, and error handling.
 
 ## Tools
 
