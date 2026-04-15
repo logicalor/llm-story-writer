@@ -38,6 +38,9 @@
       "rm *": "deny"
     }
   },
+  "plugins": [
+    ".opencode/plugins/story-compaction.ts"
+  ],
   "instructions": [
     "AGENTS.md"
   ],

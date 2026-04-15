@@ -1,6 +1,6 @@
 # Tools Reference
 
-> Custom tools in the hybrid agent-tool architecture — TypeScript wrappers calling Python domain logic via subprocess.
+> Custom tools and plugins in the hybrid agent-tool architecture — TypeScript wrappers calling Python domain logic via subprocess, and lifecycle plugins hooking into OpenCode events.
 
 ## Overview
 
@@ -1877,6 +1877,41 @@ The `check-entity` operation also appends its findings to `contradictions.md`.
 - **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
 - **Graceful empty state** — returns `{"findings": []}` if the wiki directory does not exist
 - **Test isolation** — the `STORIES_DIR` environment variable overrides the default stories directory, ensuring tests never touch production data
+
+---
+
+## Plugins
+
+Plugins differ from tools: they hook into OpenCode lifecycle events rather than being invoked directly by agents. Plugins are TypeScript files in `.opencode/plugins/` and are registered in `opencode.json`.
+
+### story-compaction
+
+Injects story continuity context into the compaction summary when OpenCode compacts the session context.
+
+**Source file:** `.opencode/plugins/story-compaction.ts`
+
+**Hook:** `experimental.session.compacting`
+
+**Purpose:** When OpenCode compacts the conversation to fit within context limits, narrative state (characters, plot threads, chapter position) is lost. This plugin detects the active story, reads its state and wiki pages, and pushes a structured markdown context block (~4000 tokens) into the compaction output. This ensures agents retain story continuity across compaction boundaries.
+
+**Injected sections:**
+
+| Section | Source | Content |
+|---------|--------|---------|
+| Current Position | `state.json` chapters | Chapter and scene number |
+| Story Direction | `state.json` story_context | Narrative trajectory |
+| Active Characters | `state.json` + `wiki/characters/` | Names, roles, L1 summaries |
+| Active Plot Threads | `state.json` + `wiki/plot-threads/` | Names, status, L2/L1 summaries |
+| Recent Chapter Synopses | `wiki/chapters/` | Last 2 chapters at L2/L1 detail |
+
+**Design:**
+- Zero npm dependencies — Node.js builtins only (`fs`, `path`)
+- Path validation on all file reads (`isWithinBase()`)
+- Progressive token budget truncation (4000 → 2000 tokens if over budget)
+- Graceful degradation — silently returns if no story, state, or wiki exists
+- Top-level try/catch prevents plugin errors from affecting OpenCode
+
+See [Compaction Plugin](./features/compaction-plugin.md) for full documentation.
 
 ---
 

@@ -32,3 +32,5 @@ No agent instruction change. Record as an operational observation for the user: 
 ### Action Taken
 
 No action needed — runtime platform limitation, not an agent system defect. Recorded for awareness.
+
+**Update (issue #23):** An agent-level mitigation was found and applied — the "review package pre-compute" pattern (Step 0 in Synthesizing Reviewer) collects all data once before dispatching sub-agents, eliminating ~60% of redundant tool calls. See `issue-23-review-package-precompute.md`.
