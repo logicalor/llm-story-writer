@@ -1,1 +1,1 @@
-# Domain layer - Business logic and entities 
+# Domain layer - Business logic and entities

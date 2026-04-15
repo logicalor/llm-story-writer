@@ -139,6 +139,19 @@ The agent uses one skill:
 
 Named `wiki-maintainer` to reflect its lifecycle responsibility — maintaining wiki state across the full generation pipeline, not just creating pages. Runs on a 7b model (`deepseek-r1-abliterated:7b`) for low overhead. See the [agent definition](../../.opencode/agents/wiki-maintainer.md) and [feature documentation](wiki-maintainer.md) for the full workflow, error handling, and entity type reference.
 
+## Commands
+
+Users invoke the orchestrator through custom commands defined in `.opencode/commands/`. Four commands route directly to the story orchestrator agent:
+
+| Command | Purpose |
+|---------|---------|
+| `/new-story <prompt-file>` | Initialize a new story and start the full pipeline from Phase 1 |
+| `/continue [story-name]` | Resume generation from the most recent savepoint |
+| `/regenerate chapter N \| scene C S` | Regenerate a chapter or scene with wiki rollback |
+| `/savepoint [name]` | Create a manual savepoint at the current pipeline position |
+
+Three additional informational commands (`/status`, `/settings`, `/wiki`) use the default agent and do not invoke the orchestrator. See [Custom Commands](./custom-commands.md) for full documentation of all seven commands.
+
 ## Tools
 
 The orchestrator uses 15 deterministic tools for file I/O, state management, and wiki operations. See [Tools Reference](../tools.md) for full documentation of each tool.

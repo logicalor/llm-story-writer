@@ -32,9 +32,7 @@ class TestValidateStoryName:
             _validate_story_name("../etc/passwd")
         assert exc_info.value.code == 1
 
-    def test_validate_story_name_returns_resolved_path(
-        self, stories_dir: Path
-    ) -> None:
+    def test_validate_story_name_returns_resolved_path(self, stories_dir: Path) -> None:
         result = _validate_story_name("my-story")
         assert result.is_absolute()
         assert ".." not in result.parts
