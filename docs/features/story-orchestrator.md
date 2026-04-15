@@ -88,13 +88,26 @@ After Phase 7, the wiki is the **authoritative source of truth** for world state
 
 The orchestrator delegates specialised work to three subagents:
 
-| Subagent | Purpose | Invoked In |
-|----------|---------|------------|
-| `outline-planner` | Generate and refine the story outline | Phase 2 |
-| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b |
-| `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 7, 8c |
+| Subagent | Purpose | Invoked In | Status |
+|----------|---------|------------|--------|
+| `outline-planner` | Generate and refine the story outline | Phase 2 | Planned |
+| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b | Implemented (PR #63) |
+| `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 7, 8c | Planned |
 
-These subagents are referenced by name in the orchestrator's agent definition. They will be implemented in subsequent migration tasks (Tasks 18–20).
+### chapter-writer
+
+The `chapter-writer` subagent handles Phase 8b — generating all scenes for a single chapter. It receives a chapter number and story name from the orchestrator, then:
+
+1. Loads the chapter's expanded outline and parses scene definitions via `scene-writer`
+2. Assembles token-budgeted context from the wiki via `wiki-snapshot` for each scene
+3. Generates scenes sequentially (narrative flow depends on prior scene content)
+4. Assembles all scenes into the completed chapter via `scene-writer`
+
+The agent uses two skills:
+- **scene-writing** — narrative structure, pacing, transitions, and scene type conventions
+- **character-voice** — dialogue patterns, internal thought consistency, voice differentiation across characters
+
+Named `chapter-writer` (not `scene-writer`) to avoid collision with the existing `scene-writer` tool. See the [agent definition](../../.opencode/agents/chapter-writer.md) for the full workflow, savepoint strategy, and error handling.
 
 ## Tools
 
@@ -187,9 +200,12 @@ The skill is automatically available to the story-orchestrator agent and can be 
 
 ## Key Files
 
-- `.opencode/agents/story-orchestrator.md` — Agent definition (259 lines)
+- `.opencode/agents/story-orchestrator.md` — Agent definition (266 lines)
+- `.opencode/agents/chapter-writer.md` — Chapter writer subagent definition
 - `.opencode/skills/story-pipeline/SKILL.md` — Pipeline skill reference (345 lines)
-- `opencode.json` — Agent registration with model binding and skill reference
+- `.opencode/skills/scene-writing/SKILL.md` — Scene writing conventions skill
+- `.opencode/skills/character-voice/SKILL.md` — Character voice consistency skill
+- `opencode.json` — Agent registration with model binding and skill references
 
 ## Related
 

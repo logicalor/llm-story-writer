@@ -107,6 +107,27 @@ Pattern: `.opencode/tools/*.ts` (Zod schema + execFileSync) → `src/tools/*.py`
 
 See [Tools Reference](docs/tools.md) for full documentation.
 
+## Agents
+
+Two agents defined in `.opencode/agents/`, registered in `opencode.json`:
+
+| Agent | Definition | Skills | Purpose |
+|-------|-----------|--------|---------|
+| `story-orchestrator` | `.opencode/agents/story-orchestrator.md` | `story-pipeline` | Primary pipeline controller — coordinates 9-phase story generation lifecycle, delegates to subagents |
+| `chapter-writer` | `.opencode/agents/chapter-writer.md` | `scene-writing`, `character-voice` | Per-chapter scene generation — invoked by orchestrator during Phase 8b, generates scenes sequentially using wiki-snapshot context |
+
+The `chapter-writer` is named to avoid collision with the existing `scene-writer` tool. The orchestrator delegates to `chapter-writer` for the per-chapter scene generation loop; the agent in turn calls the `scene-writer` tool for individual scene generation.
+
+## Skills
+
+Three skills defined in `.opencode/skills/`:
+
+| Skill | File | Used By | Purpose |
+|-------|------|---------|---------|
+| `story-pipeline` | `.opencode/skills/story-pipeline/SKILL.md` | `story-orchestrator` | Pipeline reference — phases, quality gates, savepoints, config settings |
+| `scene-writing` | `.opencode/skills/scene-writing/SKILL.md` | `chapter-writer` | Scene writing conventions — narrative structure, pacing, transitions, generation best practices |
+| `character-voice` | `.opencode/skills/character-voice/SKILL.md` | `chapter-writer` | Character voice consistency — dialogue patterns, internal thought, behavioural coherence across scenes |
+
 ## Planned Architecture (Post-Migration)
 
 See [PRD](docs/planning/opencode-migration/prd.md) and ADRs:
