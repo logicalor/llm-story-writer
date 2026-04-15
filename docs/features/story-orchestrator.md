@@ -92,7 +92,7 @@ The orchestrator delegates specialised work to three subagents:
 |----------|---------|------------|--------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 | Implemented (PR #64) |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b | Implemented (PR #63) |
-| `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 7, 8c | Planned |
+| `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 7, 8c | Implemented (PR #65) |
 
 ### chapter-writer
 
@@ -124,6 +124,20 @@ The agent uses two skills:
 - **outline-structure** — outline JSON schemas, analysis chunk categories, savepoint naming conventions, quality criteria, and critic types
 
 See the [agent definition](../../.opencode/agents/outline-planner.md) for the full workflow, savepoint strategy, and error handling.
+
+### wiki-maintainer
+
+The `wiki-maintainer` subagent handles Phase 7 (initial wiki population) and Phase 8c (post-scene incremental updates). It operates in two modes:
+
+- **Mode 1: Initial Population** (Phase 7) — Extracts all known entities from the outline, character sheets, and setting sheets. Creates wiki pages at `planned` confidence with L1/L2/L3 detail summaries and establishes cross-reference wikilinks between related entities.
+- **Mode 2: Incremental Update** (Phase 8c) — After each generated scene, extracts new entities, state changes, events, aliases, and plot thread progression from the text. Creates or updates wiki pages at `verified` confidence. At chapter boundaries, runs `wiki-lint` consistency checks.
+
+The agent uses five tools: `wiki-read`, `wiki-update`, `wiki-lint`, `wiki-search`, and `story-state`. All wiki mutations are submitted as batch payloads for atomic execution with rollback on failure.
+
+The agent uses one skill:
+- **wiki-maintenance** — entity extraction rules, confidence taxonomy, structured output formats, detail level guidelines, and chapter boundary procedures
+
+Named `wiki-maintainer` to reflect its lifecycle responsibility — maintaining wiki state across the full generation pipeline, not just creating pages. Runs on a 7b model (`deepseek-r1-abliterated:7b`) for low overhead. See the [agent definition](../../.opencode/agents/wiki-maintainer.md) and [feature documentation](wiki-maintainer.md) for the full workflow, error handling, and entity type reference.
 
 ## Tools
 
