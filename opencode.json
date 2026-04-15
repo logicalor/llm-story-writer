@@ -44,6 +44,11 @@
       "model": "ollama/huihui_ai/magistral-abliterated:24b",
       "instructions": ".opencode/agents/chapter-writer.md",
       "skills": ["scene-writing", "character-voice"]
+    },
+    "outline-planner": {
+      "model": "ollama/huihui_ai/magistral-abliterated:24b",
+      "instructions": ".opencode/agents/outline-planner.md",
+      "skills": ["story-pipeline", "outline-structure"]
     }
   }
 }
