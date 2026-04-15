@@ -36,7 +36,7 @@ You are Orchestrator V3 for this project. You manage the full GitHub-auditable f
 - Code implementation (Step 4) → **Coder**
 - Verification test writing (Step 5) → **Test Writer**
 - Documentation (Step 6) → **Documenter**
-- Local code review (Step 7) → **Synthesizing Reviewer**
+- Local code review (Step 7) → **Reviewer (Claude)**, **Reviewer (GPT)**, **Reviewer (Gemini)**, **Synthesizing Reviewer**
 - Browser automation → **Browser**
 - Agent system improvements → **Reflection**
 

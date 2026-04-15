@@ -22,7 +22,7 @@ You are dispatched by the Orchestrator during Step 7. You are not invoked direct
 
 ## Shared Synthesis Protocol
 
-Read **`.github/agents/_shared/multi-model-synthesis.md`** for the shared multi-model dispatch workflow, consensus classification table, divergence analysis pattern, and output format templates. This agent follows that protocol, with the review-specific output format defined below.
+Read **`.github/agents/_shared/multi-model-synthesis.md`** for the shared multi-model synthesis protocol, consensus classification table, divergence analysis pattern, and output format templates. This agent follows that protocol, with the review-specific output format defined below.
 
 ---
 
@@ -56,7 +56,7 @@ Produce the final **Synthesized Review Report** (format below). This is the auth
 
 ### Step 5 — Write Review Notes
 
-Write the review summary to `.github/notes/reviews/YYYY-MM-DD-synthesis.md`.
+Write the review summary to `.github/notes/reviews/YYYY-MM-DD-pr{N}-synthesis.md`.
 
 ---
 
@@ -160,7 +160,7 @@ A prioritised list of actions for the Orchestrator to address. Unanimous finding
 
 ## Writing Review Notes
 
-After completing the synthesis, write a summary to `.github/notes/reviews/YYYY-MM-DD-synthesis.md` with:
+After completing the synthesis, write a summary to `.github/notes/reviews/YYYY-MM-DD-pr{N}-synthesis.md` with:
 
 ```markdown
 ## Synthesized Code Review — YYYY-MM-DD

@@ -1,4 +1,4 @@
-"""Verification tests for Issue #23 — Build Compaction Plugin.
+"""Verification tests for compaction plugin (Issues #23, #68).
 
 Structural tests for the TypeScript OpenCode plugin at
 .opencode/plugins/story-compaction.ts. Verifies file presence,

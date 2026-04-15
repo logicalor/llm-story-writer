@@ -43,6 +43,8 @@ The synthesizing agent's own workflow should define the specific data to collect
 4. Instruct sub-agents to use the provided data instead of re-running the commands
 5. Sub-agents may still run **targeted** verification commands, but must not re-collect bulk data
 
+For a flattened variant that eliminates depth-2 nesting, see **File-Persisted Dispatch** below.
+
 ### File-Persisted Dispatch (Flattened Architecture)
 
 When sub-agent nesting depth causes stability issues (e.g., Coordinator → Synthesizer → Sub-agents = depth 2), the dispatch can be **flattened** so the top-level coordinator dispatches sub-agents directly (depth 1) and each writes its report to a file. The synthesizer then reads the files instead of dispatching sub-agents itself.
