@@ -520,13 +520,31 @@ function assembleContext(
   return result;
 }
 
+// --- Plugin API interfaces ---
+// Local type definitions for the OpenCode plugin API boundary.
+// These reflect the observed runtime contract — no published SDK types exist.
+
+/** Context object provided by OpenCode to plugin entry point. */
+interface PluginContext {
+  directory?: string;
+  worktree?: string;
+}
+
+/** Input parameter for the compaction hook (currently unused). */
+interface CompactionInput {}
+
+/** Output parameter for the compaction hook — append context blocks here. */
+interface CompactionOutput {
+  context: string[];
+}
+
 // --- Plugin export ---
 
-export default async (ctx: any) => {
+export default async (ctx: PluginContext) => {
   return {
     "experimental.session.compacting": async (
-      _input: any,
-      output: any,
+      _input: CompactionInput,
+      output: CompactionOutput,
     ) => {
       try {
         const projectRoot: string = ctx.directory || ctx.worktree || "";

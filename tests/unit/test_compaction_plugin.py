@@ -69,3 +69,42 @@ class TestCompactionPlugin:
             assert module in allowed_modules, (
                 f"Unexpected external dependency: {module}"
             )
+
+    def test_plugin_context_interface_defined(self) -> None:
+        content = _read_plugin()
+        assert re.search(
+            r"interface\s+PluginContext\s*\{", content
+        ), "Missing interface PluginContext"
+        assert re.search(
+            r"directory\?\s*:\s*string", content
+        ), "PluginContext missing 'directory?: string'"
+        assert re.search(
+            r"worktree\?\s*:\s*string", content
+        ), "PluginContext missing 'worktree?: string'"
+
+    def test_compaction_input_interface_defined(self) -> None:
+        content = _read_plugin()
+        assert re.search(
+            r"interface\s+CompactionInput\s*\{", content
+        ), "Missing interface CompactionInput"
+
+    def test_compaction_output_interface_defined(self) -> None:
+        content = _read_plugin()
+        assert re.search(
+            r"interface\s+CompactionOutput\s*\{", content
+        ), "Missing interface CompactionOutput"
+        assert re.search(
+            r"context\s*:\s*string\[\]", content
+        ), "CompactionOutput missing 'context: string[]'"
+
+    def test_plugin_export_uses_typed_parameters(self) -> None:
+        content = _read_plugin()
+        assert re.search(
+            r"ctx\s*:\s*PluginContext", content
+        ), "Plugin export not using PluginContext type"
+        assert re.search(
+            r"_input\s*:\s*CompactionInput", content
+        ), "Plugin export not using CompactionInput type"
+        assert re.search(
+            r"output\s*:\s*CompactionOutput", content
+        ), "Plugin export not using CompactionOutput type"
