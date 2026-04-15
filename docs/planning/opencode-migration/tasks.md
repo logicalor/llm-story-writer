@@ -715,11 +715,13 @@ Create an OpenCode plugin that hooks into `experimental.session.compacting` to i
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/plugins/story-compaction.ts` exists
-- [ ] Plugin hooks into `experimental.session.compacting`
-- [ ] Injected state includes: current chapter, active characters, plot threads, story direction (sourced from wiki)
-- [ ] Injected state fits within ~4000 tokens (measured)
+- [x] `.opencode/plugins/story-compaction.ts` exists
+- [x] Plugin hooks into `experimental.session.compacting`
+- [x] Injected state includes: current chapter, active characters, plot threads, story direction (sourced from wiki)
+- [x] Injected state fits within ~4000 tokens (measured)
 - [ ] Agent behaviour is coherent after compaction (manual verification)
+
+**Completed:** PR #67 (issue #23)
 
 **Key Files:**
 

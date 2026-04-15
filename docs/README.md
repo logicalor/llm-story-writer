@@ -15,6 +15,7 @@
 - [Story Orchestrator](./features/story-orchestrator.md) — Primary pipeline controller agent: 9-phase story generation lifecycle, quality gates, wiki lifecycle, savepoint strategy, subagent delegation
 - [Wiki Maintainer](./features/wiki-maintainer.md) — Wiki maintenance subagent: entity extraction, confidence scoring, detail levels, alias identification, chapter boundary procedures
 - [Custom Commands](./features/custom-commands.md) — Seven slash commands for the OpenCode TUI: `/new-story`, `/continue`, `/regenerate`, `/savepoint`, `/status`, `/settings`, `/wiki`
+- [Compaction Plugin](./features/compaction-plugin.md) — OpenCode plugin that injects story continuity context into session compaction summaries
 
 ## Planning
 
