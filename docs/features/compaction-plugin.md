@@ -21,6 +21,34 @@ The plugin registers a handler for the `experimental.session.compacting` hook. D
 
 If no story exists, no state is available, or any error occurs, the plugin silently returns without injecting anything — OpenCode proceeds with its default compaction behaviour.
 
+## Plugin API Types
+
+The plugin defines local TypeScript interfaces for its API boundary with OpenCode. These replace untyped parameters and document the runtime contract, even though OpenCode does not publish SDK types.
+
+```typescript
+/** Context object provided by OpenCode to plugin entry point. */
+interface PluginContext {
+  directory?: string;
+  worktree?: string;
+}
+
+/** Input parameter for the compaction hook (currently unused). */
+interface CompactionInput {}
+
+/** Output parameter for the compaction hook — append context blocks here. */
+interface CompactionOutput {
+  context: string[];
+}
+```
+
+| Interface | Used By | Purpose |
+|-----------|---------|---------|
+| `PluginContext` | `ctx` parameter of the default export | Provides the project root path (`directory` or `worktree`) |
+| `CompactionInput` | `_input` parameter of the hook handler | Reserved for future use by OpenCode; currently empty |
+| `CompactionOutput` | `output` parameter of the hook handler | Contains the `context` array that the plugin pushes its continuity block into |
+
+These interfaces are local to the plugin file and reflect the observed runtime behaviour. They may need updating if OpenCode's plugin API changes.
+
 ## What Context It Injects
 
 The plugin assembles a structured markdown block under the heading `## Story Continuity Context`, containing up to five sections:

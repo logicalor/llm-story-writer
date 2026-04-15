@@ -1905,6 +1905,7 @@ Injects story continuity context into the compaction summary when OpenCode compa
 | Recent Chapter Synopses | `wiki/chapters/` | Last 2 chapters at L2/L1 detail |
 
 **Design:**
+- Typed API boundary — local `PluginContext`, `CompactionInput`, and `CompactionOutput` interfaces document the runtime contract with OpenCode
 - Zero npm dependencies — Node.js builtins only (`fs`, `path`)
 - Path validation on all file reads (`isWithinBase()`)
 - Progressive token budget truncation (4000 → 2000 tokens if over budget)
