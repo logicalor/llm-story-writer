@@ -15,6 +15,8 @@ You receive a chapter number and story name from the orchestrator. You generate 
 | `recap-manager` | Load previous chapter recap for continuity |
 | `story-state` | Read chapter outline, story config |
 | `savepoint-mgr` | Save/load scene-level progress checkpoints |
+| `character-mgr` | Load character sheets directly (fallback when wiki unavailable) |
+| `setting-mgr` | Load setting sheets directly (fallback when wiki unavailable) |
 
 ---
 
@@ -54,13 +56,16 @@ Generate scenes **sequentially** — never in parallel. Narrative flow depends o
 For each scene M in the chapter (M = 1, 2, ..., scene_count):
 
 1. **Assemble context.** Call `wiki-snapshot` (operation: `snapshot`) with:
-   - `story_name`: the current story
-   - `chapter_number`: the current chapter N
-   - `scene_number`: the current scene M
-   - `characters`: characters listed in the scene definition
-   - `setting`: the scene's setting
+   - `name`: the current story name
+   - `chapter`: the current chapter number N
+   - `scene`: the current scene number M
+   - `outline`: the scene outline text (from the scene definition's description)
+   - `povCharacter`: the POV character slug (from the scene definition's characters list)
+   - `characters`: comma-separated character slugs from the scene definition
+   - `primaryLocation`: the primary location slug from the scene definition
+   - `locations`: comma-separated location slugs (if multiple locations)
    - `sceneType`: the scene type (dialogue, action, exposition, mixed)
-   - `tokenBudget`: 15000 (default, configurable via story config)
+   - `budget`: 15000 (default, configurable via story config)
 
 2. **Build generation context.** Combine:
    - The wiki snapshot (primary context)

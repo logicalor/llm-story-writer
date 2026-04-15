@@ -200,7 +200,7 @@ The skill is automatically available to the story-orchestrator agent and can be 
 
 ## Key Files
 
-- `.opencode/agents/story-orchestrator.md` — Agent definition (259 lines)
+- `.opencode/agents/story-orchestrator.md` — Agent definition (266 lines)
 - `.opencode/agents/chapter-writer.md` — Chapter writer subagent definition
 - `.opencode/skills/story-pipeline/SKILL.md` — Pipeline skill reference (345 lines)
 - `.opencode/skills/scene-writing/SKILL.md` — Scene writing conventions skill

@@ -120,7 +120,7 @@ The `chapter-writer` is named to avoid collision with the existing `scene-writer
 
 ## Skills
 
-Four skills defined in `.opencode/skills/`:
+Three skills defined in `.opencode/skills/`:
 
 | Skill | File | Used By | Purpose |
 |-------|------|---------|---------|
