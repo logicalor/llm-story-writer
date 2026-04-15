@@ -5,6 +5,9 @@ model: claude-sonnet-4.6
 agents:
   - Test Writer
   - Coder
+  - Reviewer (Claude)
+  - Reviewer (GPT)
+  - Reviewer (Gemini)
   - Synthesizing Reviewer
   - PR Reviewer
   - Documenter
@@ -33,7 +36,7 @@ You are Orchestrator V3 for this project. You manage the full GitHub-auditable f
 - Code implementation (Step 4) → **Coder**
 - Verification test writing (Step 5) → **Test Writer**
 - Documentation (Step 6) → **Documenter**
-- Local code review (Step 7) → **Synthesizing Reviewer**
+- Local code review (Step 7) → **Reviewer (Claude)**, **Reviewer (GPT)**, **Reviewer (Gemini)**, **Synthesizing Reviewer**
 - Browser automation → **Browser**
 - Agent system improvements → **Reflection**
 
@@ -426,22 +429,99 @@ After verification is confirmed, **dispatch to the `Documenter` agent** with the
 
 > **🚨 NON-NEGOTIABLE**: You MUST complete both review phases. Do not skip either. Do not proceed to Step 8 without completing both.
 
-**Pre-flight: clean stale diff artifacts** — before dispatching the Synthesizing Reviewer, delete any stale diff artifact files that may exist in the repo root. These files cause reviewer sub-agents to read the wrong PR diff instead of computing a live `git diff`:
+**Pre-flight: clean stale diff artifacts** — before dispatching reviewers, delete any stale diff artifact files that may exist in the repo root. These files cause reviewer sub-agents to read the wrong PR diff instead of computing a live `git diff`:
 
 ```bash
 repo_root="$(git rev-parse --show-toplevel)" || exit 1
 rm -f "$repo_root/diff.txt" "$repo_root/commits.txt" "$repo_root/changed_files.txt" "$repo_root/.git-diff.txt" "$repo_root/.git-changed-files.txt" "$repo_root/.git-diff-real.txt" "$repo_root/.git-changed-real.txt" "$repo_root/code-review-report.md"
 ```
 
-Once verification is confirmed and documentation is complete, dispatch the **Synthesizing Reviewer** agent with this prompt: "Verification confirmed. Review all changes on the current branch against development. Dispatch to all three reviewer sub-agents, synthesize their findings, and return a consensus review report with prioritized actions."
+#### Phase A — Prepare Review Package
 
-The Synthesizing Reviewer will:
+Collect all review data upfront so each reviewer gets the same pre-computed package. This eliminates N× redundant git/file-read tool calls:
 
-1. Dispatch three independent code reviewers (Claude Opus 4.6, GPT 5.4, Gemini 3.1 Pro)
-2. Each reviewer examines `git diff development...HEAD` and reviews all changed files
-3. Cross-reference findings and classify by consensus (Unanimous/Majority/Singular)
-4. Produce a Synthesized Review Report with confidence ratings and prioritized actions
-5. Write review notes to `.github/notes/reviews/YYYY-MM-DD-pr{prNumber}-synthesis.md` (replace `{prNumber}` with the current PR number)
+1. `git branch --show-current` — branch name
+2. `git log --oneline development..HEAD` — commit log
+3. `git diff --name-only development...HEAD` — changed file list
+4. `git diff development...HEAD -- . ':!vendor'` — full diff
+5. For each changed file in the list, read the entire file
+
+Assemble the output into a **Review Package**:
+
+```
+== REVIEW PACKAGE ==
+
+=== BRANCH ===
+[branch name]
+
+=== COMMIT LOG ===
+[git log output]
+
+=== CHANGED FILES ===
+[file list]
+
+=== DIFF ===
+[full diff output]
+
+=== FILE CONTENTS ===
+--- path/to/file1.ext ---
+[full file content]
+--- path/to/file2.ext ---
+[full file content]
+...
+
+== END REVIEW PACKAGE ==
+```
+
+#### Phase B — Dispatch Three Reviewers (File-Persisted)
+
+Dispatch all three reviewer sub-agents **sequentially** — invoke each one and wait for it to complete before starting the next. Each reviewer writes its report to a file on disk (no depth-2 nesting — all dispatches are depth 1 from the Orchestrator).
+
+> **Do NOT dispatch sub-agents in parallel.** Parallel execution causes stability issues and is forbidden.
+
+Determine file paths for the raw reports using today's date and the PR number:
+
+```
+.github/notes/reviews/YYYY-MM-DD-pr{N}-claude-raw.md
+.github/notes/reviews/YYYY-MM-DD-pr{N}-gpt-raw.md
+.github/notes/reviews/YYYY-MM-DD-pr{N}-gemini-raw.md
+```
+
+Use this prompt template for each reviewer (substitute the actual values):
+
+```
+Review all changes on the current branch against development. Follow the shared code review process at `.github/agents/_shared/code-review-process.md`. The review package below contains the diff, changed file list, commit log, and full file contents — use this data instead of re-running git commands or re-reading files. You may run targeted verification commands if needed, but do not re-collect the bulk data.
+
+Write your completed review report to: [file path]
+
+[paste Review Package here]
+```
+
+Dispatch order:
+1. **Reviewer (Claude)** → writes to `...-claude-raw.md`
+2. **Reviewer (GPT)** → writes to `...-gpt-raw.md`
+3. **Reviewer (Gemini)** → writes to `...-gemini-raw.md`
+
+After all three complete, verify the report files exist on disk before proceeding.
+
+#### Phase C — Dispatch Synthesizing Reviewer
+
+Dispatch the **Synthesizing Reviewer** with the three file paths. It reads the raw reports from disk and produces the synthesized consensus review — no sub-agent dispatch needed (depth 1 only).
+
+Use this prompt:
+
+```
+Three independent code review reports have been written to disk. Read them, cross-reference findings, and produce a Synthesized Review Report with consensus classification and divergence analysis.
+
+Raw report files:
+- .github/notes/reviews/YYYY-MM-DD-pr{N}-claude-raw.md
+- .github/notes/reviews/YYYY-MM-DD-pr{N}-gpt-raw.md
+- .github/notes/reviews/YYYY-MM-DD-pr{N}-gemini-raw.md
+
+Write the synthesis to: .github/notes/reviews/YYYY-MM-DD-pr{N}-synthesis.md
+```
+
+#### Phase D — Triage Findings
 
 **When the Synthesizing Reviewer returns:**
 
