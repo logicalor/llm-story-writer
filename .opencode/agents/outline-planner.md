@@ -98,7 +98,10 @@ Execute these phases sequentially. Each phase must complete before the next begi
         - `feedback`: the feedback text from the previous step
       - Increment iteration, repeat from step 4a.
 
-   d. **If refinement is not needed** (`should_refine` is false) OR max iterations reached: accept the current outline.
+   d. **Acceptance check:**
+      - **Accept** if `should_refine` is false AND iteration >= `outline_min_revisions` (quality passed and minimum met)
+      - **Accept** if iteration >= `outline_critique_iterations` (max iterations exhausted)
+      - **Continue** if `should_refine` is false but iteration < `outline_min_revisions` — force another refinement pass (the user has explicitly requested a minimum number of revision passes)
 
 ### Phase 5 — Return
 

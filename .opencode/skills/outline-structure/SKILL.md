@@ -139,14 +139,14 @@ The critique system employs 6 specialised critics:
 
 Outline-related keys from `config.md` under the `generation` section:
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `outline_quality` | 87 | Aggregate quality threshold for outline acceptance |
-| `outline_min_revisions` | 0 | Minimum revision iterations before accepting |
-| `outline_max_revisions` | 3 | Maximum revision iterations allowed |
-| `enable_outline_critique` | false | Whether to run the critique/refinement loop |
-| `outline_critique_iterations` | 3 | Maximum critique-refine cycles |
-| `use_chunked_outline_generation` | true | Generate outline in chunks vs. all at once |
-| `outline_chunk_size` | 10 | Chapters per chunk (when chunked generation enabled) |
-| `wanted_chapters` | 25 | Target number of chapters in the outline |
-| `expand_outline` | true | Whether to expand chapter outlines with scene breakdowns |
+| Key | Default | Used By | Description |
+|-----|---------|---------|-------------|
+| `outline_quality` | 87 | `outline-planner` | Aggregate quality threshold for outline acceptance |
+| `outline_min_revisions` | 0 | `outline-planner` | Minimum revision iterations before accepting |
+| `outline_max_revisions` | 3 | `story-orchestrator` | Maximum revision iterations allowed |
+| `enable_outline_critique` | false | `outline-planner` | Whether to run the critique/refinement loop |
+| `outline_critique_iterations` | 3 | `outline-planner` | Maximum critique-refine cycles |
+| `use_chunked_outline_generation` | true | `outline-planner` | Generate outline in chunks vs. all at once |
+| `outline_chunk_size` | 10 | `outline-planner` | Chapters per chunk (when chunked generation enabled) |
+| `wanted_chapters` | 25 | `story-orchestrator` | Target number of chapters in the outline |
+| `expand_outline` | true | `story-orchestrator` | Whether to expand chapter outlines with scene breakdowns |
