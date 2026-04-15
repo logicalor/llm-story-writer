@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/coder.agent.md"
 severity: major
-status: active
+status: archived
 ---
 
 ## Coder missed plugin registration in opencode.json — framework discovery not verified
@@ -42,4 +42,4 @@ This combines the issue #19 schema verification with the issue #23 registration 
 
 ### Action Taken
 
-Proposed for approval — new Coder Rule 10 (Framework Integration Verification).
+Applied — Rule 10 added to `.github/agents/coder.agent.md`. Note archived.
