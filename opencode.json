@@ -33,5 +33,12 @@
   },
   "instructions": [
     "AGENTS.md"
-  ]
+  ],
+  "agents": {
+    "story-orchestrator": {
+      "model": "ollama/huihui_ai/magistral-abliterated:24b",
+      "instructions": ".opencode/agents/story-orchestrator.md",
+      "skills": ["story-pipeline"]
+    }
+  }
 }

@@ -1,0 +1,202 @@
+# Story Orchestrator Agent
+
+> The primary pipeline controller for AI-powered long-form story generation — coordinates nine sequential phases from initial prompt through final manuscript assembly.
+
+## Overview
+
+The story orchestrator is the first agent defined in the OpenCode agentic architecture migration. It encodes the full story generation lifecycle as a nine-phase pipeline, delegating specialised creative tasks to subagents while using deterministic tools for file I/O, state management, and wiki operations.
+
+The orchestrator operates in two modes:
+
+- **Interactive mode** (default): Pauses at approval gates for human review and steering. The user can inspect outlines, character sheets, and settings before generation proceeds.
+- **Batch mode** (`--batch`): Auto-proceeds through all approval gates for unattended generation runs.
+
+## Pipeline Phases
+
+The pipeline executes nine phases sequentially. Each phase completes fully before the next begins, and key phases create savepoints for resume capability.
+
+```
+┌─────────┐   ┌─────────┐   ┌──────────┐   ┌───────────┐   ┌────────────┐
+│  Init   │──▶│ Outline │──▶│ Approval │──▶│ Wiki Init │──▶│ Characters │
+│ (1)     │   │ (2)     │   │ (3)      │   │ (4)       │   │ (5)        │
+└─────────┘   └─────────┘   └──────────┘   └───────────┘   └────────────┘
+                                                                  │
+      ┌───────────────────────────────────────────────────────────┘
+      ▼
+┌──────────┐   ┌─────────────────┐   ┌────────────────────────┐   ┌──────────┐
+│ Settings │──▶│ Wiki Population │──▶│ Per-Chapter Loop (8)   │──▶│ Assembly │
+│ (6)      │   │ (7)             │   │ [1..wanted_chapters]   │   │ (9)      │
+└──────────┘   └─────────────────┘   └────────────────────────┘   └──────────┘
+```
+
+| Phase | Name | Purpose | Savepoint |
+|-------|------|---------|-----------|
+| 1 | Init | Load prompt, read `config.md`, initialise story state | `init` |
+| 2 | Outline | Generate story outline; optionally critique and revise | `outline_complete` |
+| 3 | Approval | Human review gate (interactive) or auto-proceed (batch) | — |
+| 4 | Wiki Init | Create wiki directory structure and schema | — |
+| 5 | Characters | Generate character sheets for all outline characters | `characters_complete` |
+| 6 | Settings | Generate setting sheets for all outline locations | `settings_complete` |
+| 7 | Wiki Population | Populate wiki with entity pages from outline + sheets | `wiki_populated` |
+| 8 | Per-Chapter Loop | Expand outline → scene gen → wiki update → recap → lint → quality eval → revision | `chapter_{N}_complete` |
+| 9 | Assembly | Combine all chapters into final manuscript | `story_complete` |
+
+### Per-Chapter Loop (Phase 8)
+
+Each chapter passes through seven sub-phases:
+
+```
+┌──────────────┐   ┌─────────────┐   ┌────────────────┐   ┌───────────┐
+│ Expand       │──▶│ Scene Gen   │──▶│ Wiki Update    │──▶│ Recap     │
+│ Outline (8a) │   │ (8b)        │   │ (8c)           │   │ (8d)      │
+└──────────────┘   └─────────────┘   └────────────────┘   └───────────┘
+                                                                │
+      ┌─────────────────────────────────────────────────────────┘
+      ▼
+┌───────────┐   ┌──────────────────────────────────────┐   ┌───────────────────┐
+│ Wiki Lint │──▶│ Quality Evaluation + Revision Loop   │──▶│ Chapter Savepoint │
+│ (8e)      │   │ (8f)                                 │   │ (8g)              │
+└───────────┘   └──────────────────────────────────────┘   └───────────────────┘
+```
+
+Chapters are generated sequentially because each chapter's wiki updates inform the next chapter's context.
+
+## Quality Gates
+
+The orchestrator enforces quality thresholds via the `critique-runner` tool. When a quality gate fails after maximum revision attempts, the best-scoring version is accepted and the pipeline continues.
+
+| Gate | Config Key | Default Threshold | Max Revisions | Applied In |
+|------|-----------|-------------------|---------------|------------|
+| Outline quality | `generation.outline_quality` | 87 | `outline_max_revisions` (3) | Phase 2 |
+| Chapter quality | `generation.chapter_quality` | 85 | `chapter_max_revisions` (3) | Phase 8f |
+
+## Wiki Lifecycle
+
+The wiki follows a lifecycle synchronised with the pipeline:
+
+| Phase | Wiki Interaction |
+|-------|-----------------|
+| Phase 4 | `wiki-init` creates directory structure and `_schema.md` |
+| Phase 7 | `wiki-maintainer` subagent populates pages for all entities from outline + sheets |
+| Phase 8b | `wiki-snapshot` assembles token-budgeted context for each scene generation prompt |
+| Phase 8c | `wiki-maintainer` subagent extracts and records new facts from the generated chapter |
+| Phase 8e | `wiki-lint` checks chapter consistency against the wiki |
+
+After Phase 7, the wiki is the **authoritative source of truth** for world state. Character sheets and setting sheets become historical inputs — the wiki supersedes them.
+
+## Subagents
+
+The orchestrator delegates specialised work to three subagents:
+
+| Subagent | Purpose | Invoked In |
+|----------|---------|------------|
+| `outline-planner` | Generate and refine the story outline | Phase 2 |
+| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b |
+| `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 7, 8c |
+
+These subagents are referenced by name in the orchestrator's agent definition. They will be implemented in subsequent migration tasks (Tasks 18–20).
+
+## Tools
+
+The orchestrator uses 15 deterministic tools for file I/O, state management, and wiki operations. See [Tools Reference](../tools.md) for full documentation of each tool.
+
+| Tool | Purpose |
+|------|---------|
+| `prompt-loader` | Load and render prompt templates |
+| `story-state` | Read/write story state |
+| `savepoint-mgr` | Create/restore/list savepoints |
+| `character-mgr` | Generate and manage character sheets |
+| `setting-mgr` | Generate and manage setting sheets |
+| `recap-manager` | Generate and manage chapter recaps |
+| `outline-generator` | Generate and expand story outlines |
+| `scene-writer` | Generate individual scenes |
+| `critique-runner` | Evaluate content quality and produce scores |
+| `wiki-init` | Initialise wiki directory structure |
+| `wiki-read` | Read wiki pages by slug or type |
+| `wiki-search` | Semantic search across wiki pages |
+| `wiki-snapshot` | Assemble token-budgeted context for generation |
+| `wiki-update` | Create or update wiki pages |
+| `wiki-lint` | Run consistency checks on wiki vs chapter content |
+
+## Savepoint Strategy
+
+Savepoints capture the full pipeline state at key milestones, enabling resume after interruption. Names use the format `{phase_descriptor}` — lowercase, underscore-separated, no zero-padding on chapter numbers.
+
+A savepoint contains:
+- Full story state JSON (outline, chapter content, metadata)
+- Wiki directory snapshot
+- Character and setting sheets
+- Generated recaps
+- Pipeline position (which phase/step completed)
+
+### Resume Mapping
+
+| Savepoint | Resumes At |
+|-----------|-----------|
+| `init` | Phase 2 (Outline) |
+| `outline_complete` | Phase 3 (Approval) |
+| `characters_complete` | Phase 6 (Settings) |
+| `settings_complete` | Phase 7 (Wiki Population) |
+| `wiki_populated` | Phase 8, Chapter 1 |
+| `chapter_{N}_complete` | Phase 8, Chapter N+1 (or Phase 9 if last chapter) |
+| `story_complete` | Pipeline complete |
+
+## Configuration
+
+All pipeline settings are read from `config.md` YAML frontmatter under the `generation` key. The orchestrator never hardcodes these values.
+
+| Setting | Type | Default | Purpose |
+|---------|------|---------|---------|
+| `outline_quality` | int | 87 | Minimum critique score to accept outline |
+| `chapter_quality` | int | 85 | Minimum critique score to accept chapter |
+| `wanted_chapters` | int | 25 | Number of chapters to generate |
+| `outline_max_revisions` | int | 3 | Maximum outline revision attempts |
+| `chapter_max_revisions` | int | 3 | Maximum chapter revision attempts |
+| `enable_outline_critique` | bool | false | Run outline critique loop |
+| `outline_critique_iterations` | int | 3 | Critique passes on outline |
+| `enable_chapter_revisions` | bool | true | Run chapter revision loop |
+| `expand_outline` | bool | true | Expand outline into scene-level detail |
+| `scene_generation_pipeline` | bool | true | Use scene-by-scene generation |
+| `use_chunked_outline_generation` | bool | true | Generate outline in chunks |
+| `outline_chunk_size` | int | 10 | Chapters per outline chunk |
+
+## Story Pipeline Skill
+
+The `story-pipeline` skill (`.opencode/skills/story-pipeline/SKILL.md`) provides a detailed reference for the pipeline, including:
+
+- ASCII flow diagrams for overall pipeline and per-chapter loop
+- Phase definitions with inputs, outputs, tools, and savepoints
+- Quality gate logic and revision loop pseudocode
+- Wiki update lifecycle details
+- Interactive vs batch decision points
+- Savepoint strategy and resume instructions
+- Config settings reference table
+- Error recovery guidelines
+
+The skill is automatically available to the story-orchestrator agent and can be referenced by other agents that need to understand the pipeline sequence.
+
+## Error Handling
+
+| Scenario | Behaviour |
+|----------|-----------|
+| Tool failure | Retry once; on second failure, halt with diagnostic |
+| Subagent failure | Retry delegation once; on second failure, halt |
+| Quality gate exhaustion | Accept best-scoring version, log warning, proceed |
+| Wiki lint findings | Advisory — logged and included in quality evaluation context |
+| Crash recovery | Restore latest savepoint via `savepoint-mgr`; resume from next phase |
+
+## Key Files
+
+- `.opencode/agents/story-orchestrator.md` — Agent definition (259 lines)
+- `.opencode/skills/story-pipeline/SKILL.md` — Pipeline skill reference (345 lines)
+- `opencode.json` — Agent registration with model binding and skill reference
+
+## Related
+
+- [Tools Reference](../tools.md) — Full documentation for all 15 tools
+- [Architecture Notes](../../.github/notes/architecture.md) — System architecture overview
+- [ADR 001: Hybrid Agent-Tool Architecture](../planning/adr/001-hybrid-agent-tool-architecture.md) — Establishes agent-tool separation
+- [ADR 004: Progressive Wiki Memory System](../planning/adr/004-progressive-wiki-memory-system.md) — Wiki page format and lifecycle
+- [ADR 005: Hybrid Wiki Context Retrieval Pipeline](../planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md) — Three-stage context retrieval used by `wiki-snapshot`
+- [Migration Tasks](../planning/opencode-migration/tasks.md) — Task 17 (this feature), plus Tasks 18–20 for subagents
+- Issue #20 — Initial implementation
