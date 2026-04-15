@@ -92,7 +92,7 @@ The orchestrator delegates specialised work to three subagents:
 |----------|---------|------------|--------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 | Implemented (PR #64) |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b | Implemented (PR #63) |
-| `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 7, 8c | Planned |
+| `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 7, 8c | Implemented (PR #65) |
 
 ### chapter-writer
 
