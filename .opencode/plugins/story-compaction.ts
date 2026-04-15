@@ -3,6 +3,16 @@ import { join, resolve } from "path";
 
 // --- YAML frontmatter parser (no dependencies) ---
 
+/**
+ * Minimal YAML frontmatter parser — no external dependencies.
+ *
+ * Known limitations:
+ * - Single-line `key: value` pairs only
+ * - One level of nesting (indented `key: value` under a parent)
+ * - No YAML arrays or block scalars (`|`, `>`)
+ * - Empty nested values (e.g., `  L1:` with no text after colon-space)
+ *   are silently skipped
+ */
 function parseFrontmatter(content: string): {
   metadata: Record<string, any>;
   body: string;
@@ -235,7 +245,7 @@ function buildCharactersSection(
   const stateChars = state.characters || {};
   const seen = new Set<string>();
 
-  for (const [key, _val] of Object.entries(stateChars)) {
+  for (const key of Object.keys(stateChars)) {
     const lowerKey = key.toLowerCase();
     seen.add(lowerKey);
     const wiki = wikiLookup.get(lowerKey);

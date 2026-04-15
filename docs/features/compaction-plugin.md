@@ -159,7 +159,7 @@ pytest tests/unit/test_compaction_plugin.py -v
 
 ## Related
 
-- [Tools Reference](../tools.md#story-compaction-plugin) — Plugin entry in the tools/plugins reference
+- [Tools Reference](../tools.md#story-compaction) — Plugin entry in the tools/plugins reference
 - [ADR 004: Progressive Wiki Memory System](../planning/adr/004-progressive-wiki-memory-system.md) — Wiki page format and detail levels used by the plugin
 - [Story Orchestrator](./story-orchestrator.md) — Pipeline controller that generates the state and wiki data consumed by this plugin
 - Issue #23 — Initial implementation
