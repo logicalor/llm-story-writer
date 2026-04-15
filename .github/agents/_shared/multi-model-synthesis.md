@@ -43,6 +43,25 @@ The synthesizing agent's own workflow should define the specific data to collect
 4. Instruct sub-agents to use the provided data instead of re-running the commands
 5. Sub-agents may still run **targeted** verification commands, but must not re-collect bulk data
 
+### File-Persisted Dispatch (Flattened Architecture)
+
+When sub-agent nesting depth causes stability issues (e.g., Coordinator → Synthesizer → Sub-agents = depth 2), the dispatch can be **flattened** so the top-level coordinator dispatches sub-agents directly (depth 1) and each writes its report to a file. The synthesizer then reads the files instead of dispatching sub-agents itself.
+
+Pattern:
+
+1. **Coordinator** (e.g., Orchestrator) prepares shared data and dispatches each sub-agent **sequentially** at depth 1
+2. Each sub-agent writes its report to a designated file path (passed in the dispatch prompt)
+3. **Coordinator** dispatches the synthesizer at depth 1 with the list of file paths
+4. **Synthesizer** reads the files, performs cross-referencing and synthesis, writes the consensus report
+
+Benefits:
+- Maximum nesting depth = 1 (all dispatches from the same level)
+- Each raw report is persisted on disk for auditability
+- Synthesizer context stays lean — it reads structured files, not inline sub-agent return messages
+- Sub-agents have `edit` tool access to write their reports
+
+File path convention: `.github/notes/reviews/YYYY-MM-DD-pr{N}-{model}-raw.md` for raw reports, `.github/notes/reviews/YYYY-MM-DD-pr{N}-synthesis.md` for the final synthesis.
+
 ---
 
 ## Cross-Reference and Classify
