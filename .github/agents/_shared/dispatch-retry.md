@@ -30,4 +30,9 @@ If an agent returns successfully but with an empty or "no response" message:
 3. **If work was NOT completed** — retry the dispatch (counts against retry limit above)
 4. **Log the empty response pattern** for reflection in the task summary
 
+If an agent returns successfully but explicitly states it made no changes (or returns a "no response" message with no side effects), and the work is not complete:
+- Retry the dispatch (counts against retry limit)
+- If retry fails or is not warranted (e.g., agent explicitly declines), proceed with direct Orchestrator implementation only for trivial changes
+- For non-trivial changes, escalate to the user rather than implementing complex logic directly
+
 This pattern occurs occasionally with some models that complete work but return empty responses.
