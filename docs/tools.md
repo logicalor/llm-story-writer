@@ -2013,6 +2013,115 @@ ruff check --fix . && ruff format . && mypy src/
 pytest tests/unit/test_<tool_name>_tool.py -v
 ```
 
+---
+
+## rag-query
+
+Indexes story content into a per-story ChromaDB collection and queries it by semantic similarity. Used to retrieve relevant context chunks (outline paragraphs, chapter passages, character details, setting descriptions) for scene generation.
+
+**Source files:**
+- `.opencode/tools/rag-query.ts` — TypeScript wrapper
+- `src/tools/rag_query.py` — Python CLI script
+
+### Purpose
+
+Each story maintains a ChromaDB collection named `stories-{story_name}` under `.chromadb/`. As content is generated (outline, chapters, character sheets, setting sheets, wiki pages, recaps), other tools call `rag-query index` to embed it. During scene generation, agents call `rag-query query` to retrieve the most relevant content for the scene context.
+
+This replaces the previous PostgreSQL/pgvector RAG system (archived in `legacy/postgres/`).
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"index" \| "query"` | Yes | Operation to perform |
+| `name` | string | Yes | Story name (maps to `stories/<name>/`) |
+| `docId` | string | For `index` | Stable unique identifier for the content chunk (e.g. `"outline"`, `"chapter-1"`, `"character-elena"`) |
+| `content` | string | For `index` | Full text content to embed |
+| `contentType` | string | No | One of: `outline`, `chapter`, `character`, `setting`, `wiki`, `recap`. Defaults to `outline` for index; acts as a filter for query. |
+| `chapterNum` | number | No | Chapter number (stored as `chapter_num` metadata for chapter content) |
+| `query` | string | For `query` | Semantic search query text |
+| `nResults` | number | No | Number of results to return (default: 10) |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/rag_query.py --operation <op> --name <story> [options]
+```
+
+**Examples:**
+
+```bash
+# Index the story outline
+python3 src/tools/rag_query.py \
+  --operation index \
+  --name my-story \
+  --doc-id outline \
+  --content "A hero must save the kingdom..." \
+  --content-type outline
+
+# Index a chapter
+python3 src/tools/rag_query.py \
+  --operation index \
+  --name my-story \
+  --doc-id chapter-1 \
+  --content "Chapter one content..." \
+  --content-type chapter \
+  --chapter-num 1
+
+# Query for relevant character context
+python3 src/tools/rag_query.py \
+  --operation query \
+  --name my-story \
+  --query "warrior character from the north" \
+  --content-type character \
+  --n-results 5
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `index` | Upserts content with metadata into `stories-{name}` ChromaDB collection | `{"status": "ok", "indexed": "<doc_id>", "content_type": "<type>", "story": "<name>"}` |
+| `query` | Semantic search, optional content-type filter, returns ranked chunks | `{"status": "ok", "results": [...]}` |
+
+### Query Result Format
+
+```json
+{
+  "status": "ok",
+  "results": [
+    {
+      "doc_id": "character-elena",
+      "score": 0.8741,
+      "excerpt": "Elena is a fierce warrior from the northern...",
+      "metadata": {
+        "story": "my-story",
+        "content_type": "character",
+        "doc_id": "character-elena"
+      }
+    }
+  ]
+}
+```
+
+Scores are normalised similarity values in `[0, 1]` — higher is more relevant.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Domain error — ChromaDB failure |
+| 2 | Argument error — missing required flag or invalid content-type |
+
+### Security
+
+- **Path traversal prevention** — story names validated via `_validate_story_name` (same guard as `story-state` and wiki tools)
+- **Shell injection prevention** — TypeScript wrapper uses `execFileSync` with argument array
+- **CHROMADB_DIR override** — environment variable allows test isolation without touching production data
+
+---
+
 ## Related
 
 - [ADR 001: Hybrid Agent-Tool Architecture](./planning/adr/001-hybrid-agent-tool-architecture.md) — Architectural decision establishing the tool pattern
