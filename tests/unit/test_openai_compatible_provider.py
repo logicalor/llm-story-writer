@@ -12,6 +12,7 @@ _src_dir = str(PROJECT_ROOT / "src")
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
+from domain.exceptions import ModelProviderError
 from domain.value_objects.model_config import ModelConfig
 
 _provider_spec = importlib.util.spec_from_file_location(
@@ -95,3 +96,42 @@ class TestOpenAICompatibleProvider:
         called_url = mock_post.call_args.args[0]
         assert called_url.endswith("/chat/completions")
         assert called_url == "http://api.example.test:1234/v1/chat/completions"
+
+    def test_generate_text_extracts_content_from_choices(self) -> None:
+        provider = _build_provider()
+        model_config = ModelConfig(name="llama3", provider="openai_compatible")
+
+        with patch.object(
+            provider,
+            "_make_request",
+            return_value={"choices": [{"message": {"content": "hello world"}}]},
+        ):
+            result = asyncio.run(
+                provider.generate_text(
+                    messages=[{"role": "user", "content": "Say hello"}],
+                    model_config=model_config,
+                )
+            )
+
+        assert result == "hello world"
+
+    def test_generate_text_raises_model_provider_error_on_exception(self) -> None:
+        provider = _build_provider()
+        model_config = ModelConfig(name="llama3", provider="openai_compatible")
+
+        with patch.object(
+            provider,
+            "_make_request",
+            side_effect=Exception("network error"),
+        ):
+            try:
+                asyncio.run(
+                    provider.generate_text(
+                        messages=[{"role": "user", "content": "Say hello"}],
+                        model_config=model_config,
+                    )
+                )
+            except ModelProviderError as exc:
+                assert "network error" in str(exc)
+            else:
+                raise AssertionError("ModelProviderError not raised")

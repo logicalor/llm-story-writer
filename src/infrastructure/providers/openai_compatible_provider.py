@@ -53,12 +53,11 @@ class OpenAICompatibleProvider(ModelProvider):
         """Ensure requests package is installed."""
         try:
             import requests  # noqa: F401
-        except ImportError:
-            print("Package requests not found. Installing...")
-            import subprocess
-            import sys
-
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
+        except ImportError as exc:
+            raise RuntimeError(
+                "Package 'requests' is required for OpenAICompatibleProvider. "
+                "Install dependencies from requirements.txt before running."
+            ) from exc
 
     def _resolve_base_url(self, model_config: ModelConfig) -> str:
         """Resolve request base URL from model config override or provider default."""
@@ -271,9 +270,7 @@ class OpenAICompatibleProvider(ModelProvider):
         try:
             if debug:
                 self._display_debug_prompt(messages, model_config)
-                print(
-                    f"[DEBUG] Generating JSON response using {model_config.name}..."
-                )
+                print(f"[DEBUG] Generating JSON response using {model_config.name}...")
                 print(f"[DEBUG] Required attributes: {required_attributes}")
 
             self._log_prompt_stats(messages, model_config)
@@ -304,7 +301,9 @@ class OpenAICompatibleProvider(ModelProvider):
                     try:
                         response_data = json.loads(json_match.group())
                         if debug:
-                            print(f"[DEBUG] Successfully extracted JSON: {response_data}")
+                            print(
+                                f"[DEBUG] Successfully extracted JSON: {response_data}"
+                            )
                         return response_data
                     except json.JSONDecodeError:
                         pass
@@ -392,9 +391,7 @@ class OpenAICompatibleProvider(ModelProvider):
         response.raise_for_status()
         return response.json()
 
-    async def _stream_request(
-        self, payload: Dict[str, Any], model_config: ModelConfig
-    ):
+    async def _stream_request(self, payload: Dict[str, Any], model_config: ModelConfig):
         """Make a streaming request to the OpenAI-compatible API."""
         import requests
 
@@ -594,7 +591,9 @@ class OpenAICompatibleProvider(ModelProvider):
 
             conversation_messages = []
             if system_message:
-                conversation_messages.append({"role": "system", "content": system_message})
+                conversation_messages.append(
+                    {"role": "system", "content": system_message}
+                )
 
             final_response = ""
             for index, user_message in enumerate(user_messages, 1):
@@ -667,7 +666,9 @@ class OpenAICompatibleProvider(ModelProvider):
 
             conversation_messages = []
             if system_message:
-                conversation_messages.append({"role": "system", "content": system_message})
+                conversation_messages.append(
+                    {"role": "system", "content": system_message}
+                )
 
             final_response = ""
             for index, user_message in enumerate(user_messages, 1):

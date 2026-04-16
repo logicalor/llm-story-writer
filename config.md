@@ -164,6 +164,7 @@ Backward compatibility:
 
 - `ollama_host` is still accepted and normalized to `model_api_base`
 - `ollama://` model URIs are still accepted and map to the OpenAI-compatible provider
+- `?think=true` is stripped from model URIs; for reasoning models such as DeepSeek-R1 and Qwen3, thinking mode is now controlled server-side (for example via Ollama model defaults)
 
 #### RAG Configuration
 
@@ -189,6 +190,8 @@ models:
   chapter_stage1_writer: "openai-compat://llama3:70b@192.168.1.100:11434"
   info_model: "openai-compat://llama3:70b?temperature=0.7"
 ```
+
+For reasoning models such as DeepSeek-R1 and Qwen3, do not rely on `?think=true` in the URI. The provider strips that parameter; configure thinking mode on the inference server instead.
 
 ### Embedding Models (RAG System)
 ```yaml

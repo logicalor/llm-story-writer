@@ -56,12 +56,13 @@ class OpenAICompatibleEmbeddingProvider:
             return []
 
         embeddings = []
-        for text in texts:
+        for i, text in enumerate(texts):
             try:
                 embeddings.append(await self._get_single_embedding(text))
             except Exception as exc:
-                logger.error(f"Failed to generate embedding for text: {exc}")
-                embeddings.append([0.0] * 1536)
+                raise ModelProviderError(
+                    f"Failed to generate embedding for text at index {i}: {exc}"
+                ) from exc
 
         return embeddings
 
@@ -112,7 +113,9 @@ class OpenAICompatibleEmbeddingProvider:
         """Get information about the embedding model."""
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.base_url}/models/{self.model}") as response:
+                async with session.get(
+                    f"{self.base_url}/models/{self.model}"
+                ) as response:
                     if response.status == 200:
                         return await response.json()
                     return None

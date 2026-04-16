@@ -12,6 +12,8 @@ _src_dir = str(PROJECT_ROOT / "src")
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
+from domain.exceptions import ModelProviderError
+
 _provider_spec = importlib.util.spec_from_file_location(
     "openai_compatible_embedding_provider_module",
     PROJECT_ROOT
@@ -63,6 +65,17 @@ class _FakeSession:
     def get(self, url: str) -> _FakeResponse:
         self._captured["url"] = url
         return self._response
+
+
+class _RaisingSession:
+    async def __aenter__(self) -> "_RaisingSession":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        return None
+
+    def post(self, url: str, json: dict[str, object]) -> _FakeResponse:
+        raise Exception("api failure")
 
 
 class TestOpenAICompatibleEmbeddingProvider:
@@ -124,3 +137,29 @@ class TestOpenAICompatibleEmbeddingProvider:
         )
 
         assert provider.base_url == "http://localhost:11434/v1"
+
+    def test_get_embeddings_raises_on_api_failure(self) -> None:
+        provider = OpenAICompatibleEmbeddingProvider()
+
+        with patch("aiohttp.ClientSession", return_value=_RaisingSession()):
+            try:
+                asyncio.run(provider.get_embeddings(["test text"]))
+            except ModelProviderError as exc:
+                assert "api failure" in str(exc)
+            else:
+                raise AssertionError("ModelProviderError not raised")
+
+    def test_get_single_embedding_raises_on_non_200(self) -> None:
+        provider = OpenAICompatibleEmbeddingProvider()
+        response = _FakeResponse(status=500)
+
+        with patch(
+            "aiohttp.ClientSession",
+            return_value=_FakeSession(response, {}),
+        ):
+            try:
+                asyncio.run(provider._get_single_embedding("test text"))
+            except ModelProviderError as exc:
+                assert "500" in str(exc)
+            else:
+                raise AssertionError("ModelProviderError not raised")
