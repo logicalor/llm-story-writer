@@ -88,6 +88,7 @@ Chapter synopsis body.`,
     expect(result).toContain("Alice");
     expect(result).toContain("Main Quest");
     expect(result).toContain("Chapter 1");
+    expect(result).toContain("brave adventurer");
   });
 
   it("returns context without wiki sections when wiki directory is missing", () => {

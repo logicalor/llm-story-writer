@@ -5,7 +5,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "typescript": "latest",
-    "vitest": "latest"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
   }
 }
