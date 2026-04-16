@@ -6,6 +6,21 @@
 
 - [Architecture Notes](../.github/notes/architecture.md) — System architecture, layer structure, pipeline flow, prompt template categories
 
+## Storage
+
+The project uses **ChromaDB** for vector storage and RAG (Retrieval-Augmented Generation). ChromaDB is a lightweight, file-based vector database that requires no server process or Docker setup.
+
+- **Local-first**: No PostgreSQL, pgvector, or Docker Compose required
+- **Per-story collections**: Each story has its own isolated ChromaDB collection (`story-{story-name}`)
+- **Storage location**: `.chromadb/stories/{story-name}/`
+- **Indexed content**: Outline chunks, chapter content, character sheets, setting sheets, and recaps
+
+### RAG Access
+
+All RAG queries route through the `rag-query` tool (see [Tools Reference](./tools.md)). The legacy `RAGService` class is **deprecated** and will raise `DeprecationWarning` on all public methods. Migrate any direct `RAGService` usage to the `rag-query` tool.
+
+See [ADR 003: ChromaDB Replaces pgvector](./planning/adr/003-chromadb-replaces-pgvector.md) for the full migration rationale.
+
 ## Tools
 
 - [Tools Reference](./tools.md) — Tool architecture pattern, prompt-loader, story-state, savepoint-mgr, character-mgr, setting-mgr, recap-manager, outline-generator, scene-writer, critique-runner, wiki-init, wiki-read, wiki-search, wiki-snapshot, wiki-update, and wiki-lint tools, guide for adding new tools
