@@ -1,7 +1,7 @@
 ---
 name: Researcher
 description: Web research agent. Searches the web, extracts content from URLs, and retrieves library documentation using Tavily MCP tools and Context7. Invoked directly by the user for standalone research, or dispatched by the Planner and Contemplator agents when external information is needed. Never writes code or modifies the codebase.
-model: claude-opus-4.6
+model: MiniMax: MiniMax M2.7 (openrouter)
 tools:
     [execute, read, 'io.github.upstash/context7/*', 'io.github.tavily-ai/tavily-mcp/*', 'chroma/*', edit, search, todo]
 ---

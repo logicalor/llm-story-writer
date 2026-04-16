@@ -1,7 +1,7 @@
 ---
 name: Coder
 description: Implements code changes for the project — Python domain logic, TypeScript OpenCode tool wrappers, prompt templates, wiki tools, and infrastructure. Dispatched by the Orchestrator during the implementation phase.
-model: claude-sonnet-4.6
+model: MoonshotAI: Kimi K2.5 (openrouter)
 user-invocable: false
 disable-model-invocation: true
 tools:

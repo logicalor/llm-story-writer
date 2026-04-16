@@ -1,7 +1,7 @@
 ---
 name: Sprint Runner
 description: "Batch issue dispatcher. Collates open GitHub issues, presents them for selection and prioritisation, then sequentially dispatches the Orchestrator V3 agent to address each one. Use when: processing multiple issues in a session, running a batch of tasks, clearing the backlog."
-model: claude-opus-4.6
+model: MiniMax: MiniMax M2.7 (openrouter)
 agents:
   - Orchestrator V3
 tools:

@@ -1,7 +1,7 @@
 ---
 name: Auditor
 description: Healthcheck and compliance agent. Audits code, tests, build process, database schema, and documentation against the project plan and ADRs. Checks GitHub history to understand development stage. Produces a structured audit report with findings and deviation warnings. Invoked directly by the user — never by the Orchestrator.
-model: claude-opus-4.6
+model: MiniMax: MiniMax M2.7 (openrouter)
 agents:
   - Researcher
   - Browser

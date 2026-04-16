@@ -1,7 +1,7 @@
 ---
 name: Auditor (Claude)
 description: Independent audit sub-agent running on Claude Opus 4.6. Performs the standard audit process and returns a structured report to the Synthesizing Auditor. Not invoked directly by users.
-model: Claude Opus 4.6 (copilot)
+model: MoonshotAI: Kimi K2.5 (openrouter)
 user-invocable: false
 disable-model-invocation: true
 tools:

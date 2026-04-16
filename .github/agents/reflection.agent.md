@@ -1,7 +1,7 @@
 ---
 name: Reflection
 description: Captures improvement notes for the agent system during tasks, then collates and applies improvements to agents, skills, and instructions. Uses hybrid autonomy — auto-applies minor improvements (typos, clarifications), proposes major changes for approval.
-model: claude-opus-4.6
+model: MiniMax: MiniMax M2.7 (openrouter)
 user-invocable: true
 disable-model-invocation: true
 tools: [read, agent, 'chroma/*', edit, search, todo]

@@ -1,7 +1,7 @@
 ---
 name: Synthesizing Auditor
 description: Cross-model audit coordinator. Dispatches identical audits to three independent LLMs (Claude Opus 4.6, GPT 5.4, Gemini 3.1 Pro), then synthesizes their reports into a single consensus audit with confidence ratings and divergence analysis. Invoked directly by the user — never by the Orchestrator.
-model: claude-opus-4.6
+model: MiniMax: MiniMax M2.7 (openrouter)
 agents:
   - Auditor (Claude)
   - Auditor (GPT)

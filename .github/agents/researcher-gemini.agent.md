@@ -1,7 +1,7 @@
 ---
 name: Researcher (Gemini)
 description: Independent research sub-agent running on Gemini 3.1 Pro (Preview). Performs the standard research process and returns a structured report to the Synthesizing Researcher. Not invoked directly by users.
-model: Gemini 3.1 Pro (Preview) (copilot)
+model: Google: Gemini 3.1 Pro Preview (openrouter)
 user-invocable: false
 disable-model-invocation: false
 tools:

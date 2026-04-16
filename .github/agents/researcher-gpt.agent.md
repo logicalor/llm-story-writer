@@ -1,7 +1,7 @@
 ---
 name: Researcher (GPT)
 description: Independent research sub-agent running on GPT 5.4. Performs the standard research process and returns a structured report to the Synthesizing Researcher. Not invoked directly by users.
-model: gpt-5.4
+model: GPT-5.4 mini (copilot)
 user-invocable: false
 disable-model-invocation: false
 tools:

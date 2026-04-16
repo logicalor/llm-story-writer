@@ -1,7 +1,7 @@
 ---
 name: Planner
 description: Product-level planning agent. Takes a vague idea or feature concept and produces structured planning artefacts — PRDs, task breakdowns, architecture decision records, and feature specs. Invoked directly by the user before implementation begins. Never writes production code.
-model: claude-opus-4.6
+model: MiniMax: MiniMax M2.7 (openrouter)
 agents:
   - Synthesizing Researcher
   - Browser

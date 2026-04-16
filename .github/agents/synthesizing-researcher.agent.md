@@ -1,7 +1,7 @@
 ---
 name: Synthesizing Researcher
 description: Cross-model research coordinator. Dispatches identical research briefs to three independent LLMs (Claude Opus 4.6, GPT 5.4, Gemini 3.1 Pro), then synthesizes their reports into a single consensus research document with confidence ratings and divergence analysis. Invoked directly by the user, or dispatched by Planner/Contemplator/Orchestrator when thorough research is needed.
-model: Claude Opus 4.6 (copilot)
+model: MiniMax: MiniMax M2.7 (openrouter)
 agents:
   - Researcher (Claude)
   - Researcher (GPT)
