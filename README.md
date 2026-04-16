@@ -53,11 +53,18 @@ pip install -r requirements.txt
 pip install -e src/
 ```
 
-### Basic Usage
+### Basic Usage (OpenCode TUI)
+
+The application uses OpenCode for an interactive story generation experience:
 
 ```bash
-# Generate a story from a prompt file
-python src/main.py Prompts/YourPrompt.txt
+# Start the OpenCode TUI
+opencode
+
+# In the TUI, use slash commands:
+/new-story Prompts/YourPrompt.txt    # Initialize and start a new story
+/continue [story-name]               # Resume from last savepoint
+/status                              # Show generation progress
 ```
 
 The application will use all configuration options defined in `config.md`.
@@ -133,20 +140,71 @@ pytest --cov=src tests/
 ## 📁 Project Structure
 
 ```
-AIStoryWriter/
-├── src/                    # Main application code
-│   ├── domain/            # Business logic and entities
-│   ├── application/       # Use cases and services
-│   ├── infrastructure/    # External concerns
-│   ├── presentation/      # CLI and API interfaces
-│   └── config/           # Configuration management
-├── tests/                 # Test suite
-├── Prompts/              # Story prompts
-├── Stories/              # Generated stories
-├── SavePoints/           # Generation savepoints
-├── Logs/                 # Application logs
-└── docs/                 # Documentation
+llm-story-writer/
+├── src/                          # Python domain logic (clean architecture)
+│   ├── domain/                  # Business logic and entities
+│   ├── application/             # Use cases and services
+│   ├── infrastructure/          # External concerns (providers, storage)
+│   ├── presentation/            # CLI and API interfaces
+│   ├── tools/                   # Python tool implementations
+│   └── config/                  # Configuration management
+├── .opencode/                   # OpenCode agentic system
+│   ├── agents/                  # Agent definitions (orchestrator, scene-writer, etc.)
+│   ├── tools/                   # TypeScript tool wrappers
+│   ├── skills/                  # Reusable skills
+│   ├── commands/                # TUI slash commands (/new-story, /continue, etc.)
+│   └── plugins/                 # OpenCode plugins
+├── prompts/                     # Prompt templates (relocated from src/)
+│   ├── chapters/
+│   ├── characters/
+│   ├── outline/
+│   ├── scenes/
+│   └── ...
+├── stories/<name>/              # Per-story storage
+│   ├── chapters/                # Generated chapter content
+│   ├── characters/              # Character sheets (JSON)
+│   ├── settings/                # Setting/location sheets (JSON)
+│   ├── savepoints/              # Generation savepoints
+│   └── wiki/                    # Progressive wiki memory
+│       ├── characters/
+│       ├── locations/
+│       ├── events/
+│       └── ...
+├── .chromadb/                   # ChromaDB vector storage (per-story collections)
+├── legacy/                      # Archived original codebase (reference only)
+├── tests/                       # Test suite
+└── docs/                        # Documentation
 ```
+
+## 🤖 OpenCode Integration
+
+This project uses a **hybrid agent-tool architecture** where OpenCode agents handle orchestration and human interaction, while Python scripts (wrapped as OpenCode tools) handle deterministic domain logic. The architecture preserves clean architecture principles in the Python domain layer while leveraging OpenCode's agentic capabilities for creative tasks.
+
+Key components:
+- **Agents** (`.opencode/agents/`): Orchestrator, outline-planner, scene-writer, wiki-maintainer
+- **Tools** (`.opencode/tools/`): TypeScript wrappers that call Python scripts in `src/tools/`
+- **Skills** (`.opencode/skills/`): Reusable instructions for pipeline phases, wiki maintenance, etc.
+- **Commands** (`.opencode/commands/`): TUI slash commands like `/new-story`, `/continue`, `/status`
+
+## 📚 Wiki System
+
+The progressive wiki memory system maintains structured story knowledge using markdown pages with YAML frontmatter:
+
+- **Page Types**: Characters, locations, events, factions, items, plot-threads, world-rules, themes, relationships, timeline, chapters
+- **Detail Levels**: L1 (headline, ~30 tokens), L2 (brief, ~150 tokens), L3 (full, ~500 tokens)
+- **Confidence Taxonomy**: `verified` (explicitly stated), `planned` (outlined but not yet written), `speculative` (inferred or implied)
+- **Cross-References**: Wiki pages use `[[wikilink]]` syntax to reference related entities
+
+The wiki is automatically updated after each scene by the wiki-maintainer agent, ensuring consistent story state throughout generation.
+
+## 🔍 ChromaDB RAG
+
+Semantic search for context retrieval using ChromaDB vector collections:
+
+- **Per-Story Collections**: Each story has its own isolated ChromaDB collection
+- **Wiki Embedding**: Wiki pages are automatically embedded when created or updated
+- **Hybrid Retrieval**: Combines entity matching, metadata filtering, semantic search, and wikilink traversal
+- **Context Assembly**: The `wiki-snapshot` tool assembles token-budgeted context for each scene using detail levels L1/L2/L3
 
 ## 🔧 Development
 
