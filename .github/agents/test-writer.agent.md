@@ -90,4 +90,5 @@ Test file(s): {paths}
 - **Never commit.** The Orchestrator handles commits.
 - **Never push.** Git operations belong to the Orchestrator.
 - **Never implement production code.** You only write tests. If you need a helper method or fixture for the test, that's allowed — but do not create domain services, tools, or prompts.
+- **Never mock `sys.modules` at import time.** Mocking should be done inside test functions using `unittest.mock.patch` or via pytest fixtures. Module-level `sys.modules` mocking causes import-time side effects that pollute the entire test suite, triggering cascading failures in unrelated tests.
 - **Report implementation bugs immediately.** If a test reveals a bug in the implementation, return to the Orchestrator with the failure details so the Coder can be re-dispatched.
