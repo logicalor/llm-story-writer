@@ -179,10 +179,20 @@ The plugin includes structural verification tests in `tests/unit/test_compaction
 - References the 4000-token budget
 - Uses no external dependencies (only `fs` and `path` imports)
 
-Run tests:
+Run structural tests:
 
 ```bash
 pytest tests/unit/test_compaction_plugin.py -v
+```
+
+### Behavioral Tests (Vitest)
+
+Behavioral tests live in `.opencode/plugins/__tests__/` and exercise the plugin's pure functions and integration with filesystem fixtures. They cover `assembleContext()` directly — happy path, graceful degradation (missing wiki, missing state, invalid JSON), and token budget enforcement.
+
+Run behavioral tests:
+
+```bash
+npx vitest run
 ```
 
 ## Related
