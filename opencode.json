@@ -48,12 +48,12 @@
     "story-orchestrator": {
       "model": "ollama/huihui_ai/magistral-abliterated:24b",
       "instructions": ".opencode/agents/story-orchestrator.md",
-      "skills": ["story-pipeline"]
+      "skills": ["story-pipeline", "context-budgeting"]
     },
     "chapter-writer": {
       "model": "ollama/huihui_ai/magistral-abliterated:24b",
       "instructions": ".opencode/agents/chapter-writer.md",
-      "skills": ["scene-writing", "character-voice"]
+      "skills": ["scene-writing", "character-voice", "context-budgeting"]
     },
     "outline-planner": {
       "model": "ollama/huihui_ai/magistral-abliterated:24b",
@@ -63,7 +63,7 @@
     "wiki-maintainer": {
       "model": "ollama/huihui_ai/deepseek-r1-abliterated:7b",
       "instructions": ".opencode/agents/wiki-maintainer.md",
-      "skills": ["wiki-maintenance"]
+      "skills": ["wiki-maintenance", "wiki-conventions"]
     }
   }
 }

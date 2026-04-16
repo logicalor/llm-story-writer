@@ -18,7 +18,8 @@ The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) fo
 | File | Purpose |
 |------|---------|
 | `.opencode/agents/wiki-maintainer.md` | Agent definition — workflows, tools, constraints, error handling |
-| `.opencode/skills/wiki-maintenance/SKILL.md` | Skill reference — entity schemas, confidence taxonomy, output formats |
+| `.opencode/skills/wiki-maintenance/SKILL.md` | Skill reference — entity schemas, confidence taxonomy, output formats, error taxonomy |
+| `.opencode/skills/wiki-conventions/SKILL.md` | Skill reference — page type schemas, YAML frontmatter specs, wikilink conventions, naming rules |
 | `opencode.json` | Agent registration with 7b model configuration |
 
 ## Tools
@@ -144,6 +145,28 @@ At the end of each chapter, the wiki maintainer runs `wiki-lint` to check for:
 
 Critical issues are fixed immediately. Non-critical issues are reported to the orchestrator for later review.
 
+## ConStory-Bench Error Taxonomy
+
+Consistency errors detected during wiki lint operations are classified by category and subtype, based on the ConStory-Bench taxonomy. The `wiki-lint` tool uses these categories to produce structured findings.
+
+| Category | Subtypes | Description |
+|----------|----------|-------------|
+| **Character Consistency** | Physical description drift, personality contradiction, ability inconsistency, knowledge state error | Character attributes change without narrative justification |
+| **Temporal Consistency** | Timeline contradiction, duration error, sequence violation, age inconsistency | Events or durations conflict with established timeline |
+| **Spatial Consistency** | Travel time error, location description drift, impossible geography | Physical world rules are violated |
+| **Plot Consistency** | Thread contradiction, resolved thread resurrection, dropped thread, prophecy/setup abandonment | Narrative threads contradict or are lost |
+| **Reference Consistency** | Entity name drift, alias confusion, missing cross-reference, orphaned entity | Entity references are inconsistent or broken |
+
+Each lint finding includes category, subtype, severity (`critical` or `non-critical`), provenance (source and contradicting chapter/scene), and affected entity slugs. See the wiki-maintenance skill for the full specification.
+
+## Alias Handling Edge Cases
+
+Beyond the standard alias identification rules, the wiki maintainer handles three edge case categories:
+
+- **Cultural naming conventions** — Names that change with marriage, title acquisition, or cultural rites are added as aliases without replacing the slug. Patronymic and matronymic naming uses the most distinctive component as the slug.
+- **Shared aliases** — When multiple entities share an alias (e.g., "the Captain" could refer to different characters), disambiguation uses chapter number, scene location, and surrounding entity references. Ambiguous cases are logged as `speculative` notes until context clarifies the referent.
+- **Retrospective alias discovery** — An alias may appear in text before the entity it refers to is introduced. When the entity is created, the alias is backfilled and `first_appearance` is updated to the earliest chapter where any alias was used.
+
 ## Error Handling
 
 | Scenario | Behaviour |
@@ -162,12 +185,16 @@ The wiki maintainer is registered in `opencode.json` with a 7b model for efficie
   "wiki-maintainer": {
     "model": "ollama/huihui_ai/deepseek-r1-abliterated:7b",
     "instructions": ".opencode/agents/wiki-maintainer.md",
-    "skills": ["wiki-maintenance"]
+    "skills": ["wiki-maintenance", "wiki-conventions"]
   }
 }
 ```
 
 The smaller model keeps wiki maintenance lightweight. Instructions are structured as explicit, sequential steps to ensure reliable execution at this model size.
+
+The agent uses two skills:
+- **wiki-maintenance** — entity extraction rules, confidence taxonomy, structured output formats, detail level guidelines, chapter boundary procedures, and ConStory-Bench error taxonomy
+- **wiki-conventions** — page type schemas, YAML frontmatter specifications for all 12 entity types, wikilink conventions, slug naming rules, and detail level format reference
 
 ## Related
 

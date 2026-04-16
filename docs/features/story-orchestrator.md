@@ -103,9 +103,10 @@ The `chapter-writer` subagent handles Phase 8b — generating all scenes for a s
 3. Generates scenes sequentially (narrative flow depends on prior scene content)
 4. Assembles all scenes into the completed chapter via `scene-writer`
 
-The agent uses two skills:
+The agent uses three skills:
 - **scene-writing** — narrative structure, pacing, transitions, and scene type conventions
 - **character-voice** — dialogue patterns, internal thought consistency, voice differentiation across characters
+- **context-budgeting** — token budget strategy, three-stage retrieval pipeline reference, composite scoring formula, detail level allocation, and delta caching strategy
 
 Named `chapter-writer` (not `scene-writer`) to avoid collision with the existing `scene-writer` tool. See the [agent definition](../../.opencode/agents/chapter-writer.md) for the full workflow, savepoint strategy, and error handling.
 
@@ -134,8 +135,9 @@ The `wiki-maintainer` subagent handles Phase 7 (initial wiki population) and Pha
 
 The agent uses five tools: `wiki-read`, `wiki-update`, `wiki-lint`, `wiki-search`, and `story-state`. All wiki mutations are submitted as batch payloads for atomic execution with rollback on failure.
 
-The agent uses one skill:
+The agent uses two skills:
 - **wiki-maintenance** — entity extraction rules, confidence taxonomy, structured output formats, detail level guidelines, and chapter boundary procedures
+- **wiki-conventions** — page type schemas, YAML frontmatter specifications, wikilink conventions, and slug naming rules
 
 Named `wiki-maintainer` to reflect its lifecycle responsibility — maintaining wiki state across the full generation pipeline, not just creating pages. Runs on a 7b model (`deepseek-r1-abliterated:7b`) for low overhead. See the [agent definition](../../.opencode/agents/wiki-maintainer.md) and [feature documentation](wiki-maintainer.md) for the full workflow, error handling, and entity type reference.
 
@@ -231,6 +233,18 @@ The `story-pipeline` skill (`.opencode/skills/story-pipeline/SKILL.md`) provides
 
 The skill is automatically available to the story-orchestrator agent and can be referenced by other agents that need to understand the pipeline sequence.
 
+## Context Budgeting Skill
+
+The `context-budgeting` skill (`.opencode/skills/context-budgeting/SKILL.md`) provides a detailed reference for managing the 65536-token context window, including:
+
+- Token budget allocation table (system overhead, story context, prompt template, input, generation output)
+- Five concrete context management rules (wiki-snapshot usage, character loading limits, synopsis preferences, outline scoping, stateless subagent design)
+- Three-stage retrieval pipeline reference: hybrid multi-tier retrieval (entity matching → metadata query → semantic search → wikilink traversal), composite scoring formula, detail level selection with priority tiers, and structured context assembly
+- Scene-type adaptation rules (dialogue-heavy, action, first-appearance)
+- Delta caching strategy for consecutive scenes within a chapter
+
+The skill is automatically available to the `story-orchestrator` and `chapter-writer` agents. It encodes the strategies defined in [ADR 002](../planning/adr/002-context-window-budget-strategy.md) and [ADR 005](../planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md).
+
 ## Error Handling
 
 | Scenario | Behaviour |
@@ -246,6 +260,7 @@ The skill is automatically available to the story-orchestrator agent and can be 
 - `.opencode/agents/story-orchestrator.md` — Agent definition (266 lines)
 - `.opencode/agents/chapter-writer.md` — Chapter writer subagent definition
 - `.opencode/skills/story-pipeline/SKILL.md` — Pipeline skill reference (345 lines)
+- `.opencode/skills/context-budgeting/SKILL.md` — Context budgeting skill reference
 - `.opencode/skills/scene-writing/SKILL.md` — Scene writing conventions skill
 - `.opencode/skills/character-voice/SKILL.md` — Character voice consistency skill
 - `opencode.json` — Agent registration with model binding and skill references

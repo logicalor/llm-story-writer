@@ -81,6 +81,26 @@ Aliases are alternative names by which an entity is referenced in text. Correct 
 
 ---
 
+## Alias Handling Edge Cases
+
+Beyond the standard alias identification rules, handle these edge cases:
+
+### Cultural Naming Conventions
+- Names that change with marriage, title acquisition, or cultural rites (e.g., "Kael" becomes "Kael the Blooded" after a ritual). Add the new form as an alias — do not replace the slug or original name. Track the transition chapter in the page body.
+- Cultures with patronymic or matronymic naming (e.g., "Aldric son of Aldric") — use the most distinctive component as the slug and list full forms as aliases.
+
+### Shared Aliases
+- When multiple entities share an alias (e.g., "the Captain" could refer to Elara or a ship captain), disambiguate by context: chapter number, scene location, and surrounding entity references.
+- If disambiguation is ambiguous, do **not** assign the alias to either entity. Log the ambiguity as a `speculative` note in both pages.
+- Once narrative context makes the referent clear, assign the alias to the correct entity and remove the ambiguity note.
+
+### Retrospective Alias Discovery
+- An alias may appear in text before the entity it refers to has been created (e.g., "the Shadow" is mentioned in Chapter 2, but the character is not introduced until Chapter 5).
+- When the entity is created, backfill the alias and update `first_appearance` to the earliest chapter where any alias was used.
+- If the alias was previously assigned to a different entity speculatively, reassign it and downgrade the old assignment.
+
+---
+
 ## Extraction Rules per Scene
 
 After each scene is generated, extract the following categories of information. Process in order — later categories depend on earlier ones.
@@ -208,6 +228,26 @@ At the end of each chapter (after the final scene is generated and wiki-updated)
    - **Stale information** — pages with `planned` confidence for events that should now be `verified`
    - **Confidence downgrades** — `verified` facts contradicted by new text
 3. Fix critical lint issues before proceeding to the next chapter. Non-critical issues are logged for later review.
+
+---
+
+## ConStory-Bench Error Taxonomy
+
+Consistency errors detected during wiki lint operations are classified by category and subtype for structured tracking. This taxonomy is based on ConStory-Bench and is used by `wiki-lint` to categorize findings.
+
+| Category | Subtypes | Description |
+|----------|----------|-------------|
+| **Character Consistency** | Physical description drift, personality contradiction, ability inconsistency, knowledge state error | Character attributes change without narrative justification |
+| **Temporal Consistency** | Timeline contradiction, duration error, sequence violation, age inconsistency | Events or durations conflict with established timeline |
+| **Spatial Consistency** | Travel time error, location description drift, impossible geography | Physical world rules are violated |
+| **Plot Consistency** | Thread contradiction, resolved thread resurrection, dropped thread, prophecy/setup abandonment | Narrative threads contradict or are lost |
+| **Reference Consistency** | Entity name drift, alias confusion, missing cross-reference, orphaned entity | Entity references are inconsistent or broken |
+
+Each lint finding must include:
+- **Category** and **subtype** from the table above
+- **Severity:** `critical` (blocks next chapter) or `non-critical` (logged for review)
+- **Provenance:** the source chapter/scene and the contradicting chapter/scene
+- **Affected entities:** slugs of all wiki pages involved
 
 ---
 

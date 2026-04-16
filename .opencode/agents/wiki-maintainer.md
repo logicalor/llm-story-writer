@@ -21,6 +21,7 @@ You run on a smaller model for low overhead. Keep your reasoning focused and out
 ## Skills
 
 - **wiki-maintenance** — Entity extraction rules, confidence taxonomy, structured output formats, detail level guidelines, and chapter boundary procedures.
+- **wiki-conventions** — Page type schemas, YAML frontmatter specifications, wikilink conventions, and slug naming rules.
 
 ---
 
