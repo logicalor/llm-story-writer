@@ -775,14 +775,16 @@ Remove dependencies: `psycopg2`, `pgvector`, `docker-compose.yml` (PostgreSQL), 
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/rag-query.ts` exists with tool definition
-- [ ] `src/tools/rag_query.py` exists with `index` and `query` operations
-- [ ] Content is automatically indexed when saved by other tools
-- [ ] Wiki pages are indexed into the same per-story collection
-- [ ] Query returns relevant chunks with similarity scores
-- [ ] ChromaDB collection is stored per-story in `.chromadb/stories/<name>/`
-- [ ] PostgreSQL/pgvector dependencies removed from requirements.txt
-- [ ] docker-compose.yml and init.sql removed or archived
+- [x] `.opencode/tools/rag-query.ts` exists with tool definition
+- [x] `src/tools/rag_query.py` exists with `index` and `query` operations
+- [x] Content is automatically indexed when saved by other tools
+- [x] Wiki pages are indexed into the same per-story collection
+- [x] Query returns relevant chunks with similarity scores
+- [x] ChromaDB collection is stored per-story in `.chromadb/stories//`
+- [x] PostgreSQL/pgvector dependencies removed from requirements.txt
+- [x] docker-compose.yml and init.sql removed or archived
+
+**Completed:** PR #73 (issue #24)
 
 **Key Files:**
 
