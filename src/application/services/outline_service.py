@@ -45,11 +45,6 @@ class OutlineService:
                 prompt, story_elements, base_context, settings
             )
 
-            # Generate chapter list
-            chapter_list = await self._generate_chapter_list(
-                outline_content, base_context, story_elements, settings
-            )
-
             # Create outline entity
             outline = Outline(
                 story_elements=story_elements,

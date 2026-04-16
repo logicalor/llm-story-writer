@@ -152,7 +152,7 @@ class ChapterGenerator:
                                         f"  Chapter {chapter_num} has no synopsis, skipping..."
                                     )
                                     continue
-                            except:
+                            except Exception:
                                 print(
                                     f"  Chapter {chapter_num} synopsis not found, skipping..."
                                 )
@@ -420,7 +420,7 @@ class ChapterGenerator:
                                             f"chapter_{chapter_num - 1}/recap"
                                         )
                                     )
-                                except:
+                                except Exception:
                                     if settings.debug:
                                         print(
                                             f"    No previous recap found for chapter {chapter_num - 1}"
