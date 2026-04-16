@@ -176,3 +176,6 @@ SavePoints/*
 
 # Chromadb local data
 .chromadb/
+
+# Node.js
+node_modules/

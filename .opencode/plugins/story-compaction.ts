@@ -520,6 +520,17 @@ function assembleContext(
   return result;
 }
 
+// --- Named exports for testing ---
+export {
+  parseFrontmatter,
+  unquote,
+  estimateTokens,
+  isWithinBase,
+  getCurrentPosition,
+  assembleContext,
+};
+export type { StoryState };
+
 // --- Plugin API interfaces ---
 // Local type definitions for the OpenCode plugin API boundary.
 // These reflect the observed runtime contract — no published SDK types exist.
