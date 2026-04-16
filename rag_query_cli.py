@@ -119,10 +119,12 @@ Examples:
     try:
         # Import required components
         from infrastructure.storage.pgvector_store import PgVectorStore
-        from infrastructure.providers.ollama_embedding_provider import (
-            OllamaEmbeddingProvider,
+        from infrastructure.providers.openai_compatible_embedding_provider import (
+            OpenAICompatibleEmbeddingProvider,
         )
-        from infrastructure.providers.ollama_provider import OllamaProvider
+        from infrastructure.providers.openai_compatible_provider import (
+            OpenAICompatibleProvider,
+        )
         from application.services.rag_service import RAGService
         from application.services.content_chunker import ContentChunker
         from application.services.rag_integration_service import RAGIntegrationService
@@ -139,8 +141,9 @@ Examples:
         config = rag_config_loader.load_rag_config()
 
         # Initialize components
-        embedding_provider = OllamaEmbeddingProvider(
-            host=config.ollama_host, model=config.embedding_model_name
+        embedding_provider = OpenAICompatibleEmbeddingProvider(
+            base_url=config.model_api_base,
+            model=config.embedding_model_name,
         )
 
         vector_store = PgVectorStore(config.connection_string)
@@ -168,12 +171,12 @@ Examples:
             rag_service=rag_service, content_chunker=content_chunker
         )
 
-        # Initialize Ollama provider for AI responses
+        # Initialize model provider for AI responses
         try:
-            ollama_provider = OllamaProvider(host="127.0.0.1:11434")
-            print("✅ Ollama provider initialized for AI responses")
+            ollama_provider = OpenAICompatibleProvider(base_url=config.model_api_base)
+            print("✅ OpenAI-compatible provider initialized for AI responses")
         except Exception as e:
-            print(f"⚠️ Warning: Ollama provider not available: {e}")
+            print(f"⚠️ Warning: OpenAI-compatible provider not available: {e}")
             ollama_provider = None
 
         print("✅ RAG system initialized successfully!")
@@ -614,16 +617,17 @@ Please provide a comprehensive answer based on the story information above. If t
         # Try to get real AI response if provider is available
         if ollama_provider:
             try:
-                print("\n🤖 Getting real AI response from Ollama...")
+                print("\n🤖 Getting real AI response from configured model API...")
 
                 # Create ModelConfig for the request
                 from src.domain.value_objects.model_config import ModelConfig
 
                 model_config = ModelConfig(
-                    name="llama3:latest", provider="ollama", host="127.0.0.1:11434"
+                    name="llama3:latest",
+                    provider="openai_compatible",
                 )
 
-                # Use Ollama to generate response
+                # Use configured provider to generate response
                 ai_response = await ollama_provider.generate_text(
                     messages=[{"role": "user", "content": ai_prompt}],
                     model_config=model_config,
@@ -843,10 +847,11 @@ Assistant:"""
                     from src.domain.value_objects.model_config import ModelConfig
 
                     model_config = ModelConfig(
-                        name="llama3:latest", provider="ollama", host="127.0.0.1:11434"
+                        name="llama3:latest",
+                        provider="openai_compatible",
                     )
 
-                    # Use Ollama to generate response
+                    # Use configured provider to generate response
                     ai_response = await ollama_provider.generate_text(
                         messages=[{"role": "user", "content": ai_prompt}],
                         model_config=model_config,
@@ -861,12 +866,12 @@ Assistant:"""
                 except Exception as e:
                     print(f"⚠️ AI generation failed: {e}")
                     print(
-                        "💡 Try asking a different question or check if Ollama is running."
+                        "💡 Try asking a different question or check if the configured model API is running."
                     )
                     continue
             else:
                 print(
-                    "\n⚠️ No AI provider available. Please install and run Ollama to use interactive mode."
+                    "\n⚠️ No AI provider available. Start the configured OpenAI-compatible model API to use interactive mode."
                 )
                 break
 

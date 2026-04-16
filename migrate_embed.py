@@ -11,8 +11,8 @@ all your indexed content. It will:
 4. Swap the tables and clean up
 
 Usage:
-    python migrate_embed.py --new-model "ollama://all-MiniLM-L6-v2"
-    python migrate_embed.py --new-model "ollama://nomic-embed-text" --dry-run
+    python migrate_embed.py --new-model "openai-compat://all-MiniLM-L6-v2"
+    python migrate_embed.py --new-model "openai-compat://nomic-embed-text" --dry-run
 """
 
 import asyncio
@@ -26,7 +26,9 @@ from typing import Optional, Dict, Any
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from config.rag_config import RAGConfigLoader, RAGConfig
-from infrastructure.providers.ollama_embedding_provider import OllamaEmbeddingProvider
+from infrastructure.providers.openai_compatible_embedding_provider import (
+    OpenAICompatibleEmbeddingProvider,
+)
 from infrastructure.storage.pgvector_store import PgVectorStore
 
 
@@ -37,20 +39,21 @@ class EmbeddingMigrator:
         self.config = config
         self.old_vector_store: Optional[PgVectorStore] = None
         self.new_vector_store: Optional[PgVectorStore] = None
-        self.embedding_provider: Optional[OllamaEmbeddingProvider] = None
+        self.embedding_provider: Optional[OpenAICompatibleEmbeddingProvider] = None
 
     async def initialize(self):
         """Initialize the migration components."""
         try:
             # Create embedding provider with new model
-            self.embedding_provider = OllamaEmbeddingProvider(
-                host=self.config.ollama_host, model=self.config.embedding_model_name
+            self.embedding_provider = OpenAICompatibleEmbeddingProvider(
+                base_url=self.config.model_api_base,
+                model=self.config.embedding_model_name,
             )
 
             # Test the new embedding model
             print(f"🧪 Testing new embedding model: {self.config.embedding_model_name}")
             if not await self.embedding_provider.test_connection():
-                raise Exception("Failed to connect to Ollama")
+                raise Exception("Failed to connect to configured model API")
 
             # Test embedding generation
             test_embedding = await self.embedding_provider.get_single_embedding("test")
@@ -82,10 +85,11 @@ class EmbeddingMigrator:
             postgres_database=self.config.postgres_database,
             postgres_user=self.config.postgres_user,
             postgres_password=self.config.postgres_password,
-            embedding_model="ollama://legacy-model",  # Placeholder
+            embedding_model="openai-compat://legacy-model",  # Placeholder
             vector_dimensions=1536,  # Assume legacy dimensions
             similarity_threshold=self.config.similarity_threshold,
             max_context_chunks=self.config.max_context_chunks,
+            configured_model_api_base=self.config.model_api_base,
         )
 
         self.old_vector_store = PgVectorStore(old_config.connection_string)
@@ -516,7 +520,7 @@ class EmbeddingMigrator:
             if self.new_vector_store and self.new_vector_store._pool:
                 async with self.new_vector_store._pool.acquire() as conn:
                     status = "completed" if success else "failed"
-                    result = await conn.execute(
+                    await conn.execute(
                         """
                         UPDATE migration_status 
                         SET status = $1, completed_at = CURRENT_TIMESTAMP, error_message = $2
@@ -586,7 +590,7 @@ async def main():
     parser.add_argument(
         "--new-model",
         required=True,
-        help="New embedding model (e.g., ollama://all-MiniLM-L6-v2)",
+        help="New embedding model (e.g., openai-compat://all-MiniLM-L6-v2)",
     )
     parser.add_argument(
         "--dry-run",

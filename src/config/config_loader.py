@@ -1,10 +1,36 @@
 """Configuration loader for reading from config.md frontmatter."""
 
 import re
-import yaml
 from pathlib import Path
 from typing import Dict, Any
+from urllib.parse import urlparse, urlunparse
+
+import yaml
+
 from domain.exceptions import ConfigurationError
+
+
+def _normalize_model_api_base(value: str) -> str:
+    """Normalize model API base to full URL with /v1 path."""
+    candidate = value.strip()
+    if not re.match(r"^https?://", candidate):
+        candidate = f"http://{candidate}"
+
+    parsed = urlparse(candidate)
+    path = parsed.path.rstrip("/")
+    if path in ("", "/"):
+        path = "/v1"
+
+    return urlunparse(
+        (
+            parsed.scheme or "http",
+            parsed.netloc,
+            path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    ).rstrip("/")
 
 
 class ConfigLoader:
@@ -41,6 +67,12 @@ class ConfigLoader:
             # Merge infrastructure settings with defaults
             if "infrastructure" in config_data:
                 infrastructure = config_data["infrastructure"]
+                model_api_base = infrastructure.get("model_api_base")
+                if not model_api_base and infrastructure.get("ollama_host"):
+                    model_api_base = _normalize_model_api_base(
+                        infrastructure["ollama_host"]
+                    )
+
                 config_data.update(
                     {
                         "output_dir": infrastructure.get("output_dir", "Stories"),
@@ -48,8 +80,8 @@ class ConfigLoader:
                             "savepoint_dir", "SavePoints"
                         ),
                         "logs_dir": infrastructure.get("logs_dir", "Logs"),
-                        "ollama_host": infrastructure.get(
-                            "ollama_host", "127.0.0.1:11434"
+                        "model_api_base": _normalize_model_api_base(
+                            model_api_base or "http://127.0.0.1:11434/v1"
                         ),
                         "lm_studio_host": infrastructure.get(
                             "lm_studio_host", "127.0.0.1:1234"
@@ -73,7 +105,7 @@ class ConfigLoader:
                             "postgres_password", "story_pass"
                         ),
                         "embedding_model": infrastructure.get(
-                            "embedding_model", "ollama://nomic-embed-text"
+                            "embedding_model", "openai-compat://nomic-embed-text"
                         ),
                         "vector_dimensions": infrastructure.get(
                             "vector_dimensions", 1536

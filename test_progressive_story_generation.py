@@ -11,7 +11,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from application.strategies.outline_chapter.strategy import OutlineChapterStrategy
 from application.strategies.outline_chapter.story_state_manager import StoryStateManager
 from domain.value_objects.generation_settings import GenerationSettings
-from infrastructure.providers.ollama_provider import OllamaProvider
+from infrastructure.providers.openai_compatible_provider import (
+    OpenAICompatibleProvider,
+)
 from infrastructure.prompts.prompt_loader import PromptLoader
 from domain.repositories.savepoint_repository import SavepointRepository
 
@@ -37,12 +39,12 @@ async def test_progressive_story_generation():
         "overlap_size": 200,
     }
 
-    # Initialize provider (using Ollama as an example)
+    # Initialize provider (using an OpenAI-compatible endpoint as an example)
     try:
-        provider = OllamaProvider(config)
-        print("✓ Ollama provider initialized")
+        provider = OpenAICompatibleProvider(base_url="http://127.0.0.1:11434/v1")
+        print("✓ OpenAI-compatible provider initialized")
     except Exception as e:
-        print(f"⚠ Could not initialize Ollama provider: {e}")
+        print(f"⚠ Could not initialize OpenAI-compatible provider: {e}")
         print("   Using mock provider for demonstration")
 
         # Create a mock provider for demonstration

@@ -26,7 +26,7 @@ echo "  status      - Show migration history and status"
     echo "Examples:"
     echo "  $0 fast                    # Migrate to fast model"
     echo "  $0 accurate                # Migrate to accurate model"
-    echo "  $0 custom ollama://bge-large-en  # Custom model"
+    echo "  $0 custom openai-compat://bge-large-en  # Custom model"
     echo "  $0 dry-run                 # Show migration plan"
     echo "  $0 analyze                 # Analyze current state"
     echo ""
@@ -60,7 +60,7 @@ run_migration() {
 # Function to analyze current state
 analyze_current() {
     echo "🔍 Analyzing current database state..."
-    python3 "$MIGRATE_SCRIPT" --new-model "ollama://nomic-embed-text" --dry-run
+    python3 "$MIGRATE_SCRIPT" --new-model "openai-compat://nomic-embed-text" --dry-run
 }
 
 # Function to show migration status
@@ -93,15 +93,15 @@ show_migration_status() {
 # Main script logic
 case "${1:-}" in
     "fast")
-        run_migration "ollama://all-MiniLM-L6-v2" "false" "${2:-false}"
+        run_migration "openai-compat://all-MiniLM-L6-v2" "false" "${2:-false}"
         ;;
     "accurate")
-        run_migration "ollama://nomic-embed-text" "false" "${2:-false}"
+        run_migration "openai-compat://nomic-embed-text" "false" "${2:-false}"
         ;;
     "custom")
         if [ -z "$2" ]; then
             echo "❌ Custom model requires model specification"
-            echo "Example: $0 custom ollama://bge-large-en"
+            echo "Example: $0 custom openai-compat://bge-large-en"
             exit 1
         fi
         run_migration "$2" "false" "${3:-false}"

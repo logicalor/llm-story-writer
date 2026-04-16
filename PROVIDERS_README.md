@@ -38,7 +38,7 @@ The AI Story Writer supports four main model providers, each with different capa
 ```yaml
 # config.yaml
 # Local providers
-ollama_host: "127.0.0.1:11434"
+model_api_base: "http://127.0.0.1:11434/v1"
 lm_studio_host: "127.0.0.1:1234"
 
 # Cloud provider API keys
@@ -50,7 +50,7 @@ api_keys:
 # Model configurations
 models:
   # Local models
-  scene_writer: "ollama://llama3:8b"
+  scene_writer: "openai-compat://llama3:8b"
   logical_model: "lm_studio://mistral-7b-instruct"
   
   # Cloud models via LangChain
@@ -71,16 +71,16 @@ models:
 
 **Configuration**:
 ```yaml
-ollama_host: "127.0.0.1:11434"
+model_api_base: "http://127.0.0.1:11434/v1"
 
 models:
-  scene_writer: "ollama://llama3:8b"
-  logical_model: "ollama://mistral:7b"
+  scene_writer: "openai-compat://llama3:8b"
+  logical_model: "openai-compat://mistral:7b"
 ```
 
 **Model Format**:
 ```
-ollama://model_name@host:port?param1=value1&param2=value2
+openai-compat://model_name@host:port?param1=value1&param2=value2
 ```
 
 ### LM Studio Provider
@@ -241,7 +241,7 @@ models:
   chapter_outline_writer: "langchain://anthropic:claude-3-sonnet-20240229"
   
   # Scene generation - use local models for privacy
-  scene_writer: "ollama://llama3:8b"
+  scene_writer: "openai-compat://llama3:8b"
   
   # Analysis - use specialized models
   logical_model: "langchain://google:gemini-1.5-pro"
@@ -257,7 +257,7 @@ Each provider supports different parameters:
 ```yaml
 models:
   # Ollama with custom parameters
-  scene_writer: "ollama://llama3:8b?temperature=0.7"
+  scene_writer: "openai-compat://llama3:8b?temperature=0.7"
   
   # LM Studio with OpenAI-style parameters
   logical_model: "lm_studio://mistral-7b-instruct?temperature=0.7"
@@ -403,13 +403,13 @@ Each provider logs detailed information:
 ```yaml
 # Before: Single provider
 models:
-  scene_writer: "ollama://llama3:8b"
+  scene_writer: "openai-compat://llama3:8b"
 
 # After: Multiple providers
 models:
   scene_writer: "langchain://ollama:llama3:8b@localhost:11434"
   # or
-  scene_writer: "ollama://llama3:8b"
+  scene_writer: "openai-compat://llama3:8b"
 ```
 
 ## Support and Resources

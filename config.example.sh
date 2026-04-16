@@ -13,27 +13,27 @@ OUTPUT_NAME=""
 # =============================================================================
 
 # Outline Generation Models
-INITIAL_OUTLINE_MODEL="ollama://huihui_ai/magistral-abliterated:24b"
-CHAPTER_OUTLINE_MODEL="ollama://huihui_ai/magistral-abliterated:24b"
+INITIAL_OUTLINE_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"
+CHAPTER_OUTLINE_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"
 
 # Chapter Generation Models
-CHAPTER_S1_MODEL="ollama://huihui_ai/magistral-abliterated:24b"  # Plot
-CHAPTER_S2_MODEL="ollama://huihui_ai/magistral-abliterated:24b"  # Character development
-CHAPTER_S3_MODEL="ollama://huihui_ai/magistral-abliterated:24b"  # Dialogue
-CHAPTER_S4_MODEL="ollama://huihui_ai/magistral-abliterated:24b"  # Final correction
+CHAPTER_S1_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"  # Plot
+CHAPTER_S2_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"  # Character development
+CHAPTER_S3_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"  # Dialogue
+CHAPTER_S4_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"  # Final correction
 
 # Revision and Quality Models
-CHAPTER_REVISION_MODEL="ollama://huihui_ai/magistral-abliterated:24b"
-REVISION_MODEL="ollama://huihui_ai/magistral-abliterated:24b"
-EVAL_MODEL="ollama://huihui_ai/qwen2.5-coder-abliterate:7b"
+CHAPTER_REVISION_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"
+REVISION_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"
+EVAL_MODEL="openai-compat://huihui_ai/qwen2.5-coder-abliterate:7b"
 
 # Information and Processing Models
-INFO_MODEL="ollama://huihui_ai/qwen2.5-coder-abliterate:7b"
-SCRUB_MODEL="ollama://huihui_ai/qwen2.5-coder-abliterate:7b"
-CHECKER_MODEL="ollama://huihui_ai/deepseek-r1-abliterated:8b"
+INFO_MODEL="openai-compat://huihui_ai/qwen2.5-coder-abliterate:7b"
+SCRUB_MODEL="openai-compat://huihui_ai/qwen2.5-coder-abliterate:7b"
+CHECKER_MODEL="openai-compat://huihui_ai/deepseek-r1-abliterated:8b"
 
 # Translation Models
-TRANSLATOR_MODEL="ollama://huihui_ai/magistral-abliterated:24b"
+TRANSLATOR_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"
 
 # =============================================================================
 # GENERATION SETTINGS

@@ -12,7 +12,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from src.application.strategies.outline_chapter_strategy import OutlineChapterStrategy
 from src.domain.value_objects.generation_settings import GenerationSettings
-from src.infrastructure.providers.ollama_provider import OllamaProvider
+from src.infrastructure.providers.openai_compatible_provider import (
+    OpenAICompatibleProvider,
+)
 from src.config.config_loader import ConfigLoader
 from src.infrastructure.prompts.prompt_loader import PromptLoader
 from src.infrastructure.storage.savepoint_repository import (
@@ -28,7 +30,7 @@ async def test_chapter_synopsis_generation():
     config = config_loader.load_config()
 
     # Initialize components
-    model_provider = OllamaProvider(config.ollama_host)
+    model_provider = OpenAICompatibleProvider(base_url=config["model_api_base"])
     prompt_loader = PromptLoader("prompts")
     savepoint_repo = SavepointRepository()
 

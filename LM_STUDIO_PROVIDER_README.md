@@ -28,13 +28,13 @@ Add LM Studio configuration to your config file:
 
 ```yaml
 # Example config with both Ollama and LM Studio
-ollama_host: "127.0.0.1:11434"
+model_api_base: "http://127.0.0.1:11434/v1"
 lm_studio_host: "127.0.0.1:1234"
 
 models:
   # Ollama models
-  initial_outline_writer: "ollama://llama3:70b"
-  chapter_outline_writer: "ollama://llama3:70b"
+    initial_outline_writer: "openai-compat://llama3:70b"
+    chapter_outline_writer: "openai-compat://llama3:70b"
   
   # LM Studio models
   scene_writer: "lm_studio://llama-3-8b-instruct"
@@ -176,20 +176,20 @@ This will test:
 ### Example Config with Both Providers
 ```yaml
 # config.yaml
-ollama_host: "127.0.0.1:11434"
+model_api_base: "http://127.0.0.1:11434/v1"
 lm_studio_host: "127.0.0.1:1234"
 
 models:
   # Use Ollama for some tasks
-  initial_outline_writer: "ollama://llama3:70b"
-  chapter_outline_writer: "ollama://llama3:70b"
+    initial_outline_writer: "openai-compat://llama3:70b"
+    chapter_outline_writer: "openai-compat://llama3:70b"
   
   # Use LM Studio for others
   scene_writer: "lm_studio://llama-3-8b-instruct"
   logical_model: "lm_studio://mistral-7b-instruct"
   
   # Mix and match as needed
-  revision_model: "ollama://llama3:70b"
+    revision_model: "openai-compat://llama3:70b"
   eval_model: "lm_studio://llama-3-8b-instruct"
 ```
 

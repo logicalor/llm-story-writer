@@ -1,8 +1,43 @@
 """RAG configuration loader."""
 
 from dataclasses import dataclass
+from typing import Optional, Tuple
+from urllib.parse import urlparse, urlunparse
 
 from config.config_loader import ConfigLoader
+
+
+def _normalize_model_api_base(value: str) -> str:
+    """Normalize model API base to full URL with /v1 path."""
+    parsed = urlparse(value if "://" in value else f"http://{value}")
+    path = parsed.path.rstrip("/")
+    if path in ("", "/"):
+        path = "/v1"
+
+    return urlunparse(
+        (
+            parsed.scheme or "http",
+            parsed.netloc,
+            path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    ).rstrip("/")
+
+
+def _parse_embedding_model_uri(embedding_model: str) -> Tuple[Optional[str], str]:
+    """Parse embedding model URI into optional host and model name."""
+    for scheme in ("openai-compat://", "ollama://"):
+        if embedding_model.startswith(scheme):
+            remainder = embedding_model[len(scheme) :]
+            if "/" in remainder:
+                candidate_host, model_name = remainder.split("/", 1)
+                if ":" in candidate_host:
+                    return candidate_host, model_name
+            return None, remainder
+
+    return None, embedding_model
 
 
 @dataclass
@@ -20,6 +55,7 @@ class RAGConfig:
     vector_dimensions: int
     similarity_threshold: float
     max_context_chunks: int
+    configured_model_api_base: Optional[str] = None
 
     # Content chunking configuration
     max_chunk_size: int = 1000
@@ -31,35 +67,19 @@ class RAGConfig:
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}/{self.postgres_database}"
 
     @property
-    def ollama_host(self) -> str:
-        """Extract Ollama host from embedding model string."""
-        if self.embedding_model.startswith("ollama://"):
-            # Format: ollama://host:port/model_name or ollama://model_name
-            parts = self.embedding_model.split("/")
-            if len(parts) >= 3:
-                # Check if the third part contains a colon (host:port)
-                if ":" in parts[2]:
-                    return parts[2]  # host:port part
-                else:
-                    return "127.0.0.1:11434"  # Default host
-        return "127.0.0.1:11434"  # Default
+    def model_api_base(self) -> str:
+        """Extract model API base from config or embedding model string."""
+        if self.configured_model_api_base:
+            return _normalize_model_api_base(self.configured_model_api_base)
+
+        host, _ = _parse_embedding_model_uri(self.embedding_model)
+        return _normalize_model_api_base(host or "127.0.0.1:11434")
 
     @property
     def embedding_model_name(self) -> str:
         """Extract the actual model name from the embedding model string."""
-        if self.embedding_model.startswith("ollama://"):
-            # Format: ollama://host:port/model_name or ollama://model_name
-            parts = self.embedding_model.split("/")
-            if len(parts) >= 3:
-                # Check if the third part contains a colon (host:port)
-                if ":" in parts[2]:
-                    # Format: ollama://host:port/model_name
-                    if len(parts) >= 4:
-                        return parts[3]  # model_name part
-                else:
-                    # Format: ollama://model_name
-                    return parts[2]  # model_name part
-        return "nomic-embed-text"  # Default
+        _, model_name = _parse_embedding_model_uri(self.embedding_model)
+        return model_name or "nomic-embed-text"
 
 
 class RAGConfigLoader:
@@ -72,21 +92,22 @@ class RAGConfigLoader:
         """Load RAG configuration from the main config."""
         config = self.config_loader.load_config()
 
-        infrastructure = config.get("infrastructure", {})
-
         return RAGConfig(
-            postgres_host=infrastructure.get("postgres_host", "localhost:5432"),
-            postgres_database=infrastructure.get("postgres_database", "story_writer"),
-            postgres_user=infrastructure.get("postgres_user", "story_user"),
-            postgres_password=infrastructure.get("postgres_password", "story_pass"),
-            embedding_model=infrastructure.get(
-                "embedding_model", "ollama://nomic-embed-text"
+            postgres_host=config.get("postgres_host", "localhost:5432"),
+            postgres_database=config.get("postgres_database", "story_writer"),
+            postgres_user=config.get("postgres_user", "story_user"),
+            postgres_password=config.get("postgres_password", "story_pass"),
+            embedding_model=config.get(
+                "embedding_model", "openai-compat://nomic-embed-text"
             ),
-            vector_dimensions=infrastructure.get("vector_dimensions", 1536),
-            similarity_threshold=infrastructure.get("similarity_threshold", 0.7),
-            max_context_chunks=infrastructure.get("max_context_chunks", 20),
-            max_chunk_size=infrastructure.get("max_chunk_size", 1000),
-            overlap_size=infrastructure.get("overlap_size", 200),
+            vector_dimensions=config.get("vector_dimensions", 1536),
+            similarity_threshold=config.get("similarity_threshold", 0.7),
+            max_context_chunks=config.get("max_context_chunks", 20),
+            configured_model_api_base=config.get(
+                "model_api_base", config.get("ollama_host")
+            ),
+            max_chunk_size=config.get("max_chunk_size", 1000),
+            overlap_size=config.get("overlap_size", 200),
         )
 
     def validate_config(self, rag_config: RAGConfig) -> list:

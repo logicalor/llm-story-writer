@@ -9,7 +9,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.infrastructure.providers.ollama_provider import OllamaProvider
+from src.infrastructure.providers.openai_compatible_provider import (
+    OpenAICompatibleProvider,
+)
 from src.infrastructure.providers.lm_studio_provider import LMStudioProvider
 from src.infrastructure.providers.langchain_provider import LangChainProvider
 from src.domain.value_objects.model_config import ModelConfig
@@ -22,12 +24,14 @@ async def test_multistep_conversation():
     print("=" * 60)
 
     # Test Ollama
-    print("\n--- Testing Ollama Provider ---")
+    print("\n--- Testing OpenAI-Compatible Provider ---")
     try:
-        ollama_provider = OllamaProvider(host="127.0.0.1:11434")
+        ollama_provider = OpenAICompatibleProvider(
+            base_url="http://127.0.0.1:11434/v1"
+        )
         ollama_config = ModelConfig(
             name="llama3:8b",
-            provider="ollama",
+            provider="openai_compatible",
             parameters={"temperature": 0.7, "max_tokens": 200},
         )
 
@@ -121,7 +125,7 @@ async def test_specific_provider_conversation():
 
     # Create provider
     if provider_choice == "ollama":
-        provider = OllamaProvider(host="127.0.0.1:11434")
+        provider = OpenAICompatibleProvider(base_url="http://127.0.0.1:11434/v1")
         model_name = input("Enter Ollama model name (e.g., llama3:8b): ").strip()
     elif provider_choice == "lm_studio":
         provider = LMStudioProvider(host="127.0.0.1:1234")
@@ -212,7 +216,7 @@ async def test_conversation_memory():
 
     # Create provider
     if provider_choice == "ollama":
-        provider = OllamaProvider(host="127.0.0.1:11434")
+        provider = OpenAICompatibleProvider(base_url="http://127.0.0.1:11434/v1")
         model_name = input("Enter Ollama model name (e.g., llama3:8b): ").strip()
     elif provider_choice == "lm_studio":
         provider = LMStudioProvider(host="127.0.0.1:1234")
@@ -330,7 +334,7 @@ async def test_streaming_conversation():
 
     # Create provider
     if provider_choice == "ollama":
-        provider = OllamaProvider(host="127.0.0.1:11434")
+        provider = OpenAICompatibleProvider(base_url="http://127.0.0.1:11434/v1")
         model_name = input("Enter Ollama model name (e.g., llama3:8b): ").strip()
     elif provider_choice == "lm_studio":
         provider = LMStudioProvider(host="127.0.0.1:1234")

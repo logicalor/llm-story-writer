@@ -111,7 +111,7 @@ infrastructure:
   postgres_database: "story_writer"
   postgres_user: "story_user"
   postgres_password: "story_pass"
-  embedding_model: "ollama://nomic-embed-text"
+  embedding_model: "openai-compat://nomic-embed-text"
   vector_dimensions: 1536
   similarity_threshold: 0.7
   max_context_chunks: 20
@@ -266,7 +266,7 @@ If you want to change your embedding model after setting up the RAG system, use 
 ./migrate_embed.sh accurate
 
 # Custom model migration
-./migrate_embed.sh custom ollama://bge-large-en
+./migrate_embed.sh custom openai-compat://bge-large-en
 
 # Dry run to see what would be migrated
 ./migrate_embed.sh dry-run

@@ -84,7 +84,7 @@ Examples:
 
 ```yaml
 # Mix of cloud and local providers
-ollama_host: "127.0.0.1:11434"
+model_api_base: "http://127.0.0.1:11434/v1"
 lm_studio_host: "127.0.0.1:1234"
 
 api_keys:

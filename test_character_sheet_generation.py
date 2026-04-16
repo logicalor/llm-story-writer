@@ -12,7 +12,9 @@ from src.application.strategies.outline_chapter_strategy import OutlineChapterSt
 from src.domain.value_objects.generation_settings import GenerationSettings
 from src.config.settings import AppConfig
 from src.infrastructure.prompts.prompt_loader import PromptLoader
-from src.infrastructure.providers.ollama_provider import OllamaProvider
+from src.infrastructure.providers.openai_compatible_provider import (
+    OpenAICompatibleProvider,
+)
 
 
 async def test_character_extraction():
@@ -23,19 +25,19 @@ async def test_character_extraction():
 
     # Create model configs
     models = {
-        "initial_outline_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-        "chapter_outline_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-        "chapter_stage1_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-        "chapter_stage2_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-        "chapter_stage3_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-        "chapter_stage4_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-        "chapter_revision_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-        "revision_model": ModelConfig(name="llama3:8b", provider="ollama"),
-        "eval_model": ModelConfig(name="llama3:8b", provider="ollama"),
-        "info_model": ModelConfig(name="llama3:8b", provider="ollama"),
-        "scrub_model": ModelConfig(name="llama3:8b", provider="ollama"),
-        "checker_model": ModelConfig(name="llama3:8b", provider="ollama"),
-        "translator_model": ModelConfig(name="llama3:8b", provider="ollama"),
+        "initial_outline_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "chapter_outline_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "chapter_stage1_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "chapter_stage2_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "chapter_stage3_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "chapter_stage4_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "chapter_revision_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "revision_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "eval_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "info_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "scrub_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "checker_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "translator_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
     }
 
     # Create generation settings
@@ -51,7 +53,11 @@ async def test_character_extraction():
     config = AppConfig(models=models, generation=generation)
 
     strategy = OutlineChapterStrategy(
-        model_provider=OllamaProvider(), config=config, prompt_loader=PromptLoader()
+        model_provider=OpenAICompatibleProvider(
+            base_url="http://127.0.0.1:11434/v1"
+        ),
+        config=config,
+        prompt_loader=PromptLoader(),
     )
 
     # Test story elements with character information
@@ -134,19 +140,19 @@ async def test_character_sheet_generation():
 
         # Create model configs
         models = {
-            "initial_outline_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-            "chapter_outline_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-            "chapter_stage1_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-            "chapter_stage2_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-            "chapter_stage3_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-            "chapter_stage4_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-            "chapter_revision_writer": ModelConfig(name="llama3:8b", provider="ollama"),
-            "revision_model": ModelConfig(name="llama3:8b", provider="ollama"),
-            "eval_model": ModelConfig(name="llama3:8b", provider="ollama"),
-            "info_model": ModelConfig(name="llama3:8b", provider="ollama"),
-            "scrub_model": ModelConfig(name="llama3:8b", provider="ollama"),
-            "checker_model": ModelConfig(name="llama3:8b", provider="ollama"),
-            "translator_model": ModelConfig(name="llama3:8b", provider="ollama"),
+            "initial_outline_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "chapter_outline_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "chapter_stage1_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "chapter_stage2_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "chapter_stage3_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "chapter_stage4_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "chapter_revision_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "revision_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "eval_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "info_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "scrub_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "checker_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "translator_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
         }
 
         # Create app config
@@ -154,7 +160,11 @@ async def test_character_sheet_generation():
 
         # Create strategy instance
         strategy = OutlineChapterStrategy(
-            model_provider=OllamaProvider(), config=config, prompt_loader=PromptLoader()
+            model_provider=OpenAICompatibleProvider(
+                base_url="http://127.0.0.1:11434/v1"
+            ),
+            config=config,
+            prompt_loader=PromptLoader(),
         )
 
         # Test character name extraction

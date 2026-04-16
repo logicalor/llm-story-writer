@@ -26,7 +26,7 @@ async def example_thinking_capture():
     handler.set_story_directory("thinking_example_story")
 
     # Example 1: Text prompt with thinking capture
-    model_config = ModelConfig.from_string("ollama://llama3:70b?think=true")
+    model_config = ModelConfig.from_string("openai-compat://llama3:70b")
 
     request = PromptRequest(
         prompt_id="extract_story_start_date",
