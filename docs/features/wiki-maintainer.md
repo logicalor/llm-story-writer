@@ -11,7 +11,7 @@ The agent operates in two distinct modes, mapped to pipeline phases:
 - **Mode 1: Initial Wiki Population** (Phase 7) — Extracts all known entities from the outline, character sheets, and setting sheets to populate the wiki before chapter generation begins.
 - **Mode 2: Post-Scene Incremental Update** (Phase 8c) — After each generated scene, extracts new entities, state changes, events, and aliases from the generated text to keep the wiki current.
 
-The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) for low overhead, with instructions kept concise and structured for reliable execution at that model size.
+The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) through the project's OpenAI-compatible inference server configuration, with instructions kept concise and structured for reliable execution at that model size.
 
 ## Key Files
 
@@ -20,7 +20,7 @@ The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) fo
 | `.opencode/agents/wiki-maintainer.md` | Agent definition — workflows, tools, constraints, error handling |
 | `.opencode/skills/wiki-maintenance/SKILL.md` | Skill reference — entity schemas, confidence taxonomy, output formats, error taxonomy |
 | `.opencode/skills/wiki-conventions/SKILL.md` | Skill reference — page type schemas, YAML frontmatter specs, wikilink conventions, naming rules |
-| `opencode.json` | Agent registration with 7b model configuration |
+| `opencode.json` | Agent registration with 7b model configuration via the OpenAI-compatible provider adapter |
 
 ## Tools
 
@@ -178,7 +178,7 @@ Beyond the standard alias identification rules, the wiki maintainer handles thre
 
 ## Model Configuration
 
-The wiki maintainer is registered in `opencode.json` with a 7b model for efficient operation:
+The wiki maintainer is registered in `opencode.json` with a 7b model for efficient operation. OpenCode keeps the provider key named `ollama`, but that key now uses the `@ai-sdk/openai-compatible` adapter and targets the generic `/v1` API:
 
 ```json
 {
