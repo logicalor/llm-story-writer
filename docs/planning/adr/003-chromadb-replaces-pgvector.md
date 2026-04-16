@@ -1,7 +1,7 @@
 # ADR 003: Replace PostgreSQL/pgvector with ChromaDB for Local RAG
 
 **Date:** 2026-04-12
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 

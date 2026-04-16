@@ -1,23 +1,71 @@
-"""RAG integration service for story generation pipeline."""
+"""RAG integration service for story generation pipeline.
 
+This service now uses the rag-query tool via subprocess instead of RAGService.
+"""
+
+import json
 import logging
-from typing import List, Dict, Any, Optional
+import subprocess
+import sys
 from pathlib import Path
+from typing import List, Dict, Any, Optional
 
-from application.services.rag_service import RAGService
 from application.services.content_chunker import ContentChunker
 
 logger = logging.getLogger(__name__)
 
 
 class RAGIntegrationService:
-    """Service for integrating RAG capabilities with the story generation pipeline."""
+    """Service for integrating RAG capabilities with the story generation pipeline.
 
-    def __init__(self, rag_service: RAGService, content_chunker: ContentChunker):
-        self.rag_service = rag_service
+    Uses the rag-query tool via subprocess for all ChromaDB operations.
+    """
+
+    def __init__(self, content_chunker: ContentChunker):
         self.content_chunker = content_chunker
-        self._story_cache: Dict[str, int] = {}  # story_identifier -> story_id
         self._current_story_identifier: Optional[str] = None
+
+    def _run_rag_query(self, operation: str, name: str, **kwargs) -> Dict[str, Any]:
+        """Run the rag_query.py tool via subprocess.
+
+        Args:
+            operation: 'index' or 'query'
+            name: Story name
+            **kwargs: Additional arguments for the operation
+
+        Returns:
+            Parsed JSON response from the tool
+        """
+        cmd = [
+            sys.executable,
+            "-m",
+            "src.tools.rag_query",
+            "--operation",
+            operation,
+            "--name",
+            name,
+        ]
+
+        # Add optional arguments
+        for key, value in kwargs.items():
+            if value is not None:
+                arg_name = f"--{key.replace('_', '-')}"
+                cmd.extend([arg_name, str(value)])
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return json.loads(result.stdout)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"rag_query failed: {e.stderr}")
+            raise RuntimeError(f"rag_query tool failed: {e.stderr}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse rag_query output: {e}")
+            raise RuntimeError(f"Invalid JSON from rag_query: {e}")
 
     def set_current_story_identifier(self, story_identifier: str) -> None:
         """Set the current story identifier for RAG operations."""
@@ -30,40 +78,28 @@ class RAGIntegrationService:
 
     async def initialize_story(
         self, story_identifier: str, story_name: Optional[str] = None
-    ) -> int:
-        """Initialize a story in the RAG system using a story identifier."""
+    ) -> str:
+        """Initialize a story in the RAG system using a story identifier.
+
+        For ChromaDB, stories are created on-demand when content is indexed.
+        This method validates the story name and returns it.
+        """
         if not story_name:
-            story_name = story_identifier
+            story_name = Path(story_identifier).stem
 
-        # Check cache first
-        if story_identifier in self._story_cache:
-            return self._story_cache[story_identifier]
+        # Validate story name (basic validation)
+        if not story_name or "/" in story_name or "\\" in story_name:
+            raise ValueError(f"Invalid story name: {story_name}")
 
-        # Create or get story from database
-        from pathlib import Path
+        logger.info(f"Initialized story '{story_name}'")
+        return story_name
 
-        story_id = await self.rag_service.create_story(
-            story_name, Path(story_identifier)
-        )
-        self._story_cache[story_identifier] = story_id
-
-        logger.info(f"Initialized story '{story_name}' with ID {story_id}")
-        return story_id
-
-    async def _get_or_create_story_id(
-        self, story_identifier: Optional[str] = None
-    ) -> int:
-        """Get or create a story ID for the given identifier."""
-        # Ensure RAG service is initialized
-        if not hasattr(self.rag_service, "_initialized"):
-            await self.rag_service.initialize()
-            self.rag_service._initialized = True
-
+    def _get_story_name(self, story_identifier: Optional[str] = None) -> str:
+        """Get story name from identifier or current story."""
         identifier = story_identifier or self._current_story_identifier
         if not identifier:
             raise ValueError("No story identifier available for RAG operations")
-
-        return await self.initialize_story(identifier)
+        return Path(identifier).stem
 
     async def cleanup_content_by_type_and_metadata(
         self,
@@ -71,19 +107,16 @@ class RAGIntegrationService:
         metadata_filters: Optional[Dict[str, Any]] = None,
         story_identifier: Optional[str] = None,
     ) -> int:
-        """Clean up content chunks by type and metadata before re-indexing."""
-        try:
-            story_id = await self._get_or_create_story_id(story_identifier)
-            deleted_count = await self.rag_service.delete_content_by_type_and_metadata(
-                story_id, content_type, metadata_filters
-            )
-            logger.info(
-                f"Cleaned up {deleted_count} {content_type} chunks for story {story_id}"
-            )
-            return deleted_count
-        except Exception as e:
-            logger.error(f"Failed to cleanup {content_type} content: {e}")
-            raise
+        """Clean up content chunks by type and metadata before re-indexing.
+
+        Note: ChromaDB doesn't support partial deletion via the CLI tool.
+        This is a no-op for now - content is overwritten on re-index.
+        """
+        logger.warning(
+            "cleanup_content_by_type_and_metadata is not implemented for ChromaDB. "
+            "Content is overwritten on re-index."
+        )
+        return 0
 
     async def index_outline(
         self,
@@ -91,9 +124,9 @@ class RAGIntegrationService:
         chapter_number: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
         story_identifier: Optional[str] = None,
-    ) -> List[int]:
+    ) -> List[str]:
         """Index story outline content."""
-        story_id = await self._get_or_create_story_id(story_identifier)
+        story_name = self._get_story_name(story_identifier)
 
         # Chunk the outline content
         chunks = self.content_chunker.chunk_text(
@@ -109,20 +142,19 @@ class RAGIntegrationService:
 
         # Index each chunk
         chunk_ids = []
-        for chunk in chunks:
-            chunk_id = await self.rag_service.index_content(
-                story_id=story_id,
-                content_type=chunk.chunk_type,
+        for i, chunk in enumerate(chunks):
+            doc_id = f"outline-{chapter_number or 'main'}-{i}"
+            self._run_rag_query(
+                operation="index",
+                name=story_name,
+                doc_id=doc_id,
                 content=chunk.content,
-                metadata=chunk.metadata,
-                title=chunk.title,
-                content_subtype=chunk.chunk_subtype,
-                chapter_number=chunk.chapter_number,
-                scene_number=chunk.scene_number,
+                content_type="outline",
+                chapter_num=chunk.chapter_number,
             )
-            chunk_ids.append(chunk_id)
+            chunk_ids.append(doc_id)
 
-        logger.info(f"Indexed {len(chunks)} outline chunks for story {story_id}")
+        logger.info(f"Indexed {len(chunks)} outline chunks for story '{story_name}'")
         return chunk_ids
 
     async def index_chapter(
@@ -132,9 +164,9 @@ class RAGIntegrationService:
         title: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         story_identifier: Optional[str] = None,
-    ) -> List[int]:
+    ) -> List[str]:
         """Index chapter content."""
-        story_id = await self._get_or_create_story_id(story_identifier)
+        story_name = self._get_story_name(story_identifier)
 
         # Chunk the chapter content
         chunks = self.content_chunker.chunk_chapter(
@@ -143,21 +175,21 @@ class RAGIntegrationService:
 
         # Index each chunk
         chunk_ids = []
-        for chunk in chunks:
-            chunk_id = await self.rag_service.index_content(
-                story_id=story_id,
-                content_type=chunk.chunk_type,
+        for i, chunk in enumerate(chunks):
+            doc_id = f"chapter-{chapter_number}-{i}"
+            self._run_rag_query(
+                operation="index",
+                name=story_name,
+                doc_id=doc_id,
                 content=chunk.content,
-                metadata=chunk.metadata,
-                title=chunk.title,
-                content_subtype=chunk.chunk_subtype,
-                chapter_number=chunk.chapter_number,
-                scene_number=chunk.scene_number,
+                content_type="chapter",
+                chapter_num=chunk.chapter_number,
             )
-            chunk_ids.append(chunk_id)
+            chunk_ids.append(doc_id)
 
         logger.info(
-            f"Indexed {len(chunks)} chapter chunks for story {story_id}, chapter {chapter_number}"
+            f"Indexed {len(chunks)} chapter chunks for story '{story_name}', "
+            f"chapter {chapter_number}"
         )
         return chunk_ids
 
@@ -167,9 +199,9 @@ class RAGIntegrationService:
         character_name: str,
         metadata: Optional[Dict[str, Any]] = None,
         story_identifier: Optional[str] = None,
-    ) -> List[int]:
+    ) -> List[str]:
         """Index character information."""
-        story_id = await self._get_or_create_story_id(story_identifier)
+        story_name = self._get_story_name(story_identifier)
 
         # Chunk the character content
         chunks = self.content_chunker.chunk_character_sheet(
@@ -178,19 +210,20 @@ class RAGIntegrationService:
 
         # Index each chunk
         chunk_ids = []
-        for chunk in chunks:
-            chunk_id = await self.rag_service.index_content(
-                story_id=story_id,
-                content_type=chunk.chunk_type,
+        for i, chunk in enumerate(chunks):
+            doc_id = f"character-{character_name.lower().replace(' ', '-')}-{i}"
+            self._run_rag_query(
+                operation="index",
+                name=story_name,
+                doc_id=doc_id,
                 content=chunk.content,
-                metadata=chunk.metadata,
-                title=chunk.title,
-                content_subtype=chunk.chunk_subtype,
+                content_type="character",
             )
-            chunk_ids.append(chunk_id)
+            chunk_ids.append(doc_id)
 
         logger.info(
-            f"Indexed {len(chunks)} character chunks for '{character_name}' in story {story_id}"
+            f"Indexed {len(chunks)} character chunks for '{character_name}' "
+            f"in story '{story_name}'"
         )
         return chunk_ids
 
@@ -200,9 +233,9 @@ class RAGIntegrationService:
         location_name: str,
         metadata: Optional[Dict[str, Any]] = None,
         story_identifier: Optional[str] = None,
-    ) -> List[int]:
+    ) -> List[str]:
         """Index setting information."""
-        story_id = await self._get_or_create_story_id(story_identifier)
+        story_name = self._get_story_name(story_identifier)
 
         # Chunk the setting content
         chunks = self.content_chunker.chunk_setting_description(
@@ -211,19 +244,20 @@ class RAGIntegrationService:
 
         # Index each chunk
         chunk_ids = []
-        for chunk in chunks:
-            chunk_id = await self.rag_service.index_content(
-                story_id=story_id,
-                content_type=chunk.chunk_type,
+        for i, chunk in enumerate(chunks):
+            doc_id = f"setting-{location_name.lower().replace(' ', '-')}-{i}"
+            self._run_rag_query(
+                operation="index",
+                name=story_name,
+                doc_id=doc_id,
                 content=chunk.content,
-                metadata=chunk.metadata,
-                title=chunk.title,
-                content_subtype=chunk.chunk_subtype,
+                content_type="setting",
             )
-            chunk_ids.append(chunk_id)
+            chunk_ids.append(doc_id)
 
         logger.info(
-            f"Indexed {len(chunks)} setting chunks for '{location_name}' in story {story_id}"
+            f"Indexed {len(chunks)} setting chunks for '{location_name}' "
+            f"in story '{story_name}'"
         )
         return chunk_ids
 
@@ -235,26 +269,132 @@ class RAGIntegrationService:
         scene_number: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
         story_identifier: Optional[str] = None,
-    ) -> int:
+    ) -> str:
         """Index an event or recap."""
-        story_id = await self._get_or_create_story_id(story_identifier)
+        story_name = self._get_story_name(story_identifier)
 
-        event_metadata = metadata or {}
-        event_metadata["event_type"] = event_type
-
-        chunk_id = await self.rag_service.index_content(
-            story_id=story_id,
-            content_type="event",
+        doc_id = (
+            f"event-{event_type.lower().replace(' ', '-')}-{chapter_number or 'global'}"
+        )
+        self._run_rag_query(
+            operation="index",
+            name=story_name,
+            doc_id=doc_id,
             content=event_content,
-            metadata=event_metadata,
-            title=f"Event: {event_type}",
-            content_subtype="story_event",
-            chapter_number=chapter_number,
-            scene_number=scene_number,
+            content_type="recap",
+            chapter_num=chapter_number,
         )
 
-        logger.info(f"Indexed event '{event_type}' for story {story_id}")
-        return chunk_id
+        logger.info(f"Indexed event '{event_type}' for story '{story_name}'")
+        return doc_id
+
+    async def _get_character_context(self, story_name: str, chapter_number: int) -> str:
+        """Get character context for a specific chapter."""
+        try:
+            result = self._run_rag_query(
+                operation="query",
+                name=story_name,
+                query=f"character information chapter {chapter_number}",
+                content_type="character",
+                n_results=10,
+            )
+
+            results = result.get("results", [])
+            if not results:
+                return ""
+
+            context_parts = []
+            for item in results:
+                excerpt = item.get("excerpt", "")
+                if excerpt:
+                    context_parts.append(excerpt)
+
+            return "\n\n".join(context_parts)
+
+        except Exception as e:
+            logger.error(f"Failed to get character context: {e}")
+            return ""
+
+    async def _get_setting_context(self, story_name: str, chapter_number: int) -> str:
+        """Get setting context for a specific chapter."""
+        try:
+            result = self._run_rag_query(
+                operation="query",
+                name=story_name,
+                query=f"setting location chapter {chapter_number}",
+                content_type="setting",
+                n_results=10,
+            )
+
+            results = result.get("results", [])
+            if not results:
+                return ""
+
+            context_parts = []
+            for item in results:
+                excerpt = item.get("excerpt", "")
+                if excerpt:
+                    context_parts.append(excerpt)
+
+            return "\n\n".join(context_parts)
+
+        except Exception as e:
+            logger.error(f"Failed to get setting context: {e}")
+            return ""
+
+    async def _get_plot_context(self, story_name: str, chapter_number: int) -> str:
+        """Get plot context from previous chapters."""
+        try:
+            result = self._run_rag_query(
+                operation="query",
+                name=story_name,
+                query=f"plot outline chapter {chapter_number}",
+                content_type="outline",
+                n_results=5,
+            )
+
+            results = result.get("results", [])
+            if not results:
+                return ""
+
+            context_parts = []
+            for item in results:
+                excerpt = item.get("excerpt", "")
+                if excerpt:
+                    context_parts.append(excerpt)
+
+            return "\n\n".join(context_parts)
+
+        except Exception as e:
+            logger.error(f"Failed to get plot context: {e}")
+            return ""
+
+    async def _get_event_context(self, story_name: str, chapter_number: int) -> str:
+        """Get recent event context."""
+        try:
+            result = self._run_rag_query(
+                operation="query",
+                name=story_name,
+                query=f"events recap chapter {chapter_number}",
+                content_type="recap",
+                n_results=5,
+            )
+
+            results = result.get("results", [])
+            if not results:
+                return ""
+
+            context_parts = []
+            for item in results:
+                excerpt = item.get("excerpt", "")
+                if excerpt:
+                    context_parts.append(excerpt)
+
+            return "\n\n".join(context_parts)
+
+        except Exception as e:
+            logger.error(f"Failed to get event context: {e}")
+            return ""
 
     async def get_generation_context(
         self,
@@ -264,19 +404,50 @@ class RAGIntegrationService:
         story_identifier: Optional[str] = None,
     ) -> str:
         """Get relevant context for story generation."""
-        story_id = await self._get_or_create_story_id(story_identifier)
+        story_name = self._get_story_name(story_identifier)
 
-        context = await self.rag_service.get_context_for_generation(
-            story_id=story_id,
-            chapter_number=chapter_number,
-            scene_number=scene_number,
-            content_types=content_types,
-        )
+        try:
+            context_parts = []
 
-        logger.debug(
-            f"Retrieved context for story {story_id}, chapter {chapter_number}"
-        )
-        return context
+            # Get character information
+            if not content_types or "character" in content_types:
+                character_context = await self._get_character_context(
+                    story_name, chapter_number
+                )
+                if character_context:
+                    context_parts.append("CHARACTER CONTEXT:\n" + character_context)
+
+            # Get setting information
+            if not content_types or "setting" in content_types:
+                setting_context = await self._get_setting_context(
+                    story_name, chapter_number
+                )
+                if setting_context:
+                    context_parts.append("SETTING CONTEXT:\n" + setting_context)
+
+            # Get plot context from previous chapters
+            if (
+                not content_types
+                or "outline" in content_types
+                or "scene" in content_types
+            ):
+                plot_context = await self._get_plot_context(story_name, chapter_number)
+                if plot_context:
+                    context_parts.append("PLOT CONTEXT:\n" + plot_context)
+
+            # Get recent events
+            if not content_types or "event" in content_types:
+                event_context = await self._get_event_context(
+                    story_name, chapter_number
+                )
+                if event_context:
+                    context_parts.append("RECENT EVENTS:\n" + event_context)
+
+            return "\n\n".join(context_parts)
+
+        except Exception as e:
+            logger.error(f"Failed to get context for generation: {e}")
+            return ""
 
     async def search_story_content(
         self,
@@ -284,25 +455,51 @@ class RAGIntegrationService:
         content_type: Optional[str] = None,
         limit: Optional[int] = None,
         story_identifier: Optional[str] = None,
-    ) -> List[tuple]:
+    ) -> List[Dict[str, Any]]:
         """Search for content in a story."""
-        story_id = await self._get_or_create_story_id(story_identifier)
+        story_name = self._get_story_name(story_identifier)
 
-        results = await self.rag_service.search_similar(
-            story_id=story_id, query=query, content_type=content_type, limit=limit
+        result = self._run_rag_query(
+            operation="query",
+            name=story_name,
+            query=query,
+            content_type=content_type,
+            n_results=limit or 10,
         )
 
-        logger.debug(f"Found {len(results)} results for query in story {story_id}")
+        results = result.get("results", [])
+        logger.debug(f"Found {len(results)} results for query in story '{story_name}'")
         return results
 
     async def get_story_summary(
         self, story_identifier: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get a summary of the story's indexed content."""
-        story_id = await self._get_or_create_story_id(story_identifier)
+        story_name = self._get_story_name(story_identifier)
 
-        summary = await self.rag_service.get_story_summary(story_id)
-        logger.info(f"Retrieved summary for story {story_id}")
+        content_types = ["outline", "chapter", "character", "setting", "recap"]
+        content_counts: Dict[str, int] = {}
+
+        for content_type in content_types:
+            try:
+                result = self._run_rag_query(
+                    operation="query",
+                    name=story_name,
+                    query=content_type,
+                    content_type=content_type,
+                    n_results=100,
+                )
+                content_counts[content_type] = len(result.get("results", []))
+            except Exception:
+                content_counts[content_type] = 0
+
+        summary = {
+            "story_name": story_name,
+            "content_counts": content_counts,
+            "total_chunks": sum(content_counts.values()),
+        }
+
+        logger.info(f"Retrieved summary for story '{story_name}'")
         return summary
 
     # Legacy methods for backward compatibility
@@ -312,7 +509,7 @@ class RAGIntegrationService:
         outline_content: str,
         chapter_number: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> List[int]:
+    ) -> List[str]:
         """Legacy method: Index story outline content with prompt file path."""
         logger.warning(
             "index_outline_with_path is deprecated. Use index_outline instead."
@@ -328,7 +525,7 @@ class RAGIntegrationService:
         chapter_number: int,
         title: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> List[int]:
+    ) -> List[str]:
         """Legacy method: Index chapter content with prompt file path."""
         logger.warning(
             "index_chapter_with_path is deprecated. Use index_chapter instead."
@@ -343,7 +540,7 @@ class RAGIntegrationService:
         character_content: str,
         character_name: str,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> List[int]:
+    ) -> List[str]:
         """Legacy method: Index character information with prompt file path."""
         logger.warning(
             "index_character_with_path is deprecated. Use index_character instead."
@@ -358,7 +555,7 @@ class RAGIntegrationService:
         setting_content: str,
         location_name: str,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> List[int]:
+    ) -> List[str]:
         """Legacy method: Index setting information with prompt file path."""
         logger.warning(
             "index_setting_with_path is deprecated. Use index_setting instead."
@@ -375,7 +572,7 @@ class RAGIntegrationService:
         chapter_number: Optional[int] = None,
         scene_number: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> int:
+    ) -> str:
         """Legacy method: Index an event or recap with prompt file path."""
         logger.warning("index_event_with_path is deprecated. Use index_event instead.")
         return await self.index_event(
@@ -408,7 +605,7 @@ class RAGIntegrationService:
         query: str,
         content_type: Optional[str] = None,
         limit: Optional[int] = None,
-    ) -> List[tuple]:
+    ) -> List[Dict[str, Any]]:
         """Legacy method: Search for content in a story with prompt file path."""
         logger.warning(
             "search_story_content_with_path is deprecated. Use search_story_content instead."
@@ -430,11 +627,11 @@ class RAGIntegrationService:
         self, prompt_file_path: Path, output_dir: Path
     ) -> Dict[str, int]:
         """Index existing story files from output directory."""
-        story_id = await self.initialize_story(
+        story_name = await self.initialize_story(
             str(prompt_file_path), prompt_file_path.stem
         )
 
-        indexing_results = {}
+        indexing_results: Dict[str, int] = {}
 
         # Look for existing output files
         if output_dir.exists():
@@ -466,7 +663,7 @@ class RAGIntegrationService:
                 except Exception as e:
                     logger.error(f"Failed to index character file {char_file}: {e}")
 
-        logger.info(f"Indexed existing story files for story {story_id}")
+        logger.info(f"Indexed existing story files for story '{story_name}'")
         return indexing_results
 
     def _extract_chapter_number(self, filename: str) -> int:
@@ -479,5 +676,5 @@ class RAGIntegrationService:
         return 1  # Default to chapter 1 if no number found
 
     async def close(self):
-        """Close the RAG integration service."""
-        await self.rag_service.close()
+        """Close the RAG integration service (no-op for ChromaDB)."""
+        pass

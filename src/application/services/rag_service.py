@@ -1,6 +1,11 @@
-"""RAG (Retrieval-Augmented Generation) service for story content management."""
+"""RAG (Retrieval-Augmented Generation) service for story content management.
+
+.. deprecated::
+    RAGService is deprecated. Use the rag-query tool via subprocess instead.
+"""
 
 import logging
+import warnings
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 
@@ -13,8 +18,22 @@ from application.services.model_reranker_service import ModelRerankerService
 logger = logging.getLogger(__name__)
 
 
+def _warn_deprecated(method_name: str) -> None:
+    """Emit deprecation warning for RAGService methods."""
+    warnings.warn(
+        f"RAGService.{method_name} is deprecated. "
+        "Use the rag-query tool via subprocess instead.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+
+
 class RAGService:
-    """RAG service for managing story content with vector embeddings."""
+    """RAG service for managing story content with vector embeddings.
+
+    .. deprecated::
+        RAGService is deprecated. Use the rag-query tool via subprocess instead.
+    """
 
     def __init__(
         self,
@@ -25,6 +44,11 @@ class RAGService:
         use_reranker: bool = True,
         reranker_type: str = "model_based",
     ):
+        warnings.warn(
+            "RAGService is deprecated. Use the rag-query tool via subprocess instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.embedding_provider = embedding_provider
         self.vector_store = vector_store
         self.similarity_threshold = similarity_threshold
@@ -42,6 +66,7 @@ class RAGService:
 
     async def initialize(self):
         """Initialize the RAG service."""
+        _warn_deprecated("initialize")
         try:
             await self.vector_store.initialize()
             logger.info("RAG service initialized successfully")
@@ -51,10 +76,12 @@ class RAGService:
 
     async def close(self):
         """Close the RAG service."""
+        _warn_deprecated("close")
         await self.vector_store.close()
 
     async def create_story(self, story_name: str, prompt_file_path: Path) -> int:
         """Create a new story in the RAG system."""
+        _warn_deprecated("create_story")
         prompt_file_name = prompt_file_path.name
         story_id = await self.vector_store.create_story(story_name, prompt_file_name)
         logger.info(f"Created story '{story_name}' with ID {story_id}")
@@ -72,6 +99,7 @@ class RAGService:
         scene_number: Optional[int] = None,
     ) -> int:
         """Index content by generating embeddings and storing in vector database."""
+        _warn_deprecated("index_content")
         try:
             # Generate embedding for the content
             embedding = await self.embedding_provider.get_single_embedding(content)
@@ -119,6 +147,7 @@ class RAGService:
         use_hnsw: bool = True,
     ) -> List[Tuple[int, str, str, Dict[str, Any], float]]:
         """Search for similar content using text query."""
+        _warn_deprecated("search_similar")
         try:
             # Generate embedding for the query
             query_embedding = await self.embedding_provider.get_single_embedding(query)
@@ -154,6 +183,7 @@ class RAGService:
         rerank_strategy: str = "hybrid",
     ) -> List[Tuple[int, str, str, Dict[str, Any], float]]:
         """Search for similar content and rerank results for better relevance."""
+        _warn_deprecated("search_similar_reranked")
         try:
             # First get raw search results with a lower threshold to get more candidates
             raw_threshold = min(similarity_threshold or self.similarity_threshold, 0.3)
@@ -241,6 +271,7 @@ class RAGService:
         content_types: Optional[List[str]] = None,
     ) -> str:
         """Get relevant context for story generation."""
+        _warn_deprecated("get_context_for_generation")
         try:
             context_parts = []
 
@@ -399,6 +430,7 @@ class RAGService:
 
     async def get_story_summary(self, story_id: int) -> Dict[str, Any]:
         """Get a comprehensive summary of a story."""
+        _warn_deprecated("get_story_summary")
         try:
             story_info = await self.vector_store.get_story_info(story_id)
             if not story_info:
