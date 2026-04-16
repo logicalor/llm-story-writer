@@ -77,7 +77,7 @@ class ModelConfig:
 
             # Parse query parameters
             query_params = parse_qs(parsed.query)
-            parameters = {}
+            parameters: Dict[str, Any] = {}
             for key, values in query_params.items():
                 if len(values) == 1:
                     # Try to convert to appropriate type

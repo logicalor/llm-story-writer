@@ -1,5 +1,6 @@
 """Chapter generation service."""
 
+from typing import Any, Dict
 from ..interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_loader import PromptLoader
 
