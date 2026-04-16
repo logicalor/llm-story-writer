@@ -1,6 +1,6 @@
 """Story info generation service."""
 
-from typing import List
+from typing import Any, Dict, List
 from domain.entities.story import StoryInfo, Outline, Chapter
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig

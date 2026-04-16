@@ -1,6 +1,6 @@
 """Outline generation service."""
 
-from typing import Optional
+from typing import Any, Dict, Optional
 from domain.entities.story import Outline
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
