@@ -19,10 +19,10 @@ Also update `.github/notes/repo.md` with the correct OWNER/REPO values parsed fr
 
 **Acceptance Criteria:**
 
-- [ ] `legacy/src/` exists and contains a complete copy of the current `src/` directory
-- [ ] `legacy/README.md` explains the archive purpose and its relationship to the active codebase
-- [ ] `.github/notes/repo.md` has correct OWNER=logicalor, REPO=llm-story-writer
-- [ ] Original `src/` is unchanged
+- [x] `legacy/src/` exists and contains a complete copy of the current `src/` directory
+- [x] `legacy/README.md` explains the archive purpose and its relationship to the active codebase
+- [x] `.github/notes/repo.md` has correct OWNER=logicalor, REPO=llm-story-writer
+- [x] Original `src/` is unchanged
 
 **Key Files:**
 
@@ -43,11 +43,11 @@ Create the OpenCode project scaffolding: `opencode.json` configuration file, `.o
 
 **Acceptance Criteria:**
 
-- [ ] `opencode.json` exists with Ollama provider configured, default model set to `huihui_ai/magistral-abliterated:24b`
-- [ ] `.opencode/agents/`, `.opencode/tools/`, `.opencode/skills/`, `.opencode/commands/`, `.opencode/plugins/` directories exist
-- [ ] `AGENTS.md` exists with project-level instructions for all agents
-- [ ] OpenCode can start and present the TUI with the configured model
-- [ ] `.gitignore` updated for `.opencode/` runtime artefacts if needed
+- [x] `opencode.json` exists with Ollama provider configured, default model set to `huihui_ai/magistral-abliterated:24b`
+- [x] `.opencode/agents/`, `.opencode/tools/`, `.opencode/skills/`, `.opencode/commands/`, `.opencode/plugins/` directories exist
+- [x] `AGENTS.md` exists with project-level instructions for all agents
+- [x] OpenCode can start and present the TUI with the configured model
+- [x] `.gitignore` updated for `.opencode/` runtime artefacts if needed
 
 **Key Files:**
 
@@ -99,12 +99,12 @@ Create the first custom tool: `prompt-loader`. This tool loads a prompt template
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/prompt-loader.ts` exists with proper tool definition (description, Zod schema, execute function)
-- [ ] `src/tools/prompt_loader.py` exists, accepts `--prompt-id` and `--variables` (JSON) arguments, prints rendered prompt to stdout
-- [ ] Loading `chapters/create_content` with `{chapter_num: 1}` returns correctly rendered text
-- [ ] Missing prompt ID returns a clear error message
-- [ ] Invalid variables are handled gracefully
-- [ ] Tool is visible in OpenCode's tool list
+- [x] `.opencode/tools/prompt-loader.ts` exists with proper tool definition (description, Zod schema, execute function)
+- [x] `src/tools/prompt_loader.py` exists, accepts `--prompt-id` and `--variables` (JSON) arguments, prints rendered prompt to stdout
+- [x] Loading `chapters/create_content` with `{chapter_num: 1}` returns correctly rendered text
+- [x] Missing prompt ID returns a clear error message
+- [x] Invalid variables are handled gracefully
+- [x] Tool is visible in OpenCode's tool list
 
 **Key Files:**
 
@@ -125,13 +125,13 @@ Create the `story-state` tool for reading and writing story state JSON files. Op
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/story-state.ts` exists with tool definition
-- [ ] `src/tools/story_state.py` exists with `init`, `read`, `write`, `list` operations
-- [ ] `init` creates correct directory structure under `stories/<name>/`
-- [ ] `read` returns full state or specific nested fields
-- [ ] `write` updates specific fields without clobbering others (merge semantics)
-- [ ] State JSON schema matches current `StoryContext`/`CharacterState`/`PlotThread` structures
-- [ ] Concurrent write safety (file locking or atomic write)
+- [x] `.opencode/tools/story-state.ts` exists with tool definition
+- [x] `src/tools/story_state.py` exists with `init`, `read`, `write`, `list` operations
+- [x] `init` creates correct directory structure under `stories/<name>/`
+- [x] `read` returns full state or specific nested fields
+- [x] `write` updates specific fields without clobbering others (merge semantics)
+- [x] State JSON schema matches current `StoryContext`/`CharacterState`/`PlotThread` structures
+- [x] Concurrent write safety (file locking or atomic write)
 
 **Key Files:**
 
@@ -152,12 +152,12 @@ Create the `savepoint-mgr` tool wrapping the existing `SavepointManager` and `Fi
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/savepoint-mgr.ts` exists with tool definition
-- [ ] `src/tools/savepoint_manager.py` exists wrapping existing `SavepointManager`
-- [ ] Save/load/has/list/clear operations work correctly
-- [ ] Savepoint files written by the legacy system can be read by the new tool
-- [ ] Savepoint files written by the new tool can be read by the legacy system
-- [ ] Step names support hierarchical paths (e.g., `chapter_1/scene_2`)
+- [x] `.opencode/tools/savepoint-mgr.ts` exists with tool definition
+- [x] `src/tools/savepoint_manager.py` exists wrapping existing `SavepointManager`
+- [x] Save/load/has/list/clear operations work correctly
+- [x] Savepoint files written by the legacy system can be read by the new tool
+- [x] Savepoint files written by the new tool can be read by the legacy system
+- [x] Step names support hierarchical paths (e.g., `chapter_1/scene_2`)
 
 **Key Files:**
 
@@ -181,13 +181,13 @@ The Python implementation extracts the core logic from `CharacterManager` but re
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/character-mgr.ts` exists with tool definition
-- [ ] `src/tools/character_manager.py` exists with all operations
-- [ ] Character sheets are written as individual JSON files in `stories/<name>/characters/<char-name>.json`
-- [ ] `generate-sheet` uses the chunked approach (background, personality, motivations, etc.) from current templates
-- [ ] `load-sheet` returns the full sheet or abridged version
-- [ ] `update-sheet` merges new information without losing existing data
-- [ ] Token-aware: abridged sheets are limited to a configurable token budget
+- [x] `.opencode/tools/character-mgr.ts` exists with tool definition
+- [x] `src/tools/character_manager.py` exists with all operations
+- [x] Character sheets are written as individual JSON files in `stories/<name>/characters/<char-name>.json`
+- [x] `generate-sheet` uses the chunked approach (background, personality, motivations, etc.) from current templates
+- [x] `load-sheet` returns the full sheet or abridged version
+- [x] `update-sheet` merges new information without losing existing data
+- [x] Token-aware: abridged sheets are limited to a configurable token budget
 
 **Key Files:**
 
@@ -209,11 +209,11 @@ Create the `setting-mgr` tool, mirroring the character-mgr pattern for settings/
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/setting-mgr.ts` exists with tool definition
-- [ ] `src/tools/setting_manager.py` exists with all operations
-- [ ] Setting sheets are written as individual JSON files in `stories/<name>/settings/<setting-name>.json`
-- [ ] Generation uses the chunked approach from current templates
-- [ ] Token-aware abridged loading works correctly
+- [x] `.opencode/tools/setting-mgr.ts` exists with tool definition
+- [x] `src/tools/setting_manager.py` exists with all operations
+- [x] Setting sheets are written as individual JSON files in `stories/<name>/settings/<setting-name>.json`
+- [x] Generation uses the chunked approach from current templates
+- [x] Token-aware abridged loading works correctly
 
 **Key Files:**
 
@@ -235,11 +235,11 @@ Create the `recap-manager` tool wrapping `RecapManager` logic. Operations: `gene
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/recap-manager.ts` exists with tool definition
-- [ ] `src/tools/recap_manager.py` exists with all operations
-- [ ] Multi-stage recap sanitization pipeline preserved from current implementation
-- [ ] Recaps are stored as savepoint steps (backward-compatible with legacy format)
-- [ ] Progressive compaction produces summaries within configurable token limits
+- [x] `.opencode/tools/recap-manager.ts` exists with tool definition
+- [x] `src/tools/recap_manager.py` exists with all operations
+- [x] Multi-stage recap sanitization pipeline preserved from current implementation
+- [x] Recaps are stored as savepoint steps (backward-compatible with legacy format)
+- [x] Progressive compaction produces summaries within configurable token limits
 
 **Key Files:**
 
@@ -263,13 +263,13 @@ Operations: `analyze-prompt` (run multi-step prompt analysis), `generate-element
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/outline-generator.ts` exists with tool definition
-- [ ] `src/tools/outline_generator.py` exists with all operations
-- [ ] Story analysis chunks are generated and saved individually (for selective context loading)
-- [ ] The outline is generated using the multistep conversation approach from current implementation
-- [ ] Chunked outline generation (configurable via `outline_chunk_size`) is supported
-- [ ] Each sub-step creates a savepoint for resumability
-- [ ] Output format matches current `Outline` entity structure
+- [x] `.opencode/tools/outline-generator.ts` exists with tool definition
+- [x] `src/tools/outline_generator.py` exists with all operations
+- [x] Story analysis chunks are generated and saved individually (for selective context loading)
+- [x] The outline is generated using the multistep conversation approach from current implementation
+- [x] Chunked outline generation (configurable via `outline_chunk_size`) is supported
+- [x] Each sub-step creates a savepoint for resumability
+- [x] Output format matches current `Outline` entity structure
 
 **Key Files:**
 
@@ -294,13 +294,13 @@ This tool implements the context-budgeting strategy: for each scene, it selectiv
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/scene-writer.ts` exists with tool definition
-- [ ] `src/tools/scene_writer.py` exists with all operations
-- [ ] Context assembly respects the 65536-token budget (measured by token counting, not character counting)
-- [ ] Scene definitions are parsed from chapter outlines using current JSON schema
-- [ ] Generated scenes are saved individually as savepoints
-- [ ] Chapter assembly concatenates scenes with appropriate transitions
-- [ ] Revision takes existing scene + feedback and produces improved version
+- [x] `.opencode/tools/scene-writer.ts` exists with tool definition
+- [x] `src/tools/scene_writer.py` exists with all operations
+- [x] Context assembly respects the 65536-token budget (measured by token counting, not character counting)
+- [x] Scene definitions are parsed from chapter outlines using current JSON schema
+- [x] Generated scenes are saved individually as savepoints
+- [x] Chapter assembly concatenates scenes with appropriate transitions
+- [x] Revision takes existing scene + feedback and produces improved version
 
 **Key Files:**
 
@@ -357,16 +357,16 @@ Create the foundational wiki tools that manage the wiki file structure and provi
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/wiki-init.ts`, `.opencode/tools/wiki-read.ts`, `.opencode/tools/wiki-search.ts` exist
-- [ ] `src/tools/wiki_init.py`, `src/tools/wiki_read.py`, `src/tools/wiki_search.py` exist
-- [ ] `wiki-init` creates correct directory tree under `stories/<name>/wiki/`
-- [ ] `_schema.md` defines all ~12 page types with frontmatter field specs (including `aliases` field for entity matching)
-- [ ] `wiki-read` parses YAML frontmatter and returns structured output
-- [ ] `wiki-read` supports headline/brief/full detail levels
-- [ ] `wiki-read` `match-entities` mode matches entity names and aliases against index
-- [ ] `wiki-search` `semantic` mode queries ChromaDB and returns ranked page matches
-- [ ] `wiki-search` `metadata` mode supports where-filter on frontmatter fields
-- [ ] All tools handle empty wiki gracefully (no errors on fresh stories)
+- [x] `.opencode/tools/wiki-init.ts`, `.opencode/tools/wiki-read.ts`, `.opencode/tools/wiki-search.ts` exist
+- [x] `src/tools/wiki_init.py`, `src/tools/wiki_read.py`, `src/tools/wiki_search.py` exist
+- [x] `wiki-init` creates correct directory tree under `stories/<name>/wiki/`
+- [x] `_schema.md` defines all ~12 page types with frontmatter field specs (including `aliases` field for entity matching)
+- [x] `wiki-read` parses YAML frontmatter and returns structured output
+- [x] `wiki-read` supports headline/brief/full detail levels
+- [x] `wiki-read` `match-entities` mode matches entity names and aliases against index
+- [x] `wiki-search` `semantic` mode queries ChromaDB and returns ranked page matches
+- [x] `wiki-search` `metadata` mode supports where-filter on frontmatter fields
+- [x] All tools handle empty wiki gracefully (no errors on fresh stories)
 
 **Key Files:**
 
@@ -417,25 +417,25 @@ The tool maintains a scene-level cache to avoid redundant retrieval between cons
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/wiki-snapshot.ts` exists with tool definition
-- [ ] `src/tools/wiki_snapshot.py` exists with full three-stage pipeline
-- [ ] T1 entity matching correctly identifies entities by name and alias
-- [ ] T2 metadata filtering retrieves active plot threads and applicable world rules
-- [ ] T3 semantic search finds thematically related pages not caught by T1/T2
-- [ ] T4 wikilink traversal discovers related entities (capped at 5 additional)
-- [ ] RRF fusion correctly merges results from all tiers
-- [ ] Composite relevance scoring matches the documented formula
-- [ ] Pages scoring below 0.15 are excluded
-- [ ] Detail level selection respects protected tier (POV character, primary location always L3)
-- [ ] Token budget is enforced (measured by tiktoken, not character count)
-- [ ] Graceful degradation: if budget exceeded, demotes pages L3→L2→L1 (never drops entirely)
-- [ ] Assembled markdown has correct section structure (Characters, Location, Plot Threads, World Rules, Recent Events, Relationships)
-- [ ] Optional LLM synthesis pass triggers for scenes with >5 characters or >3 plot threads
-- [ ] Delta caching reuses unchanged entity content between consecutive scenes
-- [ ] Chapter boundaries correctly invalidate the scene cache
-- [ ] Cache hit rate exceeds 60% for consecutive scenes in the same chapter
-- [ ] Missing pages are skipped with warnings (not errors)
-- [ ] Snapshot for a scene with 3 characters, 1 location, 2 plot threads fits within 15K tokens
+- [x] `.opencode/tools/wiki-snapshot.ts` exists with tool definition
+- [x] `src/tools/wiki_snapshot.py` exists with full three-stage pipeline
+- [x] T1 entity matching correctly identifies entities by name and alias
+- [x] T2 metadata filtering retrieves active plot threads and applicable world rules
+- [x] T3 semantic search finds thematically related pages not caught by T1/T2
+- [x] T4 wikilink traversal discovers related entities (capped at 5 additional)
+- [x] RRF fusion correctly merges results from all tiers
+- [x] Composite relevance scoring matches the documented formula
+- [x] Pages scoring below 0.15 are excluded
+- [x] Detail level selection respects protected tier (POV character, primary location always L3)
+- [x] Token budget is enforced (measured by tiktoken, not character count)
+- [x] Graceful degradation: if budget exceeded, demotes pages L3→L2→L1 (never drops entirely)
+- [x] Assembled markdown has correct section structure (Characters, Location, Plot Threads, World Rules, Recent Events, Relationships)
+- [x] Optional LLM synthesis pass triggers for scenes with >5 characters or >3 plot threads
+- [x] Delta caching reuses unchanged entity content between consecutive scenes
+- [x] Chapter boundaries correctly invalidate the scene cache
+- [x] Cache hit rate exceeds 60% for consecutive scenes in the same chapter
+- [x] Missing pages are skipped with warnings (not errors)
+- [x] Snapshot for a scene with 3 characters, 1 location, 2 plot threads fits within 15K tokens
 
 **Key Files:**
 
@@ -467,17 +467,17 @@ The tool does NOT do entity extraction itself — that's the wiki-maintainer age
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/wiki-update.ts` exists with tool definition
-- [ ] `src/tools/wiki_update.py` exists with all CRUD operations
-- [ ] New pages are created with correct frontmatter (type, name, slug, confidence, first_appearance, etc.)
-- [ ] Existing pages are updated with merge semantics (no data loss)
-- [ ] `index.md` is updated atomically with new entries
-- [ ] `log.md` is appended with timestamped operation records
-- [ ] Timeline is extended with new events in chronological order
-- [ ] Changed pages are re-embedded into ChromaDB
-- [ ] Pre-computed detail levels (L1 headline, L2 brief, L3 full) are stored in page frontmatter
-- [ ] Page `version` counter is incremented on every update
-- [ ] Rollback: if any update fails, previously-applied updates in the batch are not left in inconsistent state
+- [x] `.opencode/tools/wiki-update.ts` exists with tool definition
+- [x] `src/tools/wiki_update.py` exists with all CRUD operations
+- [x] New pages are created with correct frontmatter (type, name, slug, confidence, first_appearance, etc.)
+- [x] Existing pages are updated with merge semantics (no data loss)
+- [x] `index.md` is updated atomically with new entries
+- [x] `log.md` is appended with timestamped operation records
+- [x] Timeline is extended with new events in chronological order
+- [x] Changed pages are re-embedded into ChromaDB
+- [x] Pre-computed detail levels (L1 headline, L2 brief, L3 full) are stored in page frontmatter
+- [x] Page `version` counter is incremented on every update
+- [x] Rollback: if any update fails, previously-applied updates in the batch are not left in inconsistent state
 
 **Key Files:**
 
@@ -503,13 +503,13 @@ Returns a structured report with severity levels (error/warning/info) and sugges
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/wiki-lint.ts` exists with tool definition
-- [ ] `src/tools/wiki_lint.py` exists with all check operations
-- [ ] `check-chapter` detects contradictions between wiki state and chapter content
-- [ ] `check-full` identifies orphan pages, stale claims, missing cross-refs, timeline violations
-- [ ] Lint report includes severity, error type (ConStory-Bench category), affected pages, and suggested fix
-- [ ] `contradictions.md` is updated with newly-detected contradictions and their resolution status
-- [ ] Lint is fast enough to run after every chapter without noticeable delay
+- [x] `.opencode/tools/wiki-lint.ts` exists with tool definition
+- [x] `src/tools/wiki_lint.py` exists with all check operations
+- [x] `check-chapter` detects contradictions between wiki state and chapter content
+- [x] `check-full` identifies orphan pages, stale claims, missing cross-refs, timeline violations
+- [x] Lint report includes severity, error type (ConStory-Bench category), affected pages, and suggested fix
+- [x] `contradictions.md` is updated with newly-detected contradictions and their resolution status
+- [x] Lint is fast enough to run after every chapter without noticeable delay
 
 **Key Files:**
 
