@@ -262,7 +262,7 @@ Examples:
         try:
             if "vector_store" in locals():
                 await vector_store.close()
-        except:
+        except Exception:
             pass
 
 
@@ -684,7 +684,7 @@ async def interactive_conversation(
             "story_name", f"Story {story_id}"
         )
         print(f"📖 Story: {story_name}")
-    except:
+    except Exception:
         story_name = f"Story {story_id}"
 
     # Initialize conversation history
