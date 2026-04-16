@@ -135,10 +135,9 @@ The `wiki-maintainer` subagent handles Phase 7 (initial wiki population) and Pha
 
 The agent uses five tools: `wiki-read`, `wiki-update`, `wiki-lint`, `wiki-search`, and `story-state`. All wiki mutations are submitted as batch payloads for atomic execution with rollback on failure.
 
-The agent uses one skill:
+The agent uses two skills:
 - **wiki-maintenance** — entity extraction rules, confidence taxonomy, structured output formats, detail level guidelines, and chapter boundary procedures
-
-The agent also has access to the **wiki-conventions** skill for page type schemas, frontmatter specifications, and naming conventions.
+- **wiki-conventions** — page type schemas, YAML frontmatter specifications, wikilink conventions, and slug naming rules
 
 Named `wiki-maintainer` to reflect its lifecycle responsibility — maintaining wiki state across the full generation pipeline, not just creating pages. Runs on a 7b model (`deepseek-r1-abliterated:7b`) for low overhead. See the [agent definition](../../.opencode/agents/wiki-maintainer.md) and [feature documentation](wiki-maintainer.md) for the full workflow, error handling, and entity type reference.
 

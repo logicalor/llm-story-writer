@@ -80,7 +80,7 @@ Every wiki page has pre-computed content at three detail levels:
 | L2 | Brief | ~150 | Secondary scene characters, supporting context |
 | L3 | Full | ~500 | POV character, primary location, central plot thread |
 
-Pages are sorted by relevance score and assigned detail levels top-down within the ~15K token budget for the story context portion of the window.
+Pages are sorted by relevance score and assigned detail levels top-down within the ~15K wiki-page allocation of the ~25K story context budget.
 
 #### Priority Tiers
 
