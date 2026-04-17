@@ -3,7 +3,7 @@
 import json
 import re
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 from domain.entities.story import Outline
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
@@ -24,14 +24,12 @@ class RecapManager:
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None,
-        rag_service: Optional[Any] = None,
     ):
         self.model_provider = model_provider
         self.config = config
         self.prompt_handler = prompt_handler
         self.system_message = system_message
         self.savepoint_manager = savepoint_manager
-        self.rag_service = rag_service
 
     async def get_previous_chapter_recap_from_savepoint(
         self, chapter_num: int, outline: Outline, settings: GenerationSettings

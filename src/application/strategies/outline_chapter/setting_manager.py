@@ -1,7 +1,7 @@
 """Setting management functionality for the outline-chapter strategy."""
 
 import json
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 
@@ -24,14 +24,12 @@ class SettingManager:
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None,
-        rag_service: Optional[Any] = None,
     ):
         self.model_provider = model_provider
         self.config = config
         self.prompt_handler = prompt_handler
         self.system_message = system_message
         self.savepoint_manager = savepoint_manager
-        self.rag_service = rag_service
 
         # RAG integration service will be set by the strategy after story initialization
         self.rag_integration = None

@@ -1,6 +1,6 @@
 """Story State Manager for progressive chapter generation."""
 
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 import json
@@ -89,7 +89,6 @@ class StoryStateManager:
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None,
-        rag_service: Optional[Any] = None,
     ):
         self.model_provider = model_provider
         self.config = config

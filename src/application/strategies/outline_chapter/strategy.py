@@ -1,8 +1,7 @@
 """Outline-Chapter story writing strategy."""
 
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from datetime import datetime
-from pathlib import Path
 from domain.entities.story import Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
@@ -17,7 +16,6 @@ from infrastructure.savepoints import SavepointManager
 from .outline_generator import OutlineGenerator
 from .chapter_generator import ChapterGenerator
 from .story_state_manager import StoryStateManager
-from application.services.rag_integration_service import RAGIntegrationService
 
 
 class OutlineChapterStrategy(StoryStrategy):
@@ -29,17 +27,13 @@ class OutlineChapterStrategy(StoryStrategy):
         config: Dict[str, Any],
         prompt_loader: PromptLoader,
         savepoint_repo: Optional[SavepointRepository] = None,
-        rag_service: Optional[Any] = None,
     ):
         super().__init__(model_provider)
         self.config = config
         self.prompt_loader = prompt_loader
         self.savepoint_repo = savepoint_repo
         self.savepoint_manager: Optional[SavepointManager] = None
-        self.rag_service = rag_service
         self._prompt_filename: Optional[str] = None
-        self._rag_story_id: Optional[int] = None
-        self.rag_integration: Optional["RAGIntegrationService"] = None
 
         # Create the prompt handler
         self.prompt_handler = PromptHandler(
@@ -68,7 +62,6 @@ You have deep knowledge of storytelling techniques, character development, plot 
             prompt_handler=self.prompt_handler,
             system_message=self.system_message,
             savepoint_manager=self.savepoint_manager,
-            rag_service=self.rag_service,
         )
 
         self.chapter_generator = ChapterGenerator(
@@ -77,7 +70,6 @@ You have deep knowledge of storytelling techniques, character development, plot 
             prompt_handler=self.prompt_handler,
             system_message=self.system_message,
             savepoint_manager=self.savepoint_manager,
-            rag_service=self.rag_service,
         )
 
         # Initialize story state manager
@@ -87,7 +79,6 @@ You have deep knowledge of storytelling techniques, character development, plot 
             prompt_handler=self.prompt_handler,
             system_message=self.system_message,
             savepoint_manager=self.savepoint_manager,
-            rag_service=self.rag_service,
         )
 
     async def _setup_savepoints(self, prompt_filename: str) -> None:
@@ -130,180 +121,9 @@ You have deep knowledge of storytelling techniques, character development, plot 
             self.story_state_manager.savepoint_manager = self.savepoint_manager
             self.story_state_manager.set_story_directory(prompt_filename)
 
-            # Create and configure RAG integration service for this story
-            if self.rag_service:
-                from application.services.content_chunker import ContentChunker
-
-                content_chunker = ContentChunker(
-                    max_chunk_size=self.config.get("max_context_chunks", 1000),
-                    overlap_size=self.config.get("overlap_size", 200),
-                )
-                self.rag_integration = RAGIntegrationService(
-                    self.rag_service, content_chunker
-                )
-                self.rag_integration.set_current_story_identifier(prompt_filename)
-
-                # Purge all existing RAG content for this story to ensure a clean slate
-                try:
-                    await self._purge_story_rag_content(prompt_filename)
-                    print(
-                        f"🧹 Purged all existing RAG content for story '{prompt_filename}'"
-                    )
-                except Exception as e:
-                    print(
-                        f"⚠️ Warning: Could not purge RAG content for '{prompt_filename}': {e}"
-                    )
-
-                # Pass the RAG integration service to all managers and generators
-                self.outline_generator.rag_integration = self.rag_integration
-                self.outline_generator.character_manager.rag_integration = (
-                    self.rag_integration
-                )
-                self.outline_generator.setting_manager.rag_integration = (
-                    self.rag_integration
-                )
-                self.chapter_generator.rag_integration = self.rag_integration
-                self.chapter_generator.character_manager.rag_integration = (
-                    self.rag_integration
-                )
-                self.chapter_generator.setting_manager.rag_integration = (
-                    self.rag_integration
-                )
-                self.chapter_generator.recap_manager.rag_integration = (
-                    self.rag_integration
-                )
-                self.chapter_generator.scene_generator.rag_integration = (
-                    self.rag_integration
-                )
-                self.story_state_manager.rag_integration = self.rag_integration
-
-                # Initialize RAG story context for this prompt filename
-                await self._initialize_rag_story(prompt_filename)
-
-    async def _initialize_rag_story(self, prompt_filename: str) -> None:
-        """Initialize RAG story context for the given prompt filename."""
-        try:
-            if not self.rag_service:
-                return
-
-            # Ensure RAG service is initialized before use
-            if not hasattr(self.rag_service, "_initialized"):
-                await self.rag_service.initialize()
-                self.rag_service._initialized = True
-
-            # Create or get story in RAG system using prompt filename as identifier
-            story_id = await self.rag_service.create_story(
-                story_name=prompt_filename, prompt_file_path=Path(prompt_filename)
-            )
-
-            # Store the story ID for future use
-            self._rag_story_id = story_id
-
-            print(
-                f"✅ RAG story initialized for '{prompt_filename}' with ID: {story_id}"
-            )
-
-        except Exception as e:
-            print(
-                f"⚠️ Warning: Could not initialize RAG story for '{prompt_filename}': {e}"
-            )
-
-    async def _purge_story_rag_content(self, prompt_filename: str) -> None:
-        """Purge all existing RAG content for a story to ensure a clean slate."""
-        try:
-            if not self.rag_integration:
-                return
-
-            # Ensure RAG service (and vector store pool) is initialized before any DB ops
-            if self.rag_service and not hasattr(self.rag_service, "_initialized"):
-                await self.rag_service.initialize()
-                self.rag_service._initialized = True
-
-            print(f"🔍 [DEBUG] Purging RAG content for story '{prompt_filename}'")
-
-            # Use the RAG integration service to get the story ID (this ensures consistency)
-            story_id = await self.rag_integration.initialize_story(prompt_filename)
-            print(f"🔍 [DEBUG] Using story ID from RAG integration service: {story_id}")
-
-            # Let's also check what stories exist in the database
-            try:
-                all_stories = await self.rag_service.vector_store.list_stories()
-                print(
-                    f"🔍 [DEBUG] All stories in database: {[{'id': s['id'], 'name': s['story_name'], 'file': s['prompt_file_name']} for s in all_stories]}"
-                )
-            except Exception as e:
-                print(f"⚠️ [DEBUG] Could not list stories: {e}")
-
-            # First, let's check how many chunks exist for this story
-            try:
-                existing_chunks = await self.rag_service.vector_store.get_story_content(
-                    story_id
-                )
-                chunk_count = len(existing_chunks) if existing_chunks else 0
-                print(
-                    f"🔍 [DEBUG] Found {chunk_count} existing chunks for story ID {story_id}"
-                )
-
-                if chunk_count > 0:
-                    # Delete all content chunks for this story
-                    deleted_count = (
-                        await self.rag_service.vector_store.delete_story_content(
-                            story_id
-                        )
-                    )
-
-                    if deleted_count > 0:
-                        print(
-                            f"🗑️ Deleted {deleted_count} existing content chunks for story '{prompt_filename}'"
-                        )
-                    else:
-                        print(
-                            f"⚠️ [DEBUG] delete_story_content returned 0, but we found {chunk_count} chunks"
-                        )
-                else:
-                    print(
-                        f"✨ No existing content chunks found for story '{prompt_filename}'"
-                    )
-
-            except Exception as e:
-                print(f"⚠️ [DEBUG] Error checking existing chunks: {e}")
-                # Try the delete anyway
-                deleted_count = (
-                    await self.rag_service.vector_store.delete_story_content(story_id)
-                )
-                print(f"🗑️ [DEBUG] Delete attempt returned: {deleted_count}")
-
-        except Exception as e:
-            print(
-                f"⚠️ Warning: Could not purge RAG content for '{prompt_filename}': {e}"
-            )
-            # Don't raise the exception - we want to continue with story generation even if purge fails
-
-    def get_rag_story_id(self) -> Optional[int]:
-        """Get the current RAG story ID for the active prompt filename."""
-        return self._rag_story_id
-
-    def has_rag_story(self) -> bool:
-        """Check if a RAG story is currently active."""
-        return self._rag_story_id is not None
-
     def get_current_prompt_filename(self) -> Optional[str]:
         """Get the current prompt filename for the active story."""
         return self._prompt_filename
-
-    def get_rag_status(self) -> Dict[str, Any]:
-        """Get comprehensive RAG status including story information."""
-        status = {
-            "rag_service_available": self.rag_service is not None,
-            "prompt_filename": self._prompt_filename,
-            "rag_story_active": self.has_rag_story(),
-            "rag_story_id": self._rag_story_id,
-        }
-
-        if self.rag_service:
-            status["rag_service_type"] = type(self.rag_service).__name__
-
-        return status
 
     def _create_messages_with_system(self, user_content: str) -> List[Dict[str, str]]:
         """Create messages list with system message included."""

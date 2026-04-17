@@ -1,7 +1,7 @@
 """Outline generation functionality for the outline-chapter strategy."""
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 from domain.entities.story import Outline
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
@@ -32,14 +32,12 @@ class OutlineGenerator:
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None,
-        rag_service: Optional[Any] = None,
     ):
         self.model_provider = model_provider
         self.config = config
         self.prompt_handler = prompt_handler
         self.system_message = system_message
         self.savepoint_manager = savepoint_manager
-        self.rag_service = rag_service
 
         # RAG integration service will be set by the strategy after story initialization
         self.rag_integration = None
@@ -51,7 +49,6 @@ class OutlineGenerator:
             prompt_handler=prompt_handler,
             system_message=system_message,
             savepoint_manager=savepoint_manager,
-            rag_service=rag_service,
         )
 
         self.setting_manager = SettingManager(
@@ -60,7 +57,6 @@ class OutlineGenerator:
             prompt_handler=prompt_handler,
             system_message=system_message,
             savepoint_manager=savepoint_manager,
-            rag_service=rag_service,
         )
 
         self.chapter_generator = ChapterGenerator(
@@ -69,7 +65,6 @@ class OutlineGenerator:
             prompt_handler=prompt_handler,
             system_message=system_message,
             savepoint_manager=savepoint_manager,
-            rag_service=rag_service,
         )
 
         # Initialize story state manager for progressive planning
@@ -79,7 +74,6 @@ class OutlineGenerator:
             prompt_handler=prompt_handler,
             system_message=system_message,
             savepoint_manager=savepoint_manager,
-            rag_service=rag_service,
         )
 
     async def generate_outline(
