@@ -190,6 +190,8 @@ class OutlineGenerator:
         self, content: str, chunk_type: str, settings: GenerationSettings
     ) -> None:
         """Index a story analysis chunk in RAG."""
+        if not self.rag_integration:
+            return
         await self.rag_integration.index_outline(
             outline_content=content,
             metadata={
