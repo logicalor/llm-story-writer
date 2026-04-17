@@ -890,3 +890,54 @@ class TestE2EFullPipeline:
 
         for count in token_counts:
             assert count <= WIKI_SNAPSHOT_TOKEN_LIMIT
+
+    def test_wiki_read_character_page(self, pipeline_result: dict[str, Any]) -> None:
+        env = _make_env(pipeline_result["stories_dir"], pipeline_result["chromadb_dir"])
+        result = _run_tool(
+            WIKI_READ_SCRIPT,
+            [
+                "--operation",
+                "read",
+                "--name",
+                STORY_NAME,
+                "--slug",
+                "alex",
+                "--detail-level",
+                "full",
+            ],
+            env,
+            timeout=30,
+        )
+
+        data = _assert_success(result, "wiki-read character alex")
+
+        assert data["status"] == "ok"
+        assert len(data["pages"]) >= 1
+        page = data["pages"][0]
+        assert page["slug"] == "alex"
+        assert page["type"] == "character"
+        assert "confidence" in page["metadata"]
+
+    def test_wiki_read_match_entities(self, pipeline_result: dict[str, Any]) -> None:
+        env = _make_env(pipeline_result["stories_dir"], pipeline_result["chromadb_dir"])
+        result = _run_tool(
+            WIKI_READ_SCRIPT,
+            [
+                "--operation",
+                "match-entities",
+                "--name",
+                STORY_NAME,
+                "--text",
+                "Alex and ARIA discuss their plans in Neo-Tokyo.",
+            ],
+            env,
+            timeout=30,
+        )
+
+        data = _assert_success(result, "wiki-read match-entities")
+
+        assert data["status"] == "ok"
+        assert isinstance(data["matches"], list)
+        assert len(data["matches"]) >= 1
+        matched_names = {m["name"] for m in data["matches"]}
+        assert matched_names & {"Alex", "ARIA", "Neo-Tokyo"}
