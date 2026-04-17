@@ -8,6 +8,8 @@ Issue 26 and PR 98 complete the final cleanup step of the OpenCode migration. Th
 
 The cleanup removes three important pieces from the active `src/` tree: the dependency-injector container, the LangChain provider, and the application-level `RAGService`. Those implementations remain only under `legacy/src/` as an archive for historical comparison during migration work.
 
+Issue 99 narrows provider validation to the providers that still have active runtime implementations. `ModelConfig` now accepts only `openai_compatible`, `ollama`, `lm_studio`, and `llama_cpp`. The `ollama` key remains an alias that normalises to the shared OpenAI-compatible provider path.
+
 ## Active Runtime Stack
 
 The current dependency split is deliberate.
@@ -40,6 +42,7 @@ Use these guardrails:
 
 - Prefer direct HTTP clients and small focused libraries over framework-heavy orchestration dependencies
 - Keep provider integrations compatible with OpenAI-style `/v1` APIs unless there is a demonstrated need for a vendor-specific path
+- Do not reintroduce provider keys that route only through archived integrations; `google`, `openrouter`, `openai`, and `anthropic` are intentionally unsupported in the active runtime
 - Add retrieval behaviour through `rag-query` and related tools, not through a resurrected shared RAG service layer
 - Wire runtime objects explicitly inside tools or entry points; do not reintroduce a global DI container
 

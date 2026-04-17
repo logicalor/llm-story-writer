@@ -27,7 +27,7 @@ The active runtime is intentionally small and OpenCode-first:
 
 - **Python runtime**: `requests`, `chromadb`, `pyyaml`, and `llm-output-parser` in `requirements.txt`
 - **RAG extras**: ChromaDB support packages in `requirements-rag.txt`
-- **LLM integration**: OpenAI-compatible `/v1` endpoints, not LangChain-specific adapters
+- **LLM integration**: Supported provider keys are `openai_compatible`, `ollama`, `lm_studio`, and `llama_cpp`; all runtime traffic goes through OpenAI-compatible `/v1` endpoints rather than LangChain-specific adapters
 - **Tool wiring**: OpenCode loads TypeScript wrappers directly; the legacy `dependency-injector` container is archived under `legacy/`
 
 See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the full before/after summary and maintenance guidance.

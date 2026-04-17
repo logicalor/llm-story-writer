@@ -115,13 +115,7 @@ See `src/application/strategies/README.md` for detailed information about creati
 
 ### Environment Variables
 
-Create a `.env` file for API keys:
-
-```bash
-# .env
-GOOGLE_API_KEY=your_google_api_key
-OPENROUTER_API_KEY=your_openrouter_api_key
-```
+The supported local providers do not require cloud API keys.
 
 For detailed configuration options, see [config.md](config.md).
 

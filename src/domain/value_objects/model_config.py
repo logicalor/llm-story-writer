@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 from ..exceptions import ValidationError
 
@@ -30,10 +30,6 @@ class ModelConfig:
             "openai_compatible",
             "ollama",
             "lm_studio",
-            "google",
-            "openrouter",
-            "openai",
-            "anthropic",
             "llama_cpp",
         }
         if self.provider.lower() not in valid_providers:
@@ -53,15 +49,16 @@ class ModelConfig:
         Format: provider://model@host?param1=value1&param2=value2
         Examples:
             - "openai-compat://llama3:70b"
-            - "google://gemini-1.5-pro"
+            - "lm_studio://llama3:8b"
+            - "llama_cpp://mistral-7b@127.0.0.1:8080"
             - "openai-compat://llama3:70b@192.168.1.100:11434?temperature=0.7"
         """
         if "://" not in model_string:
             return cls(name=model_string, provider="openai_compatible")
 
         try:
-            parsed = urlparse(model_string)
-            scheme = parsed.scheme.lower()
+            raw_scheme, remainder = model_string.split("://", 1)
+            scheme = raw_scheme.lower()
             provider = scheme
             original_scheme: Optional[str] = None
 
@@ -72,11 +69,10 @@ class ModelConfig:
                 provider = "openai_compatible"
                 original_scheme = "ollama"
 
+            parsed = urlparse(f"x://{remainder}")
+
             # Handle different provider formats
-            if provider == "openrouter":
-                model = f"{parsed.netloc}{parsed.path}"
-                host = None
-            elif provider == "openai_compatible":
+            if provider == "openai_compatible":
                 if "@" in parsed.netloc:
                     model_part, host = parsed.netloc.split("@", 1)
                     model = f"{model_part}{parsed.path}"
@@ -85,9 +81,13 @@ class ModelConfig:
                     host = None
             elif "@" in parsed.netloc:
                 model, host = parsed.netloc.split("@", 1)
+                if parsed.path:
+                    model = f"{model}{parsed.path}"
             else:
-                model = parsed.netloc
+                model = f"{parsed.netloc}{parsed.path}"
                 host = None
+
+            model = model.lstrip("/")
 
             # Parse query parameters
             query_params = parse_qs(parsed.query)

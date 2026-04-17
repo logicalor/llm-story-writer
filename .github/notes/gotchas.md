@@ -99,3 +99,32 @@ savepoint-mgr save --story-name my-story --label "chapter-2-complete"
 Not calling `savepoint-mgr save` means the assembled chapter cannot be restored from a savepoint. Silent data-loss risk.
 
 ChromaDB ID: `gotcha-scene-writer-assemble-no-savepoint-005`
+
+---
+
+## URI Parsing
+
+### 006 — Python `urlparse` silently drops URI schemes containing underscores
+
+**Source:** issue #99, PR #101
+**Severity:** warning
+
+Python's `urllib.parse.urlparse()` does not accept underscores in URI schemes. RFC 3986 §3.1
+restricts scheme characters to `[A-Za-z][A-Za-z0-9+\-.]` — underscores are invalid. `urlparse`
+silently returns an empty `.scheme` rather than raising an exception, so `lm_studio://host/path`
+and `llama_cpp://host/path` are parsed with scheme `""` and the full string treated as a path.
+
+**Wrong:** `urlparse("lm_studio://host/path").scheme` → `""` (silent failure)
+**Right:** Extract the scheme by splitting on `"://"` before calling `urlparse`:
+
+```python
+if "://" in value:
+    scheme, rest = value.split("://", 1)
+else:
+    scheme = ""
+```
+
+When writing tests for functions that accept custom URI schemes containing underscores, write at
+least one positive-path test per supported scheme to guard against silent parsing regressions.
+
+ChromaDB ID: `gotcha-urlparse-underscore-scheme-006`

@@ -46,21 +46,40 @@ class TestModelConfig:
         assert config.provider == "openai_compatible"
         assert config.original_scheme == "ollama"
 
-    def test_create_from_string_google(self):
-        """Test creating ModelConfig from Google string."""
-        model_string = "google://gemini-1.5-pro"
+    def test_create_from_string_lm_studio(self):
+        """Test creating ModelConfig from LM Studio string with underscore scheme."""
+        model_string = "lm_studio://llama3:8b"
         config = ModelConfig.from_string(model_string)
 
-        assert config.name == "gemini-1.5-pro"
-        assert config.provider == "google"
+        assert config.name == "llama3:8b"
+        assert config.provider == "lm_studio"
+        assert config.host is None
+        assert config.parameters == {}
+
+    def test_create_from_string_llama_cpp_with_host(self):
+        """Test creating ModelConfig from llama.cpp string with underscore scheme."""
+        model_string = "llama_cpp://mistral-7b@127.0.0.1:8080"
+        config = ModelConfig.from_string(model_string)
+
+        assert config.name == "mistral-7b"
+        assert config.provider == "llama_cpp"
+        assert config.host == "127.0.0.1:8080"
+
+    def test_create_from_string_google(self):
+        """Test that google:// provider is rejected as unsupported."""
+        with pytest.raises(ValidationError, match="Invalid provider"):
+            ModelConfig.from_string("google://gemini-1.5-pro")
 
     def test_create_from_string_openrouter(self):
-        """Test creating ModelConfig from OpenRouter string."""
-        model_string = "openrouter://anthropic/claude-3-opus"
-        config = ModelConfig.from_string(model_string)
+        """Test that openrouter:// provider is rejected as unsupported."""
+        with pytest.raises(ValidationError, match="Invalid provider"):
+            ModelConfig.from_string("openrouter://anthropic/claude-3-opus")
 
-        assert config.name == "anthropic/claude-3-opus"
-        assert config.provider == "openrouter"
+    @pytest.mark.parametrize("scheme", ["google", "openrouter", "openai", "anthropic"])
+    def test_removed_cloud_provider_schemes_raise_validation_error(self, scheme):
+        """Test that all four removed cloud provider schemes are rejected."""
+        with pytest.raises(ValidationError, match="Invalid provider"):
+            ModelConfig.from_string(f"{scheme}://some-model")
 
     def test_legacy_support(self):
         """Test legacy support for model names without provider."""

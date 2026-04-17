@@ -73,10 +73,6 @@ infrastructure:
   max_chunk_size: 1000
   overlap_size: 200
 
-# API Keys (set via environment variables)
-api_keys:
-  google_api_key: null
-  openrouter_api_key: null
 ---
 
 # AI Story Writer Configuration Guide
@@ -201,17 +197,9 @@ infrastructure:
   vector_dimensions: 384   # for all-MiniLM-L6-v2
 ```
 
-### Google Models (Cloud)
-```yaml
-models:
-  # google:// provider removed — requires implementation before use
-```
+### Unsupported Cloud Providers
 
-### OpenRouter Models (Cloud)
-```yaml
-models:
-  # openrouter:// provider removed — requires implementation before use
-```
+Google, OpenAI, Anthropic, and OpenRouter provider URIs are not supported in the active runtime. Use `openai-compat://`, `lm_studio://`, or `llama_cpp://` model strings instead.
 
 ## 📝 Configuration Examples
 
@@ -322,13 +310,7 @@ generation:
 
 ## 🔍 Environment Variables
 
-Create a `.env` file in the project root for API keys:
-
-```bash
-# .env
-GOOGLE_API_KEY=your_google_api_key_here
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-```
+The supported local providers in the active runtime do not require cloud API keys.
 
 ## 📊 Performance Tips
 
@@ -345,7 +327,7 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 
 ### Memory Optimization
 - Use models that fit in your available RAM
-- Consider using cloud models for large models
+- Consider using a stronger local model or dedicated inference host for larger workloads
 - Monitor system resources during generation
 
 ### Long Story Generation
@@ -367,12 +349,12 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
   curl http://127.0.0.1:11434/v1/models
    ```
 
-2. **API Key Errors**: Check your `.env` file for correct API keys
+2. **Connection Refused**: Verify the inference server is running and the endpoint is reachable.
    ```bash
-   cat .env
+  curl http://127.0.0.1:11434/v1/models
    ```
 
-3. **Memory Issues**: Use smaller models or cloud providers
+3. **Memory Issues**: Use a smaller quantized model or a dedicated inference host with more VRAM.
    ```yaml
    models:
      initial_outline_writer: "openai-compat://llama3:8b"
