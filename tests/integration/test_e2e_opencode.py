@@ -23,6 +23,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -117,6 +118,20 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def _savepoint_file(story_dir: Path, step: str) -> Path:
     return story_dir / "savepoints" / f"{step}.md"
+
+
+def _generate_with_retry(prompt: str, max_attempts: int = 3) -> str:
+    if max_attempts < 1:
+        raise ValueError(f"max_attempts must be >= 1, got {max_attempts}")
+    last_err: Exception = RuntimeError("unreachable")
+    for attempt in range(max_attempts):
+        try:
+            return generate_text(prompt)
+        except Exception as e:
+            last_err = e
+            if attempt < max_attempts - 1:
+                time.sleep(4**attempt)
+    raise last_err
 
 
 @pytest.fixture(scope="session")
@@ -217,7 +232,7 @@ def pipeline_result(
             "Include: background, personality, role in story, and one distinctive trait. "
             "Keep it under 300 words."
         )
-        char_content = generate_text(char_prompt)
+        char_content = _generate_with_retry(char_prompt)
         sheet_data = {
             "sheet": char_content,
             "summary": char_content[:200],
@@ -246,7 +261,7 @@ def pipeline_result(
             "Include: geography, atmosphere, technology level, and significance. "
             "Keep it under 300 words."
         )
-        setting_content = generate_text(setting_prompt)
+        setting_content = _generate_with_retry(setting_prompt)
         sheet_data = {
             "sheet": setting_content,
             "summary": setting_content[:200],
