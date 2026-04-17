@@ -128,3 +128,29 @@ When writing tests for functions that accept custom URI schemes containing under
 least one positive-path test per supported scheme to guard against silent parsing regressions.
 
 ChromaDB ID: `gotcha-urlparse-underscore-scheme-006`
+
+---
+
+## Testing
+
+### 007 — `sys.path.insert` in tool test files is an established convention, not an anti-pattern
+
+**Source:** issue #103, PR #105
+**Severity:** info
+
+Test files for `src/tools/` scripts insert `sys.path.insert(0, str(Path(__file__).parent.parent))`
+to resolve `src/application.*` and other package imports. This pattern is **correct and required**
+— the project's `pyproject.toml` does NOT configure `pythonpath = ["src"]` under
+`[tool.pytest.ini_options]`, so pytest does not add `src/` to `sys.path` automatically.
+
+The pattern appears in 7+ test files across `tests/unit/` and `tests/integration/`. Flagging it
+as an anti-pattern is a false positive that misreads the pyproject.toml configuration.
+
+```python
+# Required import-resolution bootstrap in src/tools/ test files:
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+```
+
+ChromaDB ID: `gotcha-sys-path-insert-tool-tests-007`
