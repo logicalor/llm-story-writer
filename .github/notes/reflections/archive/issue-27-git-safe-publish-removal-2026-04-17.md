@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/orchestrator-v3.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## git-safe-publish.sh and verify-green.sh do not exist — removed from orchestrator
