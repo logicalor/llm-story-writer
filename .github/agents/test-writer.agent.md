@@ -1,7 +1,7 @@
 ---
 name: Test Writer
 description: Writes verification tests after implementation is complete. Receives a structured plan, writes tests one at a time, runs them to confirm they pass, and returns the test files with verification confirmation. Dispatched by the Orchestrator after implementation.
-model: MoonshotAI: Kimi K2.5 (openrouter)
+model: GPT-5.4 (copilot)
 user-invocable: false
 disable-model-invocation: true
 tools:

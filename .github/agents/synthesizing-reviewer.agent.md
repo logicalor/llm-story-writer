@@ -1,7 +1,7 @@
 ---
 name: Synthesizing Reviewer
 description: "Cross-model code review synthesizer. Reads three pre-written review reports (from Claude Opus 4.6, GPT 5.4, and Gemini 3.1 Pro) and synthesizes them into a single consensus review with confidence ratings and divergence analysis. Does NOT dispatch sub-agents — the Orchestrator handles reviewer dispatch. Dispatched by the Orchestrator during Step 7."
-model: MiniMax: MiniMax M2.7 (openrouter)
+model: Claude Sonnet 4.6 (copilot)
 user-invocable: false
 tools: [read, edit, search, todo]
 ---

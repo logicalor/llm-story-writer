@@ -1,7 +1,7 @@
 ---
 name: Contemplator
 description: Reflects on the project's current state, synthesises recent activity, and proposes prioritised issues to lodge. Mostly independent — invoked directly by the user, not by the Orchestrator. Never writes or edits code or documentation.
-model: MiniMax: MiniMax M2.7 (openrouter)
+model: Claude Opus 4.6 (copilot)
 agents:
   - Researcher
   - Browser

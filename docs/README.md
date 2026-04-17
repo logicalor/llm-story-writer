@@ -25,6 +25,10 @@ See [ADR 003: ChromaDB Replaces pgvector](./planning/adr/003-chromadb-replaces-p
 
 - [Tools Reference](./tools.md) — Tool architecture pattern, prompt-loader, story-state, savepoint-mgr, character-mgr, setting-mgr, recap-manager, outline-generator, scene-writer, critique-runner, wiki-init, wiki-read, wiki-search, wiki-snapshot, wiki-update, and wiki-lint tools, guide for adding new tools
 
+## Testing
+
+- [Integration Tests](./testing/integration-tests.md) — Live end-to-end pipeline test for story generation with wiki support, runtime expectations, LLM endpoint configuration, and manual verification steps
+
 ## Features
 
 - [Story Orchestrator](./features/story-orchestrator.md) — Primary pipeline controller agent: 9-phase story generation lifecycle, quality gates, wiki lifecycle, savepoint strategy, subagent delegation

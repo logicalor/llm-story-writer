@@ -1,7 +1,7 @@
 ---
 name: Auditor (GPT)
 description: Independent audit sub-agent running on GPT 5.4. Performs the standard audit process and returns a structured report to the Synthesizing Auditor. Not invoked directly by users.
-model: OpenAI: GPT-5.4 Mini (openrouter)
+model: GPT-5.4 (copilot)
 user-invocable: false
 disable-model-invocation: true
 tools:

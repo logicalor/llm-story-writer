@@ -125,17 +125,25 @@ For detailed configuration options, see [config.md](config.md).
 ## 🧪 Testing
 
 ```bash
-# Run all tests
-pytest tests/
+# Run default fast test suite (unit tests only)
+pytest
 
-# Run specific test categories
-pytest tests/unit/
-pytest tests/integration/
-pytest tests/e2e/
+# Run unit tests explicitly
+pytest tests/unit/ -v
+
+# Run integration tests explicitly (live LLM required)
+pytest tests/integration/ -v -m integration
+
+# Run the full end-to-end integration file with a longer timeout
+pytest tests/integration/test_e2e_opencode.py -v -m integration --timeout=7200
 
 # Run with coverage
-pytest --cov=src tests/
+pytest --cov=src tests/unit tests/integration
 ```
+
+Integration tests exercise the full story-generation pipeline with wiki support against a live OpenAI-compatible endpoint. Set `LLM_API_BASE` to override the default endpoint (`http://localhost:11434/v1`). A full run typically takes 30 to 90 minutes.
+
+See [docs/testing/integration-tests.md](docs/testing/integration-tests.md) for setup details, runtime expectations, and manual verification guidance.
 
 ## 📁 Project Structure
 
