@@ -49,6 +49,8 @@ Follow the test conventions and patterns established in the project (see `copilo
 3. Error handling — expected failure modes, exception paths
 4. Integration points — interactions between components, external service boundaries
 
+**Collection assertions:** When asserting on lists, sets, or decoded JSON arrays returned by a tool or API, verify specific expected values — not just count or existence. `len(results) >= 1` only confirms something was returned; it does not confirm correctness. Use subset membership (`assert expected_set <= actual_set`), intersection (`assert expected_set & actual_set`), or item-level checks (`assert any(item["name"] == "expected" for item in results)`) to confirm the returned data is meaningful and correct.
+
 After writing each test, run the project's test command (see `copilot-instructions.md`).
 
 ### 3. Classify Results
