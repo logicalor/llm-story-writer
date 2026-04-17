@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 from ..exceptions import ValidationError
 
@@ -50,14 +50,15 @@ class ModelConfig:
         Examples:
             - "openai-compat://llama3:70b"
             - "lm_studio://llama3:8b"
+            - "llama_cpp://mistral-7b@127.0.0.1:8080"
             - "openai-compat://llama3:70b@192.168.1.100:11434?temperature=0.7"
         """
         if "://" not in model_string:
             return cls(name=model_string, provider="openai_compatible")
 
         try:
-            parsed = urlparse(model_string)
-            scheme = parsed.scheme.lower()
+            raw_scheme, remainder = model_string.split("://", 1)
+            scheme = raw_scheme.lower()
             provider = scheme
             original_scheme: Optional[str] = None
 
@@ -67,6 +68,8 @@ class ModelConfig:
             elif scheme == "ollama":
                 provider = "openai_compatible"
                 original_scheme = "ollama"
+
+            parsed = urlparse(f"x://{remainder}")
 
             # Handle different provider formats
             if provider == "openai_compatible":
@@ -78,9 +81,13 @@ class ModelConfig:
                     host = None
             elif "@" in parsed.netloc:
                 model, host = parsed.netloc.split("@", 1)
+                if parsed.path:
+                    model = f"{model}{parsed.path}"
             else:
-                model = parsed.netloc
+                model = f"{parsed.netloc}{parsed.path}"
                 host = None
+
+            model = model.lstrip("/")
 
             # Parse query parameters
             query_params = parse_qs(parsed.query)

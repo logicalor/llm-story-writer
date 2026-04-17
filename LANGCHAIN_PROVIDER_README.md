@@ -47,6 +47,8 @@ pip install langchain langchain-openai langchain-anthropic langchain-community l
 
 ### 2. Configure API Keys
 
+> ⚠️ **DEPRECATED** — The instructions below are preserved for historical reference only. These provider schemes are not supported in the active runtime.
+
 Set environment variables for cloud providers:
 ```bash
 export OPENAI_API_KEY="your-openai-api-key"
@@ -70,6 +72,8 @@ api_keys:
 - **LM Studio**: Start LM Studio local server
 
 ## Configuration
+
+> ⚠️ **DEPRECATED** — The instructions below are preserved for historical reference only. These provider schemes are not supported in the active runtime.
 
 ### Model String Format
 
@@ -203,6 +207,8 @@ When debug mode is enabled, you'll see:
 
 ## Usage Examples
 
+> ⚠️ **DEPRECATED** — The instructions below are preserved for historical reference only. These provider schemes are not supported in the active runtime.
+
 ### Basic Text Generation
 ```python
 from src.infrastructure.providers.langchain_provider import LangChainProvider
@@ -306,6 +312,8 @@ lm_studio_config = ModelConfig(
 ```
 
 ## Provider-Specific Details
+
+> ⚠️ **DEPRECATED** — The instructions below are preserved for historical reference only. These provider schemes are not supported in the active runtime.
 
 ### OpenAI
 - **Models**: GPT-3.5, GPT-4, GPT-4 Turbo
@@ -412,6 +420,8 @@ This will test:
 - **Network**: Use HTTPS for all API calls
 
 ## Advanced Usage
+
+> ⚠️ **DEPRECATED** — The instructions below are preserved for historical reference only. These provider schemes are not supported in the active runtime.
 
 ### Custom Providers
 You can extend the provider to support additional services by modifying the `_create_langchain_llm` method.

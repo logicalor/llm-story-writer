@@ -349,12 +349,12 @@ The supported local providers in the active runtime do not require cloud API key
   curl http://127.0.0.1:11434/v1/models
    ```
 
-2. **API Key Errors**: Check your `.env` file for correct API keys
+2. **Connection Refused**: Verify the inference server is running and the endpoint is reachable.
    ```bash
-   cat .env
+  curl http://127.0.0.1:11434/v1/models
    ```
 
-3. **Memory Issues**: Use smaller models or cloud providers
+3. **Memory Issues**: Use a smaller quantized model or a dedicated inference host with more VRAM.
    ```yaml
    models:
      initial_outline_writer: "openai-compat://llama3:8b"
