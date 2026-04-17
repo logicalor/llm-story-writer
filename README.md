@@ -7,11 +7,10 @@ A modern, clean AI story generation application built with clean architecture pr
 ## 🚀 Features
 
 - **Clean Architecture**: Built with domain-driven design and clean architecture principles
-- **Multiple Model Providers**: Support for Ollama, LM Studio, LangChain, llama.cpp, Google, OpenRouter, and more
+- **Multiple Local Model Providers**: Support for Ollama, LM Studio, and llama.cpp
 - **Async/Await**: Full async support for better performance
 - **Type Safety**: Comprehensive type hints and validation
-- **Structured Logging**: Professional logging with levels and structured data
-- **Dependency Injection**: Clean dependency management and testability
+- **ChromaDB-backed wiki retrieval**: Per-story semantic search over progressive wiki memory
 - **Extensible Design**: Easy to add new features and providers
 - **Generate medium to full-length novels**: Produce substantial stories with coherent narratives
 - **Automatic model downloading**: The system can automatically download required models via Ollama
@@ -36,8 +35,8 @@ src/
 ### Prerequisites
 
 1. **Python 3.8+** installed
-2. **Ollama** installed and running (for local models)
-3. **API Keys** (optional, for cloud providers)
+2. **OpenCode** installed
+3. **Ollama** installed and running (for local models)
 
 ### Installation
 
@@ -46,11 +45,15 @@ src/
 git clone https://github.com/datacrystals/AIStoryWriter.git
 cd AIStoryWriter
 
+# Install OpenCode first
+# Follow your platform's OpenCode install instructions, then verify:
+opencode --version
+
+# Configure Ollama and pull the models referenced by config.md
+ollama serve
+
 # Install dependencies
 pip install -r requirements.txt
-
-# Install the application
-pip install -e src/
 ```
 
 ### Basic Usage (OpenCode TUI)
@@ -58,11 +61,11 @@ pip install -e src/
 The application uses OpenCode for an interactive story generation experience:
 
 ```bash
-# Start the OpenCode TUI
+# Start OpenCode in the project root
 opencode
 
 # In the TUI, use slash commands:
-/new-story Prompts/YourPrompt.txt    # Initialize and start a new story
+/new-story prompts/YourPrompt.txt    # Initialize and start a new story
 /continue [story-name]               # Resume from last savepoint
 /status                              # Show generation progress
 ```
@@ -189,7 +192,7 @@ llm-story-writer/
 This project uses a **hybrid agent-tool architecture** where OpenCode agents handle orchestration and human interaction, while Python scripts (wrapped as OpenCode tools) handle deterministic domain logic. The architecture preserves clean architecture principles in the Python domain layer while leveraging OpenCode's agentic capabilities for creative tasks.
 
 Key components:
-- **Agents** (`.opencode/agents/`): Orchestrator, outline-planner, scene-writer, wiki-maintainer
+- **Agents** (`.opencode/agents/`): story-orchestrator, outline-planner, chapter-writer
 - **Tools** (`.opencode/tools/`): TypeScript wrappers that call Python scripts in `src/tools/`
 - **Skills** (`.opencode/skills/`): Reusable instructions for pipeline phases, wiki maintenance, etc.
 - **Commands** (`.opencode/commands/`): TUI slash commands like `/new-story`, `/continue`, `/status`
@@ -220,14 +223,14 @@ Semantic search for context retrieval using ChromaDB vector collections:
 
 1. Create a new provider in `src/infrastructure/providers/`
 2. Implement the `ModelProvider` interface
-3. Register it in the dependency injection container
+3. Wire it into the relevant tool or service entry point
 4. Add tests
 
 ### Adding a New Storage Backend
 
 1. Create a new storage implementation in `src/infrastructure/storage/`
 2. Implement the `StorageProvider` interface
-3. Register it in the dependency injection container
+3. Wire it into the consuming tool or service
 4. Add tests
 
 ### Adding New Features
@@ -293,6 +296,10 @@ This project is licensed under the GNU Affero General Public License v3.0 (AGPL-
 - [ ] Real-time collaboration features
 - [ ] Advanced story analytics
 - [ ] Multi-language support
+
+## 🗃️ Legacy Reference
+
+The `legacy/` directory preserves the original PostgreSQL/LangChain-based architecture for reference during the OpenCode and ChromaDB migration. Active development happens in `src/`, `.opencode/`, `prompts/`, and `stories/`.
 
 ---
 

@@ -25,13 +25,27 @@ async def test_character_extraction():
 
     # Create model configs
     models = {
-        "initial_outline_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-        "chapter_outline_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-        "chapter_stage1_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-        "chapter_stage2_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-        "chapter_stage3_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-        "chapter_stage4_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-        "chapter_revision_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+        "initial_outline_writer": ModelConfig(
+            name="llama3:8b", provider="openai_compatible"
+        ),
+        "chapter_outline_writer": ModelConfig(
+            name="llama3:8b", provider="openai_compatible"
+        ),
+        "chapter_stage1_writer": ModelConfig(
+            name="llama3:8b", provider="openai_compatible"
+        ),
+        "chapter_stage2_writer": ModelConfig(
+            name="llama3:8b", provider="openai_compatible"
+        ),
+        "chapter_stage3_writer": ModelConfig(
+            name="llama3:8b", provider="openai_compatible"
+        ),
+        "chapter_stage4_writer": ModelConfig(
+            name="llama3:8b", provider="openai_compatible"
+        ),
+        "chapter_revision_writer": ModelConfig(
+            name="llama3:8b", provider="openai_compatible"
+        ),
         "revision_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
         "eval_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
         "info_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
@@ -53,9 +67,7 @@ async def test_character_extraction():
     config = AppConfig(models=models, generation=generation)
 
     strategy = OutlineChapterStrategy(
-        model_provider=OpenAICompatibleProvider(
-            base_url="http://127.0.0.1:11434/v1"
-        ),
+        model_provider=OpenAICompatibleProvider(base_url="http://127.0.0.1:11434/v1"),
         config=config,
         prompt_loader=PromptLoader(),
     )
@@ -140,19 +152,39 @@ async def test_character_sheet_generation():
 
         # Create model configs
         models = {
-            "initial_outline_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-            "chapter_outline_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-            "chapter_stage1_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-            "chapter_stage2_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-            "chapter_stage3_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-            "chapter_stage4_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-            "chapter_revision_writer": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-            "revision_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "initial_outline_writer": ModelConfig(
+                name="llama3:8b", provider="openai_compatible"
+            ),
+            "chapter_outline_writer": ModelConfig(
+                name="llama3:8b", provider="openai_compatible"
+            ),
+            "chapter_stage1_writer": ModelConfig(
+                name="llama3:8b", provider="openai_compatible"
+            ),
+            "chapter_stage2_writer": ModelConfig(
+                name="llama3:8b", provider="openai_compatible"
+            ),
+            "chapter_stage3_writer": ModelConfig(
+                name="llama3:8b", provider="openai_compatible"
+            ),
+            "chapter_stage4_writer": ModelConfig(
+                name="llama3:8b", provider="openai_compatible"
+            ),
+            "chapter_revision_writer": ModelConfig(
+                name="llama3:8b", provider="openai_compatible"
+            ),
+            "revision_model": ModelConfig(
+                name="llama3:8b", provider="openai_compatible"
+            ),
             "eval_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
             "info_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
             "scrub_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-            "checker_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
-            "translator_model": ModelConfig(name="llama3:8b", provider="openai_compatible"),
+            "checker_model": ModelConfig(
+                name="llama3:8b", provider="openai_compatible"
+            ),
+            "translator_model": ModelConfig(
+                name="llama3:8b", provider="openai_compatible"
+            ),
         }
 
         # Create app config

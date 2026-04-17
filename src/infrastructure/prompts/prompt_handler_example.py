@@ -96,7 +96,9 @@ async def example_with_generation_settings():
     )
 
     # Create generation settings
-    settings = GenerationSettings(model="openai-compat://llama3:70b", temperature=0.7, seed=42)
+    settings = GenerationSettings(
+        model="openai-compat://llama3:70b", temperature=0.7, seed=42
+    )
 
     # Convert to ModelConfig
     model_config = ModelConfig.from_string(settings.model)

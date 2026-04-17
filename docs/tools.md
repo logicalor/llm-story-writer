@@ -6,6 +6,8 @@
 
 Tools follow the pattern established in [ADR 001](./planning/adr/001-hybrid-agent-tool-architecture.md): OpenCode agents handle orchestration and creative decisions; tools handle deterministic operations with single correct outputs for given inputs.
 
+The active tool layer no longer uses the legacy `dependency-injector` container or the removed LangChain provider. OpenCode loads each TypeScript wrapper directly, and the Python runtime dependencies are intentionally narrow so the active stack reflects only code that still executes.
+
 Each tool consists of two layers:
 
 | Layer | Location | Language | Responsibility |

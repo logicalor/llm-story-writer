@@ -15,7 +15,6 @@ from infrastructure.prompts.prompt_wrapper import (
     load_prompt,
 )
 from infrastructure.savepoints import SavepointManager
-from application.services.rag_service import RAGService
 from .character_manager import CharacterManager
 from .setting_manager import SettingManager
 
@@ -30,7 +29,7 @@ class SceneGenerator:
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None,
-        rag_service: Optional[RAGService] = None,
+        rag_service: Optional[Any] = None,
     ):
         self.model_provider = model_provider
         self.config = config

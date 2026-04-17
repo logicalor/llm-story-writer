@@ -30,7 +30,6 @@ class ModelConfig:
             "openai_compatible",
             "ollama",
             "lm_studio",
-            "langchain",
             "google",
             "openrouter",
             "openai",

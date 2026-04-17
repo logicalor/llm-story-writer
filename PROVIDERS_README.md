@@ -1,5 +1,10 @@
 # AI Story Writer - Model Providers
 
+> **⚠️ NOTICE — LangChain support has been removed.**  
+> The `LangChainProvider` class was removed in the legacy dependency cleanup (issue #26).  
+> `langchain://` URI schemes are no longer supported. Use `openai-compat://` instead.  
+> All content below is preserved for historical reference only.
+
 This document provides an overview of all available model providers in the AI Story Writer application and how to configure and use them.
 
 ## Available Providers
@@ -53,9 +58,7 @@ models:
   scene_writer: "openai-compat://llama3:8b"
   logical_model: "lm_studio://mistral-7b-instruct"
   
-  # Cloud models via LangChain
-  initial_outline_writer: "langchain://openai:gpt-4"
-  chapter_outline_writer: "langchain://anthropic:claude-3-sonnet-20240229"
+  # langchain:// removed — use openai-compat:// instead
 ```
 
 ## Provider Details
@@ -123,18 +126,12 @@ api_keys:
   google: "AIza..."
 
 models:
-  # Cloud models
-  initial_outline_writer: "langchain://openai:gpt-4"
-  chapter_outline_writer: "langchain://anthropic:claude-3-sonnet-20240229"
-  
-  # Local models via LangChain
-  scene_writer: "langchain://ollama:llama3:8b@localhost:11434"
-  logical_model: "langchain://lm_studio:mistral-7b-instruct@localhost:1234"
+  # langchain:// removed — use openai-compat:// instead
 ```
 
 **Model Format**:
 ```
-langchain://provider:model_name@host:port?param1=value1&param2=value2
+# langchain:// removed — use openai-compat:// instead
 ```
 
 ### llama.cpp Provider
@@ -236,15 +233,12 @@ Use different providers for different tasks:
 
 ```yaml
 models:
-  # Creative writing - use powerful cloud models
-  initial_outline_writer: "langchain://openai:gpt-4"
-  chapter_outline_writer: "langchain://anthropic:claude-3-sonnet-20240229"
+  # Creative writing - cloud providers require implementation before use
   
   # Scene generation - use local models for privacy
   scene_writer: "openai-compat://llama3:8b"
   
-  # Analysis - use specialized models
-  logical_model: "langchain://google:gemini-1.5-pro"
+  # Analysis - cloud providers require implementation before use
   
   # Revision - use local models for cost control
   revision_model: "lm_studio://mistral-7b-instruct"
@@ -262,8 +256,7 @@ models:
   # LM Studio with OpenAI-style parameters
   logical_model: "lm_studio://mistral-7b-instruct?temperature=0.7"
   
-  # LangChain with provider-specific parameters
-  cloud_model: "langchain://openai:gpt-4?temperature=0.7"
+  # Cloud provider examples removed — use openai-compat:// instead
 ```
 
 ### Environment Variables
@@ -407,7 +400,7 @@ models:
 
 # After: Multiple providers
 models:
-  scene_writer: "langchain://ollama:llama3:8b@localhost:11434"
+  # langchain:// removed — use openai-compat:// instead
   # or
   scene_writer: "openai-compat://llama3:8b"
 ```

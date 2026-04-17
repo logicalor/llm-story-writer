@@ -3,7 +3,6 @@
 
 import asyncio
 import sys
-import os
 from pathlib import Path
 
 # Add src to path
@@ -13,7 +12,6 @@ from src.infrastructure.providers.openai_compatible_provider import (
     OpenAICompatibleProvider,
 )
 from src.infrastructure.providers.lm_studio_provider import LMStudioProvider
-from src.infrastructure.providers.langchain_provider import LangChainProvider
 from src.domain.value_objects.model_config import ModelConfig
 
 
@@ -26,9 +24,7 @@ async def test_multistep_conversation():
     # Test Ollama
     print("\n--- Testing OpenAI-Compatible Provider ---")
     try:
-        ollama_provider = OpenAICompatibleProvider(
-            base_url="http://127.0.0.1:11434/v1"
-        )
+        ollama_provider = OpenAICompatibleProvider(base_url="http://127.0.0.1:11434/v1")
         ollama_config = ModelConfig(
             name="llama3:8b",
             provider="openai_compatible",
@@ -67,47 +63,6 @@ async def test_multistep_conversation():
     except Exception as e:
         print(f"LM Studio Error: {e}")
 
-    # Test LangChain
-    print("\n--- Testing LangChain Provider ---")
-    try:
-        # Try to get API keys from environment
-        api_keys = {}
-        if os.getenv("OPENAI_API_KEY"):
-            api_keys["openai"] = os.getenv("OPENAI_API_KEY")
-        if os.getenv("ANTHROPIC_API_KEY"):
-            api_keys["anthropic"] = os.getenv("ANTHROPIC_API_KEY")
-
-        if not api_keys:
-            print(
-                "No API keys found. Please set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variables."
-            )
-            return
-
-        langchain_provider = LangChainProvider(api_keys=api_keys)
-
-        # Use the first available provider
-        provider_name = list(api_keys.keys())[0]
-        model_name = (
-            "gpt-3.5-turbo" if provider_name == "openai" else "claude-3-haiku-20240307"
-        )
-
-        langchain_config = ModelConfig(
-            name=model_name,
-            provider="langchain",
-            parameters={"temperature": 0.7, "max_tokens": 200},
-        )
-
-        response = await langchain_provider.generate_multistep_conversation(
-            user_messages=["Hello!", "What's 2+2?", "Now multiply that by 3"],
-            model_config=langchain_config,
-            system_message="You are a helpful math tutor.",
-            debug=True,
-            stream=True,  # Enable streaming
-        )
-        print(f"LangChain Response: {response[:100]}...")
-    except Exception as e:
-        print(f"LangChain Error: {e}")
-
 
 async def test_specific_provider_conversation():
     """Test multi-step conversation with a specific provider."""
@@ -115,11 +70,9 @@ async def test_specific_provider_conversation():
     print("Testing Specific Provider Multi-step Conversation")
     print("=" * 60)
 
-    provider_choice = (
-        input("Choose provider (ollama/lm_studio/langchain): ").strip().lower()
-    )
+    provider_choice = input("Choose provider (ollama/lm_studio): ").strip().lower()
 
-    if provider_choice not in ["ollama", "lm_studio", "langchain"]:
+    if provider_choice not in ["ollama", "lm_studio"]:
         print("Invalid provider choice")
         return
 
@@ -127,26 +80,11 @@ async def test_specific_provider_conversation():
     if provider_choice == "ollama":
         provider = OpenAICompatibleProvider(base_url="http://127.0.0.1:11434/v1")
         model_name = input("Enter Ollama model name (e.g., llama3:8b): ").strip()
-    elif provider_choice == "lm_studio":
+    else:
         provider = LMStudioProvider(host="127.0.0.1:1234")
         model_name = input(
             "Enter LM Studio model name (e.g., llama-3-8b-instruct): "
         ).strip()
-    elif provider_choice == "langchain":
-        # Get API keys for cloud providers
-        api_keys = {}
-        if input("Use OpenAI? (y/n): ").strip().lower() == "y":
-            api_keys["openai"] = (
-                os.getenv("OPENAI_API_KEY") or input("Enter OpenAI API key: ").strip()
-            )
-        if input("Use Anthropic? (y/n): ").strip().lower() == "y":
-            api_keys["anthropic"] = (
-                os.getenv("ANTHROPIC_API_KEY")
-                or input("Enter Anthropic API key: ").strip()
-            )
-
-        provider = LangChainProvider(api_keys=api_keys)
-        model_name = input("Enter model name (e.g., gpt-3.5-turbo): ").strip()
 
     if not model_name:
         print("Invalid model name")
@@ -206,11 +144,9 @@ async def test_conversation_memory():
     print("Testing Conversation Memory")
     print("=" * 60)
 
-    provider_choice = (
-        input("Choose provider (ollama/lm_studio/langchain): ").strip().lower()
-    )
+    provider_choice = input("Choose provider (ollama/lm_studio): ").strip().lower()
 
-    if provider_choice not in ["ollama", "lm_studio", "langchain"]:
+    if provider_choice not in ["ollama", "lm_studio"]:
         print("Invalid provider choice")
         return
 
@@ -218,26 +154,11 @@ async def test_conversation_memory():
     if provider_choice == "ollama":
         provider = OpenAICompatibleProvider(base_url="http://127.0.0.1:11434/v1")
         model_name = input("Enter Ollama model name (e.g., llama3:8b): ").strip()
-    elif provider_choice == "lm_studio":
+    else:
         provider = LMStudioProvider(host="127.0.0.1:1234")
         model_name = input(
             "Enter LM Studio model name (e.g., llama-3-8b-instruct): "
         ).strip()
-    elif provider_choice == "langchain":
-        # Get API keys for cloud providers
-        api_keys = {}
-        if input("Use OpenAI? (y/n): ").strip().lower() == "y":
-            api_keys["openai"] = (
-                os.getenv("OPENAI_API_KEY") or input("Enter OpenAI API key: ").strip()
-            )
-        if input("Use Anthropic? (y/n): ").strip().lower() == "y":
-            api_keys["anthropic"] = (
-                os.getenv("ANTHROPIC_API_KEY")
-                or input("Enter Anthropic API key: ").strip()
-            )
-
-        provider = LangChainProvider(api_keys=api_keys)
-        model_name = input("Enter model name (e.g., gpt-3.5-turbo): ").strip()
 
     if not model_name:
         print("Invalid model name")
@@ -324,11 +245,9 @@ async def test_streaming_conversation():
     print("Testing Streaming Multi-step Conversation")
     print("=" * 60)
 
-    provider_choice = (
-        input("Choose provider (ollama/lm_studio/langchain): ").strip().lower()
-    )
+    provider_choice = input("Choose provider (ollama/lm_studio): ").strip().lower()
 
-    if provider_choice not in ["ollama", "lm_studio", "langchain"]:
+    if provider_choice not in ["ollama", "lm_studio"]:
         print("Invalid provider choice")
         return
 
@@ -336,26 +255,11 @@ async def test_streaming_conversation():
     if provider_choice == "ollama":
         provider = OpenAICompatibleProvider(base_url="http://127.0.0.1:11434/v1")
         model_name = input("Enter Ollama model name (e.g., llama3:8b): ").strip()
-    elif provider_choice == "lm_studio":
+    else:
         provider = LMStudioProvider(host="127.0.0.1:1234")
         model_name = input(
             "Enter LM Studio model name (e.g., llama-3-8b-instruct): "
         ).strip()
-    elif provider_choice == "langchain":
-        # Get API keys for cloud providers
-        api_keys = {}
-        if input("Use OpenAI? (y/n): ").strip().lower() == "y":
-            api_keys["openai"] = (
-                os.getenv("OPENAI_API_KEY") or input("Enter OpenAI API key: ").strip()
-            )
-        if input("Use Anthropic? (y/n): ").strip().lower() == "y":
-            api_keys["anthropic"] = (
-                os.getenv("ANTHROPIC_API_KEY")
-                or input("Enter Anthropic API key: ").strip()
-            )
-
-        provider = LangChainProvider(api_keys=api_keys)
-        model_name = input("Enter model name (e.g., gpt-3.5-turbo): ").strip()
 
     if not model_name:
         print("Invalid model name")

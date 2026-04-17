@@ -17,9 +17,20 @@ The project uses **ChromaDB** for vector storage and RAG (Retrieval-Augmented Ge
 
 ### RAG Access
 
-All RAG queries route through the `rag-query` tool (see [Tools Reference](./tools.md)). The legacy `RAGService` class is **deprecated** and will raise `DeprecationWarning` on all public methods. Migrate any direct `RAGService` usage to the `rag-query` tool.
+All RAG queries route through the `rag-query` tool (see [Tools Reference](./tools.md)). The legacy `RAGService` implementation has been removed from the active codebase and remains only under `legacy/` for historical reference.
 
 See [ADR 003: ChromaDB Replaces pgvector](./planning/adr/003-chromadb-replaces-pgvector.md) for the full migration rationale.
+
+## Runtime Stack
+
+The active runtime is intentionally small and OpenCode-first:
+
+- **Python runtime**: `requests`, `chromadb`, `pyyaml`, and `llm-output-parser` in `requirements.txt`
+- **RAG extras**: ChromaDB support packages in `requirements-rag.txt`
+- **LLM integration**: OpenAI-compatible `/v1` endpoints, not LangChain-specific adapters
+- **Tool wiring**: OpenCode loads TypeScript wrappers directly; the legacy `dependency-injector` container is archived under `legacy/`
+
+See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the full before/after summary and maintenance guidance.
 
 ## Tools
 
@@ -31,6 +42,7 @@ See [ADR 003: ChromaDB Replaces pgvector](./planning/adr/003-chromadb-replaces-p
 
 ## Features
 
+- [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) — Current runtime dependency model, archived legacy components, and guardrails for keeping the active stack lean
 - [Story Orchestrator](./features/story-orchestrator.md) — Primary pipeline controller agent: 9-phase story generation lifecycle, quality gates, wiki lifecycle, savepoint strategy, subagent delegation
 - [Wiki Maintainer](./features/wiki-maintainer.md) — Wiki maintenance subagent: entity extraction, confidence scoring, detail levels, alias identification, chapter boundary procedures
 - [Custom Commands](./features/custom-commands.md) — Seven slash commands for the OpenCode TUI: `/new-story`, `/continue`, `/regenerate`, `/savepoint`, `/status`, `/settings`, `/wiki`
