@@ -144,4 +144,5 @@ class TestWikiReadCLIValidation:
             _make_env(stories_dir, chromadb_dir),
         )
 
-        assert result.returncode != 0
+        assert result.returncode == 2
+        assert "invalid choice" in result.stderr or "invalid-value" in result.stderr
