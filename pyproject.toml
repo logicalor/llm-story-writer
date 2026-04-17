@@ -4,3 +4,9 @@ exclude = ["legacy/"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+markers = [
+	"integration: end-to-end integration tests requiring a live LLM service",
+]

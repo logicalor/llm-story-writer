@@ -1,7 +1,7 @@
 ---
 name: Documenter
 description: Maintains project documentation in the docs directory after tasks are completed. Updates or creates documentation related to features, bug fixes, and architectural changes. Invoked by the Orchestrator after the verification phase is confirmed.
-model: MoonshotAI: Kimi K2.5 (openrouter)
+model: GPT-5.4 (copilot)
 user-invocable: false
 disable-model-invocation: true
 tools:

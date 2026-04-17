@@ -1,7 +1,7 @@
 ---
 name: PR Reviewer
 description: Standalone PR review agent. Examines pull requests, reviews code changes against project conventions, and posts review comments. Invoked directly by the user for ad-hoc PR reviews — not part of the Orchestrator workflow.
-model: MiniMax: MiniMax M2.7 (openrouter)
+model: Claude Sonnet 4.6 (copilot)
 tools:
   [execute, read, search, github/issue_read, github/list_issues, github/list_pull_requests, github/pull_request_read, github/pull_request_review_write, github/add_comment_to_pending_review, github/add_reply_to_pull_request_comment, github/search_issues, github/search_pull_requests, 'chroma/*', 'io.github.upstash/context7/*', web, todo]
 ---

@@ -1,7 +1,7 @@
 ---
 name: Reviewer (GPT)
 description: Independent code review sub-agent running on GPT 5.4. Reviews local branch changes against development and writes a structured report to a file. Dispatched by the Orchestrator during Step 7. Not invoked directly by users.
-model: GPT-5.4 mini (copilot)
+model: GPT-5.4 (copilot)
 user-invocable: false
 disable-model-invocation: true
 tools:

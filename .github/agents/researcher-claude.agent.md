@@ -1,7 +1,7 @@
 ---
 name: Researcher (Claude)
 description: Independent research sub-agent running on Claude Opus 4.6. Performs the standard research process and returns a structured report to the Synthesizing Researcher. Not invoked directly by users.
-model: MoonshotAI: Kimi K2.5 (openrouter)
+model: Claude Sonnet 4.6 (copilot)
 user-invocable: false
 disable-model-invocation: false
 tools:

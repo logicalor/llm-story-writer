@@ -1,7 +1,7 @@
 ---
 name: Browser
 description: Browser automation agent. Uses agent-browser CLI for page inspection, screenshots, and E2E interaction. Other agents hand off to this agent when they need to interact with websites or the running application.
-model: MiniMax: MiniMax M2.7 (openrouter)
+model: Claude Haiku 4.5 (copilot)
 user-invocable: false
 disable-model-invocation: true
 tools: ['execute', 'read', 'edit', 'search']

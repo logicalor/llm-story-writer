@@ -1,7 +1,7 @@
 ---
 name: Reviewer (Claude)
 description: Independent code review sub-agent running on Claude Opus 4.6. Reviews local branch changes against development and writes a structured report to a file. Dispatched by the Orchestrator during Step 7. Not invoked directly by users.
-model: MoonshotAI: Kimi K2.5 (openrouter)
+model: Claude Sonnet 4.6 (copilot)
 user-invocable: false
 disable-model-invocation: true
 tools:

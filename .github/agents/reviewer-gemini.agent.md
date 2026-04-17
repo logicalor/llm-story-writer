@@ -1,7 +1,7 @@
 ---
 name: Reviewer (Gemini)
 description: Independent code review sub-agent running on Gemini 3.1 Pro (Preview). Reviews local branch changes against development and writes a structured report to a file. Dispatched by the Orchestrator during Step 7. Not invoked directly by users.
-model: Google: Gemini 3.1 Pro Preview (openrouter)
+model: Gemini 3.1 Pro (Preview) (copilot)
 user-invocable: false
 disable-model-invocation: true
 tools:

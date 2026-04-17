@@ -1,7 +1,7 @@
 ---
 name: Orchestrator V3
 description: "Feature-based workflow manager. Manages the full GitHub-auditable lifecycle — creates issues, branches, and PRs, coordinates implementation, verifies tests pass, and runs reviews. Includes a Synthesized Local Review (multi-model consensus). Performs planning, research, testing, and GitHub operations directly. Delegates only coding, documentation, database changes, and browser automation."
-model: MiniMax: MiniMax M2.7 (openrouter)
+model: Claude Sonnet 4.6 (copilot)
 agents:
   - Test Writer
   - Coder

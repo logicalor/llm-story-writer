@@ -1,7 +1,7 @@
 ---
 name: Auditor (Gemini)
 description: Independent audit sub-agent running on Gemini 3.1 Pro (Preview). Performs the standard audit process and returns a structured report to the Synthesizing Auditor. Not invoked directly by users.
-model: Google: Gemini 3.1 Pro Preview (openrouter)
+model: Gemini 3.1 Pro (Preview) (copilot)
 user-invocable: false
 disable-model-invocation: true
 tools:
