@@ -27,7 +27,7 @@ async def example_usage():
     handler.set_story_directory("my_story")
 
     # Example 1: Basic prompt execution
-    model_config = ModelConfig.from_string("ollama://llama3:70b")
+    model_config = ModelConfig.from_string("openai-compat://llama3:70b")
 
     request = PromptRequest(
         prompt_id="extract_story_start_date",
@@ -96,7 +96,7 @@ async def example_with_generation_settings():
     )
 
     # Create generation settings
-    settings = GenerationSettings(model="ollama://llama3:70b", temperature=0.7, seed=42)
+    settings = GenerationSettings(model="openai-compat://llama3:70b", temperature=0.7, seed=42)
 
     # Convert to ModelConfig
     model_config = ModelConfig.from_string(settings.model)

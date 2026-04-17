@@ -16,10 +16,12 @@ class LangChainProvider(ModelProvider):
     def __init__(
         self,
         api_keys: Optional[Dict[str, str]] = None,
+        host: str = "127.0.0.1:11434",
         context_length: int = 16384,
         randomize_seed: bool = True,
     ):
         self.api_keys = api_keys or {}
+        self.host = host
         self.context_length = context_length
         self.randomize_seed = randomize_seed
         self.clients = {}
@@ -647,11 +649,15 @@ class LangChainProvider(ModelProvider):
                 model=model_name, google_api_key=api_key, **parameters
             )
 
-        elif provider == "ollama":
-            from langchain_community.llms import Ollama
+        elif provider in ("ollama", "openai_compatible"):
+            from langchain_openai import ChatOpenAI
 
-            host = model_config.host or "http://localhost:11434"
-            return Ollama(model=model_name, base_url=host, **parameters)
+            host = model_config.host or self.host
+            return ChatOpenAI(
+                base_url=f"http://{host}/v1",
+                api_key="none",
+                model=model_config.name,
+            )
 
         elif provider == "lm_studio":
             from langchain_openai import ChatOpenAI

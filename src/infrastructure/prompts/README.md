@@ -55,7 +55,7 @@ handler = PromptHandler(
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
 
 # Create model config
-model_config = ModelConfig.from_string("ollama://llama3:70b")
+model_config = ModelConfig.from_string("openai-compat://llama3:70b")
 
 # Execute prompt with savepoint management
 response = await execute_prompt_with_savepoint(

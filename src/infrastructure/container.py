@@ -6,7 +6,7 @@ from typing import Dict, Any
 
 from application.services.story_generation_service import StoryGenerationService
 from application.strategies.strategy_factory import StrategyFactory
-from .providers.ollama_provider import OllamaProvider
+from .providers.openai_compatible_provider import OpenAICompatibleProvider
 from .providers.lm_studio_provider import LMStudioProvider
 from .providers.langchain_provider import LangChainProvider
 from .providers.llama_cpp_provider import LlamaCppProvider
@@ -34,9 +34,9 @@ class Container(containers.DeclarativeContainer):
 
     prompt_loader = providers.Singleton(PromptLoader, prompts_dir="prompts")
 
-    ollama_provider = providers.Singleton(
-        OllamaProvider,
-        host=config.ollama_host,
+    openai_compatible_provider = providers.Singleton(
+        OpenAICompatibleProvider,
+        base_url=config.model_api_base,
         context_length=config.context_length,
         randomize_seed=config.randomize_seed,
     )
@@ -90,7 +90,7 @@ class Container(containers.DeclarativeContainer):
             )
         ),
         factory=strategy_factory,
-        model_provider=ollama_provider,
+        model_provider=openai_compatible_provider,
         config=config,
         savepoint_repo=savepoint_repository,
     )
@@ -99,7 +99,7 @@ class Container(containers.DeclarativeContainer):
     story_generation_service = providers.Factory(
         StoryGenerationService,
         strategy=strategy,
-        model_provider=ollama_provider,
+        model_provider=openai_compatible_provider,
         storage=file_storage,
         savepoint_repo=savepoint_repository,
     )
@@ -121,8 +121,8 @@ class Container(containers.DeclarativeContainer):
 
     def get_model_provider(self, provider_name: str):
         """Get model provider by name."""
-        if provider_name == "ollama":
-            return self.ollama_provider()
+        if provider_name in {"ollama", "openai_compatible"}:
+            return self.openai_compatible_provider()
         elif provider_name == "lm_studio":
             return self.lm_studio_provider()
         elif provider_name == "langchain":

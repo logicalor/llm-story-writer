@@ -79,9 +79,9 @@ The application supports multiple model providers with a unified format:
 
 ```yaml
 models:
-  initial_outline_writer: "ollama://llama3:70b"
-  chapter_stage1_writer: "ollama://llama3:70b@192.168.1.100:11434"
-  info_model: "ollama://llama3:70b?temperature=0.7"
+  initial_outline_writer: "openai-compat://llama3:70b"
+  chapter_stage1_writer: "openai-compat://llama3:70b@192.168.1.100:11434"
+  info_model: "openai-compat://llama3:70b?temperature=0.7"
 ```
 
 ### Generation Settings

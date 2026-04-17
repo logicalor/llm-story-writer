@@ -13,32 +13,8 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Check if Ollama is running
-if ! curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1; then
-    echo "❌ Ollama is not running. Please start Ollama and try again."
-    exit 1
-fi
-
-echo "✅ Docker and Ollama are running"
-
-# Check if embedding model is specified in config
-if [ -f "config.md" ]; then
-    # Extract embedding model from config.md (simple grep approach)
-    EMBEDDING_MODEL=$(grep -A 20 "infrastructure:" config.md | grep "embedding_model:" | head -1 | sed 's/.*embedding_model:\s*"//' | sed 's/".*//')
-    
-    if [ -n "$EMBEDDING_MODEL" ]; then
-        # Extract just the model name from ollama://host:port/model_name format
-        MODEL_NAME=$(echo "$EMBEDDING_MODEL" | sed 's|ollama://||' | sed 's|.*/||')
-        echo "📥 Pulling $MODEL_NAME embedding model from config..."
-        ollama pull "$MODEL_NAME"
-    else
-        echo "📥 Pulling default nomic-embed-text embedding model..."
-        ollama pull nomic-embed-text
-    fi
-else
-    echo "📥 Pulling default nomic-embed-text embedding model..."
-    ollama pull nomic-embed-text
-fi
+echo "✅ Docker is running"
+echo "ℹ️ Ensure your embedding model is available via the configured MODEL_API_BASE endpoint before indexing content."
 
 # Start PostgreSQL with pgvector
 echo "🐘 Starting PostgreSQL with pgvector..."

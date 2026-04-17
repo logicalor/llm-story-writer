@@ -13,27 +13,27 @@ OUTPUT_NAME=""
 # =============================================================================
 
 # Outline Generation Models
-INITIAL_OUTLINE_MODEL="ollama://llama3:8b"
-CHAPTER_OUTLINE_MODEL="ollama://llama3:8b"
+INITIAL_OUTLINE_MODEL="openai-compat://llama3:8b"
+CHAPTER_OUTLINE_MODEL="openai-compat://llama3:8b"
 
 # Chapter Generation Models
-CHAPTER_S1_MODEL="ollama://llama3:8b"  # Plot
-CHAPTER_S2_MODEL="ollama://llama3:8b"  # Character development
-CHAPTER_S3_MODEL="ollama://llama3:8b"  # Dialogue
-CHAPTER_S4_MODEL="ollama://llama3:8b"  # Final correction
+CHAPTER_S1_MODEL="openai-compat://llama3:8b"  # Plot
+CHAPTER_S2_MODEL="openai-compat://llama3:8b"  # Character development
+CHAPTER_S3_MODEL="openai-compat://llama3:8b"  # Dialogue
+CHAPTER_S4_MODEL="openai-compat://llama3:8b"  # Final correction
 
 # Revision and Quality Models
-CHAPTER_REVISION_MODEL="ollama://llama3:8b"
-REVISION_MODEL="ollama://llama3:8b"
-EVAL_MODEL="ollama://llama3:8b"
+CHAPTER_REVISION_MODEL="openai-compat://llama3:8b"
+REVISION_MODEL="openai-compat://llama3:8b"
+EVAL_MODEL="openai-compat://llama3:8b"
 
 # Information and Processing Models
-INFO_MODEL="ollama://llama3:8b"
-SCRUB_MODEL="ollama://llama3:8b"
-CHECKER_MODEL="ollama://llama3:8b"
+INFO_MODEL="openai-compat://llama3:8b"
+SCRUB_MODEL="openai-compat://llama3:8b"
+CHECKER_MODEL="openai-compat://llama3:8b"
 
 # Translation Models
-TRANSLATOR_MODEL="ollama://llama3:8b"
+TRANSLATOR_MODEL="openai-compat://llama3:8b"
 
 # =============================================================================
 # GENERATION SETTINGS - Fast Prototype

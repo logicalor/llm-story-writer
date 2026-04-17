@@ -9,7 +9,9 @@ import warnings
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 
-from infrastructure.providers.ollama_embedding_provider import OllamaEmbeddingProvider
+from infrastructure.providers.openai_compatible_embedding_provider import (
+    OpenAICompatibleEmbeddingProvider,
+)
 from infrastructure.storage.pgvector_store import PgVectorStore
 from domain.exceptions import StorageError
 from application.services.reranker_service import RerankerService
@@ -37,7 +39,7 @@ class RAGService:
 
     def __init__(
         self,
-        embedding_provider: OllamaEmbeddingProvider,
+        embedding_provider: OpenAICompatibleEmbeddingProvider,
         vector_store: PgVectorStore,
         similarity_threshold: float = 0.7,
         max_context_chunks: int = 20,

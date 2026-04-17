@@ -45,9 +45,9 @@ async def demonstrate_rag_integration():
         print("\n🎯 Creating Outline Chapter Strategy with RAG...")
         strategy_config = {
             "models": {
-                "initial_outline_writer": "ollama://llama3.2:3b",
-                "creative_model": "ollama://llama3.2:3b",
-                "info_model": "ollama://llama3.2:3b",
+                "initial_outline_writer": "openai-compat://llama3.2:3b",
+                "creative_model": "openai-compat://llama3.2:3b",
+                "info_model": "openai-compat://llama3.2:3b",
             },
             "max_chunk_size": 1000,
             "overlap_size": 200,

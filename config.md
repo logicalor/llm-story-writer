@@ -4,24 +4,24 @@
 
 # Model Configuration
 models:
-  initial_outline_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  chapter_outline_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  chapter_stage1_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  chapter_stage2_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  chapter_stage3_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  chapter_stage4_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  chapter_revision_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  revision_model: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  eval_model: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  info_model: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  scrub_model: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  checker_model: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  translator_model: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  sanity_model: "ollama://huihui_ai/deepseek-r1-abliterated:7b?think=true"
-  logical_model: "ollama://huihui_ai/qwen2.5-coder-abliterate:7b"
-  scene_writer: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  creative_model: "ollama://huihui_ai/magistral-abliterated:24b?think=true"
-  #scene_writer: "ollama://hf.co/DavidAU/L3-DARKEST-PLANET-16.5B-GGUF"
+  initial_outline_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  chapter_outline_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  chapter_stage1_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  chapter_stage2_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  chapter_stage3_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  chapter_stage4_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  chapter_revision_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  revision_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  eval_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  info_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  scrub_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  checker_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  translator_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  sanity_model: "openai-compat://huihui_ai/deepseek-r1-abliterated:7b"
+  logical_model: "openai-compat://huihui_ai/qwen2.5-coder-abliterate:7b"
+  scene_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  creative_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  #scene_writer: "openai-compat://hf.co/DavidAU/L3-DARKEST-PLANET-16.5B-GGUF"
 
 # Generation Settings
 generation:
@@ -60,7 +60,7 @@ infrastructure:
   output_dir: "/home/shaun/Documents/stories/output"
   savepoint_dir: "/home/shaun/Documents/stories/saves"
   logs_dir: "Logs"
-  ollama_host: "127.0.0.1:11434"
+  model_api_base: "http://127.0.0.1:11434/v1"
   llama_cpp_host: "127.0.0.1:8080"
   context_length: 16384
   randomize_seed: true
@@ -70,7 +70,7 @@ infrastructure:
   postgres_database: "story_writer"
   postgres_user: "story_user"
   postgres_password: "story_pass"
-  embedding_model: "ollama://nomic-embed-text"
+  embedding_model: "openai-compat://nomic-embed-text"
   vector_dimensions: 1536
   similarity_threshold: 0.7
   max_context_chunks: 20
@@ -158,7 +158,13 @@ The `infrastructure` section controls system behavior:
 - `output_dir`: Directory for output files
 - `savepoint_dir`: Directory for savepoint files
 - `logs_dir`: Directory for log files
-- `ollama_host`: Ollama server host and port
+- `model_api_base`: Base URL for the OpenAI-compatible model API
+
+Backward compatibility:
+
+- `ollama_host` is still accepted and normalized to `model_api_base`
+- `ollama://` model URIs are still accepted and map to the OpenAI-compatible provider
+- `?think=true` is stripped from model URIs; for reasoning models such as DeepSeek-R1 and Qwen3, thinking mode is now controlled server-side (for example via Ollama model defaults)
 
 #### RAG Configuration
 
@@ -177,24 +183,26 @@ The RAG (Retrieval-Augmented Generation) system configuration:
 
 ## 🔧 Model Format Reference
 
-### Ollama Models (Local)
+### OpenAI-Compatible Models (Local)
 ```yaml
 models:
-  initial_outline_writer: "ollama://llama3:70b"
-  chapter_stage1_writer: "ollama://llama3:70b@192.168.1.100:11434"
-  info_model: "ollama://llama3:70b?temperature=0.7"
+  initial_outline_writer: "openai-compat://llama3:70b"
+  chapter_stage1_writer: "openai-compat://llama3:70b@192.168.1.100:11434"
+  info_model: "openai-compat://llama3:70b?temperature=0.7"
 ```
+
+For reasoning models such as DeepSeek-R1 and Qwen3, do not rely on `?think=true` in the URI. The provider strips that parameter; configure thinking mode on the inference server instead.
 
 ### Embedding Models (RAG System)
 ```yaml
 infrastructure:
-  # Ollama embedding models
-  embedding_model: "ollama://nomic-embed-text"           # 1536 dimensions
-  embedding_model: "ollama://all-MiniLM-L6-v2"          # 384 dimensions
-  embedding_model: "ollama://text-embedding-3-small"    # 1536 dimensions
+  # OpenAI-compatible embedding models
+  embedding_model: "openai-compat://nomic-embed-text"           # 1536 dimensions
+  embedding_model: "openai-compat://all-MiniLM-L6-v2"          # 384 dimensions
+  embedding_model: "openai-compat://text-embedding-3-small"    # 1536 dimensions
   
   # With custom host
-  embedding_model: "ollama://nomic-embed-text@192.168.1.100:11434"
+  embedding_model: "openai-compat://nomic-embed-text@192.168.1.100:11434"
   
   # Vector dimensions must match the model
   vector_dimensions: 1536  # for nomic-embed-text
@@ -244,8 +252,8 @@ generation:
 ### Creative Writing
 ```yaml
 models:
-  initial_outline_writer: "ollama://llama3:70b?temperature=0.8"
-  chapter_stage1_writer: "ollama://llama3:70b?temperature=0.8"
+  initial_outline_writer: "openai-compat://llama3:70b?temperature=0.8"
+  chapter_stage1_writer: "openai-compat://llama3:70b?temperature=0.8"
 
 generation:
   seed: 42
@@ -271,17 +279,17 @@ translation:
 ```yaml
 infrastructure:
   # High-quality embeddings (slower, more accurate)
-  embedding_model: "ollama://nomic-embed-text"
+  embedding_model: "openai-compat://nomic-embed-text"
   vector_dimensions: 1536
   similarity_threshold: 0.8
   
   # Fast embeddings (faster, good quality)
-  embedding_model: "ollama://all-MiniLM-L6-v2"
+  embedding_model: "openai-compat://all-MiniLM-L6-v2"
   vector_dimensions: 384
   similarity_threshold: 0.7
   
   # Balanced approach
-  embedding_model: "ollama://text-embedding-3-small"
+  embedding_model: "openai-compat://text-embedding-3-small"
   vector_dimensions: 1536
   similarity_threshold: 0.75
 ```
@@ -364,10 +372,9 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 
 ### Common Issues
 
-1. **Model Not Found**: Ensure the model is available in your Ollama installation
+1. **Model Not Found**: Ensure the model is available via your configured OpenAI-compatible endpoint
    ```bash
-   ollama list
-   ollama pull llama3:70b
+  curl http://127.0.0.1:11434/v1/models
    ```
 
 2. **API Key Errors**: Check your `.env` file for correct API keys
@@ -378,7 +385,7 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 3. **Memory Issues**: Use smaller models or cloud providers
    ```yaml
    models:
-     initial_outline_writer: "ollama://llama3:8b"
+     initial_outline_writer: "openai-compat://llama3:8b"
    ```
 
 4. **Slow Generation**: Use faster configuration

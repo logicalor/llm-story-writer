@@ -39,11 +39,11 @@ Also update `.github/notes/repo.md` with the correct OWNER/REPO values parsed fr
 **Dependencies:** none
 
 **Description:**
-Create the OpenCode project scaffolding: `opencode.json` configuration file, `.opencode/` directory structure (`agents/`, `tools/`, `skills/`, `commands/`, `plugins/`), and a minimal AGENTS.md. The `opencode.json` should configure the local LLM provider (Ollama), set default model, and define baseline permissions. No agents or tools yet — just the skeleton.
+Create the OpenCode project scaffolding: `opencode.json` configuration file, `.opencode/` directory structure (`agents/`, `tools/`, `skills/`, `commands/`, `plugins/`), and a minimal AGENTS.md. The `opencode.json` should configure the local LLM provider via OpenCode's OpenAI-compatible adapter, set the default model, and define baseline permissions. No agents or tools yet — just the skeleton.
 
 **Acceptance Criteria:**
 
-- [x] `opencode.json` exists with Ollama provider configured, default model set to `huihui_ai/magistral-abliterated:24b`
+- [x] `opencode.json` exists with the OpenAI-compatible provider configured, default model set to `huihui_ai/magistral-abliterated:24b`
 - [x] `.opencode/agents/`, `.opencode/tools/`, `.opencode/skills/`, `.opencode/commands/`, `.opencode/plugins/` directories exist
 - [x] `AGENTS.md` exists with project-level instructions for all agents
 - [x] OpenCode can start and present the TUI with the configured model
@@ -177,7 +177,7 @@ Create the `savepoint-mgr` tool wrapping the existing `SavepointManager` and `Fi
 **Description:**
 Create the `character-mgr` tool wrapping existing `CharacterManager` logic. Operations: `extract-names` (extract character names from story elements), `generate-sheet` (generate a full character sheet for a named character), `update-sheet` (update after chapter events), `load-sheet` (load existing sheet), `list` (list all character sheets for a story), `generate-abridged` (create a context-efficient summary). The tool reads/writes character sheet files in `stories/<name>/characters/`.
 
-The Python implementation extracts the core logic from `CharacterManager` but replaces the `ModelProvider` dependency with direct Ollama HTTP calls (keeping it self-contained) or accepts pre-generated content from the agent.
+The Python implementation extracts the core logic from `CharacterManager` but replaces the `ModelProvider` dependency with direct OpenAI-compatible HTTP calls (keeping it self-contained) or accepts pre-generated content from the agent.
 
 **Acceptance Criteria:**
 
@@ -769,7 +769,7 @@ Create three skills:
 **Dependencies:** Task 5
 
 **Description:**
-Replace the PostgreSQL/pgvector RAG system with a ChromaDB-based local solution. Create a `rag-query` tool that queries a per-story ChromaDB collection. The collection is populated automatically as content is generated (outline, chapters, character sheets, setting sheets, and wiki pages are embedded when saved). Use the existing Ollama embedding model (nomic-embed-text) for embeddings. Wiki pages are embedded by the `wiki-update` tool (Task 15) using this same ChromaDB infrastructure.
+Replace the PostgreSQL/pgvector RAG system with a ChromaDB-based local solution. Create a `rag-query` tool that queries a per-story ChromaDB collection. The collection is populated automatically as content is generated (outline, chapters, character sheets, setting sheets, and wiki pages are embedded when saved). Use the existing OpenAI-compatible embedding endpoint with `nomic-embed-text` for embeddings. Wiki pages are embedded by the `wiki-update` tool (Task 15) using this same ChromaDB infrastructure.
 
 Remove dependencies: `psycopg2`, `pgvector`, `docker-compose.yml` (PostgreSQL), `init.sql`.
 
@@ -852,7 +852,7 @@ After successful E2E testing, clean up dependencies no longer needed:
 - Remove `dependency-injector` from requirements.txt
 - Remove LangChain dependencies (`langchain`, `langchain-core`, etc.)
 - Remove `psycopg2` / pgvector dependencies
-- Update README.md with new setup instructions (OpenCode installation, Ollama setup, wiki system overview)
+- Update README.md with new setup instructions (OpenCode installation, OpenAI-compatible inference server setup, wiki system overview)
 - Update config.md documentation section to reflect new architecture
 - Mark legacy code as archived in documentation
 
@@ -861,7 +861,7 @@ After successful E2E testing, clean up dependencies no longer needed:
 - [ ] `requirements.txt` contains only actively-used dependencies
 - [ ] `requirements-rag.txt` updated for ChromaDB-only RAG
 - [ ] README.md documents the OpenCode-based workflow including wiki memory system
-- [ ] README.md includes quickstart: install OpenCode, configure Ollama, run `/new-story`
+- [ ] README.md includes quickstart: install OpenCode, configure an OpenAI-compatible inference server, run `/new-story`
 - [ ] No import errors when running the new tool suite
 - [ ] Legacy `src/infrastructure/container.py` is only in `legacy/`
 

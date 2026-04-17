@@ -1,8 +1,9 @@
 """Model configuration value objects."""
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse, parse_qs
+
 from ..exceptions import ValidationError
 
 
@@ -14,6 +15,7 @@ class ModelConfig:
     provider: str
     host: Optional[str] = None
     parameters: Dict[str, Any] = field(default_factory=dict)
+    original_scheme: Optional[str] = None
 
     def __post_init__(self):
         """Validate the model configuration."""
@@ -25,6 +27,7 @@ class ModelConfig:
 
         # Validate provider
         valid_providers = {
+            "openai_compatible",
             "ollama",
             "lm_studio",
             "langchain",
@@ -39,30 +42,42 @@ class ModelConfig:
                 f"Invalid provider: {self.provider}. Must be one of {valid_providers}"
             )
 
+        if self.provider.lower() == "ollama":
+            object.__setattr__(self, "provider", "openai_compatible")
+            if self.original_scheme is None:
+                object.__setattr__(self, "original_scheme", "ollama")
+
     @classmethod
     def from_string(cls, model_string: str) -> "ModelConfig":
         """Create ModelConfig from a string representation.
 
         Format: provider://model@host?param1=value1&param2=value2
         Examples:
-            - "ollama://llama3:70b"
+            - "openai-compat://llama3:70b"
             - "google://gemini-1.5-pro"
-            - "ollama://llama3:70b@192.168.1.100:11434?temperature=0.7"
+            - "openai-compat://llama3:70b@192.168.1.100:11434?temperature=0.7"
         """
         if "://" not in model_string:
-            # Legacy support for model names without provider
-            return cls(name=model_string, provider="ollama")
+            return cls(name=model_string, provider="openai_compatible")
 
         try:
             parsed = urlparse(model_string)
-            provider = parsed.scheme.lower()
+            scheme = parsed.scheme.lower()
+            provider = scheme
+            original_scheme: Optional[str] = None
+
+            if scheme == "openai-compat":
+                provider = "openai_compatible"
+                original_scheme = "openai-compat"
+            elif scheme == "ollama":
+                provider = "openai_compatible"
+                original_scheme = "ollama"
 
             # Handle different provider formats
             if provider == "openrouter":
                 model = f"{parsed.netloc}{parsed.path}"
                 host = None
-            elif provider == "ollama":
-                # For Ollama, the model name includes the path
+            elif provider == "openai_compatible":
                 if "@" in parsed.netloc:
                     model_part, host = parsed.netloc.split("@", 1)
                     model = f"{model_part}{parsed.path}"
@@ -91,7 +106,13 @@ class ModelConfig:
                 else:
                     parameters[key] = values
 
-            return cls(name=model, provider=provider, host=host, parameters=parameters)
+            return cls(
+                name=model,
+                provider=provider,
+                host=host,
+                parameters=parameters,
+                original_scheme=original_scheme,
+            )
         except Exception as e:
             raise ValidationError(
                 f"Invalid model string format: {model_string}. Error: {e}"
@@ -99,7 +120,12 @@ class ModelConfig:
 
     def to_string(self) -> str:
         """Convert ModelConfig back to string representation."""
-        result = f"{self.provider}://{self.name}"
+        if self.provider == "openai_compatible":
+            scheme = "ollama" if self.original_scheme == "ollama" else "openai-compat"
+        else:
+            scheme = self.provider
+
+        result = f"{scheme}://{self.name}"
 
         if self.host:
             result += f"@{self.host}"
