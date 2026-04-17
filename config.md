@@ -204,15 +204,13 @@ infrastructure:
 ### Google Models (Cloud)
 ```yaml
 models:
-  initial_outline_writer: "google://gemini-1.5-pro"
-  info_model: "google://gemini-1.5-flash"
+  # google:// provider removed — requires implementation before use
 ```
 
 ### OpenRouter Models (Cloud)
 ```yaml
 models:
-  initial_outline_writer: "openrouter://anthropic/claude-3-opus"
-  info_model: "openrouter://openai/gpt-4"
+  # openrouter:// provider removed — requires implementation before use
 ```
 
 ## 📝 Configuration Examples

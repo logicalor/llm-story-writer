@@ -1,5 +1,10 @@
 # LangChain Provider
 
+> **⚠️ NOTICE — LangChain support has been removed.**  
+> The `LangChainProvider` class was removed in the legacy dependency cleanup (issue #26).  
+> `langchain://` URI schemes are no longer supported. Use `openai-compat://` instead.  
+> All content below is preserved for historical reference only.
+
 This document explains how to set up and use the LangChain provider in the AI Story Writer application. The LangChain provider acts as a unified interface to multiple AI model providers, making it easy to switch between different services.
 
 ## Overview
