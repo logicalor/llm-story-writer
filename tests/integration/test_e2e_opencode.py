@@ -121,6 +121,8 @@ def _savepoint_file(story_dir: Path, step: str) -> Path:
 
 
 def _generate_with_retry(prompt: str, max_attempts: int = 3) -> str:
+    if max_attempts < 1:
+        raise ValueError(f"max_attempts must be >= 1, got {max_attempts}")
     last_err: Exception = RuntimeError("unreachable")
     for attempt in range(max_attempts):
         try:

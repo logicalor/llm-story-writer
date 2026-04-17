@@ -76,3 +76,11 @@ def test_sleep_backoff_schedule() -> None:
             _generate_with_retry("prompt", max_attempts=3)
 
     assert mock_sleep.call_args_list == [call(1), call(4)]
+
+
+def test_invalid_max_attempts_raises_value_error() -> None:
+    with pytest.raises(ValueError, match="max_attempts must be >= 1"):
+        _generate_with_retry("prompt", max_attempts=0)
+
+    with pytest.raises(ValueError, match="max_attempts must be >= 1"):
+        _generate_with_retry("prompt", max_attempts=-1)
