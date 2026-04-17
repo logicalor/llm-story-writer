@@ -1,9 +1,13 @@
 ---
-status: moved
-archived_at: "archive/issue-13-documenter-github-access-2026-04-17.md"
+date: "2026-04-14"
+issue: 13
+pr: 49
+category: agent
+targets:
+  - ".github/agents/documenter.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-13-documenter-github-access-2026-04-17.md`.
 
 ## Documenter lacks GitHub API tools but workflow requires them
 
@@ -48,4 +52,4 @@ No write/modify tools are included (no `github/update_pull_request`, `github/cre
 
 ### Action Taken
 
-Proposed for approval — this adds new tools to an agent, changing its capabilities.
+Proposed for approval — this adds new tools to an agent, changing its capabilities. Collated 2026-04-17, pending user approval.

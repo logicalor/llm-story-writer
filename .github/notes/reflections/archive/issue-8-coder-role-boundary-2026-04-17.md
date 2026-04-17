@@ -1,9 +1,13 @@
 ---
-status: moved
-archived_at: "archive/issue-8-coder-role-boundary-2026-04-17.md"
+date: "2026-04-13"
+issue: 8
+pr: 33
+category: agent
+targets:
+  - ".github/agents/coder.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-8-coder-role-boundary-2026-04-17.md`.
 
 ## Coder writes 20 tests that should be Test Writer's responsibility
 
@@ -33,6 +37,8 @@ Add a new rule to the Coder agent (`.github/agents/coder.agent.md`):
 10. **Do not write verification tests.** If you identify test scenarios during implementation, note them in your handoff summary for the Test Writer. The Orchestrator will dispatch the Test Writer separately. You may create minimal throwaway test scripts for debugging during implementation, but delete them before handoff (per Rule 7).
 ```
 
+Note: issue #69 (testing-only dispatch) adds a carve-out — testing-only tasks where the entire deliverable is tests are appropriate for Coder dispatch. The rule should include: "unless explicitly dispatched for a testing-only task."
+
 ### Action Taken
 
-Proposed for approval — this adds a new numbered rule to the Coder agent.
+Proposed for approval — this adds a new numbered rule to the Coder agent. Collated 2026-04-17, pending user approval.

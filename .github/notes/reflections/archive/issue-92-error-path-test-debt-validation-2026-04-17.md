@@ -1,9 +1,13 @@
 ---
-status: moved
-archived_at: "archive/issue-92-error-path-test-debt-validation-2026-04-17.md"
+date: "2026-04-17"
+issue: 92
+pr: 93
+category: agent
+targets:
+  - ".github/agents/test-writer.agent.md"
+severity: minor
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-92-error-path-test-debt-validation-2026-04-17.md`.
 
 ## Error-path test-debt payback — validates pending issue-85 Test Writer proposal
 
@@ -33,4 +37,4 @@ No new agent changes needed. This note validates the pending issue-85 Test Write
 
 ### Action Taken
 
-No action taken — positive confirmation. Validates issue-85 pending proposals. No new improvements needed from this task.
+No action taken — positive confirmation. Validates issue-85 pending proposals. No new improvements needed from this task. Archived 2026-04-17.

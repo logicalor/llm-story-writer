@@ -1,9 +1,13 @@
 ---
-status: moved
-archived_at: "archive/issue-19-tool-schema-fabrication-2026-04-17.md"
+date: "2026-04-15"
+issue: 19
+pr: 63
+category: agent
+targets:
+  - ".github/agents/coder.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-19-tool-schema-fabrication-2026-04-17.md`.
 
 ## Coder fabricates tool parameter names instead of verifying against actual schema
 
@@ -30,11 +34,11 @@ The existing Rule 6 (text sweep after changes) doesn't cover this because no pri
 Add a new rule to the Coder agent (`.github/agents/coder.agent.md`), after the existing rules:
 
 ```markdown
-10. **When writing agent definitions or skill files that reference tools**, verify all tool parameter names, types, and descriptions against the actual tool schema files (`.opencode/tools/*.ts` for TypeScript wrappers, `src/tools/*.py` for Python scripts). Never invent parameter names from memory — always read the schema file. For tool tables in agent definitions, verify every tool mentioned in the workflow prose appears in the table with correct parameter documentation.
+10. **When writing agent definitions or skill files that reference tools**, verify all tool parameter names, types, and descriptions against the actual tool schema files (`.opencode/tools/*.ts` for TypeScript wrappers, `src/tools/*.py` for Python scripts). Never invent parameter names from memory — always read the schema file. For tool tables in agent definitions, verify every tool mentioned in the workflow prose appears in the table with correct parameter documentation. **For structured parameters** (JSON payloads, config objects, batch formats), verify the internal format and field names against the receiving tool's source code — the TypeScript wrapper only validates the outer parameter; the inner structure is defined by the Python implementation.
 ```
 
-This is a new numbered rule, complementary to the existing Rule 9 (security validation) and the proposed Rule 10 (prior-tool review from issue #6). If Rule 10 is applied first, this becomes Rule 11.
+Note: this rule was expanded in issue #22 to cover structured payload formats. Both should be applied together as a single combined rule.
 
 ### Action Taken
 
-Proposed for approval — adds a new numbered rule to the Coder agent.
+Proposed for approval — adds a new numbered rule to the Coder agent. See also issue-22-payload-format-fabrication for the expanded rule text. Collated 2026-04-17, pending user approval.

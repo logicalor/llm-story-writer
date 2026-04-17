@@ -1,9 +1,13 @@
 ---
-status: moved
-archived_at: "archive/issue-10-semantic-correctness-gap-2026-04-17.md"
+date: "2026-04-14"
+issue: 10
+pr: 45
+category: agent
+targets:
+  - ".github/agents/coder.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-10-semantic-correctness-gap-2026-04-17.md`.
 
 ## Coder implements syntactically correct but semantically broken operations
 
@@ -39,4 +43,4 @@ This is complementary to existing rules: Rule 9 ensures secure patterns, propose
 
 ### Action Taken
 
-Proposed for approval — this adds a new numbered rule to the Coder agent addressing a class of defect not covered by pattern-matching rules.
+Proposed for approval — this adds a new numbered rule to the Coder agent addressing a class of defect not covered by pattern-matching rules. Collated 2026-04-17, pending user approval.

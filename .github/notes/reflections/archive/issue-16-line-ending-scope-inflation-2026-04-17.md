@@ -1,9 +1,13 @@
 ---
-status: moved
-archived_at: "archive/issue-16-line-ending-scope-inflation-2026-04-17.md"
+date: "2026-04-14"
+issue: 16
+pr: 52
+category: agent
+targets:
+  - ".github/agents/orchestrator-v3.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-16-line-ending-scope-inflation-2026-04-17.md`.
 
 ## Orchestrator Step 5d lacks commit scope validation — line-ending contamination inflated PR
 
@@ -56,4 +60,4 @@ Additionally, add `.gitattributes` to the repository as a follow-up task (add to
 
 ### Action Taken
 
-Proposed for approval — this adds a new validation step to the Orchestrator's commit workflow (Step 5d), changing the agent's behaviour.
+Proposed for approval — this adds a new validation step to the Orchestrator's commit workflow (Step 5d), changing the agent's behaviour. Collated 2026-04-17, pending user approval.
