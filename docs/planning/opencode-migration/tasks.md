@@ -80,7 +80,7 @@ Move the 131 prompt templates from `src/application/strategies/outline_chapter/p
 - `prompts/` — top-level prompt directory
 - `prompts/chapters/`, `prompts/characters/`, etc. — template subdirectories
 - `src/infrastructure/prompts/prompt_loader.py` — default path updated to `prompts`
-- `src/infrastructure/container.py` — DI container path updated
+- `legacy/src/infrastructure/container.py` — archived reference for the former DI container path update
 - `src/application/strategies/strategy_factory.py` — factory fallback updated
 - `src/application/strategies/outline_chapter/strategy.py` — `get_prompt_directory()` returns `"prompts"`
 
@@ -856,14 +856,16 @@ After successful E2E testing, clean up dependencies no longer needed:
 - Update config.md documentation section to reflect new architecture
 - Mark legacy code as archived in documentation
 
+**Completed:** PR #98 (issue #26)
+
 **Acceptance Criteria:**
 
-- [ ] `requirements.txt` contains only actively-used dependencies
-- [ ] `requirements-rag.txt` updated for ChromaDB-only RAG
-- [ ] README.md documents the OpenCode-based workflow including wiki memory system
-- [ ] README.md includes quickstart: install OpenCode, configure an OpenAI-compatible inference server, run `/new-story`
-- [ ] No import errors when running the new tool suite
-- [ ] Legacy `src/infrastructure/container.py` is only in `legacy/`
+- [x] `requirements.txt` contains only actively-used dependencies
+- [x] `requirements-rag.txt` updated for ChromaDB-only RAG
+- [x] README.md documents the OpenCode-based workflow including wiki memory system
+- [x] README.md includes quickstart: install OpenCode, configure an OpenAI-compatible inference server, run `/new-story`
+- [x] No import errors when running the new tool suite
+- [x] Legacy `src/infrastructure/container.py` is only in `legacy/`
 
 **Key Files:**
 
@@ -871,6 +873,8 @@ After successful E2E testing, clean up dependencies no longer needed:
 - `requirements-rag.txt` — RAG dependency update
 - `README.md` — documentation update
 - `config.md` — documentation update
+
+**Current state:** Active runtime removes the DI container, LangChain provider, and `RAGService` from `src/`. Archived copies remain under `legacy/src/` for migration reference only.
 
 ---
 
