@@ -502,7 +502,7 @@ Dispatch order:
 2. **Reviewer (GPT)** → writes to `...-gpt-raw.md`
 3. **Reviewer (Gemini)** → writes to `...-gemini-raw.md`
 
-After all three complete, verify the report files exist on disk before proceeding.
+After all three complete, verify the report files exist on disk before proceeding. Use exact file paths (`ls path/to/file` or `test -f path/to/file && echo "exists"`) rather than glob patterns — glob expansion in the terminal tool can return no results even when files are present.
 
 #### Phase C — Dispatch Synthesizing Reviewer
 

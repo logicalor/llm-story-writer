@@ -116,3 +116,33 @@ class TestWikiReadErrorPaths:
 
         data = _assert_success(result, "wiki-read read empty wiki")
         assert data == {"status": "ok", "pages": []}
+
+
+class TestWikiReadCLIValidation:
+    def test_match_entities_missing_text(self, tmp_path: Path) -> None:
+        stories_dir = tmp_path / "stories"
+        chromadb_dir = tmp_path / "chromadb"
+        (stories_dir / "test-story").mkdir(parents=True)
+
+        result = _run_tool(
+            WIKI_READ_SCRIPT,
+            ["--operation", "match-entities", "--name", "test-story"],
+            _make_env(stories_dir, chromadb_dir),
+        )
+
+        assert result.returncode != 0
+        assert "--text" in result.stderr or "required" in result.stderr
+
+    def test_invalid_operation(self, tmp_path: Path) -> None:
+        stories_dir = tmp_path / "stories"
+        chromadb_dir = tmp_path / "chromadb"
+        (stories_dir / "test-story").mkdir(parents=True)
+
+        result = _run_tool(
+            WIKI_READ_SCRIPT,
+            ["--operation", "invalid-value", "--name", "test-story"],
+            _make_env(stories_dir, chromadb_dir),
+        )
+
+        assert result.returncode == 2
+        assert "invalid choice" in result.stderr or "invalid-value" in result.stderr

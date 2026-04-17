@@ -51,6 +51,8 @@ Follow the test conventions and patterns established in the project (see `copilo
 
 **Collection assertions:** When asserting on lists, sets, or decoded JSON arrays returned by a tool or API, verify specific expected values — not just count or existence. `len(results) >= 1` only confirms something was returned; it does not confirm correctness. Use subset membership (`assert expected_set <= actual_set`), intersection (`assert expected_set & actual_set`), or item-level checks (`assert any(item["name"] == "expected" for item in results)`) to confirm the returned data is meaningful and correct.
 
+**CLI validation assertions (argparse tools):** When testing CLI tools that use `argparse`, validation-error tests must assert both `returncode == 2` (argparse's standard exit code for argument parsing failures) and that `stderr` contains a meaningful error fragment such as `"invalid choice"` or `"required"`. Checking only `returncode != 0` is insufficient — it does not distinguish argparse validation errors from runtime exceptions or other error types.
+
 After writing each test, run the project's test command (see `copilot-instructions.md`).
 
 ### 3. Classify Results
