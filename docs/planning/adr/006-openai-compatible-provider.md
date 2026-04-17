@@ -12,6 +12,7 @@ Remove the `ollama` Python SDK. Replace `OllamaProvider` with `OpenAICompatibleP
 - `ollama` package removed from `requirements.txt`  
 - `model_api_base` replaces `ollama_host` (old key still accepted as alias)  
 - `ollama://` URI scheme still accepted; internally routes to `OpenAICompatibleProvider`  
+- Active configuration support is limited to `openai_compatible`, `ollama`, `lm_studio`, and `llama_cpp`; cloud-specific schemes that depended on the archived LangChain provider were removed later in issue 99  
 - Model download via API is no longer supported (use native server tools)  
 - Ollama-specific options (`think`, `keep_alive`, `num_ctx`) are dropped
 - Reasoning models (DeepSeek-R1, Qwen3) that previously required `?think=true` URI parameter now have that option stripped by the provider; thinking mode is controlled server-side (for example via Ollama model defaults)
