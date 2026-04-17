@@ -939,3 +939,5 @@ class TestE2EFullPipeline:
         assert data["status"] == "ok"
         assert isinstance(data["matches"], list)
         assert len(data["matches"]) >= 1
+        matched_names = {m["name"] for m in data["matches"]}
+        assert matched_names & {"Alex", "ARIA", "Neo-Tokyo"}
