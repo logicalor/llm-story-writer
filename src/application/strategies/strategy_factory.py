@@ -1,6 +1,6 @@
 """Strategy factory for managing story writing strategies."""
 
-from typing import Dict, Type, Optional, Any
+from typing import Any, Dict, Optional, Type
 from domain.exceptions import ConfigurationError
 from domain.repositories.savepoint_repository import SavepointRepository
 from ..interfaces.story_strategy import StoryStrategy
@@ -71,7 +71,6 @@ class StrategyFactory:
         model_provider: ModelProvider,
         config: Dict[str, Any],
         savepoint_repo: Optional[SavepointRepository] = None,
-        rag_service: Optional[Any] = None,
     ) -> StoryStrategy:
         """Create a strategy instance with its own prompt loader."""
         if strategy_name not in self._strategies:
@@ -98,7 +97,6 @@ class StrategyFactory:
                 config,
                 strategy_prompt_loader,
                 savepoint_repo,
-                rag_service,
             )
         elif strategy_name == "stream-of-consciousness":
             return strategy_class(model_provider, config)

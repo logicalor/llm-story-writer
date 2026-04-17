@@ -1,7 +1,7 @@
 """Scene generation functionality for the outline-chapter strategy."""
 
 import json
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from domain.entities.story import Scene
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
@@ -29,14 +29,12 @@ class SceneGenerator:
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None,
-        rag_service: Optional[Any] = None,
     ):
         self.model_provider = model_provider
         self.config = config
         self.prompt_handler = prompt_handler
         self.system_message = system_message
         self.savepoint_manager = savepoint_manager
-        self.rag_service = rag_service
 
         # Initialize managers
         self.character_manager = CharacterManager(
@@ -45,7 +43,6 @@ class SceneGenerator:
             prompt_handler=prompt_handler,
             system_message=system_message,
             savepoint_manager=savepoint_manager,
-            rag_service=rag_service,
         )
 
         self.setting_manager = SettingManager(
@@ -54,7 +51,6 @@ class SceneGenerator:
             prompt_handler=prompt_handler,
             system_message=system_message,
             savepoint_manager=savepoint_manager,
-            rag_service=rag_service,
         )
 
     def update_savepoint_manager(self, savepoint_manager: SavepointManager):
