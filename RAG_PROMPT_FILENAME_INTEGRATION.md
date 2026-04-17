@@ -233,7 +233,6 @@ strategy = OutlineChapterStrategy(
     config=config,
     prompt_loader=prompt_loader,
     savepoint_repo=savepoint_repo,
-    rag_service=rag_service  # RAG service injected
 )
 
 # Generate outline - RAG story automatically initialized

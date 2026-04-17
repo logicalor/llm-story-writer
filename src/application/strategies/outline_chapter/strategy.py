@@ -84,7 +84,7 @@ You have deep knowledge of storytelling techniques, character development, plot 
     async def _setup_savepoints(self, prompt_filename: str) -> None:
         """Setup savepoint manager for the current story."""
         if self.savepoint_repo:
-            # Store the prompt filename for RAG context
+            # Store the prompt filename for savepoint management
             self._prompt_filename = prompt_filename
 
             self.savepoint_manager = SavepointManager(
