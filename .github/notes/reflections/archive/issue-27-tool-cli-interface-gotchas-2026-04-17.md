@@ -6,7 +6,7 @@ category: instruction
 targets:
   - ".github/notes/gotchas.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Tool CLI interface gotchas — four mandatory-field and no-save surprises

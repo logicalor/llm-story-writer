@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/orchestrator-v3.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Review package must be assembled from `read_file`, never from memory

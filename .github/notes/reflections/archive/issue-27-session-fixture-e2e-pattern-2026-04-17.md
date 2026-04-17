@@ -6,7 +6,7 @@ category: instruction
 targets:
   - ".github/notes/patterns.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Session-scoped fixture + LLM subprocess pattern for long-running E2E tests
