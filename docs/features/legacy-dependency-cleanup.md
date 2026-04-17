@@ -8,6 +8,8 @@ Issue 26 and PR 98 complete the final cleanup step of the OpenCode migration. Th
 
 The cleanup removes three important pieces from the active `src/` tree: the dependency-injector container, the LangChain provider, and the application-level `RAGService`. Those implementations remain only under `legacy/src/` as an archive for historical comparison during migration work.
 
+Issue 100 and PR 102 finish a smaller follow-on cleanup from the same migration work. After the application-level `RAGService` was removed, one unused `rag_service` propagation path still remained in active strategy construction. That dead wiring has now been removed, so active runtime code no longer carries a placeholder RAG dependency through outline strategy setup.
+
 Issue 99 narrows provider validation to the providers that still have active runtime implementations. `ModelConfig` now accepts only `openai_compatible`, `ollama`, `lm_studio`, and `llama_cpp`. The `ollama` key remains an alias that normalises to the shared OpenAI-compatible provider path.
 
 ## Active Runtime Stack
@@ -44,6 +46,7 @@ Use these guardrails:
 - Keep provider integrations compatible with OpenAI-style `/v1` APIs unless there is a demonstrated need for a vendor-specific path
 - Do not reintroduce provider keys that route only through archived integrations; `google`, `openrouter`, `openai`, and `anthropic` are intentionally unsupported in the active runtime
 - Add retrieval behaviour through `rag-query` and related tools, not through a resurrected shared RAG service layer
+- Do not thread unused placeholder dependencies through constructors or factories after a service has been retired from the active runtime
 - Wire runtime objects explicitly inside tools or entry points; do not reintroduce a global DI container
 
 ### Verification Expectations
@@ -53,6 +56,8 @@ Task 26 validation on PR 98 confirmed:
 - active `src/` no longer contains `container.py`, `langchain_provider.py`, or `rag_service.py`
 - the feature branch test run completed with `308 passed, 14 skipped, 0 failed`
 - root documentation now describes the OpenCode-first workflow and archived legacy code accurately
+
+Follow-on validation on PR 102 confirmed that active runtime setup no longer accepts or forwards an unused `rag_service` dependency.
 
 ## Related
 
