@@ -53,6 +53,8 @@ Follow the test conventions and patterns established in the project (see `copilo
 
 **CLI validation assertions (argparse tools):** When testing CLI tools that use `argparse`, validation-error tests must assert both `returncode == 2` (argparse's standard exit code for argument parsing failures) and that `stderr` contains a meaningful error fragment such as `"invalid choice"` or `"required"`. Checking only `returncode != 0` is insufficient — it does not distinguish argparse validation errors from runtime exceptions or other error types.
 
+**Independent expected values:** When asserting against known list, set, or constant values, define those values directly in the test rather than importing them from production code. This pins the expected value independently — if a production constant changes silently, the test fails, which is the correct behaviour. Importing the production constant would make the test pass trivially on any change, defeating its purpose. Add a comment such as `# Independent expected value — intentional test design` to clarify this is not accidental duplication.
+
 After writing each test, run the project's test command (see `copilot-instructions.md`).
 
 ### 3. Classify Results

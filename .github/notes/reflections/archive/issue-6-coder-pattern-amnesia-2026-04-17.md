@@ -1,9 +1,13 @@
 ---
-status: moved
-archived_at: "archive/issue-6-coder-pattern-amnesia-2026-04-17.md"
+date: "2026-04-13"
+issue: 6
+pr: 35
+category: agent
+targets:
+  - ".github/agents/coder.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-6-coder-pattern-amnesia-2026-04-17.md`.
 
 ## Coder does not carry forward established patterns to new tool implementations
 
@@ -39,4 +43,4 @@ This is complementary to the `conventions` collection proposal (issue #7 reflect
 
 ### Action Taken
 
-Proposed for approval — this adds a new numbered rule to the Coder agent.
+Proposed for approval — this adds a new numbered rule to the Coder agent. Collated 2026-04-17, pending user approval.

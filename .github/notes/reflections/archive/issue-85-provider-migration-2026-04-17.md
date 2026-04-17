@@ -1,9 +1,14 @@
 ---
-status: moved
-archived_at: "archive/issue-85-provider-migration-2026-04-17.md"
+date: "2026-04-17"
+issue: 85
+pr: 86
+category: agent
+targets:
+  - ".github/agents/coder.agent.md"
+  - ".github/agents/test-writer.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-85-provider-migration-2026-04-17.md`.
 
 ## Silent exception swallowing in persistent-store write paths — Coder missed critical correctness bug
 
@@ -43,6 +48,6 @@ Add a directive to the Test Writer agent specifying that any provider or infrast
 
 ### Action Taken
 
-**Both improvements proposed for approval** — both add new directives to agent files (Coder and Test Writer), which qualifies as major under the severity classification rules.
+Both improvements proposed for approval — both add new directives to agent files (Coder and Test Writer), which qualifies as major under the severity classification rules. Collated 2026-04-17, pending user approval.
 
 Technical debt items (FINDING-007, FINDING-008) are not agent system changes — they require follow-up GitHub issues for code refactoring and are out of scope for this reflection note.

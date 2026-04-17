@@ -1,9 +1,13 @@
 ---
-status: moved
-archived_at: "archive/issue-22-dual-naming-convention-2026-04-17.md"
+date: "2026-04-15"
+issue: 22
+pr: 65
+category: instruction
+targets:
+  - ".github/agents/coder.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-22-dual-naming-convention-2026-04-17.md`.
 
 ## CamelCase/snake_case dual naming convention across TypeScript/Python boundary
 
@@ -34,8 +38,8 @@ Add a note to the Coder agent's "Conventions & Gotchas" section as an interim me
 > **Naming convention at TypeScript/Python boundary:** Tool parameter names in agent definitions and tool tables use camelCase (matching TypeScript Zod schema). Structured JSON payloads passed *through* a string parameter and parsed by Python use snake_case (matching Python conventions). When writing SKILL.md payload examples, verify field naming against the Python tool's parser, not the TypeScript wrapper's Zod schema.
 ```
 
-When `gotchas.md` is created (issue #7, status: active/major), this should also be recorded there as a permanent gotcha entry.
+When `gotchas.md` is created (issue #7, status: archived/pending approval), this should also be recorded there as a permanent gotcha entry.
 
 ### Action Taken
 
-Proposed for approval — documents a systemic naming convention footgun requiring an interim Coder agent note and a future gotchas.md entry.
+Proposed for approval — documents a systemic naming convention footgun requiring an interim Coder agent note and a future gotchas.md entry. Collated 2026-04-17, pending user approval.

@@ -35,7 +35,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STORY_NAME = "e2e-test-story"
 NUM_CHAPTERS = 3
 SCENES_PER_CHAPTER = 2
-MAX_CONTEXT_TOKENS = 65536
+# Model context window is expected to be ~65536 tokens; inputs are naturally
+# capped by the LLM service, so no explicit truncation is enforced here.
 WIKI_SNAPSHOT_TOKEN_LIMIT = 15000
 ANALYSIS_CHUNK_TYPES = (
     "core_story_foundation",
@@ -752,8 +753,9 @@ class TestE2EFullPipeline:
         assert _savepoint_file(story_dir, "initial_outline").exists()
 
         analysis_dir = story_dir / "savepoints" / "story_analysis"
-        chunk_files = sorted(analysis_dir.glob("*_chunk.md"))
-        assert len(chunk_files) >= 4
+        for chunk_type in ANALYSIS_CHUNK_TYPES:
+            expected_chunk = analysis_dir / f"{chunk_type}_chunk.md"
+            assert expected_chunk.exists(), f"missing analysis chunk: {chunk_type}"
 
     def test_character_sheets_exist(self, pipeline_result: dict[str, Any]) -> None:
         characters_dir = pipeline_result["story_dir"] / "characters"

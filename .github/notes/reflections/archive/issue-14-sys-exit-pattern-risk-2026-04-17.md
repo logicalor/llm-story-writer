@@ -1,9 +1,13 @@
 ---
-status: moved
-archived_at: "archive/issue-14-sys-exit-pattern-risk-2026-04-17.md"
+date: "2026-04-14"
+issue: 14
+pr: 56
+category: agent
+targets:
+  - ".github/agents/coder.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-14-sys-exit-pattern-risk-2026-04-17.md`.
 
 ## sys.exit() in shared utilities bypasses except Exception handlers — systemic risk
 
@@ -35,4 +39,4 @@ This adds a fifth sub-bullet to Rule 9, covering exception hygiene in shared cod
 
 ### Action Taken
 
-Proposed for approval — adds a new sub-bullet to Coder Rule 9, extending the rule's scope beyond security to include exception hierarchy correctness.
+Proposed for approval — adds a new sub-bullet to Coder Rule 9, extending the rule's scope beyond security to include exception hierarchy correctness. Collated 2026-04-17, pending user approval.

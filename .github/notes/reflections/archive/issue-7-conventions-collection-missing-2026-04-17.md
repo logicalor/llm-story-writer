@@ -1,9 +1,14 @@
 ---
-status: moved
-archived_at: "archive/issue-7-conventions-collection-missing-2026-04-17.md"
+date: "2026-04-13"
+issue: 7
+pr: 34
+category: instruction
+targets:
+  - ".github/instructions/chromadb.instructions.md"
+  - ".github/agents/coder.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-7-conventions-collection-missing-2026-04-17.md`.
 
 ## ChromaDB `conventions` collection referenced but does not exist
 
@@ -32,4 +37,4 @@ Option 1 is preferred — there's enough accumulated knowledge from 7 issues of 
 
 ### Action Taken
 
-Proposed for approval — this creates new knowledge base files and a new ChromaDB collection.
+Proposed for approval — this creates new knowledge base files and a new ChromaDB collection. Collated 2026-04-17, pending user approval.

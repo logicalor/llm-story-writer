@@ -1,9 +1,13 @@
 ---
-status: moved
-archived_at: "archive/issue-11-reflection-file-leakage-2026-04-17.md"
+date: "2026-04-13"
+issue: 11
+pr: 36
+category: agent
+targets:
+  - ".github/agents/orchestrator-v3.agent.md"
+severity: major
+status: archived
 ---
-
-> This note has been archived. See `archive/issue-11-reflection-file-leakage-2026-04-17.md`.
 
 ## Reflection files from prior issues leak into subsequent PRs
 
@@ -29,4 +33,4 @@ Add a check to the Orchestrator's Step 5d (Working Tree Audit), after the existi
 
 ### Action Taken
 
-Proposed for approval — modifies Orchestrator Step 5d workflow.
+Proposed for approval — modifies Orchestrator Step 5d workflow. Collated 2026-04-17, pending user approval.
