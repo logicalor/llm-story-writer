@@ -17,6 +17,7 @@ Review each changed source file systematically:
 - [ ] No overly complex functions — decompose if needed
 - [ ] No code duplication — extract shared logic where appropriate
 - [ ] Import ordering and placement follows project conventions — imports at module level, not inside functions or loops
+- [ ] **API signature changes** — if a function, method, or constructor signature changed (parameter added/removed/renamed), grep the workspace for callers: `grep -rn 'ClassName\|function_name' . --include='*.py' --include='*.ts'`; include root-level scripts (`test_*.py`, `demo_*.py`, `migrate_*.py`) — these call `src/` APIs directly and are not in the diff because they were not updated (broken callers never appear in the changed-file list)
 
 #### Architecture
 
