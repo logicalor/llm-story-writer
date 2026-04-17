@@ -201,7 +201,9 @@ async def example_usage():
     strategy.set_story_directory("my_fantasy_novel")
 
     # Create generation settings
-    settings = GenerationSettings(model="openai-compat://llama3:70b", temperature=0.7, seed=42)
+    settings = GenerationSettings(
+        model="openai-compat://llama3:70b", temperature=0.7, seed=42
+    )
 
     # Example story prompt
     prompt = """

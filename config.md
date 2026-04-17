@@ -66,10 +66,6 @@ infrastructure:
   randomize_seed: true
   
   # RAG Configuration
-  postgres_host: "localhost:5432"
-  postgres_database: "story_writer"
-  postgres_user: "story_user"
-  postgres_password: "story_pass"
   embedding_model: "openai-compat://nomic-embed-text"
   vector_dimensions: 1536
   similarity_threshold: 0.7
@@ -91,10 +87,10 @@ This document contains all configuration options for the AI Story Writer applica
 
 ### Basic Usage
 ```bash
-python src/main.py Prompts/YourPrompt.txt
+opencode
 ```
 
-The application will use all the configuration options defined in the frontmatter above.
+Then run `/new-story prompts/YourPrompt.txt` inside OpenCode. The application will use all the configuration options defined in the frontmatter above.
 
 ## 🎯 Configuration Options
 
@@ -168,12 +164,8 @@ Backward compatibility:
 
 #### RAG Configuration
 
-The RAG (Retrieval-Augmented Generation) system configuration:
+The RAG (Retrieval-Augmented Generation) system uses ChromaDB-backed wiki retrieval:
 
-- `postgres_host`: PostgreSQL server host and port
-- `postgres_database`: Database name for story data
-- `postgres_user`: Database username
-- `postgres_password`: Database password
 - `embedding_model`: Model for generating text embeddings (see format below)
 - `vector_dimensions`: Dimension of the embedding vectors (varies by model)
 - `similarity_threshold`: Minimum similarity score for relevant content retrieval
@@ -193,7 +185,7 @@ models:
 
 For reasoning models such as DeepSeek-R1 and Qwen3, do not rely on `?think=true` in the URI. The provider strips that parameter; configure thinking mode on the inference server instead.
 
-### Embedding Models (RAG System)
+### Embedding Models (ChromaDB RAG)
 ```yaml
 infrastructure:
   # OpenAI-compatible embedding models
@@ -275,7 +267,7 @@ translation:
   translate_language: "French"
 ```
 
-### RAG System Configuration
+### ChromaDB RAG Configuration
 ```yaml
 infrastructure:
   # High-quality embeddings (slower, more accurate)
@@ -296,11 +288,11 @@ infrastructure:
 
 ### Changing Embedding Models
 
-**⚠️ Important**: If you change the embedding model after indexing content, you'll need to migrate your data.
+**⚠️ Important**: If you change the embedding model after indexing wiki content, you'll need to rebuild or migrate embeddings.
 
 **Before indexing content** (recommended):
 1. Set your desired `embedding_model` in config.md
-2. Run `./setup_rag.sh` to set up with the new model
+2. Run `./setup_rag.sh` to set up ChromaDB with the new model
 
 **After indexing content** (requires migration):
 1. Update `embedding_model` in config.md

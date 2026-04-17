@@ -17,7 +17,6 @@ from infrastructure.savepoints import SavepointManager
 from .outline_generator import OutlineGenerator
 from .chapter_generator import ChapterGenerator
 from .story_state_manager import StoryStateManager
-from application.services.rag_service import RAGService
 from application.services.rag_integration_service import RAGIntegrationService
 
 
@@ -30,7 +29,7 @@ class OutlineChapterStrategy(StoryStrategy):
         config: Dict[str, Any],
         prompt_loader: PromptLoader,
         savepoint_repo: Optional[SavepointRepository] = None,
-        rag_service: Optional["RAGService"] = None,
+        rag_service: Optional[Any] = None,
     ):
         super().__init__(model_provider)
         self.config = config

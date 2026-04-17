@@ -44,11 +44,16 @@ def chromadb_dir(tmp_path: Path) -> Path:
 class TestIndex:
     def test_index_creates_collection(self, chromadb_dir: Path) -> None:
         result = _run_tool(
-            "--operation", "index",
-            "--name", "my-story",
-            "--doc-id", "outline",
-            "--content", "A tale of two cities in a war-torn land.",
-            "--content-type", "outline",
+            "--operation",
+            "index",
+            "--name",
+            "my-story",
+            "--doc-id",
+            "outline",
+            "--content",
+            "A tale of two cities in a war-torn land.",
+            "--content-type",
+            "outline",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode == 0, result.stderr
@@ -60,12 +65,18 @@ class TestIndex:
 
     def test_index_chapter_with_chapter_num(self, chromadb_dir: Path) -> None:
         result = _run_tool(
-            "--operation", "index",
-            "--name", "my-story",
-            "--doc-id", "chapter-1",
-            "--content", "Chapter one content about the hero's journey.",
-            "--content-type", "chapter",
-            "--chapter-num", "1",
+            "--operation",
+            "index",
+            "--name",
+            "my-story",
+            "--doc-id",
+            "chapter-1",
+            "--content",
+            "Chapter one content about the hero's journey.",
+            "--content-type",
+            "chapter",
+            "--chapter-num",
+            "1",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode == 0, result.stderr
@@ -77,11 +88,16 @@ class TestIndex:
         """Second index with same doc-id should succeed (upsert semantic)."""
         for content in ["First version of outline.", "Updated outline content."]:
             result = _run_tool(
-                "--operation", "index",
-                "--name", "my-story",
-                "--doc-id", "outline",
-                "--content", content,
-                "--content-type", "outline",
+                "--operation",
+                "index",
+                "--name",
+                "my-story",
+                "--doc-id",
+                "outline",
+                "--content",
+                content,
+                "--content-type",
+                "outline",
                 chromadb_dir=chromadb_dir,
             )
             assert result.returncode == 0, result.stderr
@@ -89,10 +105,14 @@ class TestIndex:
     def test_index_default_content_type(self, chromadb_dir: Path) -> None:
         """Default content type should be 'outline'."""
         result = _run_tool(
-            "--operation", "index",
-            "--name", "my-story",
-            "--doc-id", "outline",
-            "--content", "Some outline text.",
+            "--operation",
+            "index",
+            "--name",
+            "my-story",
+            "--doc-id",
+            "outline",
+            "--content",
+            "Some outline text.",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode == 0, result.stderr
@@ -101,29 +121,40 @@ class TestIndex:
 
     def test_index_missing_doc_id_errors(self, chromadb_dir: Path) -> None:
         result = _run_tool(
-            "--operation", "index",
-            "--name", "my-story",
-            "--content", "Some content",
+            "--operation",
+            "index",
+            "--name",
+            "my-story",
+            "--content",
+            "Some content",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode != 0
 
     def test_index_missing_content_errors(self, chromadb_dir: Path) -> None:
         result = _run_tool(
-            "--operation", "index",
-            "--name", "my-story",
-            "--doc-id", "outline",
+            "--operation",
+            "index",
+            "--name",
+            "my-story",
+            "--doc-id",
+            "outline",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode != 0
 
     def test_index_invalid_content_type_errors(self, chromadb_dir: Path) -> None:
         result = _run_tool(
-            "--operation", "index",
-            "--name", "my-story",
-            "--doc-id", "outline",
-            "--content", "Some content",
-            "--content-type", "invalid-type",
+            "--operation",
+            "index",
+            "--name",
+            "my-story",
+            "--doc-id",
+            "outline",
+            "--content",
+            "Some content",
+            "--content-type",
+            "invalid-type",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode != 0
@@ -134,9 +165,12 @@ class TestQuery:
         self, chromadb_dir: Path
     ) -> None:
         result = _run_tool(
-            "--operation", "query",
-            "--name", "my-story",
-            "--query", "hero journey",
+            "--operation",
+            "query",
+            "--name",
+            "my-story",
+            "--query",
+            "hero journey",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode == 0, result.stderr
@@ -147,18 +181,26 @@ class TestQuery:
     def test_query_returns_indexed_content(self, chromadb_dir: Path) -> None:
         # Index content first
         _run_tool(
-            "--operation", "index",
-            "--name", "my-story",
-            "--doc-id", "character-elena",
-            "--content", "Elena is a fierce warrior from the northern mountains.",
-            "--content-type", "character",
+            "--operation",
+            "index",
+            "--name",
+            "my-story",
+            "--doc-id",
+            "character-elena",
+            "--content",
+            "Elena is a fierce warrior from the northern mountains.",
+            "--content-type",
+            "character",
             chromadb_dir=chromadb_dir,
         )
 
         result = _run_tool(
-            "--operation", "query",
-            "--name", "my-story",
-            "--query", "warrior character",
+            "--operation",
+            "query",
+            "--name",
+            "my-story",
+            "--query",
+            "warrior character",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode == 0, result.stderr
@@ -168,22 +210,28 @@ class TestQuery:
         result_ids = [r["doc_id"] for r in data["results"]]
         assert "character-elena" in result_ids
 
-    def test_query_result_includes_score_and_excerpt(
-        self, chromadb_dir: Path
-    ) -> None:
+    def test_query_result_includes_score_and_excerpt(self, chromadb_dir: Path) -> None:
         _run_tool(
-            "--operation", "index",
-            "--name", "my-story",
-            "--doc-id", "outline",
-            "--content", "A hero must save the kingdom from darkness.",
-            "--content-type", "outline",
+            "--operation",
+            "index",
+            "--name",
+            "my-story",
+            "--doc-id",
+            "outline",
+            "--content",
+            "A hero must save the kingdom from darkness.",
+            "--content-type",
+            "outline",
             chromadb_dir=chromadb_dir,
         )
 
         result = _run_tool(
-            "--operation", "query",
-            "--name", "my-story",
-            "--query", "hero save kingdom",
+            "--operation",
+            "query",
+            "--name",
+            "my-story",
+            "--query",
+            "hero save kingdom",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode == 0, result.stderr
@@ -205,19 +253,28 @@ class TestQuery:
             ("character-bob", "character", "Bob is a brave knight."),
         ]:
             _run_tool(
-                "--operation", "index",
-                "--name", "my-story",
-                "--doc-id", doc_id,
-                "--content", content,
-                "--content-type", ctype,
+                "--operation",
+                "index",
+                "--name",
+                "my-story",
+                "--doc-id",
+                doc_id,
+                "--content",
+                content,
+                "--content-type",
+                ctype,
                 chromadb_dir=chromadb_dir,
             )
 
         result = _run_tool(
-            "--operation", "query",
-            "--name", "my-story",
-            "--query", "brave hero story",
-            "--content-type", "character",
+            "--operation",
+            "query",
+            "--name",
+            "my-story",
+            "--query",
+            "brave hero story",
+            "--content-type",
+            "character",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode == 0, result.stderr
@@ -228,18 +285,26 @@ class TestQuery:
     def test_query_per_story_isolation(self, chromadb_dir: Path) -> None:
         """Each story has its own collection — queries do not cross stories."""
         _run_tool(
-            "--operation", "index",
-            "--name", "story-a",
-            "--doc-id", "outline",
-            "--content", "Dragon attacks the village near the river.",
-            "--content-type", "outline",
+            "--operation",
+            "index",
+            "--name",
+            "story-a",
+            "--doc-id",
+            "outline",
+            "--content",
+            "Dragon attacks the village near the river.",
+            "--content-type",
+            "outline",
             chromadb_dir=chromadb_dir,
         )
 
         result = _run_tool(
-            "--operation", "query",
-            "--name", "story-b",
-            "--query", "dragon attack",
+            "--operation",
+            "query",
+            "--name",
+            "story-b",
+            "--query",
+            "dragon attack",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode == 0, result.stderr
@@ -248,8 +313,10 @@ class TestQuery:
 
     def test_query_missing_query_text_errors(self, chromadb_dir: Path) -> None:
         result = _run_tool(
-            "--operation", "query",
-            "--name", "my-story",
+            "--operation",
+            "query",
+            "--name",
+            "my-story",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode != 0
@@ -258,19 +325,28 @@ class TestQuery:
         # Index several chunks
         for i in range(5):
             _run_tool(
-                "--operation", "index",
-                "--name", "my-story",
-                "--doc-id", f"chunk-{i}",
-                "--content", f"Chunk number {i} containing story content about adventures.",
-                "--content-type", "chapter",
+                "--operation",
+                "index",
+                "--name",
+                "my-story",
+                "--doc-id",
+                f"chunk-{i}",
+                "--content",
+                f"Chunk number {i} containing story content about adventures.",
+                "--content-type",
+                "chapter",
                 chromadb_dir=chromadb_dir,
             )
 
         result = _run_tool(
-            "--operation", "query",
-            "--name", "my-story",
-            "--query", "adventure story",
-            "--n-results", "3",
+            "--operation",
+            "query",
+            "--name",
+            "my-story",
+            "--query",
+            "adventure story",
+            "--n-results",
+            "3",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode == 0, result.stderr
@@ -281,17 +357,22 @@ class TestQuery:
 class TestValidation:
     def test_path_traversal_blocked(self, chromadb_dir: Path) -> None:
         result = _run_tool(
-            "--operation", "query",
-            "--name", "../escape",
-            "--query", "test",
+            "--operation",
+            "query",
+            "--name",
+            "../escape",
+            "--query",
+            "test",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode != 0
 
     def test_unknown_operation_errors(self, chromadb_dir: Path) -> None:
         result = _run_tool(
-            "--operation", "invalid",
-            "--name", "my-story",
+            "--operation",
+            "invalid",
+            "--name",
+            "my-story",
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode != 0

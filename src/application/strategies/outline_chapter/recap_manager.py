@@ -12,7 +12,6 @@ from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
 from infrastructure.savepoints import SavepointManager
-from application.services.rag_service import RAGService
 
 
 class RecapManager:
@@ -25,7 +24,7 @@ class RecapManager:
         prompt_handler: PromptHandler,
         system_message: str,
         savepoint_manager: Optional[SavepointManager] = None,
-        rag_service: Optional[RAGService] = None,
+        rag_service: Optional[Any] = None,
     ):
         self.model_provider = model_provider
         self.config = config
