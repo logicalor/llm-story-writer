@@ -1,6 +1,9 @@
 [tool.ruff]
 exclude = ["legacy/"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E402"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
