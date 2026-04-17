@@ -47,20 +47,14 @@ class TestModelConfig:
         assert config.original_scheme == "ollama"
 
     def test_create_from_string_google(self):
-        """Test creating ModelConfig from Google string."""
-        model_string = "google://gemini-1.5-pro"
-        config = ModelConfig.from_string(model_string)
-
-        assert config.name == "gemini-1.5-pro"
-        assert config.provider == "google"
+        """Test that google:// provider is rejected as unsupported."""
+        with pytest.raises(ValidationError, match="Invalid provider"):
+            ModelConfig.from_string("google://gemini-1.5-pro")
 
     def test_create_from_string_openrouter(self):
-        """Test creating ModelConfig from OpenRouter string."""
-        model_string = "openrouter://anthropic/claude-3-opus"
-        config = ModelConfig.from_string(model_string)
-
-        assert config.name == "anthropic/claude-3-opus"
-        assert config.provider == "openrouter"
+        """Test that openrouter:// provider is rejected as unsupported."""
+        with pytest.raises(ValidationError, match="Invalid provider"):
+            ModelConfig.from_string("openrouter://anthropic/claude-3-opus")
 
     def test_legacy_support(self):
         """Test legacy support for model names without provider."""

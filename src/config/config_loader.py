@@ -2,12 +2,15 @@
 
 import re
 from pathlib import Path
-from typing import Dict, Any
+from typing import TYPE_CHECKING, Any, Dict
 from urllib.parse import urlparse, urlunparse
 
 import yaml
 
 from domain.exceptions import ConfigurationError
+
+if TYPE_CHECKING:
+    from domain.value_objects.generation_settings import GenerationSettings
 
 
 def _normalize_model_api_base(value: str) -> str:
@@ -122,16 +125,7 @@ class ConfigLoader:
                 )
                 del config_data["infrastructure"]
 
-            # Merge API keys
-            if "api_keys" in config_data:
-                api_keys = config_data["api_keys"]
-                config_data.update(
-                    {
-                        "google_api_key": api_keys.get("google_api_key"),
-                        "openrouter_api_key": api_keys.get("openrouter_api_key"),
-                    }
-                )
-                del config_data["api_keys"]
+            config_data.pop("api_keys", None)
 
             return config_data
 

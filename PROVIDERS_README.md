@@ -1,42 +1,40 @@
 # AI Story Writer - Model Providers
 
-> **⚠️ NOTICE — LangChain support has been removed.**  
-> The `LangChainProvider` class was removed in the legacy dependency cleanup (issue #26).  
-> `langchain://` URI schemes are no longer supported. Use `openai-compat://` instead.  
-> All content below is preserved for historical reference only.
+> **⚠️ NOTICE — LangChain support was removed.**
+> The active runtime supports only local provider implementations: `openai-compat://`, `ollama://` (normalized to `openai-compat://`), `lm_studio://`, and `llama_cpp://`.
+> Cloud provider schemes such as `google://`, `openrouter://`, `openai://`, and `anthropic://` are not supported.
 
 This document provides an overview of all available model providers in the AI Story Writer application and how to configure and use them.
 
 ## Available Providers
 
-The AI Story Writer supports four main model providers, each with different capabilities and use cases:
+The AI Story Writer supports three implemented model providers in the active runtime:
 
 1. **Ollama Provider** - Local models through Ollama
 2. **LM Studio Provider** - Local models through LM Studio  
-3. **LangChain Provider** - Unified interface to multiple providers
-4. **llama.cpp Provider** - Local models through llama.cpp server
+3. **llama.cpp Provider** - Local models through llama.cpp server
 
 ## Provider Comparison
 
-| Feature | Ollama | LM Studio | LangChain | llama.cpp |
-|---------|--------|-----------|-----------|-----------|
-| **Local Models** | ✅ | ✅ | ✅ | ✅ |
-| **Cloud Models** | ❌ | ❌ | ✅ | ❌ |
-| **API Format** | Custom | OpenAI-compatible | Multiple | HTTP API |
-| **Model Management** | Programmatic | UI-based | Provider-specific | Manual |
-| **Cost** | Free | Free | Variable | Free |
-| **Privacy** | 100% Local | 100% Local | Configurable | 100% Local |
-| **Setup Complexity** | Low | Low | Medium | Medium |
-| **Model Variety** | High | High | Very High | High |
-| **Multi-step Conversations** | ✅ | ✅ | ✅ | ✅ |
+| Feature | Ollama | LM Studio | llama.cpp |
+|---------|--------|-----------|-----------|
+| **Local Models** | ✅ | ✅ | ✅ |
+| **Cloud Models** | ❌ | ❌ | ❌ |
+| **API Format** | Custom | OpenAI-compatible | HTTP API |
+| **Model Management** | Programmatic | UI-based | Manual |
+| **Cost** | Free | Free | Free |
+| **Privacy** | 100% Local | 100% Local | 100% Local |
+| **Setup Complexity** | Low | Low | Medium |
+| **Model Variety** | High | High | High |
+| **Multi-step Conversations** | ✅ | ✅ | ✅ |
 
 ## Quick Start
 
 ### 1. Choose Your Provider(s)
 
 - **Local Only**: Use Ollama and/or LM Studio
-- **Cloud + Local**: Use LangChain with API keys
-- **Mixed Approach**: Use all three for different tasks
+- **High control**: Use llama.cpp for custom server setups
+- **Mixed local approach**: Use different local providers for different tasks
 
 ### 2. Basic Configuration
 
@@ -46,19 +44,11 @@ The AI Story Writer supports four main model providers, each with different capa
 model_api_base: "http://127.0.0.1:11434/v1"
 lm_studio_host: "127.0.0.1:1234"
 
-# Cloud provider API keys
-api_keys:
-  openai: "sk-..."
-  anthropic: "sk-ant-..."
-  google: "AIza..."
-
 # Model configurations
 models:
   # Local models
   scene_writer: "openai-compat://llama3:8b"
   logical_model: "lm_studio://mistral-7b-instruct"
-  
-  # langchain:// removed — use openai-compat:// instead
 ```
 
 ## Provider Details
@@ -111,28 +101,19 @@ lm_studio://model_name@host:port?param1=value1&param2=value2
 
 ### LangChain Provider
 
-**Best for**: Cloud models, unified interface, maximum flexibility
+`LangChainProvider` was removed in issue #26 and has no active implementation in `src/infrastructure/providers/`.
 
-**Setup**:
-1. Get API keys for desired services
-2. Set environment variables or config file
-3. Install LangChain packages (automatic)
+Unsupported cloud provider schemes:
+- `google://`
+- `openrouter://`
+- `openai://`
+- `anthropic://`
 
-**Configuration**:
-```yaml
-api_keys:
-  openai: "sk-..."
-  anthropic: "sk-ant-..."
-  google: "AIza..."
-
-models:
-  # langchain:// removed — use openai-compat:// instead
-```
-
-**Model Format**:
-```
-# langchain:// removed — use openai-compat:// instead
-```
+Use one of these supported schemes instead:
+- `openai-compat://`
+- `ollama://` (normalized internally to `openai_compatible`)
+- `lm_studio://`
+- `llama_cpp://`
 
 ### llama.cpp Provider
 
@@ -167,7 +148,7 @@ llama_cpp://model_name@host:port?param1=value1&param2=value2
 
 ## Multi-step Conversation Feature
 
-All four providers support **multi-step conversation with memory**, allowing you to build complex, contextual interactions.
+All supported providers support **multi-step conversation with memory**, allowing you to build complex, contextual interactions.
 
 ### How It Works
 
@@ -223,7 +204,7 @@ response = await provider.generate_multistep_conversation(
 - **Memory Management**: Automatic conversation history tracking
 - **Sequential Logic**: Natural flow from simple to complex
 - **Debug Support**: Step-by-step processing visibility
-- **Provider Agnostic**: Works with all four providers
+- **Provider Agnostic**: Works with all supported providers
 
 ## Advanced Configuration
 
@@ -233,12 +214,13 @@ Use different providers for different tasks:
 
 ```yaml
 models:
-  # Creative writing - cloud providers require implementation before use
+  # Creative writing
   
   # Scene generation - use local models for privacy
   scene_writer: "openai-compat://llama3:8b"
   
-  # Analysis - cloud providers require implementation before use
+  # Analysis
+  logical_model: "llama_cpp://mistral-7b-instruct"
   
   # Revision - use local models for cost control
   revision_model: "lm_studio://mistral-7b-instruct"
@@ -256,19 +238,13 @@ models:
   # LM Studio with OpenAI-style parameters
   logical_model: "lm_studio://mistral-7b-instruct?temperature=0.7"
   
-  # Cloud provider examples removed — use openai-compat:// instead
+  # llama.cpp with provider-specific parameters
+  revision_model: "llama_cpp://mistral-7b-instruct?temperature=0.7"
 ```
 
 ### Environment Variables
 
-Set API keys via environment variables:
-
-```bash
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-export GOOGLE_API_KEY="AIza..."
-export HUGGINGFACE_API_KEY="hf_..."
-```
+The supported local providers do not require cloud API keys.
 
 ## Testing Your Setup
 
@@ -281,8 +257,6 @@ python test_ollama_provider.py
 # Test LM Studio
 python test_lm_studio_provider.py
 
-# Test LangChain
-python test_langchain_provider.py
 ```
 
 ### Test Configuration
@@ -314,7 +288,7 @@ print(f'Models: {list(config.models.keys())}')
 3. **Model Not Available**
    - Check model name spelling
    - Ensure model is downloaded/available
-   - Verify API keys for cloud models
+  - Verify the selected local server exposes that model
 
 4. **Import Errors**
    - Install required packages
@@ -345,10 +319,10 @@ Each provider logs detailed information:
 
 ### Model Selection Strategy
 
-1. **High-Quality Tasks**: Use cloud models (GPT-4, Claude, Gemini)
-2. **High-Volume Tasks**: Use local models (Ollama, LM Studio)
-3. **Specialized Tasks**: Use specialized models (HuggingFace)
-4. **Cost-Sensitive Tasks**: Use local models
+1. **High-Quality Tasks**: Use your strongest local model
+2. **High-Volume Tasks**: Use smaller local models through Ollama or LM Studio
+3. **Specialized Tasks**: Use provider-specific local model setups
+4. **Cost-Sensitive Tasks**: Keep workloads on local providers
 
 ### Caching and Reuse
 
@@ -369,17 +343,11 @@ Each provider logs detailed information:
 - ✅ No API keys required
 - ✅ Full control over models and data
 
-### Cloud Providers (via LangChain)
-- ⚠️ Data may be processed on provider servers
-- ⚠️ API keys required - store securely
-- ⚠️ Rate limits and usage tracking
-- ✅ Use HTTPS for all connections
-
 ### Best Practices
-1. Store API keys in environment variables
-2. Never commit API keys to version control
-3. Use local models for sensitive content
-4. Monitor API usage and costs
+1. Use local models for sensitive content
+2. Restrict local servers to trusted networks
+3. Monitor model memory and disk usage
+4. Verify host and port settings before long runs
 
 ## Migration Guide
 
@@ -397,12 +365,6 @@ Each provider logs detailed information:
 # Before: Single provider
 models:
   scene_writer: "openai-compat://llama3:8b"
-
-# After: Multiple providers
-models:
-  # langchain:// removed — use openai-compat:// instead
-  # or
-  scene_writer: "openai-compat://llama3:8b"
 ```
 
 ## Support and Resources
@@ -410,12 +372,10 @@ models:
 ### Documentation
 - [Ollama Provider README](OLLAMA_PROVIDER_README.md)
 - [LM Studio Provider README](LM_STUDIO_PROVIDER_README.md)
-- [LangChain Provider README](LANGCHAIN_PROVIDER_README.md)
 
 ### Testing
 - [Ollama Test Script](test_ollama_provider.py)
 - [LM Studio Test Script](test_lm_studio_provider.py)
-- [LangChain Test Script](test_langchain_provider.py)
 
 ### Community
 - Check GitHub issues for known problems
@@ -427,9 +387,8 @@ models:
 The AI Story Writer's multi-provider architecture gives you maximum flexibility:
 
 - **Use local models** for privacy and cost control
-- **Use cloud models** for quality and speed
 - **Mix and match** based on your needs
 - **Switch easily** between providers
 - **Scale up** as your needs grow
 
-Start with local providers for development and testing, then add cloud providers for production use. The unified interface makes it easy to experiment and find the best combination for your workflow.
+Start with local providers for development and production use. The shared model configuration format makes it easy to experiment and find the best combination for your workflow.
