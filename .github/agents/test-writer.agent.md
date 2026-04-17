@@ -55,6 +55,8 @@ Follow the test conventions and patterns established in the project (see `copilo
 
 **Independent expected values:** When asserting against known list, set, or constant values, define those values directly in the test rather than importing them from production code. This pins the expected value independently — if a production constant changes silently, the test fails, which is the correct behaviour. Importing the production constant would make the test pass trivially on any change, defeating its purpose. Add a comment such as `# Independent expected value — intentional test design` to clarify this is not accidental duplication.
 
+**Custom URI schemes:** When testing functions that parse URI-format strings with project-specific schemes (e.g., `lm_studio://`, `llama_cpp://`), write at least one positive-path test per supported scheme. Python's `urlparse` silently ignores schemes containing underscores (see `gotchas.md` #006), so a positive-path assertion is the only reliable guard against silent parsing regressions — negative-path tests alone are insufficient.
+
 After writing each test, run the project's test command (see `copilot-instructions.md`).
 
 ### 3. Classify Results
