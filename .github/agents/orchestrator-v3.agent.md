@@ -365,17 +365,17 @@ Review the output:
 
     If unsure whether a `??` file is intentional, read it briefly and compare against the plan's file list before deciding.
 
-This is a belt-and-suspenders backstop for Coder Rule 7 (delete temporary files before returning). The `git-safe-publish.sh` script stages all changes — an untracked file left here will be committed silently.
+This is a belt-and-suspenders backstop for Coder Rule 7 (delete temporary files before returning). Any untracked file left here will be committed silently via `git add -A`.
 
 Commit and push the implementation:
 
 ```bash
-bash scripts/git-safe-publish.sh "feat(scope): implement X (#N)" {branch-name}
+git add -A && git commit -m "feat(scope): implement X (#N)" && git push origin {branch-name}
 ```
 
 > **Never use `mcp_github_push_files` to create commits.** All commits must go through the local working tree to ensure pre-commit hooks run.
 
-The script stages all changes, commits, pushes, and loops until the working tree is clean (handling pre-commit hook auto-fixes automatically). It exits 0 once the working tree is confirmed clean.
+If pre-commit hooks auto-modify files (e.g. ruff formatting), stage and amend: `git add -A && git commit --amend --no-edit`, then push again.
 
 **Create or update the PR** — this is the first point where a PR can be created (a commit now exists on the feature branch).
 
@@ -444,7 +444,7 @@ Collect all review data upfront so each reviewer gets the same pre-computed pack
 2. `git log --oneline development..HEAD` — commit log
 3. `git diff --name-only development...HEAD` — changed file list
 4. `git diff development...HEAD -- . ':!vendor'` — full diff
-5. For each changed file in the list, read the entire file
+5. For each changed file in the list, **use `read_file` to copy the content verbatim** — never reconstruct from memory, scroll output, or earlier context. Transcription errors silently inject false-positive findings into the review.
 
 Assemble the output into a **Review Package**:
 
@@ -534,8 +534,8 @@ Write the synthesis to: .github/notes/reviews/YYYY-MM-DD-pr{N}-synthesis.md
     - **Out-of-scope findings** → do not fix in this PR; create a follow-up GitHub issue capturing the finding and its rationale, then proceed
 3. If fixes are needed:
     - Dispatch to **Coder** with the specific findings and suggested fixes
-    - After Coder confirms fixes, run `bash scripts/verify-green.sh` to verify all tests pass
-    - Commit and push the fixes: `bash scripts/git-safe-publish.sh "fix: address synthesized review findings (#N)" {branch-name}`
+    - After Coder confirms fixes, run `pytest tests/unit/ -v && ruff check . && mypy src/` to verify all tests pass
+    - Commit and push the fixes: `git add -A && git commit -m "fix: address synthesized review findings (#N)" && git push origin {branch-name}`
     - **If review fixes removed or changed documented features**, re-dispatch the **Documenter** to update `docs/` before proceeding to Step 8.
 4. If no findings require fixes, proceed to Step 8
 
@@ -554,7 +554,7 @@ After the Synthesized Local Review is complete, **dispatch to the `Reflection` a
 1. Run `git status` to check for uncommitted changes.
 2. If there are uncommitted changes:
     1. Run the project's lint commands (see `copilot-instructions.md`) to ensure formatting
-    2. Commit and push: `bash scripts/git-safe-publish.sh "chore: apply reflection improvements (#N)" {branch-name}`
+    2. Commit and push: `git add -A && git commit -m "chore: apply reflection improvements (#N)" && git push origin {branch-name}`
 3. If there are no uncommitted changes, skip to step 4.
 4. **Final clean-state gate** — run `git status` and confirm:
     - `nothing to commit, working tree clean`
@@ -567,7 +567,7 @@ After the Synthesized Local Review is complete, **dispatch to the `Reflection` a
 
     If there are uncommitted changes (e.g. from a preceding lint step), commit them:
     ```bash
-    bash scripts/git-safe-publish.sh "chore: clean working tree (#N)" {branch-name}
+    git add -A && git commit -m "chore: clean working tree (#N)" && git push origin {branch-name}
     ```
 
     **Repeat this gate until `git status` is clean.** Do not proceed while the working tree is dirty.
