@@ -44,12 +44,6 @@ def _parse_embedding_model_uri(embedding_model: str) -> Tuple[Optional[str], str
 class RAGConfig:
     """Configuration for the RAG system."""
 
-    # PostgreSQL configuration
-    postgres_host: str
-    postgres_database: str
-    postgres_user: str
-    postgres_password: str
-
     # Embedding configuration
     embedding_model: str
     vector_dimensions: int
@@ -60,11 +54,6 @@ class RAGConfig:
     # Content chunking configuration
     max_chunk_size: int = 1000
     overlap_size: int = 200
-
-    @property
-    def connection_string(self) -> str:
-        """Get the PostgreSQL connection string."""
-        return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}/{self.postgres_database}"
 
     @property
     def model_api_base(self) -> str:
@@ -93,10 +82,6 @@ class RAGConfigLoader:
         config = self.config_loader.load_config()
 
         return RAGConfig(
-            postgres_host=config.get("postgres_host", "localhost:5432"),
-            postgres_database=config.get("postgres_database", "story_writer"),
-            postgres_user=config.get("postgres_user", "story_user"),
-            postgres_password=config.get("postgres_password", "story_pass"),
             embedding_model=config.get(
                 "embedding_model", "openai-compat://nomic-embed-text"
             ),
@@ -113,19 +98,6 @@ class RAGConfigLoader:
     def validate_config(self, rag_config: RAGConfig) -> list:
         """Validate RAG configuration and return any errors."""
         errors = []
-
-        # Check PostgreSQL configuration
-        if not rag_config.postgres_host:
-            errors.append("postgres_host is required")
-
-        if not rag_config.postgres_database:
-            errors.append("postgres_database is required")
-
-        if not rag_config.postgres_user:
-            errors.append("postgres_user is required")
-
-        if not rag_config.postgres_password:
-            errors.append("postgres_password is required")
 
         # Check embedding configuration
         if not rag_config.embedding_model:

@@ -18,8 +18,8 @@ class CLIArgumentParser:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
-  %(prog)s Prompts/YourChosenPrompt.txt
-  %(prog)s ExamplePrompts/Example1/Prompt.txt
+    %(prog)s prompts/your-prompt.md
+    %(prog)s prompts/outline/create.md
             """,
         )
 

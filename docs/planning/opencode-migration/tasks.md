@@ -13,21 +13,19 @@
 **Dependencies:** none
 
 **Description:**
-Create a `legacy/` directory containing a complete, frozen copy of the current `src/` directory. This serves as a reference during migration — developers can consult it to verify tool behaviour matches the original pipeline. The archive is a plain directory copy (not a git submodule), committed to the repo. The current `src/` remains in place during migration and is restructured incrementally.
+Create a temporary `legacy/` directory containing a complete, frozen copy of the current `src/` directory. This serves as a reference during migration — developers can consult it to verify tool behaviour matches the original pipeline. The archive is a plain directory copy (not a git submodule), committed to the repo during migration. Issue 107 later removes this temporary archive after migration cleanup.
 
 Also update `.github/notes/repo.md` with the correct OWNER/REPO values parsed from the git remote.
 
 **Acceptance Criteria:**
 
-- [x] `legacy/src/` exists and contains a complete copy of the current `src/` directory
-- [x] `legacy/README.md` explains the archive purpose and its relationship to the active codebase
+- [x] Temporary `legacy/src/` archive created during migration
+- [x] Temporary `legacy/README.md` documented the archive purpose during migration
 - [x] `.github/notes/repo.md` has correct OWNER=logicalor, REPO=llm-story-writer
 - [x] Original `src/` is unchanged
 
 **Key Files:**
 
-- `legacy/` — new directory (complete archive)
-- `legacy/README.md` — archive documentation
 - `.github/notes/repo.md` — repository identity fix
 
 ---
@@ -80,7 +78,6 @@ Move the 131 prompt templates from `src/application/strategies/outline_chapter/p
 - `prompts/` — top-level prompt directory
 - `prompts/chapters/`, `prompts/characters/`, etc. — template subdirectories
 - `src/infrastructure/prompts/prompt_loader.py` — default path updated to `prompts`
-- `legacy/src/infrastructure/container.py` — archived reference for the former DI container path update
 - `src/application/strategies/strategy_factory.py` — factory fallback updated
 - `src/application/strategies/outline_chapter/strategy.py` — `get_prompt_directory()` returns `"prompts"`
 
@@ -791,7 +788,6 @@ Remove dependencies: `psycopg2`, `pgvector`, `docker-compose.yml` (PostgreSQL), 
 - `.opencode/tools/rag-query.ts` — TypeScript tool definition
 - `src/tools/rag_query.py` — Python implementation
 - `requirements.txt` — dependency cleanup
-- `requirements-rag.txt` — updated RAG dependencies
 
 ---
 
@@ -802,7 +798,7 @@ Remove dependencies: `psycopg2`, `pgvector`, `docker-compose.yml` (PostgreSQL), 
 **Dependencies:** Tasks 17-24
 
 **Description:**
-Create an end-to-end integration test that generates a short story (3 chapters, 2 scenes each) using the full OpenCode agent pipeline including the wiki memory system. The test uses one of the existing example prompts (`ExamplePrompts/ShortDebuggingStory/Prompt.txt`) and verifies that:
+Create an end-to-end integration test that generates a short story (3 chapters, 2 scenes each) using the full OpenCode agent pipeline including the wiki memory system. The test uses a short prompt fixture and verifies that:
 
 1. Story state is correctly initialized and maintained
 2. Wiki is initialized with correct structure
@@ -837,7 +833,7 @@ The test can be run in headless/SDK mode.
 **Key Files:**
 
 - `tests/integration/test_e2e_opencode.py` — integration test
-- `ExamplePrompts/ShortDebuggingStory/Prompt.txt` — test input
+- prompt fixture for short-story integration coverage
 
 ---
 
@@ -861,20 +857,18 @@ After successful E2E testing, clean up dependencies no longer needed:
 **Acceptance Criteria:**
 
 - [x] `requirements.txt` contains only actively-used dependencies
-- [x] `requirements-rag.txt` updated for ChromaDB-only RAG
 - [x] README.md documents the OpenCode-based workflow including wiki memory system
 - [x] README.md includes quickstart: install OpenCode, configure an OpenAI-compatible inference server, run `/new-story`
 - [x] No import errors when running the new tool suite
-- [x] Legacy `src/infrastructure/container.py` is only in `legacy/`
+- [x] Legacy `src/infrastructure/container.py` removed from the active runtime
 
 **Key Files:**
 
 - `requirements.txt` — dependency cleanup
-- `requirements-rag.txt` — RAG dependency update
 - `README.md` — documentation update
 - `config.md` — documentation update
 
-**Current state:** Active runtime removes the DI container, LangChain provider, and `RAGService` from `src/`. Archived copies remain under `legacy/src/` for migration reference only.
+**Current state:** Active runtime removes the DI container, LangChain provider, and `RAGService` from `src/`. Issue 107 removes the temporary repository archive and leftover root-level helper artifacts.
 
 ---
 

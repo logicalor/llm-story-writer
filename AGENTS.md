@@ -21,7 +21,7 @@ Each layer depends only on inner layers: infrastructure → application → doma
 
 ### Tools
 
-Tools are **TypeScript wrappers** in `.opencode/tools/` that call **Python scripts** in `src/tools/` via subprocess. The `src/tools/` directory will be created when the first tool is implemented (see [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md)). The TypeScript layer handles argument parsing and OpenCode integration; the Python layer contains the actual logic.
+Tools are **TypeScript wrappers** in `.opencode/tools/` that call **Python scripts** in `src/tools/` via subprocess. The TypeScript layer handles argument parsing and OpenCode integration; the Python layer contains the actual logic.
 
 ### Agents
 
@@ -60,7 +60,7 @@ Local LLM inference via **Ollama**. Multiple model roles can be configured for d
 
 ## Important Rules
 
-- **NEVER modify files under `legacy/`** — that directory is a frozen archive of the original codebase, kept for reference only.
+- Do not recreate deleted legacy archives or ad-hoc root utility scripts without a current design need.
 - Never hardcode credentials or environment-specific values.
 - Always validate at system boundaries.
 - Run lint and type checks after every change.
