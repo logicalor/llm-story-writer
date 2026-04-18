@@ -95,18 +95,6 @@ class ConfigLoader:
                         "context_length": infrastructure.get("context_length", 4096),
                         "randomize_seed": infrastructure.get("randomize_seed", True),
                         # RAG Configuration
-                        "postgres_host": infrastructure.get(
-                            "postgres_host", "localhost:5432"
-                        ),
-                        "postgres_database": infrastructure.get(
-                            "postgres_database", "story_writer"
-                        ),
-                        "postgres_user": infrastructure.get(
-                            "postgres_user", "story_user"
-                        ),
-                        "postgres_password": infrastructure.get(
-                            "postgres_password", "story_pass"
-                        ),
                         "embedding_model": infrastructure.get(
                             "embedding_model", "openai-compat://nomic-embed-text"
                         ),

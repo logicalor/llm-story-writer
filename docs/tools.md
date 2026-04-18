@@ -2029,7 +2029,7 @@ Indexes story content into a per-story ChromaDB collection and queries it by sem
 
 Each story maintains a ChromaDB collection named `stories-{story_name}` under `.chromadb/`. As content is generated (outline, chapters, character sheets, setting sheets, wiki pages, recaps), other tools call `rag-query index` to embed it. During scene generation, agents call `rag-query query` to retrieve the most relevant content for the scene context.
 
-This replaces the previous PostgreSQL/pgvector RAG system (archived in `legacy/postgres/`).
+This replaces the previous PostgreSQL/pgvector RAG system from the pre-migration codebase.
 
 ### Arguments
 

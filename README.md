@@ -176,7 +176,6 @@ llm-story-writer/
 │       ├── events/
 │       └── ...
 ├── .chromadb/                   # ChromaDB vector storage (per-story collections)
-├── legacy/                      # Archived original codebase (reference only)
 ├── tests/                       # Test suite
 └── docs/                        # Documentation
 ```
@@ -290,10 +289,6 @@ This project is licensed under the GNU Affero General Public License v3.0 (AGPL-
 - [ ] Real-time collaboration features
 - [ ] Advanced story analytics
 - [ ] Multi-language support
-
-## 🗃️ Legacy Reference
-
-The `legacy/` directory preserves the original PostgreSQL/LangChain-based architecture for reference during the OpenCode and ChromaDB migration. Active development happens in `src/`, `.opencode/`, `prompts/`, and `stories/`.
 
 ---
 

@@ -17,7 +17,7 @@ The project uses **ChromaDB** for vector storage and RAG (Retrieval-Augmented Ge
 
 ### RAG Access
 
-All RAG queries route through the `rag-query` tool (see [Tools Reference](./tools.md)). The legacy `RAGService` implementation has been removed from the active codebase and remains only under `legacy/` for historical reference.
+All RAG queries route through the `rag-query` tool (see [Tools Reference](./tools.md)). The legacy application-layer `RAGService` has been removed from the repository.
 
 See [ADR 003: ChromaDB Replaces pgvector](./planning/adr/003-chromadb-replaces-pgvector.md) for the full migration rationale.
 
@@ -25,10 +25,10 @@ See [ADR 003: ChromaDB Replaces pgvector](./planning/adr/003-chromadb-replaces-p
 
 The active runtime is intentionally small and OpenCode-first:
 
-- **Python runtime**: `requests`, `chromadb`, `pyyaml`, and `llm-output-parser` in `requirements.txt`
-- **RAG extras**: ChromaDB support packages in `requirements-rag.txt`
+- **Python runtime**: install from `requirements.txt`; it is the only supported dependency manifest for the active project and includes `requests`, `chromadb`, `pyyaml`, and `llm-output-parser`
 - **LLM integration**: Supported provider keys are `openai_compatible`, `ollama`, `lm_studio`, and `llama_cpp`; all runtime traffic goes through OpenAI-compatible `/v1` endpoints rather than LangChain-specific adapters
-- **Tool wiring**: OpenCode loads TypeScript wrappers directly; the legacy `dependency-injector` container is archived under `legacy/`
+- **Tool wiring**: OpenCode loads TypeScript wrappers directly; no legacy `dependency-injector` container remains in the repository
+- **Repository cleanup**: the temporary `legacy/` archive, duplicate root helper scripts, and obsolete root markdown summaries were removed after migration cleanup, so current documentation should point only to active files under `docs/`, `prompts/`, `src/`, and `tests/`
 
 See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the full before/after summary and maintenance guidance.
 
@@ -42,7 +42,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 
 ## Features
 
-- [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) — Current runtime dependency model, archived legacy components, and guardrails for keeping the active stack lean
+- [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) — Current runtime dependency model, removed migration leftovers, and guardrails for keeping the active stack lean
 - [Story Orchestrator](./features/story-orchestrator.md) — Primary pipeline controller agent: 9-phase story generation lifecycle, quality gates, wiki lifecycle, savepoint strategy, subagent delegation
 - [Wiki Maintainer](./features/wiki-maintainer.md) — Wiki maintenance subagent: entity extraction, confidence scoring, detail levels, alias identification, chapter boundary procedures
 - [Custom Commands](./features/custom-commands.md) — Seven slash commands for the OpenCode TUI: `/new-story`, `/continue`, `/regenerate`, `/savepoint`, `/status`, `/settings`, `/wiki`

@@ -346,6 +346,11 @@ ruff check . && ruff format --check . && mypy src/
 
 **All tests pass, zero failures, zero unexpected skips, linting clean:**
 
+> **For deletion/cleanup PRs:** a reduction in collection count or new skipped tests is expected
+> when test files or tested methods were deleted in this PR. Classify a skip as "unexpected" only
+> if it cannot be traced to a file, method, or class removed in this PR. Verify by checking the
+> skip reason or test name against the deleted code scope.
+
 #### 5d. Working Tree Audit
 
 Before committing, run a working tree audit to catch any untracked files that Coder may have left behind:

@@ -1,6 +1,3 @@
-[tool.ruff]
-exclude = ["legacy/"]
-
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["E402"]
 

@@ -27,7 +27,6 @@
 - Tools are TypeScript wrappers in `.opencode/tools/` that call Python scripts in `src/tools/` via subprocess
 - **Progressive wiki memory system** ([ADR 004](docs/planning/adr/004-progressive-wiki-memory-system.md)): structured markdown pages with YAML frontmatter in `stories/<name>/wiki/`
 - **Three-stage context retrieval pipeline** ([ADR 005](docs/planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md)): entity matching → metadata query → semantic search → wikilink traversal → detail level selection → structured assembly
-- Original codebase archived in `legacy/src/` for reference during migration
 
 ### Testing
 

@@ -125,7 +125,7 @@ A **hybrid architecture** where OpenCode agents handle orchestration, coordinati
                        │ subprocess / import
                        ▼
 ┌──────────────────────────────────────────────────────────────┐
-│           Python Domain Logic (legacy/, preserved)            │
+│        Python Domain Logic (src/, preserved and refactored)   │
 │  Prompt templates:  131 .md files (unchanged)                 │
 │  Domain entities:   Story, Chapter, Scene, Outline            │
 │  State management:  StoryStateManager, CharacterState, etc.   │
@@ -262,8 +262,6 @@ llm-story-writer/
 │   └── plugins/         # Compaction hooks
 ├── opencode.json        # Main OpenCode configuration
 ├── config.md            # Story generation config (preserved)
-├── legacy/              # Archived original codebase (git subtree/copy)
-│   └── src/             # Full original src/ directory
 ├── src/                 # Refactored Python domain logic (tools call into this)
 │   ├── domain/          # Entities, value objects (preserved)
 │   ├── tools/           # Python tool implementations (new)
@@ -307,7 +305,7 @@ llm-story-writer/
 
 ## Acceptance Criteria
 
-- [ ] Original codebase is archived in `legacy/` and can be consulted for reference
+- [x] Temporary migration archive was removed after cleanup issue #107
 - [ ] All 131 prompt templates are preserved and loadable via the `prompt-loader` tool
 - [ ] A new story can be generated end-to-end via `/new-story` command in OpenCode TUI
 - [ ] A story can be generated in batch mode via `opencode serve` + SDK without human interaction
