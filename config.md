@@ -280,6 +280,11 @@ infrastructure:
 1. Set your desired `embedding_model` in config.md
 2. Rebuild the affected ChromaDB story collections before generating more content
 
+**After changing the embedding model** (if wiki content was already indexed):
+1. Update `embedding_model` and `vector_dimensions` in config.md to match the new model
+2. Delete the affected story ChromaDB collection (the story directory contains a `.chromadb/` folder) so it will be re-created with the new embedding dimensions on next write
+3. Re-index wiki content by running the story pipeline — the wiki tools will re-embed pages automatically as they are updated
+
 ### Chunked Outline Generation (for Long Stories)
 ```yaml
 generation:
