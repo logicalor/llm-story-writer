@@ -153,4 +153,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 ```
 
+Because `sys.path.insert` appears before any `from src.*` import, it triggers Ruff rule
+**E402 (module-level import not at top of file)**. The project's `pyproject.toml` suppresses
+E402 for all files under `tests/` via `[tool.ruff.lint.per-file-ignores]`. If E402 fires
+in a test file, verify that the per-file-ignore is in place before investigating import order.
+
+Note: root-level `test_*.py` files (outside `tests/`) are legacy/ad-hoc scripts not registered
+in `testpaths = ["tests/unit"]` and are intentionally excluded from the E402 suppression glob.
+
 ChromaDB ID: `gotcha-sys-path-insert-tool-tests-007`
