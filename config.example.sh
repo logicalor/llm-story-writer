@@ -64,8 +64,11 @@ TRANSLATE_PROMPT_LANGUAGE=""
 # BUILD COMMAND
 # =============================================================================
 
-# Build the command with all settings
-CMD="python src/main.py -Prompt $PROMPT_FILE"
+# Legacy CLI removed — src/main.py no longer exists.
+# Use 'opencode' to run stories. See README.md for current usage.
+echo "ERROR: Legacy CLI (src/main.py) has been removed. Use 'opencode' instead." >&2
+exit 1
+CMD=""  # unreachable — kept as reference placeholder
 
 # Add output name if specified
 if [ ! -z "$OUTPUT_NAME" ]; then
