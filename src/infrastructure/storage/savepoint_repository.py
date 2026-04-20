@@ -52,15 +52,28 @@ class FilesystemSavepointRepository(SavepointRepository):
             safe_step_name = step_name.replace("/", "_").replace("\\", "_")
             return self._current_story_dir / safe_step_name
 
+    def _list_story_paths(self, pattern: str) -> list[Path]:
+        """Materialize story directory glob results for thread execution."""
+        if not self._current_story_dir:
+            return []
+        return list(self._current_story_dir.rglob(pattern))
+
     async def save_savepoint(self, step_name: str, data: Any) -> None:
         """Save data to a savepoint."""
         try:
             base = self._get_savepoint_base(step_name)
             if isinstance(data, str):
                 path = base.with_suffix(".md")
-                await asyncio.to_thread(path.write_text, data, "utf-8")
+                sibling = base.with_suffix(".json")
             else:
                 path = base.with_suffix(".json")
+                sibling = base.with_suffix(".md")
+            # Delete stale sibling if format changed
+            if await asyncio.to_thread(sibling.exists):
+                await asyncio.to_thread(sibling.unlink)
+            if isinstance(data, str):
+                await asyncio.to_thread(path.write_text, data, "utf-8")
+            else:
                 content = json.dumps(data, indent=2, ensure_ascii=False)
                 await asyncio.to_thread(path.write_text, content, "utf-8")
         except Exception as e:
@@ -131,15 +144,16 @@ class FilesystemSavepointRepository(SavepointRepository):
         without reading/parsing file contents.
         """
         try:
-            if not self._current_story_dir:
+            story_dir = self._current_story_dir
+            if not story_dir:
                 return []
 
             seen: set[str] = set()
             for pattern in ("*.md", "*.json"):
                 for file_path in await asyncio.to_thread(
-                    self._current_story_dir.rglob, pattern
+                    self._list_story_paths, pattern
                 ):
-                    relative_path = file_path.relative_to(self._current_story_dir)
+                    relative_path = file_path.relative_to(story_dir)
                     step_name = str(relative_path.with_suffix("")).replace("\\", "/")
                     seen.add(step_name)
 
@@ -167,20 +181,21 @@ class FilesystemSavepointRepository(SavepointRepository):
     async def clear_all_savepoints(self) -> None:
         """Clear all savepoints for the current story."""
         try:
-            if not self._current_story_dir:
+            story_dir = self._current_story_dir
+            if not story_dir:
                 return
 
             for pattern in ("*.md", "*.json"):
                 for file_path in await asyncio.to_thread(
-                    self._current_story_dir.rglob, pattern
+                    self._list_story_paths, pattern
                 ):
                     await asyncio.to_thread(file_path.unlink)
 
             # Remove empty directories
             for dir_path in reversed(
-                list(await asyncio.to_thread(self._current_story_dir.rglob, "*"))
+                await asyncio.to_thread(self._list_story_paths, "*")
             ):
-                if dir_path.is_dir() and dir_path != self._current_story_dir:
+                if dir_path.is_dir() and dir_path != story_dir:
                     try:
                         await asyncio.to_thread(dir_path.rmdir)
                     except OSError:

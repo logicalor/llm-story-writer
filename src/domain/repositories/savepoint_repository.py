@@ -45,6 +45,11 @@ class SavepointRepository(ABC):
         pass
 
     @abstractmethod
+    async def list_savepoint_names(self) -> list[str]:
+        """List all savepoint step names (no data loaded)."""
+        pass
+
+    @abstractmethod
     async def clear_all_savepoints(self) -> None:
         """Clear all savepoints."""
         pass
