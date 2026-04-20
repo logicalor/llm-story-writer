@@ -1,15 +1,17 @@
 import { z } from "zod";
-import { execFileSync } from "child_process";
 import { resolve } from "path";
+import { runTool } from "./_run";
 
 export default {
   name: "savepoint-mgr",
   description:
-    "Manage story savepoints: save, load, has, list, or clear. Supports hierarchical step paths like chapter_1/scene_2.",
+    "Manage story savepoints: save, load, has, list, list-full, or clear. Use 'list' (names only, fast) for resume/discovery — NOT 'list-full' (dumps all data, wastes tokens). Supports hierarchical step paths like chapter_1/scene_2. Python script: src/tools/savepoint_manager.py.",
   parameters: z.object({
     operation: z
-      .enum(["save", "load", "has", "list", "clear"])
-      .describe("Operation to perform"),
+      .enum(["save", "load", "has", "list", "list-full", "clear"])
+      .describe(
+        "Operation. 'list' returns names only (fast, preferred). 'list-full' returns names + data (large, avoid unless needed)."
+      ),
     name: z.string().describe("Story name"),
     step: z
       .string()
@@ -28,14 +30,13 @@ export default {
     step,
     data,
   }: {
-    operation: "save" | "load" | "has" | "list" | "clear";
+    operation: "save" | "load" | "has" | "list" | "list-full" | "clear";
     name: string;
     step?: string;
     data?: string;
   }) => {
     const projectRoot = resolve(__dirname, "../..");
     const args = [
-      "src/tools/savepoint_manager.py",
       "--operation",
       operation,
       "--name",
@@ -49,18 +50,6 @@ export default {
       args.push("--data", data);
     }
 
-    try {
-      const stdout = execFileSync("python3", args, {
-        cwd: projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      return stdout.trim();
-    } catch (error: unknown) {
-      const execError = error as { stderr?: string; message?: string };
-      const message =
-        execError.stderr?.trim() || execError.message || "Unknown error";
-      return `Error: ${message}`;
-    }
+    return runTool("src/tools/savepoint_manager.py", args);
   },
 };

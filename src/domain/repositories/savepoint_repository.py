@@ -8,6 +8,11 @@ class SavepointRepository(ABC):
     """Interface for savepoint data access."""
 
     @abstractmethod
+    def set_story_directory(self, prompt_filename: str) -> None:
+        """Set the savepoint directory for the current story."""
+        pass
+
+    @abstractmethod
     async def save_savepoint(self, step_name: str, data: Any) -> None:
         """Save data to a savepoint."""
         pass

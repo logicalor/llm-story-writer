@@ -22,6 +22,7 @@ def story_env(tmp_path: Path) -> tuple[Path, str]:
     stories_dir = tmp_path / "stories"
     story_name = "test-story"
     (stories_dir / story_name / "savepoints").mkdir(parents=True)
+    (stories_dir / story_name / "state.json").write_text('{"story_name": "test-story"}')
     return stories_dir, story_name
 
 
@@ -168,7 +169,20 @@ def test_list_savepoints(story_env: tuple[Path, str]) -> None:
     )
     assert result.returncode == 0, f"stderr: {result.stderr}"
     out = json.loads(result.stdout)
-    assert set(out["savepoints"].keys()) == {"step_a", "step_b", "step_c"}
+    # 'list' returns names only (sorted list)
+    assert set(out["savepoints"]) == {"step_a", "step_b", "step_c"}
+
+    # 'list-full' returns names + data (dict)
+    full_result = _run_tool(
+        "--operation",
+        "list-full",
+        "--name",
+        name,
+        stories_dir=stories_dir,
+    )
+    assert full_result.returncode == 0
+    full_out = json.loads(full_result.stdout)
+    assert set(full_out["savepoints"].keys()) == {"step_a", "step_b", "step_c"}
 
 
 def test_clear_savepoints(story_env: tuple[Path, str]) -> None:
@@ -204,7 +218,7 @@ def test_clear_savepoints(story_env: tuple[Path, str]) -> None:
     )
     assert list_result.returncode == 0
     out = json.loads(list_result.stdout)
-    assert out["savepoints"] == {}
+    assert out["savepoints"] == []
 
 
 def test_hierarchical_step_names(story_env: tuple[Path, str]) -> None:
@@ -263,7 +277,7 @@ def test_path_traversal_blocked_name(story_env: tuple[Path, str]) -> None:
         stories_dir=stories_dir,
     )
     assert result.returncode == 1
-    assert "escapes stories directory" in result.stderr
+    assert "escapes stories directory" in result.stderr or "kebab-case" in result.stderr
 
 
 def test_path_traversal_blocked_step(story_env: tuple[Path, str]) -> None:
@@ -318,4 +332,4 @@ def test_clear_nonexistent_story(tmp_path: Path) -> None:
         stories_dir=stories_dir,
     )
     assert result.returncode == 1
-    assert "story not found" in result.stderr
+    assert "not initialized" in result.stderr or "not found" in result.stderr

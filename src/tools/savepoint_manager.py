@@ -98,7 +98,19 @@ def cmd_has(name: str, step: str) -> None:
 
 
 def cmd_list(name: str) -> None:
-    """List all savepoints for a story."""
+    """List all savepoints for a story (names only, no data)."""
+    story_dir = _validate_story_name(name)
+    if not story_dir.exists():
+        print(f"Error: story not found: {name}", file=sys.stderr)
+        sys.exit(1)
+
+    repo = _make_repo(name)
+    names = asyncio.run(repo.list_savepoint_names())
+    print(json.dumps({"savepoints": names}, indent=2))
+
+
+def cmd_list_full(name: str) -> None:
+    """List all savepoints with their full data (can be large)."""
     story_dir = _validate_story_name(name)
     if not story_dir.exists():
         print(f"Error: story not found: {name}", file=sys.stderr)
@@ -126,8 +138,12 @@ def main() -> None:
     parser.add_argument(
         "--operation",
         required=True,
-        choices=["save", "load", "has", "list", "clear"],
-        help="Operation to perform",
+        choices=["save", "load", "has", "list", "list-full", "clear"],
+        help=(
+            "Operation to perform. "
+            "'list' returns names only (fast); "
+            "'list-full' returns names + data (can be large)"
+        ),
     )
     parser.add_argument("--name", required=True, help="Story name")
     parser.add_argument(
@@ -165,6 +181,9 @@ def main() -> None:
 
     elif args.operation == "list":
         cmd_list(args.name)
+
+    elif args.operation == "list-full":
+        cmd_list_full(args.name)
 
     elif args.operation == "clear":
         cmd_clear(args.name)

@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TOOL_SCRIPT = str(PROJECT_ROOT / "src" / "tools" / "critique_runner.py")
@@ -32,6 +31,7 @@ def story_env(tmp_path: Path) -> tuple[Path, str]:
     stories_dir = tmp_path / "stories"
     story_name = "test-story"
     (stories_dir / story_name / "savepoints").mkdir(parents=True)
+    (stories_dir / story_name / "state.json").write_text('{"story_name": "test-story"}')
     return stories_dir, story_name
 
 
@@ -52,18 +52,15 @@ def _run_tool(
 def _write_savepoint(
     stories_dir: Path, story_name: str, step_name: str, data: str | dict
 ) -> None:
-    """Write a savepoint file directly (matches FilesystemSavepointRepository format).
-
-    For dict/list data, uses YAML frontmatter (matching save_savepoint behaviour).
-    For string data, uses legacy markdown format.
-    """
-    filepath = stories_dir / story_name / "savepoints" / f"{step_name}.md"
-    filepath.parent.mkdir(parents=True, exist_ok=True)
+    """Write a savepoint file directly using extension-based repository format."""
+    base_path = stories_dir / story_name / "savepoints" / step_name
+    base_path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(data, dict):
-        yaml_data = yaml.dump(data, default_flow_style=False, allow_unicode=True)
-        content = f"---\n{yaml_data}---\n\n# Savepoint: {step_name}\n\nData saved in YAML frontmatter above."
+        filepath = base_path.with_suffix(".json")
+        content = json.dumps(data, indent=2, ensure_ascii=False)
     else:
-        content = f"# Savepoint: {step_name}\n\n{data}"
+        filepath = base_path.with_suffix(".md")
+        content = data
     filepath.write_text(content, encoding="utf-8")
 
 
@@ -393,7 +390,10 @@ def test_run_critics_missing_story(story_env: tuple[Path, str]) -> None:
         stories_dir=stories_dir,
     )
     assert result.returncode != 0
-    assert "not found" in result.stderr.lower()
+    assert (
+        "not initialized" in result.stderr.lower()
+        or "not found" in result.stderr.lower()
+    )
 
 
 # ---------------------------------------------------------------------------

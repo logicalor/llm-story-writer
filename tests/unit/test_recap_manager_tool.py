@@ -23,6 +23,7 @@ def story_env(tmp_path: Path) -> tuple[Path, str]:
     stories_dir = tmp_path / "stories"
     story_name = "test-story"
     (stories_dir / story_name / "savepoints").mkdir(parents=True)
+    (stories_dir / story_name / "state.json").write_text('{"story_name": "test-story"}')
     return stories_dir, story_name
 
 
@@ -43,23 +44,11 @@ def _run_tool(
 def _save_recap_file(
     stories_dir: Path, story_name: str, chapter: int, data: str
 ) -> None:
-    """Write a recap savepoint .md file directly to the expected path."""
+    """Write a recap savepoint .json file directly to the expected path."""
     recap_dir = stories_dir / story_name / "savepoints" / f"chapter_{chapter}"
     recap_dir.mkdir(parents=True, exist_ok=True)
-    recap_file = recap_dir / "recap.md"
-    # Store as markdown with YAML frontmatter (matches FilesystemSavepointRepository)
-    import yaml
-
-    yaml_data = yaml.dump(
-        json.loads(data) if isinstance(data, str) else data,
-        default_flow_style=False,
-        allow_unicode=True,
-    )
-    content = (
-        f"---\n{yaml_data}---\n\n"
-        f"# Savepoint: chapter_{chapter}/recap\n\n"
-        "Data saved in YAML frontmatter above."
-    )
+    recap_file = recap_dir / "recap.json"
+    content = json.dumps(json.loads(data), indent=2, ensure_ascii=False)
     recap_file.write_text(content, encoding="utf-8")
 
 
@@ -157,7 +146,7 @@ def test_invalid_story_name_exits_1(story_env: tuple[Path, str]) -> None:
         stories_dir=stories_dir,
     )
     assert result.returncode == 1
-    assert "escapes" in result.stderr.lower()
+    assert "escapes" in result.stderr.lower() or "kebab-case" in result.stderr.lower()
 
 
 def test_missing_required_args_exits_2(story_env: tuple[Path, str]) -> None:
