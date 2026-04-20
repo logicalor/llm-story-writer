@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/coder.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Orphaned control-flow statements survive mass method deletion

@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/coder.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Config docs lose rebuild guidance when setup scripts are deleted

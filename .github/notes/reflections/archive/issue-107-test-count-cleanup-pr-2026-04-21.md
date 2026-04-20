@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/orchestrator-v3.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Test count changes on cleanup PRs are expected, not regressions

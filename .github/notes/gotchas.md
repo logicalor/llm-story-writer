@@ -162,3 +162,53 @@ Note: root-level `test_*.py` files (outside `tests/`) are legacy/ad-hoc scripts 
 in `testpaths = ["tests/unit"]` and are intentionally excluded from the E402 suppression glob.
 
 ChromaDB ID: `gotcha-sys-path-insert-tool-tests-007`
+
+---
+
+## Async / Threading
+
+### 008 — `asyncio.to_thread(path.rglob, pattern)` passes an unevaluated generator
+
+**Source:** issue #111, PR #112
+**Severity:** warning
+
+`asyncio.to_thread(path.rglob, pattern)` does **not** offload filesystem I/O to a worker thread.
+`path.rglob(pattern)` returns a lazy generator; `to_thread` calls it with no arguments, receives
+the generator object, and returns immediately. The generator is iterated later — on the event
+loop thread — so the I/O latency lands on the loop regardless of the `to_thread` call.
+
+**Wrong:** `await asyncio.to_thread(path.rglob, pattern)`
+**Right:** `await asyncio.to_thread(lambda: list(path.rglob(pattern)))`
+
+The `lambda` forces both creation and full materialisation of the generator inside the worker
+thread. The same problem applies to any API that returns a lazy iterator:
+`Path.glob`, `os.scandir`, `csv.reader`, `map()`, etc.
+
+ChromaDB ID: `gotcha-asyncio-to-thread-lazy-iterator-008`
+
+---
+
+## Savepoints
+
+### 009 — Stale sibling extension after savepoint format change (.json ↔ .md)
+
+**Source:** issue #111, PR #112
+**Severity:** warning
+
+When `save_savepoint` switches format for a step (string → `.md`; structured → `.json`), the
+previous extension file persists on disk. If `load_savepoint` applies a priority rule
+(`.json` wins over `.md`), a newly written `.md` file is silently ignored because the old
+`.json` still exists.
+
+**Fix:** In `save_savepoint`, delete the sibling extension before writing:
+
+```python
+# When saving as .md, remove any stale .json:
+path.with_suffix(".json").unlink(missing_ok=True)
+# When saving as .json, remove any stale .md:
+path.with_suffix(".md").unlink(missing_ok=True)
+```
+
+This maintains the invariant at write time rather than leaving cleanup to the caller.
+
+ChromaDB ID: `gotcha-savepoint-stale-sibling-extension-009`

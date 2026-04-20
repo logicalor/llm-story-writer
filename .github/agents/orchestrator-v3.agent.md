@@ -285,6 +285,8 @@ Dispatch to specialist agents **in dependency order**, passing the issue number,
 | ----------------------------- | -------------------------- |
 | Any implementation needed     | `Coder`                    |
 
+> **Include this scope constraint explicitly in every Coder dispatch prompt:** "Only modify files in the task checklist. The plan defines the ceiling, not the floor. Do not touch files outside the listed scope."
+
 The **Coder** agent handles implementation in a single dispatch. Wait for it to confirm completion (including lint clean) before proceeding.
 
 **After the Coder returns — verify changes exist on disk.** Do not trust the Coder's return message alone. LLM subagent confirmations can misreport disk state (tool writes may fail silently). After each Coder dispatch, run `grep` on the key changed files to confirm the expected changes are present:
