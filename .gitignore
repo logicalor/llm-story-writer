@@ -179,3 +179,5 @@ SavePoints/*
 
 # Node.js
 node_modules/
+
+stories/
