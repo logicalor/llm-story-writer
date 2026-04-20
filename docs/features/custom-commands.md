@@ -44,7 +44,7 @@ Resumes story generation from the most recent savepoint. If no story name is pro
 
 1. Lists available stories via `story-state --operation list`
 2. If a story name was given, selects that story; otherwise prompts for selection
-3. Lists savepoints for the chosen story
+3. Lists savepoint names for the chosen story via the lean `savepoint-mgr list` operation
 4. Identifies the most recent savepoint and resumes the pipeline from that point
 
 **Example:**
@@ -121,13 +121,14 @@ The command injects three shell commands into the prompt context to gather data:
 
 - `story-state --operation list` — lists available stories
 - `story-state --operation read --name <story>` — reads full story state
-- `savepoint-manager --operation list --name <story>` — lists savepoints
+- `savepoint_manager.py --operation list --name <story>` — lists savepoint names only, avoiding large payload dumps
 
 It also runs a `find` command to count wiki pages. The agent assembles these outputs into a human-readable summary including:
 
 - Story name and creative direction
 - Chapters completed vs total planned
 - Current pipeline phase (derived from the most recent savepoint)
+- Available savepoint names for resume/debugging
 - Wiki statistics — page counts by subdirectory
 
 **Example:**
@@ -248,7 +249,7 @@ Files are included with @filepath syntax.
 - `new-story` references `$1` for the prompt file argument
 - `regenerate` references `$ARGUMENTS` for flexible argument parsing
 - `continue` injects the story list via `!python3` shell syntax
-- `status` uses shell injection for data gathering
+- `status` uses shell injection for data gathering and the names-only savepoint list
 - `settings` includes `@config.md` for file context
 - `wiki` references `wiki_lint.py` for health checks
 - The `.gitkeep` placeholder has been removed

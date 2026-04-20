@@ -203,10 +203,11 @@ For non-dict values (scalars, arrays), the new value replaces the old one entire
 
 ## savepoint-mgr
 
-Manages story savepoints — save, load, check, list, and clear checkpoint data used to resume story generation from intermediate steps.
+Manages story savepoints — save, load, check, list names, list full data, and clear checkpoint data used to resume story generation from intermediate steps.
 
 **Source files:**
 - `.opencode/tools/savepoint-mgr.ts` — TypeScript wrapper
+- `.opencode/tools/_run.ts` — Shared Python subprocess runner with a 5-minute timeout
 - `src/tools/savepoint_manager.py` — Python CLI script
 - `src/infrastructure/storage/savepoint_repository.py` — Underlying `FilesystemSavepointRepository` class
 
@@ -220,10 +221,10 @@ Savepoints support **hierarchical step names** (e.g., `chapter_1/scene_2`) for o
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `operation` | `"save" \| "load" \| "has" \| "list" \| "clear"` | Yes | Operation to perform |
+| `operation` | `"save" \| "load" \| "has" \| "list" \| "list-full" \| "clear"` | Yes | Operation to perform. Use `list` for names only; use `list-full` only when the savepoint payloads are actually needed |
 | `name` | string | Yes | Story name (maps to directory under `stories/`) |
 | `step` | string | For `save`, `load`, `has` | Step name, supports hierarchical paths like `chapter_1/scene_2` |
-| `data` | string | For `save` | JSON string of the data to save |
+| `data` | string | For `save` | Data to save. Valid JSON is parsed and stored as structured data; non-JSON input is stored as raw text |
 
 ### CLI Interface (Python script)
 
@@ -249,6 +250,9 @@ python3 src/tools/savepoint_manager.py --operation has --name my-story \
 # List all savepoints for a story
 python3 src/tools/savepoint_manager.py --operation list --name my-story
 
+# List all savepoints with full payloads (can be large)
+python3 src/tools/savepoint_manager.py --operation list-full --name my-story
+
 # Clear all savepoints for a story
 python3 src/tools/savepoint_manager.py --operation clear --name my-story
 ```
@@ -257,10 +261,11 @@ python3 src/tools/savepoint_manager.py --operation clear --name my-story
 
 | Operation | Effect | Output |
 |-----------|--------|--------|
-| `save` | Serialises `--data` as a savepoint file under `savepoints/<step>.md` | `{"status": "saved", "step": "<step>"}` |
+| `save` | Writes strings to `savepoints/<step>.md` as raw UTF-8 text; writes structured values to `savepoints/<step>.json` as pretty JSON (`indent=2`, `ensure_ascii=False`) | `{"status": "saved", "step": "<step>"}` |
 | `load` | Reads and deserialises a savepoint file | `{"step": "<step>", "data": <value>}` |
 | `has` | Checks whether a savepoint file exists for the given step | `{"step": "<step>", "exists": true/false}` |
-| `list` | Scans the `savepoints/` directory for all saved steps | `{"savepoints": {"step_1": <data>, "step_2": <data>, ...}}` |
+| `list` | Scans the `savepoints/` directory and returns step names only, without loading payloads | `{"savepoints": ["step_1", "step_2", ...]}` |
+| `list-full` | Loads every savepoint and returns both step names and payloads | `{"savepoints": {"step_1": <data>, "step_2": <data>, ...}}` |
 | `clear` | Removes all savepoint files for the story | `{"status": "cleared"}` |
 
 ### Hierarchical Step Names
@@ -272,17 +277,32 @@ savepoints/
 ├── chapter_1/
 │   ├── outline.md
 │   ├── scene_1.md
-│   └── scene_2.md
+│   └── recap.json
 ├── chapter_2/
 │   └── outline.md
-└── characters.md
+└── story_state.json
 ```
 
 This maps naturally to the story generation pipeline phases (outline, character sheets, per-chapter scenes, recaps).
 
-### Backward Compatibility
+### Storage Format
 
-Savepoint files use **Markdown with YAML frontmatter** format. The `FilesystemSavepointRepository` reads and writes `.md` files with YAML frontmatter containing the serialised data.
+Savepoints now use an **extension-based split format**:
+
+- `.md` — raw prose or other plain-text savepoints
+- `.json` — structured savepoints such as dicts, lists, booleans, numbers, and story state snapshots
+
+The repository checks for `<step>.json` first, then `<step>.md`. New savepoints never use YAML frontmatter, and JSON files are written with `ensure_ascii=False` so Unicode punctuation stays readable on disk.
+
+### Repository Behaviour
+
+`FilesystemSavepointRepository` exposes one savepoint namespace per story and handles both file types transparently:
+
+- `save_savepoint()` chooses `.md` or `.json` based on the runtime data type
+- `load_savepoint()` returns parsed JSON for `.json` and raw text for `.md`
+- `list_savepoint_names()` returns extension-free step names for resume/discovery flows
+- `list_savepoints()` remains available for full payload inspection, but it loads every file and is much heavier
+- `delete_savepoint()` and `clear_all_savepoints()` remove both `.md` and `.json` variants
 
 ### Exit Codes
 

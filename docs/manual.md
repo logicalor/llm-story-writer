@@ -311,6 +311,7 @@ llm-story-writer/
 │   │   ├── story-state.ts
 │   │   ├── wiki-*.ts
 │   │   ├── savepoint-mgr.ts
+│   │   ├── _run.ts           # Shared Python tool runner
 │   │   └── ...
 │   ├── skills/               # Reusable skill definitions
 │   │   ├── story-pipeline/
@@ -460,7 +461,7 @@ Tools are TypeScript wrappers (`.opencode/tools/*.ts`) that call Python scripts 
 |------|---------|
 | `prompt-loader` | Load and render prompt templates with variable substitution |
 | `story-state` | Initialize and update story state JSON |
-| `savepoint-mgr` | Create, list, and restore savepoints |
+| `savepoint-mgr` | Create, inspect, and restore savepoints (`list` = names only, `list-full` = full payloads) |
 | `character-mgr` | Extract and manage character sheets |
 | `setting-mgr` | Extract and manage setting sheets |
 | `recap-manager` | Generate and manage chapter recaps |
@@ -661,8 +662,9 @@ curl http://127.0.0.1:11434/v1/models
 ### Savepoint restore failing
 
 - Check `savepoint_dir` in `config.md` points to the correct path
-- Verify savepoint JSON files are not corrupted
-- List savepoints with `/savepoint list` to see available restore points
+- Check both `stories/<name>/savepoints/**/*.json` and `stories/<name>/savepoints/**/*.md` for the expected step
+- Use `python3 src/tools/savepoint_manager.py --operation list --name <story>` to see savepoint names without loading full payloads
+- Use `python3 src/tools/savepoint_manager.py --operation list-full --name <story>` only when you need the stored data itself
 
 ### Context window overflow
 
