@@ -35,6 +35,10 @@ Review each changed source file systematically:
 - [ ] Migrations have proper rollback support
 - [ ] **Batch/composite operations** — if a function wraps multiple state-changing operations, verify: (1) pre-flight snapshot or backup is taken before the batch starts, (2) failures mid-batch trigger rollback or at minimum leave state consistent, (3) a final sync/consistency check runs after the batch completes
 
+#### Agent Instructions
+
+- [ ] **Tool call contracts** — for any new or modified agent instruction file that includes tool invocations, verify each call against the tool source before accepting: (a) operation names match the Python CLI dispatch (grep `src/tools/*.py` for valid operation values), (b) parameter key names match the Zod field names in the TS wrapper (`.opencode/tools/*.ts`) — mismatched keys pass Zod silently; (c) any omitted parameter is confirmed safe — check the tool's default value and verify it produces correct behaviour in this context (e.g. `mode` defaults to `"outline"` in `critique-runner`; a chapter-context agent that omits `mode` will evaluate the wrong artifact type without erroring)
+
 ---
 
 ### Phase 3 — Frontend Review (if applicable)
@@ -103,3 +107,4 @@ Check documentation:
 - [ ] **Code example drift** — if this PR changes the semantics of an API method, removes a method, or makes a field immutable, grep docs (`.github/skills/`, `docs/`, `.github/notes/`) for code examples that use the old pattern; examples using removed or changed methods silently become misleading
 - [ ] **Role/taxonomy renames** — if a role or taxonomy name was changed in prose (e.g. a role table), grep the same file for old names in embedded code examples, comments, and annotation blocks; stale names in examples are equally misleading
 - [ ] **File paths and links** — verify all file paths, directory tree diagrams, and relative links in documentation exist on disk and resolve correctly from the doc's location
+- [ ] **Orchestrator-subagent companion sync** — if this PR adds or removes a subagent dispatch in the orchestrator, verify `story-pipeline/SKILL.md` is updated: (1) the subagent count in the overview sentence ("The pipeline uses N subagents"), (2) the reference table row, and (3) the constraint sentence ("These are the only N subagents the orchestrator may dispatch"); a stale constraint sentence is an authoritative false statement that blocks dispatch of the new agent

@@ -60,9 +60,11 @@ Each chapter passes through seven sub-phases:
 
 Chapters are generated sequentially because each chapter's wiki updates inform the next chapter's context.
 
+Phase 7f now dispatches the `quality-reviewer` subagent instead of running the critique/revision loop inline. The subagent owns scoring, refinement decisions, feedback generation, and revision for one chapter, then returns a structured result to the orchestrator. When `requires_post_processing` is `true`, the orchestrator re-runs Phases 7c, 7d, and 7e so the wiki, recap, and lint outputs reflect the final accepted chapter text.
+
 ## Quality Gates
 
-The orchestrator enforces quality thresholds via the `critique-runner` tool. When a quality gate fails after maximum revision attempts, the best-scoring version is accepted and the pipeline continues.
+The orchestrator enforces outline quality directly and delegates chapter quality evaluation to the `quality-reviewer` subagent, which runs the Phase 7f critique/revision loop with `critique-runner` and `scene-writer`. When a quality gate fails after maximum revision attempts, the best-scoring version is accepted and the pipeline continues.
 
 | Gate | Config Key | Default Threshold | Max Revisions | Applied In |
 |------|-----------|-------------------|---------------|------------|
@@ -85,7 +87,7 @@ After Phase 6, the wiki is the **authoritative source of truth** for world state
 
 ## Subagents
 
-The orchestrator delegates specialised work to four subagents:
+The orchestrator delegates specialised work to five subagents:
 
 | Subagent | Purpose | Invoked In | Status |
 |----------|---------|------------|--------|
@@ -93,6 +95,7 @@ The orchestrator delegates specialised work to four subagents:
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 | Implemented |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b | Implemented (PR #63) |
 | `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 6, 7c | Implemented (PR #65) |
+| `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f | Implemented (PR #127) |
 
 ### character-sheet-generator
 
@@ -154,6 +157,20 @@ The agent uses two skills:
 - **wiki-conventions** — page type schemas, YAML frontmatter specifications, wikilink conventions, and slug naming rules
 
 Named `wiki-maintainer` to reflect its lifecycle responsibility — maintaining wiki state across the full generation pipeline, not just creating pages. Runs on a 7b model (`deepseek-r1-abliterated:7b`) for low overhead. See the [agent definition](../../.opencode/agents/wiki-maintainer.md) and [feature documentation](wiki-maintainer.md) for the full workflow, error handling, and entity type reference.
+
+### quality-reviewer
+
+The `quality-reviewer` subagent handles Phase 7f for one assembled chapter. It receives the story name, chapter number, full chapter text, and the chapter-quality config values from the orchestrator, then:
+
+1. Runs `critique-runner` critics for the current chapter draft and parses the score
+2. Checks acceptance against the configured quality threshold and the minimum/maximum revision rules
+3. Generates revision feedback and calls `scene-writer` with `operation: revise` when another pass is required
+4. Tracks the best score across iterations and saves quality revision checkpoints
+5. Returns `accepted_chapter_text`, `best_score`, `revision_count`, and `requires_post_processing` to the orchestrator
+
+The agent calls tools only and never dispatches subagents, preserving the depth-1 nesting rule introduced after the earlier nested-dispatch freeze. The orchestrator keeps ownership of downstream re-processing: when `requires_post_processing` is true, it re-runs the wiki update, recap generation, and wiki lint phases against the final accepted chapter.
+
+See the [agent definition](../../.opencode/agents/quality-reviewer.md) for the full decision matrix, return contract, and savepoint naming.
 
 ## Commands
 
@@ -272,6 +289,7 @@ The skill is automatically available to the `story-orchestrator` and `chapter-wr
 ## Key Files
 
 - `.opencode/agents/story-orchestrator.md` — Agent definition (266 lines)
+- `.opencode/agents/quality-reviewer.md` — Chapter quality-review subagent definition
 - `.opencode/agents/chapter-writer.md` — Chapter writer subagent definition
 - `.opencode/skills/story-pipeline/SKILL.md` — Pipeline skill reference (345 lines)
 - `.opencode/skills/context-budgeting/SKILL.md` — Context budgeting skill reference

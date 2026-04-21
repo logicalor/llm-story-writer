@@ -184,18 +184,28 @@ If `scene_generation_pipeline` is false:
 #### 7f. Quality Evaluation
 
 If `enable_chapter_revisions` is true:
-1. Run `critique-runner` on the chapter with `mode: chapter` and `content: <assembled chapter text>`. Pass the assembled chapter text explicitly; do not rely on savepoint fallback for chapter critique.
-2. Before checking the quality gate score, ensure the chapter has been revised at least `chapter_min_revisions` times (default: 1). Do not accept the chapter until `chapter_min_revisions` is satisfied even if the first score passes.
-3. If score < `chapter_quality`:
-   - Enter revision loop (max `chapter_max_revisions` iterations)
-   - On each revision: regenerate/revise the chapter, re-run critique
-   - If score >= `chapter_quality` or max revisions reached, proceed
-4. If score >= `chapter_quality`, accept the chapter only after `chapter_min_revisions` is satisfied.
-5. After the chapter passes the quality gate or maximum revisions are reached:
-   - Re-run `wiki-maintainer` (Phase 7c)
-   - Re-run recap generation (Phase 7d)
-   - Re-run wiki lint (Phase 7e)
-6. `enable_final_edit` and `enable_scrubbing` are planned features — not yet implemented.
+1. Dispatch `quality-reviewer` with:
+   - `story_name`: the story name
+   - `chapter_number`: N
+   - `chapter_text`: the assembled chapter text from Phase 7b
+   - `chapter_quality`: `chapter_quality` config value (default 85)
+   - `chapter_min_revisions`: `chapter_min_revisions` config value (default 0)
+   - `chapter_max_revisions`: `chapter_max_revisions` config value (default 3)
+
+2. Receive the structured result from `quality-reviewer`:
+   - `accepted_chapter_text` — use this as the chapter text for the remainder of the pipeline
+   - `best_score` — log for observability
+   - `revision_count` — log for observability
+   - `requires_post_processing` — flag indicating whether at least one revision occurred
+
+3. If `requires_post_processing` is true:
+   - Re-run Phase 7c (wiki update) using `accepted_chapter_text`
+   - Re-run Phase 7d (recap generation) for the chapter
+   - Re-run Phase 7e (wiki lint) using `accepted_chapter_text`
+
+   This ensures the wiki, recap, and lint all reflect the final revised chapter, not a superseded draft.
+
+`enable_final_edit` and `enable_scrubbing` are planned features — not yet implemented.
 
 #### 7g. Chapter Savepoint
 
@@ -245,8 +255,9 @@ Delegate specialised creative work to these subagents (referenced by name):
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
+| `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f |
 
-**These are the only four subagents you may dispatch.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
+**These are the only five subagents you may dispatch.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
 
 ---
 
