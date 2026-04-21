@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "wiki-update",
   description:
     "Create, update, and manage wiki pages. Handles page CRUD, index maintenance, timeline updates, operation logging, and ChromaDB re-embedding.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["create", "update", "append-timeline", "batch", "log"])
       .describe("Operation to perform"),
@@ -58,7 +57,7 @@ export default {
       .optional()
       .describe("JSON payload for batch operations"),
     message: z.string().optional().describe("Log message (log only)"),
-  }),
+  },
   execute: async ({
     operation,
     name,

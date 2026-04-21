@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "prompt-loader",
   description:
     "Load a prompt template by ID and substitute variables. Returns the rendered prompt text.",
-  parameters: z.object({
+  args: {
     promptId: z
       .string()
       .describe("Prompt template ID (e.g., 'chapters/create_content')"),
@@ -14,7 +13,7 @@ export default {
       .record(z.string())
       .optional()
       .describe("Key-value pairs to substitute in the template"),
-  }),
+  },
   execute: async ({
     promptId,
     variables,

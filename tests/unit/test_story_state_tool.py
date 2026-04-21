@@ -24,7 +24,7 @@ def story_dir(tmp_path: Path) -> Path:
 
 
 def _run_tool(
-    *args: str, stories_dir: Path | None = None
+    *args: str, stories_dir: Path | None = None, stdin: str | None = None
 ) -> subprocess.CompletedProcess[str]:
     env = {**os.environ}
     if stories_dir is not None:
@@ -34,6 +34,7 @@ def _run_tool(
         capture_output=True,
         text=True,
         env=env,
+        input=stdin,
     )
 
 
@@ -249,6 +250,34 @@ class TestWrite:
             stories_dir=story_dir,
         )
         assert result.returncode == 2
+
+    def test_write_value_from_stdin(self, story_dir: Path) -> None:
+        """--value - reads JSON from stdin, supporting values with single quotes."""
+        _run_tool("--operation", "init", "--name", "stdin-story", stories_dir=story_dir)
+        json_with_apostrophe = '{"prompt": "humanity\'s first transmission"}'
+        result = _run_tool(
+            "--operation",
+            "write",
+            "--name",
+            "stdin-story",
+            "--field",
+            "metadata",
+            "--value",
+            "-",
+            stories_dir=story_dir,
+            stdin=json_with_apostrophe,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        read_result = _run_tool(
+            "--operation",
+            "read",
+            "--name",
+            "stdin-story",
+            "--field",
+            "metadata.prompt",
+            stories_dir=story_dir,
+        )
+        assert json.loads(read_result.stdout) == "humanity's first transmission"
 
 
 class TestList:

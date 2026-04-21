@@ -156,7 +156,7 @@ def cmd_read(name: str, field: str | None) -> None:
 
 
 def cmd_write(name: str, field: str, value_str: str) -> None:
-    """Write a value to a nested field in story state."""
+    """Write a value to a nested field in story state. value_str is a JSON string."""
     story_dir = _validate_story_name(name)
     state_path = story_dir / "state.json"
 
@@ -231,7 +231,11 @@ def main() -> None:
     )
     parser.add_argument("--name", default=None, help="Story name")
     parser.add_argument("--field", default=None, help="Dot-notation field path")
-    parser.add_argument("--value", default=None, help="JSON string value for write")
+    parser.add_argument(
+        "--value",
+        default=None,
+        help="JSON string value for write. Use '-' to read JSON from stdin (safe for values containing quotes).",
+    )
     args = parser.parse_args()
 
     if args.operation == "init":
@@ -256,7 +260,8 @@ def main() -> None:
         if args.value is None:
             print("Error: --value is required for write", file=sys.stderr)
             sys.exit(2)
-        cmd_write(args.name, args.field, args.value)
+        value_str = sys.stdin.read() if args.value == "-" else args.value
+        cmd_write(args.name, args.field, value_str)
 
     elif args.operation == "list":
         cmd_list()

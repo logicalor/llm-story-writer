@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "scene-writer",
   description:
     "Scene writing pipeline: parse chapter outline into scene definitions, generate individual scenes, revise scenes with feedback, or assemble scenes into a chapter.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["parse-definitions", "generate", "revise", "assemble-chapter"])
       .describe("Operation to perform"),
@@ -85,7 +84,7 @@ export default {
       .string()
       .optional()
       .describe("Override LLM model identifier"),
-  }),
+  },
   execute: async ({
     operation,
     name,

@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "outline-generator",
   description:
     "Outline generation pipeline: analyze story prompt (8-chunk analysis + start date + base context), generate story elements, generate initial outline, expand chapter chunks with continuity analysis, or refine outline with feedback.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum([
         "analyze-prompt",
@@ -65,7 +64,7 @@ export default {
       .string()
       .optional()
       .describe("Override LLM model identifier"),
-  }),
+  },
   execute: async ({
     operation,
     name,

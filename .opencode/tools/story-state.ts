@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "story-state",
   description:
     "Manage story state: init, read, write, or list stories. Handles story_context, characters, plot_threads, and chapters.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["init", "read", "write", "list"])
       .describe("Operation to perform"),
@@ -18,8 +17,10 @@ export default {
     value: z
       .string()
       .optional()
-      .describe("JSON string value for write operation"),
-  }),
+      .describe(
+        "JSON string value for write operation. Pass '-' to read from stdin (use with heredoc for values containing quotes or apostrophes).",
+      ),
+  },
   execute: async ({
     operation,
     name,

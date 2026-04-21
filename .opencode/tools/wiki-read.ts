@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "wiki-read",
   description:
     "Read wiki pages by slug, type, or glob pattern with configurable detail levels (headline/brief/full), or match entity names in text against the wiki index.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["read", "match-entities"])
       .describe("Operation to perform"),
@@ -22,7 +21,7 @@ export default {
       .string()
       .optional()
       .describe("Text to match entities against (required for match-entities)"),
-  }),
+  },
   execute: async ({
     operation,
     name,

@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "wiki-lint",
   description:
     "Run consistency checks across the story wiki. Operations: check-chapter (post-chapter contradiction detection), check-full (comprehensive lint), check-entity (single entity validation).",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["check-chapter", "check-full", "check-entity"])
       .describe("Lint operation"),
@@ -27,7 +26,7 @@ export default {
       .string()
       .optional()
       .describe("Entity slug (required for check-entity)"),
-  }),
+  },
   execute: async ({
     operation,
     name,

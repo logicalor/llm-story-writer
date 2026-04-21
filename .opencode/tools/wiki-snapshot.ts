@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "wiki-snapshot",
   description:
     "Assemble a pre-generation context snapshot for a scene. Uses three-stage hybrid retrieval (entity matching, metadata filtering, semantic search, wikilink traversal), token-budgeted detail levels, and structured markdown assembly.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["snapshot", "cache-status"])
       .describe("Operation to perform"),
@@ -48,7 +47,7 @@ export default {
       .positive()
       .optional()
       .describe("Token budget (default: 15000)"),
-  }),
+  },
   execute: async ({
     operation,
     name,

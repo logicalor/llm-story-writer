@@ -3,12 +3,11 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "story-assembler",
   description:
     "Assemble completed chapter savepoints into a single story markdown file.",
-  parameters: z.object({
+  args: {
     storyName: z.string().describe("Story name (directory under stories/)")
-  }),
+  },
   execute: async ({
     storyName,
   }: {

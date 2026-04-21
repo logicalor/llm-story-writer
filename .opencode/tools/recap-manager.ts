@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "recap-manager",
   description:
     "Manage chapter recaps: load, generate (5-stage pipeline), sanitize, or compact. Recaps are JSON event timelines stored as savepoints under stories/<name>/savepoints/chapter_N/recap.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["load", "generate", "sanitize", "compact"])
       .describe("Operation to perform"),
@@ -28,7 +27,7 @@ export default {
       .string()
       .optional()
       .describe("Override LLM model identifier"),
-  }),
+  },
   execute: async ({
     operation,
     name,

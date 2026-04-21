@@ -3,12 +3,11 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "rag-query",
   description:
     "Index and query story content via ChromaDB semantic search. " +
     "Use 'index' to embed a piece of content (outline, chapter, character sheet, setting sheet, wiki page, recap) " +
     "into the story's ChromaDB collection. Use 'query' to retrieve relevant chunks by semantic similarity.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["index", "query"])
       .describe("Operation to perform: 'index' to embed content, 'query' to search"),
@@ -39,7 +38,7 @@ export default {
       .number()
       .optional()
       .describe("Number of results to return (default: 10)"),
-  }),
+  },
   execute: async ({
     operation,
     name,

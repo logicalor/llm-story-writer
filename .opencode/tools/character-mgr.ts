@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "character-mgr",
   description:
     "Manage story character sheets: extract-names, generate-sheet, update-sheet, load-sheet, list, or generate-abridged. Character sheets are stored as JSON files in stories/<name>/characters/.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum([
         "extract-names",
@@ -38,7 +37,7 @@ export default {
       .boolean()
       .optional()
       .describe("If true, load-sheet returns abridged version only"),
-  }),
+  },
   execute: async ({
     operation,
     name,

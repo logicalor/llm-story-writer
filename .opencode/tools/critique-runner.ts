@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "critique-runner",
   description:
     "Run critics against story content, parse scores, check quality thresholds, and generate feedback",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["run-critics", "parse-scores", "should-refine", "generate-feedback"])
       .describe("Operation to perform"),
@@ -47,7 +46,7 @@ export default {
         "Minimum per-criterion score percentage for should-refine (default: 75.0)"
       ),
     model: z.string().optional().describe("Override LLM model identifier"),
-  }),
+  },
   execute: async ({
     operation,
     name,

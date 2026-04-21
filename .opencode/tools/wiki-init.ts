@@ -3,13 +3,12 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "wiki-init",
   description:
     "Initialise a story wiki directory structure with subdirectories, schema template, index, log, and contradictions files. Idempotent — safe to call if wiki already exists.",
-  parameters: z.object({
+  args: {
     operation: z.enum(["init"]).describe("Operation to perform"),
     name: z.string().describe("Story name (directory under stories/)"),
-  }),
+  },
   execute: async ({
     operation,
     name,

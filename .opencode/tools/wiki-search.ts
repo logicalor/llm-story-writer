@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "wiki-search",
   description:
     "Search wiki pages via ChromaDB: semantic search by query text, or metadata-filtered query by JSON where clause. Read-only — does not create collections.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["semantic", "metadata"])
       .describe("Operation to perform"),
@@ -23,7 +22,7 @@ export default {
       .number()
       .optional()
       .describe("Number of results to return (default: 10)"),
-  }),
+  },
   execute: async ({
     operation,
     name,

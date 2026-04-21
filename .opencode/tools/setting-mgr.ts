@@ -3,10 +3,9 @@ import { execFileSync } from "child_process";
 import { resolve } from "path";
 
 export default {
-  name: "setting-mgr",
   description:
     "Manage story setting sheets: extract-names, generate-sheet, update-sheet, load-sheet, list, or generate-abridged. Setting sheets are stored as JSON files in stories/<name>/settings/.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum([
         "extract-names",
@@ -38,7 +37,7 @@ export default {
       .boolean()
       .optional()
       .describe("If true, load-sheet returns abridged version only"),
-  }),
+  },
   execute: async ({
     operation,
     name,

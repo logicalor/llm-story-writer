@@ -3,10 +3,9 @@ import { resolve } from "path";
 import { runTool } from "./_run";
 
 export default {
-  name: "savepoint-mgr",
   description:
     "Manage story savepoints: save, load, has, list, list-full, or clear. Use 'list' (names only, fast) for resume/discovery — NOT 'list-full' (dumps all data, wastes tokens). Supports hierarchical step paths like chapter_1/scene_2. Python script: src/tools/savepoint_manager.py.",
-  parameters: z.object({
+  args: {
     operation: z
       .enum(["save", "load", "has", "list", "list-full", "clear"])
       .describe(
@@ -23,7 +22,7 @@ export default {
       .string()
       .optional()
       .describe("Data to save (JSON string, required for save operation)"),
-  }),
+  },
   execute: async ({
     operation,
     name,
