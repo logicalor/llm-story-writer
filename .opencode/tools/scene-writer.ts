@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Scene writing pipeline: parse chapter outline into scene definitions, generate individual scenes, revise scenes with feedback, or assemble scenes into a chapter.",
   args: {
@@ -201,4 +202,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});

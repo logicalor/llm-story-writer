@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Read wiki pages by slug, type, or glob pattern with configurable detail levels (headline/brief/full), or match entity names in text against the wiki index.",
   args: {
@@ -78,4 +79,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});

@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Initialise a story wiki directory structure with subdirectories, schema template, index, log, and contradictions files. Idempotent — safe to call if wiki already exists.",
   args: {
@@ -39,4 +40,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});

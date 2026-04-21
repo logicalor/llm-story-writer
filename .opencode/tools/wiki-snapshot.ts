@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Assemble a pre-generation context snapshot for a scene. Uses three-stage hybrid retrieval (entity matching, metadata filtering, semantic search, wikilink traversal), token-budgeted detail levels, and structured markdown assembly.",
   args: {
@@ -123,4 +124,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});

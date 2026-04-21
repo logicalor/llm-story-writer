@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Outline generation pipeline: analyze story prompt (8-chunk analysis + start date + base context), generate story elements, generate initial outline, expand chapter chunks with continuity analysis, or refine outline with feedback.",
   args: {
@@ -141,4 +142,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});

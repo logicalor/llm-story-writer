@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Manage story character sheets: extract-names, generate-sheet, update-sheet, load-sheet, list, or generate-abridged. Character sheets are stored as JSON files in stories/<name>/characters/.",
   args: {
@@ -89,4 +90,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});

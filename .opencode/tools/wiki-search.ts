@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Search wiki pages via ChromaDB: semantic search by query text, or metadata-filtered query by JSON where clause. Read-only — does not create collections.",
   args: {
@@ -69,4 +70,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});

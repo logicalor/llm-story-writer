@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Create, update, and manage wiki pages. Handles page CRUD, index maintenance, timeline updates, operation logging, and ChromaDB re-embedding.",
   args: {
@@ -179,4 +180,4 @@ export default {
       return `Error: ${errorMessage}`;
     }
   },
-};
+});

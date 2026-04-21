@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Manage chapter recaps: load, generate (5-stage pipeline), sanitize, or compact. Recaps are JSON event timelines stored as savepoints under stories/<name>/savepoints/chapter_N/recap.",
   args: {
@@ -78,4 +79,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});

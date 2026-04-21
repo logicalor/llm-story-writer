@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Index and query story content via ChromaDB semantic search. " +
     "Use 'index' to embed a piece of content (outline, chapter, character sheet, setting sheet, wiki page, recap) " +
@@ -100,4 +101,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});

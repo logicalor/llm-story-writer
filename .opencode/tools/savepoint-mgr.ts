@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { resolve } from "path";
 import { runTool } from "../_run";
 
-export default {
+export default tool({
   description:
     "Manage story savepoints: save, load, has, list, list-full, or clear. Use 'list' (names only, fast) for resume/discovery — NOT 'list-full' (dumps all data, wastes tokens). Supports hierarchical step paths like chapter_1/scene_2. Python script: src/tools/savepoint_manager.py.",
   args: {
@@ -51,4 +52,4 @@ export default {
 
     return runTool("src/tools/savepoint_manager.py", args);
   },
-};
+});

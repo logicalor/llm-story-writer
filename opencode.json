@@ -1,11 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "openai_compatible": {
+    "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "OpenAI Compatible (local)",
+      "name": "LM Studio (local)",
       "options": {
-        "baseURL": "http://localhost:1234/v1"
+        "baseURL": "http://127.0.0.1:1234/v1"
       },
       "models": {
         "gemma-4-26b-a4b-it-heretic-guff": {
@@ -16,17 +16,9 @@
           }
         }
       }
-    },
-    "openai_compatible_embedding": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "OpenAI Compatible Embedding (local)",
-      "options": {
-        "baseURL": "http://localhost:1234/v1"
-      },
-      "models": {}
     }
   },
-  "model": "openai_compatible/gemma-4-26b-a4b-it-heretic-guff",
+  "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
   "permission": {
     "*": "allow",
     "bash": {
@@ -49,22 +41,22 @@
     "story-orchestrator": {
       "mode": "primary",
       "description": "Primary pipeline controller for AI story generation. Drives the full story lifecycle from initial prompt through final assembled output, coordinating subagents, tools, quality gates, and savepoints.",
-      "model": "openai_compatible/gemma-4-26b-a4b-it-heretic-guff"
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff"
     },
     "chapter-writer": {
       "mode": "subagent",
       "description": "Generates all scenes for a single chapter using wiki-based context assembly. Invoked per-chapter by the story-orchestrator to produce complete, polished chapter content.",
-      "model": "openai_compatible/gemma-4-26b-a4b-it-heretic-guff"
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff"
     },
     "outline-planner": {
       "mode": "subagent",
       "description": "Transforms a raw story prompt into a structured, critiqued outline. Handles prompt analysis, element synthesis, outline generation (chunked or monolithic), and optional critique and refinement cycles.",
-      "model": "openai_compatible/gemma-4-26b-a4b-it-heretic-guff"
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff"
     },
     "wiki-maintainer": {
       "mode": "subagent",
       "description": "Extracts entities from story content and maintains the wiki knowledge base. Creates and updates pages, tracks timelines, and ensures consistency during initial population and post-chapter incremental updates.",
-      "model": "openai_compatible/gemma-4-26b-a4b-it-heretic-guff"
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff"
     }
   }
 }

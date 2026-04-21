@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Load a prompt template by ID and substitute variables. Returns the rendered prompt text.",
   args: {
@@ -10,7 +11,7 @@ export default {
       .string()
       .describe("Prompt template ID (e.g., 'chapters/create_content')"),
     variables: z
-      .record(z.string())
+      .record(z.string(), z.string())
       .optional()
       .describe("Key-value pairs to substitute in the template"),
   },
@@ -41,4 +42,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});

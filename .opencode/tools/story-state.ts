@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+const z = tool.schema;
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-export default {
+export default tool({
   description:
     "Manage story state: init, read, write, or list stories. Handles story_context, characters, plot_threads, and chapters.",
   args: {
@@ -59,4 +60,4 @@ export default {
       return `Error: ${message}`;
     }
   },
-};
+});
