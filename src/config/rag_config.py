@@ -1,5 +1,6 @@
 """RAG configuration loader."""
 
+import os
 from dataclasses import dataclass
 from typing import Optional, Tuple
 from urllib.parse import urlparse, urlunparse
@@ -28,14 +29,14 @@ def _normalize_model_api_base(value: str) -> str:
 
 def _parse_embedding_model_uri(embedding_model: str) -> Tuple[Optional[str], str]:
     """Parse embedding model URI into optional host and model name."""
-    for scheme in ("openai-compat://", "ollama://"):
-        if embedding_model.startswith(scheme):
-            remainder = embedding_model[len(scheme) :]
-            if "/" in remainder:
-                candidate_host, model_name = remainder.split("/", 1)
-                if ":" in candidate_host:
-                    return candidate_host, model_name
-            return None, remainder
+    scheme = "openai-compat://"
+    if embedding_model.startswith(scheme):
+        remainder = embedding_model[len(scheme):]
+        if "/" in remainder:
+            candidate_host, model_name = remainder.split("/", 1)
+            if ":" in candidate_host:
+                return candidate_host, model_name
+        return None, remainder
 
     return None, embedding_model
 
@@ -62,7 +63,9 @@ class RAGConfig:
             return _normalize_model_api_base(self.configured_model_api_base)
 
         host, _ = _parse_embedding_model_uri(self.embedding_model)
-        return _normalize_model_api_base(host or "127.0.0.1:11434")
+        return _normalize_model_api_base(
+            host or os.environ.get("LLM_API_BASE", "http://127.0.0.1:11434/v1")
+        )
 
     @property
     def embedding_model_name(self) -> str:
@@ -88,9 +91,7 @@ class RAGConfigLoader:
             vector_dimensions=config.get("vector_dimensions", 1536),
             similarity_threshold=config.get("similarity_threshold", 0.7),
             max_context_chunks=config.get("max_context_chunks", 20),
-            configured_model_api_base=config.get(
-                "model_api_base", config.get("ollama_host")
-            ),
+            configured_model_api_base=config.get("model_api_base"),
             max_chunk_size=config.get("max_chunk_size", 1000),
             overlap_size=config.get("overlap_size", 200),
         )

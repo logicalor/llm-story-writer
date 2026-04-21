@@ -37,33 +37,10 @@ class TestModelConfig:
         assert config.parameters["temperature"] == 0.7
         assert config.parameters["top_p"] == 0.9
 
-    def test_create_from_string_ollama_backward_compat(self):
-        """Test creating ModelConfig from Ollama string for backward compatibility."""
-        model_string = "ollama://llama3:70b"
-        config = ModelConfig.from_string(model_string)
-
-        assert config.name == "llama3:70b"
-        assert config.provider == "openai_compatible"
-        assert config.original_scheme == "ollama"
-
-    def test_create_from_string_lm_studio(self):
-        """Test creating ModelConfig from LM Studio string with underscore scheme."""
-        model_string = "lm_studio://llama3:8b"
-        config = ModelConfig.from_string(model_string)
-
-        assert config.name == "llama3:8b"
-        assert config.provider == "lm_studio"
-        assert config.host is None
-        assert config.parameters == {}
-
-    def test_create_from_string_llama_cpp_with_host(self):
-        """Test creating ModelConfig from llama.cpp string with underscore scheme."""
-        model_string = "llama_cpp://mistral-7b@127.0.0.1:8080"
-        config = ModelConfig.from_string(model_string)
-
-        assert config.name == "mistral-7b"
-        assert config.provider == "llama_cpp"
-        assert config.host == "127.0.0.1:8080"
+    def test_create_from_string_ollama_scheme_rejected(self):
+        """Test that ollama:// scheme is rejected as unsupported."""
+        with pytest.raises(ValidationError, match="Invalid provider"):
+            ModelConfig.from_string("ollama://llama3:70b")
 
     def test_create_from_string_google(self):
         """Test that google:// provider is rejected as unsupported."""
@@ -75,7 +52,7 @@ class TestModelConfig:
         with pytest.raises(ValidationError, match="Invalid provider"):
             ModelConfig.from_string("openrouter://anthropic/claude-3-opus")
 
-    @pytest.mark.parametrize("scheme", ["google", "openrouter", "openai", "anthropic"])
+    @pytest.mark.parametrize("scheme", ["google", "openrouter", "openai", "anthropic", "ollama", "lm_studio", "llama_cpp"])
     def test_removed_cloud_provider_schemes_raise_validation_error(self, scheme):
         """Test that all four removed cloud provider schemes are rejected."""
         with pytest.raises(ValidationError, match="Invalid provider"):
@@ -116,12 +93,6 @@ class TestModelConfig:
         expected = "openai-compat://llama3:70b@192.168.1.100:11434?temperature=0.7"
         assert str(config) == expected
 
-    def test_to_string_preserves_ollama_scheme_when_input_used_it(self):
-        """Test converting backward-compatible Ollama input back to Ollama URI."""
-        config = ModelConfig.from_string("ollama://llama3:70b@192.168.1.100:11434")
-
-        expected = "ollama://llama3:70b@192.168.1.100:11434"
-        assert str(config) == expected
 
     def test_repr(self):
         """Test ModelConfig representation."""

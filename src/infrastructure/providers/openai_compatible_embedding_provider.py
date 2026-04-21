@@ -1,6 +1,7 @@
 """OpenAI-compatible embedding provider implementation."""
 
 import logging
+import os
 import re
 from typing import List, Optional
 from urllib.parse import urlparse, urlunparse
@@ -40,10 +41,12 @@ class OpenAICompatibleEmbeddingProvider:
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:11434/v1",
+        base_url: Optional[str] = None,
         model: str = "nomic-embed-text",
         host: Optional[str] = None,
     ):
+        if base_url is None:
+            base_url = os.environ.get("LLM_API_BASE", "http://127.0.0.1:11434/v1")
         if host:
             base_url = f"http://{host}/v1"
 

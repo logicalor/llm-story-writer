@@ -28,19 +28,11 @@ class ModelConfig:
         # Validate provider
         valid_providers = {
             "openai_compatible",
-            "ollama",
-            "lm_studio",
-            "llama_cpp",
         }
         if self.provider.lower() not in valid_providers:
             raise ValidationError(
                 f"Invalid provider: {self.provider}. Must be one of {valid_providers}"
             )
-
-        if self.provider.lower() == "ollama":
-            object.__setattr__(self, "provider", "openai_compatible")
-            if self.original_scheme is None:
-                object.__setattr__(self, "original_scheme", "ollama")
 
     @classmethod
     def from_string(cls, model_string: str) -> "ModelConfig":
@@ -49,8 +41,6 @@ class ModelConfig:
         Format: provider://model@host?param1=value1&param2=value2
         Examples:
             - "openai-compat://llama3:70b"
-            - "lm_studio://llama3:8b"
-            - "llama_cpp://mistral-7b@127.0.0.1:8080"
             - "openai-compat://llama3:70b@192.168.1.100:11434?temperature=0.7"
         """
         if "://" not in model_string:
@@ -65,24 +55,13 @@ class ModelConfig:
             if scheme == "openai-compat":
                 provider = "openai_compatible"
                 original_scheme = "openai-compat"
-            elif scheme == "ollama":
-                provider = "openai_compatible"
-                original_scheme = "ollama"
 
             parsed = urlparse(f"x://{remainder}")
 
-            # Handle different provider formats
-            if provider == "openai_compatible":
-                if "@" in parsed.netloc:
-                    model_part, host = parsed.netloc.split("@", 1)
-                    model = f"{model_part}{parsed.path}"
-                else:
-                    model = f"{parsed.netloc}{parsed.path}"
-                    host = None
-            elif "@" in parsed.netloc:
-                model, host = parsed.netloc.split("@", 1)
-                if parsed.path:
-                    model = f"{model}{parsed.path}"
+            # Handle provider format
+            if "@" in parsed.netloc:
+                model_part, host = parsed.netloc.split("@", 1)
+                model = f"{model_part}{parsed.path}"
             else:
                 model = f"{parsed.netloc}{parsed.path}"
                 host = None
@@ -119,10 +98,7 @@ class ModelConfig:
 
     def to_string(self) -> str:
         """Convert ModelConfig back to string representation."""
-        if self.provider == "openai_compatible":
-            scheme = "ollama" if self.original_scheme == "ollama" else "openai-compat"
-        else:
-            scheme = self.provider
+        scheme = "openai-compat"
 
         result = f"{scheme}://{self.name}"
 

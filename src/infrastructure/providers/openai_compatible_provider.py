@@ -1,6 +1,7 @@
 """OpenAI-compatible model provider implementation."""
 
 import json
+import os
 import random
 import re
 from typing import Any, AsyncGenerator, Dict, List, Optional
@@ -39,10 +40,12 @@ class OpenAICompatibleProvider(ModelProvider):
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:11434/v1",
+        base_url: Optional[str] = None,
         context_length: int = 16384,
         randomize_seed: bool = True,
     ):
+        if base_url is None:
+            base_url = os.environ.get("LLM_API_BASE", "http://127.0.0.1:11434/v1")
         self.base_url = _normalize_base_url(base_url)
         self.context_length = context_length
         self.randomize_seed = randomize_seed
@@ -375,7 +378,7 @@ class OpenAICompatibleProvider(ModelProvider):
 
     async def get_supported_providers(self) -> List[str]:
         """Get list of supported providers."""
-        return ["openai_compatible", "ollama"]
+        return ["openai_compatible"]
 
     async def _make_request(
         self, payload: Dict[str, Any], model_config: ModelConfig

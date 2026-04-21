@@ -1,31 +1,32 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "ollama": {
+    "openai_compatible": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Ollama (local)",
+      "name": "OpenAI Compatible (local)",
       "options": {
-        "baseURL": "http://localhost:11434/v1"
+        "baseURL": "http://localhost:1234/v1"
       },
       "models": {
-        "huihui_ai/magistral-abliterated:24b": {
-          "name": "Magistral Abliterated 24B",
+        "gemma-4-26b-a4b-it-heretic-guff": {
+          "name": "Gemma 4 26B Abliterated It Heretic",
           "limit": {
             "context": 65536,
             "output": 32768
           }
-        },
-        "huihui_ai/deepseek-r1-abliterated:7b": {
-          "name": "DeepSeek R1 Abliterated 7B",
-          "limit": {
-            "context": 32768,
-            "output": 16384
-          }
         }
       }
+    },
+    "openai_compatible_embedding": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "OpenAI Compatible Embedding (local)",
+      "options": {
+        "baseURL": "http://localhost:1234/v1"
+      },
+      "models": {}
     }
   },
-  "model": "ollama/huihui_ai/magistral-abliterated:24b",
+  "model": "openai_compatible/gemma-4-26b-a4b-it-heretic-guff",
   "permission": {
     "*": "allow",
     "bash": {
@@ -38,32 +39,24 @@
       "rm *": "deny"
     }
   },
-  "plugins": [
+  "plugin": [
     ".opencode/plugins/story-compaction.ts"
   ],
   "instructions": [
     "AGENTS.md"
   ],
-  "agents": {
+  "agent": {
     "story-orchestrator": {
-      "model": "ollama/huihui_ai/magistral-abliterated:24b",
-      "instructions": ".opencode/agents/story-orchestrator.md",
-      "skills": ["story-pipeline", "context-budgeting"]
+      "model": "openai_compatible/gemma-4-26b-a4b-it-heretic-guff"
     },
     "chapter-writer": {
-      "model": "ollama/huihui_ai/magistral-abliterated:24b",
-      "instructions": ".opencode/agents/chapter-writer.md",
-      "skills": ["scene-writing", "character-voice", "context-budgeting"]
+      "model": "openai_compatible/gemma-4-26b-a4b-it-heretic-guff"
     },
     "outline-planner": {
-      "model": "ollama/huihui_ai/magistral-abliterated:24b",
-      "instructions": ".opencode/agents/outline-planner.md",
-      "skills": ["story-pipeline", "outline-structure"]
+      "model": "openai_compatible/gemma-4-26b-a4b-it-heretic-guff"
     },
     "wiki-maintainer": {
-      "model": "ollama/huihui_ai/deepseek-r1-abliterated:7b",
-      "instructions": ".opencode/agents/wiki-maintainer.md",
-      "skills": ["wiki-maintenance", "wiki-conventions"]
+      "model": "openai_compatible/gemma-4-26b-a4b-it-heretic-guff"
     }
   }
 }

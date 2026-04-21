@@ -1,5 +1,6 @@
 """Configuration loader for reading from config.md frontmatter."""
 
+import os
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict
@@ -71,10 +72,6 @@ class ConfigLoader:
             if "infrastructure" in config_data:
                 infrastructure = config_data["infrastructure"]
                 model_api_base = infrastructure.get("model_api_base")
-                if not model_api_base and infrastructure.get("ollama_host"):
-                    model_api_base = _normalize_model_api_base(
-                        infrastructure["ollama_host"]
-                    )
 
                 config_data.update(
                     {
@@ -84,13 +81,8 @@ class ConfigLoader:
                         ),
                         "logs_dir": infrastructure.get("logs_dir", "Logs"),
                         "model_api_base": _normalize_model_api_base(
-                            model_api_base or "http://127.0.0.1:11434/v1"
-                        ),
-                        "lm_studio_host": infrastructure.get(
-                            "lm_studio_host", "127.0.0.1:1234"
-                        ),
-                        "llama_cpp_host": infrastructure.get(
-                            "llama_cpp_host", "127.0.0.1:8080"
+                            model_api_base
+                            or os.environ.get("LLM_API_BASE", "http://127.0.0.1:11434/v1")
                         ),
                         "context_length": infrastructure.get("context_length", 4096),
                         "randomize_seed": infrastructure.get("randomize_seed", True),

@@ -82,7 +82,7 @@ class TestOpenAICompatibleProvider:
         supported = asyncio.run(provider.get_supported_providers())
 
         assert "openai_compatible" in supported
-        assert "ollama" in supported
+        assert len(supported) == 1
 
     def test_make_request_posts_to_correct_endpoint(self) -> None:
         provider = _build_provider()

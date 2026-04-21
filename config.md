@@ -4,23 +4,24 @@
 
 # Model Configuration
 models:
-  initial_outline_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  chapter_outline_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  chapter_stage1_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  chapter_stage2_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  chapter_stage3_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  chapter_stage4_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  chapter_revision_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  revision_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  eval_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  info_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  scrub_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  checker_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  translator_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  sanity_model: "openai-compat://huihui_ai/deepseek-r1-abliterated:7b"
-  logical_model: "openai-compat://huihui_ai/qwen2.5-coder-abliterate:7b"
-  scene_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  creative_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  initial_outline_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_outline_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_stage1_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_stage2_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_stage3_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_stage4_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_revision_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  revision_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  eval_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  info_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  scrub_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  checker_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  translator_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  sanity_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  logical_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  scene_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  creative_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
   #scene_writer: "openai-compat://hf.co/DavidAU/L3-DARKEST-PLANET-16.5B-GGUF"
 
 # Generation Settings
@@ -60,8 +61,7 @@ infrastructure:
   output_dir: "/home/shaun/Documents/stories/output"
   savepoint_dir: "/home/shaun/Documents/stories/saves"
   logs_dir: "Logs"
-  model_api_base: "http://127.0.0.1:11434/v1"
-  llama_cpp_host: "127.0.0.1:8080"
+  model_api_base: "http://127.0.0.1:1234/v1"
   context_length: 16384
   randomize_seed: true
   
