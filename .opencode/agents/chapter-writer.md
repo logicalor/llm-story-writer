@@ -45,7 +45,11 @@ The `wiki-snapshot` tool is the **primary context source** for scene generation.
 - It respects the token budget, ensuring context fits within the generation window.
 - It prioritises entities relevant to the current scene (POV character, scene setting, active plot threads).
 
-**Fallback only:** Character sheets and setting sheets are passed directly to the generation prompt only when the wiki has not been initialised (i.e., Phase 7 was skipped or failed). In normal pipeline execution, all entity information is accessed through the wiki via `wiki-snapshot`.
+**Fallback only:** Character sheets and setting sheets are passed directly to the generation prompt only when the wiki has not been initialised (i.e., Phase 7 was skipped or failed). In this fallback path:
+- Load all character sheets via `character-mgr` (operation: `load`) — pass as `scene-writer` parameter `characterSheets` (JSON string)
+- Load all setting sheets via `setting-mgr` (operation: `load`) — pass as `scene-writer` parameter `settingSheets` (JSON string)
+- Do **not** pass a `baseContext` in the fallback path — use `characterSheets` and `settingSheets` instead.
+In normal pipeline execution, all entity information is accessed through the wiki via `wiki-snapshot` and passed as `baseContext`.
 
 ---
 
@@ -66,6 +70,8 @@ For each scene M in the chapter (M = 1, 2, ..., scene_count):
    - `locations`: comma-separated location slugs (if multiple locations)
    - `sceneType`: the scene type (dialogue, action, exposition, mixed)
    - `budget`: 15000 (default, configurable via story config)
+
+   > **Slug values required:** `povCharacter`, `characters`, `primaryLocation`, and `locations` must be canonical page slugs — not display names. Retrieve slugs from the parsed scene definition (if the outline-generator stored slug references) or resolve them via `wiki-search` (operation: `semantic`, name: story name, query: character/location display name). The `slug` field in the returned wiki page is canonical. Never construct slugs by lowercasing display names.
 
    **Parse the JSON response.** `wiki-snapshot` returns `{"snapshot": "...", "stats": {...}}` — it does **not** return a bare string. Extract the `snapshot` field: `wiki_context = response["snapshot"]`. Discard the `stats` field.
 
@@ -117,7 +123,7 @@ Savepoints are created at each significant milestone within a chapter, enabling 
 
 2. **Single-chapter fallback.** If the scene generation pipeline fails entirely (repeated generation failures, context assembly errors), generate the chapter as a single unit using the chapter outline and wiki snapshot. This produces a lower-quality result but prevents pipeline stalls.
 
-3. **Wiki-snapshot failure.** If `wiki-snapshot` fails, check whether the wiki is initialised. If not, fall back to loading character sheets and setting sheets directly. If the wiki exists but the snapshot fails, retry once, then fall back to direct sheet loading.
+3. **Wiki-snapshot failure.** If `wiki-snapshot` fails, check whether the wiki is initialised. If not, fall back: load all character sheets via `character-mgr` (operation: `load`) and all setting sheets via `setting-mgr` (operation: `load`). Pass them to `scene-writer` as `characterSheets` and `settingSheets` (JSON strings) respectively. If the wiki exists but the snapshot fails, retry once, then fall back using the same direct-sheet approach.
 
 4. **Savepoint failure.** If a savepoint cannot be created, log the warning and continue generation. The scene content is still held in memory and can be assembled. Loss of savepoints means loss of resume capability for that specific scene.
 
