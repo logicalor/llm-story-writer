@@ -60,11 +60,12 @@ Execute these phases sequentially. Each phase must complete before the next begi
      - `chunkStart`: previous chunk end + 1
      - `chunkEnd`: min(chunk start + `outline_chunk_size` - 1, `wanted_chapters`)
      - `totalChapters`: `wanted_chapters`
-     - `previousChunks`: accumulated outline text from all prior chunks
      - `continuitySummary`: continuity analysis text from the previous chunk
 
+    Pass only `continuitySummary` (a condensed summary of prior chunks) — do NOT pass `previousChunks` as it causes quadratic token growth.
+
    **After each `expand-chapter` call**, parse the JSON response — the tool returns `{"status": "success", "operation": "expand-chapter", "data": {"chunk_outline": "...", "continuity_analysis": "..."}}`:
-   - Extract `data.chunk_outline` — append to `previousChunks` for the next iteration
+    - Extract `data.chunk_outline` — rely on the tool's chunk savepoint for persistence
    - Extract `data.continuity_analysis` — use as the `continuitySummary` value for the next chunk's call
 
    Continue until all `wanted_chapters` chapters are covered.
@@ -128,15 +129,18 @@ Savepoints are created automatically by the tools at each pipeline stage. The ag
 | Savepoint | Created During | Phase |
 |-----------|---------------|-------|
 | `understand_prompt` | Prompt analysis | 1 |
-| `analysis_chunk_{category}` (×8) | Prompt analysis | 1 |
+| `story_analysis/{chunk_type}_chunk` (×8) | Prompt analysis | 1 |
 | `story_start_date` | Prompt analysis | 1 |
 | `base_context` | Prompt analysis | 1 |
 | `story_elements` | Elements synthesis | 2 |
-| `outline_complete` | Non-chunked generation | 3 |
+| `initial_outline` | Non-chunked generation by `outline-generator` | 3 |
+| `outline_complete` | Orchestrator-level Phase 2 checkpoint | 3 |
 | `outline_chunk_{start}_{end}` | Chunked generation (e.g., `outline_chunk_1_10`, `outline_chunk_11_20`) | 3 |
 | `continuity_{start}_{end}` | Chunked generation (e.g., `continuity_1_10`, `continuity_11_20`) | 3 |
-| `critique_results_iteration_{N}` | Critique loop | 4 |
+| `outline_critique_results_iteration_{N}` | Critique loop | 4 |
 | `outline_refined_{N}` | Refinement | 4 |
+
+`initial_outline` is the savepoint written by the `outline-generator` tool at initial generation. `outline_complete` is the orchestrator's separate higher-level checkpoint.
 
 ---
 

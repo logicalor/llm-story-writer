@@ -1,4 +1,4 @@
-"""CLI tool for running critics against story outlines (run-critics, parse-scores, should-refine, generate-feedback)."""
+"""CLI tool for running critics against story content."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ if _root_path not in sys.path:
 
 from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
 
-CRITIC_TYPES = [
+OUTLINE_CRITIC_TYPES = [
     "audiobook-producer",
     "book-club-moderator",
     "commercial-fiction-editor",
@@ -33,6 +33,14 @@ CRITIC_TYPES = [
     "publishing-acquisitions-editor",
     "subject-expert",
 ]
+
+CHAPTER_CRITIC_TYPES = [
+    "commercial-fiction-editor",
+    "chapter-pacing",
+    "chapter-character-consistency",
+]
+
+MODES = ["outline", "chapter"]
 
 
 def _make_repo(name: str) -> FilesystemSavepointRepository:
@@ -114,6 +122,25 @@ def _serialize_critique_result(result: Any) -> dict[str, Any]:
     }
 
 
+def _critique_results_step(mode: str, iteration: int) -> str:
+    """Return the namespaced critique savepoint key for the selected mode."""
+    return f"{mode}_critique_results_iteration_{iteration}"
+
+
+def _prompt_prefix(mode: str) -> str:
+    """Return the prompt subdirectory for the selected critique mode."""
+    if mode == "chapter":
+        return "chapter_review"
+    return "outline_review"
+
+
+def _critic_types_for_mode(mode: str) -> list[str]:
+    """Return the critic set for the selected critique mode."""
+    if mode == "chapter":
+        return CHAPTER_CRITIC_TYPES
+    return OUTLINE_CRITIC_TYPES
+
+
 # ---------------------------------------------------------------------------
 # Operations
 # ---------------------------------------------------------------------------
@@ -124,9 +151,10 @@ def cmd_run_critics(
     iteration: int,
     content: str | None,
     *,
+    mode: str = "outline",
     model: str | None = None,
 ) -> None:
-    """Run all 6 critic types against an outline."""
+    """Run all 6 critic types against story content."""
     from application.services.critique_parser import CritiqueParser
 
     story_dir = _validate_story_name(name)
@@ -153,17 +181,17 @@ def cmd_run_critics(
     parser = CritiqueParser()
     critique_results = []
 
-    for critic_type in CRITIC_TYPES:
+    for critic_type in _critic_types_for_mode(mode):
         try:
             prompt_content = _load_prompt(
-                f"outline_review/{critic_type}", variables={"outline": outline}
+                f"{_prompt_prefix(mode)}/{critic_type}", variables={"outline": outline}
             )
             messages = [
                 {
                     "role": "system",
                     "content": (
                         "You are an expert critic providing detailed, constructive "
-                        "feedback on story outlines. Always follow the exact format "
+                        "feedback on story content. Always follow the exact format "
                         "specified in the prompt."
                     ),
                 },
@@ -185,21 +213,25 @@ def cmd_run_critics(
     # Save combined results
     savepoint_data = {
         "iteration": iteration,
+        "mode": mode,
         "critic_results": [_serialize_critique_result(r) for r in critique_results],
         "average_scores": average_scores,
         "overall_average": overall_average,
     }
-    _save_savepoint(repo, f"critique_results_iteration_{iteration}", savepoint_data)
+    _save_savepoint(repo, _critique_results_step(mode, iteration), savepoint_data)
 
     _success("run-critics", savepoint_data)
 
 
-def cmd_parse_scores(critic_type: str, response_text: str) -> None:
+def cmd_parse_scores(
+    critic_type: str, response_text: str, *, mode: str = "outline"
+) -> None:
     """Parse scores from a single critic response."""
     from application.services.critique_parser import CritiqueParser
 
-    if critic_type not in CRITIC_TYPES:
-        _error(f"unknown critic type: {critic_type}. Valid: {', '.join(CRITIC_TYPES)}")
+    valid_critics = _critic_types_for_mode(mode)
+    if critic_type not in valid_critics:
+        _error(f"unknown critic type: {critic_type}. Valid: {', '.join(valid_critics)}")
 
     parser = CritiqueParser()
     result = parser.parse_critique(critic_type, response_text)
@@ -210,6 +242,9 @@ def cmd_should_refine(
     name: str,
     iteration: int,
     quality_threshold: float,
+    criterion_floor: float,
+    *,
+    mode: str = "outline",
 ) -> None:
     """Determine if content meets quality threshold."""
     story_dir = _validate_story_name(name)
@@ -217,7 +252,7 @@ def cmd_should_refine(
         _error(f"story not found: {name}")
 
     repo = _make_repo(name)
-    step = f"critique_results_iteration_{iteration}"
+    step = _critique_results_step(mode, iteration)
     if not _has_savepoint(repo, step):
         _error(f"critique results not found for iteration {iteration}")
 
@@ -228,9 +263,7 @@ def cmd_should_refine(
     average_scores: dict[str, float] = data.get("average_scores", {})
     overall_average: float = data.get("overall_average", 0.0)
 
-    # 75% per-criterion floor is a domain invariant — any criterion scoring below
-    # this indicates a fundamental quality issue regardless of overall average
-    any_criterion_low = any(score < 75.0 for score in average_scores.values())
+    any_criterion_low = any(score < criterion_floor for score in average_scores.values())
     # overall_average is raw score sum (max 100) — effectively a percentage
     overall_low = overall_average < quality_threshold
 
@@ -243,11 +276,12 @@ def cmd_should_refine(
             "average_scores": average_scores,
             "overall_average": overall_average,
             "threshold": quality_threshold,
+            "criterion_floor": criterion_floor,
         },
     )
 
 
-def cmd_generate_feedback(name: str, iteration: int) -> None:
+def cmd_generate_feedback(name: str, iteration: int, *, mode: str = "outline") -> None:
     """Format critique results as structured markdown."""
     from application.services.critique_parser import (
         CritiqueParser,
@@ -260,7 +294,7 @@ def cmd_generate_feedback(name: str, iteration: int) -> None:
         _error(f"story not found: {name}")
 
     repo = _make_repo(name)
-    step = f"critique_results_iteration_{iteration}"
+    step = _critique_results_step(mode, iteration)
     if not _has_savepoint(repo, step):
         _error(f"critique results not found for iteration {iteration}")
 
@@ -308,12 +342,18 @@ def cmd_generate_feedback(name: str, iteration: int) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run critics against story outlines")
+    parser = argparse.ArgumentParser(description="Run critics against story content")
     parser.add_argument(
         "--operation",
         required=True,
         choices=["run-critics", "parse-scores", "should-refine", "generate-feedback"],
         help="Operation to perform",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=MODES,
+        default="outline",
+        help="Critique mode: outline or chapter",
     )
     parser.add_argument("--name", help="Story name")
     parser.add_argument(
@@ -332,6 +372,12 @@ def main() -> None:
         default=85.0,
         help="Quality threshold for should-refine",
     )
+    parser.add_argument(
+        "--criterion-floor",
+        type=float,
+        default=75.0,
+        help="Minimum allowed per-criterion score for should-refine",
+    )
     parser.add_argument("--model", help="Override LLM model identifier")
 
     args = parser.parse_args()
@@ -340,21 +386,33 @@ def main() -> None:
     if op == "run-critics":
         if not args.name:
             _error("--name required for run-critics", exit_code=2)
-        cmd_run_critics(args.name, args.iteration, args.content, model=args.model)
+        cmd_run_critics(
+            args.name,
+            args.iteration,
+            args.content,
+            mode=args.mode,
+            model=args.model,
+        )
     elif op == "parse-scores":
         if not args.critic_type:
             _error("--critic-type required for parse-scores", exit_code=2)
         if not args.response_text:
             _error("--response-text required for parse-scores", exit_code=2)
-        cmd_parse_scores(args.critic_type, args.response_text)
+        cmd_parse_scores(args.critic_type, args.response_text, mode=args.mode)
     elif op == "should-refine":
         if not args.name:
             _error("--name required for should-refine", exit_code=2)
-        cmd_should_refine(args.name, args.iteration, args.quality_threshold)
+        cmd_should_refine(
+            args.name,
+            args.iteration,
+            args.quality_threshold,
+            args.criterion_floor,
+            mode=args.mode,
+        )
     elif op == "generate-feedback":
         if not args.name:
             _error("--name required for generate-feedback", exit_code=2)
-        cmd_generate_feedback(args.name, args.iteration)
+        cmd_generate_feedback(args.name, args.iteration, mode=args.mode)
 
 
 if __name__ == "__main__":

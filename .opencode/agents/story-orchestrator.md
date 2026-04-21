@@ -57,7 +57,14 @@ Execute these phases sequentially. Each phase completes fully before the next be
 2. The `outline-planner` handles the full pipeline internally — prompt analysis, element synthesis, outline generation (chunked or monolithic), and the critique/refinement loop. Do **not** run critique or revision steps at the orchestrator level.
 3. Receive the finalised outline from `outline-planner`. If the orchestrator's own revision cap (`outline_max_revisions`) has not been reached and the user requests further revisions (Phase 3 feedback), re-invoke `outline-planner` with feedback.
 4. Store the finalised outline via `story-state` (operation: `write`, field: `outline`, value: outline JSON string)
-5. Create savepoint: `outline_complete`
+5. Savepoint naming note: `initial_outline` is written by `outline-generator` during initial generation. `outline_complete` is the orchestrator-level Phase 2 checkpoint.
+6. If chunked outline generation is enabled, expect chunk savepoints in this pattern:
+
+| Chunk Range | Savepoint |
+|-------------|-----------|
+| Each completed chunk | `outline_chunk_{start}_{end}` |
+
+7. Create savepoint: `outline_complete`
 
 ### Phase 3: Approval
 
@@ -78,24 +85,32 @@ Execute these phases sequentially. Each phase completes fully before the next be
 **Purpose:** Generate character sheets for all characters identified in the outline.
 
 1. Extract the character list from the outline
-2. For each character, call `character-mgr` with:
+2. For each character, call `prompt-loader` with:
+   - `promptId`: `characters/create`
+   - `variables`: include `story_elements`, `character_name`, and any additional story context needed for the sheet
+3. Use the rendered prompt to generate the character sheet content as structured text/JSON via the model.
+4. Pass the generated content to `character-mgr` with:
    - `operation`: `"generate-sheet"`
    - `character`: the character's display name
-   - `data`: `"{}"` (JSON string — empty object; the TS wrapper accepts a JSON string, not a raw object)
-3. Store character sheet references in story state
-4. Create savepoint: `characters_complete`
+   - `data`: JSON string containing the generated character sheet content
+5. Store character sheet references in story state
+6. Create savepoint: `characters_complete`
 
 ### Phase 6: Settings
 
 **Purpose:** Generate setting sheets for all locations identified in the outline.
 
 1. Extract the settings/locations list from the outline
-2. For each setting, call `setting-mgr` with:
+2. For each setting, call `prompt-loader` with:
+   - `promptId`: `settings/create`
+   - `variables`: include `story_elements`, `setting_name`, and any additional story context needed for the sheet
+3. Use the rendered prompt to generate the setting sheet content as structured text/JSON via the model.
+4. Pass the generated content to `setting-mgr` with:
    - `operation`: `"generate-sheet"`
    - `setting`: the setting's display name (**note:** parameter is `setting`, not `character`)
-   - `data`: `"{}"` (JSON string — empty object; the TS wrapper accepts a JSON string, not a raw object)
-3. Store setting sheet references in story state
-4. Create savepoint: `settings_complete`
+   - `data`: JSON string containing the generated setting sheet content
+5. Store setting sheet references in story state
+6. Create savepoint: `settings_complete`
 
 ### Phase 7: Wiki Population
 
@@ -130,6 +145,7 @@ If `expand_outline` is true:
    - Extract `data.chunk_outline` as the expanded outline for this chapter.
    - Extract `data.continuity_analysis` and retain it for the next chapter's Phase 8a call as the `continuitySummary` parameter.
 4. Store the expanded outline via `story-state`
+5. Store it under key `chapters.{N}.expanded_outline` where N is the current chapter number.
 
 #### 8b. Scene Generation
 
@@ -148,6 +164,7 @@ If `scene_generation_pipeline` is false:
    - Timeline events from the chapter
    - Plot thread progression
 2. The wiki-maintainer updates existing pages and creates new ones as needed
+3. Run this once after the full chapter is complete, not after individual scenes.
 
 #### 8d. Recap Generation
 
@@ -173,12 +190,18 @@ If `scene_generation_pipeline` is false:
 #### 8f. Quality Evaluation
 
 If `enable_chapter_revisions` is true:
-1. Run `critique-runner` on the chapter
-2. If score < `chapter_quality`:
+1. Run `critique-runner` on the chapter with `mode: chapter`
+2. Before checking the quality gate score, ensure the chapter has been revised at least `chapter_min_revisions` times (default: 1). Do not accept the chapter until `chapter_min_revisions` is satisfied even if the first score passes.
+3. If score < `chapter_quality`:
    - Enter revision loop (max `chapter_max_revisions` iterations)
    - On each revision: regenerate/revise the chapter, re-run critique
    - If score >= `chapter_quality` or max revisions reached, proceed
-3. If score >= `chapter_quality`, accept the chapter
+4. If score >= `chapter_quality`, accept the chapter only after `chapter_min_revisions` is satisfied.
+5. After the chapter passes the quality gate or maximum revisions are reached:
+   - Re-run `wiki-maintainer` (Phase 8c)
+   - Re-run recap generation (Phase 8d)
+   - Re-run wiki lint (Phase 8e)
+6. `enable_final_edit` and `enable_scrubbing` are planned features — not yet implemented.
 
 #### 8g. Chapter Savepoint
 
@@ -188,10 +211,10 @@ If `enable_chapter_revisions` is true:
 
 **Purpose:** Assemble all chapters into the final story output.
 
-1. Collect all completed chapters from story state
-2. Assemble into the final output format
-3. Write the final story to the configured output directory
-4. Create savepoint: `story_complete`
+1. Invoke `story-assembler` with `storyName`: the story name
+2. The assembled story will be written to `stories/<name>/output/story.md` in Markdown format
+3. Create savepoint: `story_complete`
+4. Report the output path to the user
 
 ---
 
@@ -210,6 +233,7 @@ You have access to these tools for deterministic operations:
 | `outline-generator` | Generate and expand story outlines |
 | `scene-writer` | Generate individual scenes |
 | `critique-runner` | Evaluate content quality and produce scores |
+| `story-assembler` | Assemble completed chapter savepoints into final story markdown |
 | `wiki-init` | Initialise wiki directory structure and schema |
 | `wiki-read` | Read wiki pages by slug or type |
 | `wiki-search` | Semantic search across wiki pages |

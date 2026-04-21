@@ -61,9 +61,10 @@ T4 exploits the wiki's existing `[[wikilinks]]` as a lightweight knowledge graph
 Each retrieved page receives a relevance score:
 
 ```
-score(p) = 0.40 × entity_match(p)
-         + 0.20 × wikilink_proximity(p)
-         + 0.20 × semantic_similarity(p)
+score(p) = 0.35 × entity_match(p)
+         + 0.20 × rrf(p)
+         + 0.15 × wikilink_proximity(p)
+         + 0.10 × semantic_similarity(p)
          + 0.10 × recency(p)
          + 0.10 × type_priority(p)
 ```
