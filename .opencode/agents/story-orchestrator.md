@@ -99,11 +99,12 @@ Execute these phases sequentially. Each phase completes fully before the next be
 2. For each character, call `prompt-loader` with:
    - `promptId`: `characters/create`
    - `variables`: include `story_elements`, `character_name`, and any additional story context needed for the sheet
-3. Use the rendered prompt to generate the character sheet content as structured text/JSON via the model.
-4. Pass the generated content to `character-mgr` with:
+3. Use the rendered prompt to generate the character sheet as **prose/markdown text** via the model. The output must be a readable narrative character sheet, not a JSON object of attributes.
+4. Pass the generated sheet to `character-mgr` with:
    - `operation`: `"generate-sheet"`
    - `character`: the character's display name
-   - `data`: JSON string containing the generated character sheet content
+   - `name`: story name
+   - `data`: a JSON string with the exact schema `{"sheet": "<prose text from step 3>", "chunks": {}, "summary": ""}` — the `sheet` field must contain the full prose text; `chunks` and `summary` are left empty at this stage
 5. Store character sheet references in story state
 6. Create savepoint: `characters_complete`
 
@@ -115,11 +116,12 @@ Execute these phases sequentially. Each phase completes fully before the next be
 2. For each setting, call `prompt-loader` with:
    - `promptId`: `settings/create`
    - `variables`: include `story_elements`, `setting_name`, and any additional story context needed for the sheet
-3. Use the rendered prompt to generate the setting sheet content as structured text/JSON via the model.
-4. Pass the generated content to `setting-mgr` with:
+3. Use the rendered prompt to generate the setting sheet as **prose/markdown text** via the model. The output must be a readable narrative setting sheet, not a JSON object of attributes.
+4. Pass the generated sheet to `setting-mgr` with:
    - `operation`: `"generate-sheet"`
    - `setting`: the setting's display name (**note:** parameter is `setting`, not `character`)
-   - `data`: JSON string containing the generated setting sheet content
+   - `name`: story name
+   - `data`: a JSON string with the exact schema `{"sheet": "<prose text from step 3>", "chunks": {}, "summary": ""}` — the `sheet` field must contain the full prose text; `chunks` and `summary` are left empty at this stage
 5. Store setting sheet references in story state
 6. Create savepoint: `settings_complete`
 
