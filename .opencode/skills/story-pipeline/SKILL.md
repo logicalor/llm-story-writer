@@ -144,6 +144,21 @@ Executes for each chapter from 1 to `wanted_chapters`.
 
 ---
 
+## Subagents
+
+The pipeline uses four subagents for specialised creative work. The `story-orchestrator` dispatches these by name via OpenCode delegation.
+
+| Subagent | Purpose | Invoked In |
+|----------|---------|------------|
+| `outline-planner` | Generate and refine the story outline | Phase 2 |
+| `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 |
+| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
+| `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
+
+**These are the only four subagents the orchestrator may dispatch.** Do not dispatch built-in or external agents for any reason outside the pipeline phases above.
+
+---
+
 ## Quality Gates
 
 ### Thresholds

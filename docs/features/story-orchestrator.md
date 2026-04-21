@@ -85,7 +85,7 @@ After Phase 6, the wiki is the **authoritative source of truth** for world state
 
 ## Subagents
 
-The orchestrator delegates specialised work to three subagents:
+The orchestrator delegates specialised work to four subagents:
 
 | Subagent | Purpose | Invoked In | Status |
 |----------|---------|------------|--------|
