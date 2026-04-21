@@ -119,8 +119,17 @@ Iterate from chapter 1 to `wanted_chapters`:
 
 If `expand_outline` is true:
 1. Load the chapter's outline entry via `story-state`
-2. Use `outline-generator` to expand the brief outline into detailed scene breakdowns
-3. Store the expanded outline via `story-state`
+2. Call `outline-generator` with:
+   - `operation`: `"expand-chapter"`
+   - `name`: story name
+   - `chunkStart`: N (current chapter number)
+   - `chunkEnd`: N (same as chunkStart — single chapter at a time)
+   - `totalChapters`: `wanted_chapters` (from config)
+   - `continuitySummary`: (optional) continuity analysis from the previous chapter's expand-chapter call, if available
+3. Parse the JSON response:
+   - Extract `data.chunk_outline` as the expanded outline for this chapter.
+   - Extract `data.continuity_analysis` and retain it for the next chapter's Phase 8a call as the `continuitySummary` parameter.
+4. Store the expanded outline via `story-state`
 
 #### 8b. Scene Generation
 
@@ -142,8 +151,9 @@ If `scene_generation_pipeline` is false:
 
 #### 8d. Recap Generation
 
-1. Call `recap-manager` (operation: `generate`) for the completed chapter
-2. Store the recap via `story-state`
+1. Read the story start date: call `savepoint-mgr` (operation: `load`, name: story name, step: `story_start_date`) to retrieve `storyStartDate`. This was saved during Phase 1 by the `analyze-prompt` operation. Format as `YYYY-MM-DD`.
+2. Call `recap-manager` (operation: `generate`) for the completed chapter, passing `storyStartDate` so timeline annotations are consistent.
+3. Store the recap via `story-state`
 
 #### 8e. Wiki Lint
 
@@ -262,8 +272,12 @@ When a quality gate fails after maximum attempts, log a warning and proceed. Do 
 1. **Tool failure:** If a tool call fails, retry once. If it fails again, log the error with full context and halt the pipeline with a diagnostic message indicating which phase and step failed.
 2. **Subagent failure:** If a subagent does not produce valid output, log the failure and retry the delegation once. On second failure, halt.
 3. **Quality gate exhaustion:** If maximum revisions are reached without meeting the quality threshold, log a warning (including the best score achieved), accept the best version, and proceed.
-4. **Resume after crash:** Use `savepoint-mgr` (operation: `load`) to load the latest savepoint. The pipeline resumes from the phase after the savepoint.
-5. **Wiki lint warnings:** Wiki lint findings in Phase 8e are advisory. Log them and include them as context for the quality evaluation, but do not halt the pipeline for non-critical findings.
+4. **Silent partial failures.** Some tools succeed (return non-error output) while silently degrading due to internal partial failures:
+   - **`critique-runner` (run-critics):** Individual critic subprocess failures are written to stderr only. If the returned critique score seems unusually low or high, or the critique result is sparse, individual critics may have failed. The pipeline continues — log the critique output and inspect for missing scores.
+   - **`scene-writer` (parse-definitions):** If scene definition parsing fails internally, the tool may fall back to a single-scene default. Verify the returned definition count matches the expected scene count from the chapter outline before proceeding with the scene generation loop.
+   - In both cases, the pipeline should log the output and proceed. Do not treat these as hard failures unless the returned data is empty or unparseable.
+5. **Resume after crash:** Use `savepoint-mgr` (operation: `load`) to load the latest savepoint. The pipeline resumes from the phase after the savepoint.
+6. **Wiki lint warnings:** Wiki lint findings in Phase 8e are advisory. Log them and include them as context for the quality evaluation, but do not halt the pipeline for non-critical findings.
 
 ---
 

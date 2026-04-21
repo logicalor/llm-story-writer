@@ -93,6 +93,8 @@ Execute these phases sequentially. Each phase must complete before the next begi
       - `iteration`: current iteration number
       - `qualityThreshold`: `outline_quality` config value (default 87)
 
+   > **⚠️ Always pass `qualityThreshold` explicitly.** The tool's internal default (85.0) differs from the project config default (87). Omitting this parameter silently applies the lower threshold, causing outlines to be accepted below the configured standard.
+
    c. **If refinement is needed** (`should_refine` is true) AND iteration < `outline_critique_iterations`:
       - Call `critique-runner` with:
         - `operation`: `"generate-feedback"`
@@ -107,7 +109,7 @@ Execute these phases sequentially. Each phase must complete before the next begi
    d. **Acceptance check:**
       - **Accept** if `should_refine` is false AND iteration >= `outline_min_revisions` (quality passed and minimum met)
       - **Accept** if iteration >= `outline_critique_iterations` (max iterations exhausted)
-      - **Continue** if `should_refine` is false but iteration < `outline_min_revisions` — force another refinement pass (the user has explicitly requested a minimum number of revision passes)
+      - **Continue** if `should_refine` is false but iteration < `outline_min_revisions` — force another refinement pass. For forced passes, use the most recent `generate-feedback` output as the `feedback` parameter for `outline-generator refine`. If no feedback has been generated yet (first iteration), call `critique-runner (operation: generate-feedback)` before proceeding.
 
 ### Phase 5 — Return
 

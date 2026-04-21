@@ -62,6 +62,8 @@ Called once after outline and character/setting sheets are generated. Populates 
 
 6. **Build batch payload.** Assemble all entities into a single batch payload following the structured output format from the `wiki-maintenance` skill.
 
+   > **Batch payload naming:** Direct tool call parameters use `camelCase` (e.g., `pageType`, `pageName`, `firstAppearance`, `detailLevels`). Batch payload JSON keys use `snake_case` (e.g., `page_type`, `page_name`, `first_appearance`, `detail_levels`). **Always use `snake_case` inside the `payload` JSON string passed to `wiki-update (operation: batch)`.**
+
 7. **Execute batch operation.** Call `wiki-update` (operation: `batch`, name: story name, payload: JSON string of the batch payload).
 
 8. **Establish wikilinks.** Review created pages and ensure cross-references exist:
@@ -99,6 +101,8 @@ Called after each scene is generated. Updates the wiki with verified information
    - L3: complete description (~500 tokens)
 
 6. **Build batch payload.** Assemble all creates, updates, and timeline entries into a single batch payload. All operations use `verified` confidence (they come from generated text).
+
+   > **Batch payload naming:** Direct tool call parameters use `camelCase` (e.g., `pageType`, `pageName`, `firstAppearance`, `detailLevels`). Batch payload JSON keys use `snake_case` (e.g., `page_type`, `page_name`, `first_appearance`, `detail_levels`). **Always use `snake_case` inside the `payload` JSON string passed to `wiki-update (operation: batch)`.**
 
 7. **Execute batch operation.** Call `wiki-update` (operation: `batch`, name: story name, payload: JSON string of the batch payload).
 
@@ -141,3 +145,5 @@ The wiki-maintainer does not manage savepoints directly. Wiki state persists in 
 - **Wikilinks must use existing slugs** — check with `wiki-search` before creating `[[slug]]` references. Broken wikilinks degrade the context retrieval pipeline.
 - **Alias arrays are additive** — never remove existing aliases, only add new ones.
 - **Deduplicate before creating** — always run `wiki-read` match-entities or `wiki-search` semantic before creating new pages.
+- **Batch payload naming — `snake_case` inside `payload`:** Direct tool call parameters use `camelCase` (e.g., `pageType`, `pageName`, `firstAppearance`, `detailLevels`). Batch payload JSON keys use `snake_case` (e.g., `page_type`, `page_name`, `first_appearance`, `detail_levels`). **Always use `snake_case` inside the `payload` JSON string passed to `wiki-update (operation: batch)`.**
+- **Slugs are canonical — never guess from display names.** Canonical slugs are set when a page is created and stored in the wiki page frontmatter. To resolve a slug: call `wiki-read` (operation: `match-entities`, text: entity display name) or `wiki-search` (operation: `semantic`, query: display name). The `slug` field in the returned page is the canonical value. Using a guessed slug (e.g. lowercasing a display name) risks broken wikilinks, missed context retrieval, and duplicate entity creation.
