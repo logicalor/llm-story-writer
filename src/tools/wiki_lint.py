@@ -7,9 +7,7 @@ from pathlib import Path
 import argparse
 import json
 import re
-import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 # Add the project root to sys.path so 'src' can be imported
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

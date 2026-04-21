@@ -25,7 +25,7 @@ Tools are **TypeScript wrappers** in `.opencode/tools/` that call **Python scrip
 
 ### Agents
 
-Story generation agents are defined in `.opencode/agents/`. The primary agent is `story-orchestrator`, which coordinates the full generation pipeline. Subagents (`outline-planner`, `chapter-writer`, `wiki-maintainer`) handle specialised creative tasks.
+Story generation agents are defined in `.opencode/agents/`. The primary agent is `story-orchestrator`, which coordinates the full generation pipeline. Subagents (`outline-planner`, `character-sheet-generator`, `chapter-writer`, `wiki-maintainer`) handle specialised creative tasks.
 
 ### Skills
 

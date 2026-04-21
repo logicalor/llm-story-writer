@@ -85,7 +85,7 @@ After Phase 6, the wiki is the **authoritative source of truth** for world state
 
 ## Subagents
 
-The orchestrator delegates specialised work to three subagents:
+The orchestrator delegates specialised work to four subagents:
 
 | Subagent | Purpose | Invoked In | Status |
 |----------|---------|------------|--------|
@@ -93,6 +93,20 @@ The orchestrator delegates specialised work to three subagents:
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 | Implemented |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b | Implemented (PR #63) |
 | `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 6, 7c | Implemented (PR #65) |
+
+### character-sheet-generator
+
+The `character-sheet-generator` subagent handles Phase 5 — generating all character and setting sheets for the story. It receives the story name, character name list, setting name list, and unified story elements text from the orchestrator, then:
+
+1. Generates a prose/markdown character sheet for each character using `prompt-loader` and `character-mgr`
+2. Generates a prose/markdown setting sheet for each setting using `prompt-loader` and `setting-mgr`
+3. Writes the processed name lists to story state via `story-state`
+4. Creates savepoints (`characters_complete`, `settings_complete`) after each phase
+5. Returns only compact name lists to the orchestrator — sheet bodies are not returned
+
+The agent uses five tools: `prompt-loader`, `character-mgr`, `setting-mgr`, `story-state`, and `savepoint-mgr`. Sheet generation is contained entirely within this subagent; the orchestrator receives only a compact summary to keep context lean.
+
+See the [agent definition](../../.opencode/agents/character-sheet-generator.md) for the full workflow, savepoint strategy, and generation prompt references.
 
 ### chapter-writer
 
