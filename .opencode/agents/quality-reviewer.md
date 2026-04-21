@@ -44,8 +44,9 @@ Execute these steps sequentially. Carry the current chapter text in a variable `
 ### Step 1 — Initialise
 
 1. Set `current_chapter_text` = the provided `chapter_text`
-2. Set `revision_count` = 0
-3. Set `best_score` = 0
+2. Set `best_chapter_text` = the provided `chapter_text`
+3. Set `revision_count` = 0
+4. Set `best_score` = 0
 
 ### Step 2 — Critique/Revision Loop
 
@@ -60,47 +61,47 @@ Loop until acceptance criteria are met or `chapter_max_revisions` is reached.
 - `mode`: `"chapter"`
 - `iteration`: `revision_count + 1`
 
-**b. Parse scores.** Call `critique-runner` with:
-- `operation`: `"parse-scores"`
-- `name`: story name
-- `iteration`: `revision_count + 1`
-
-Record the returned score. Update `best_score` if the new score exceeds it.
-
-**c. Check acceptance.** Call `critique-runner` with:
+**b. Check acceptance and score.** Call `critique-runner` with:
 - `operation`: `"should-refine"`
 - `name`: story name
+- `mode`: `"chapter"`
 - `iteration`: `revision_count + 1`
 - `qualityThreshold`: `chapter_quality`
 
+Record the `overall_average` field from the response as `current_score`. If `current_score > best_score`, update `best_score = current_score` and `best_chapter_text = current_chapter_text`.
+
 > **⚠️ Always pass `qualityThreshold` explicitly.** The tool's internal default may differ from the project config value.
 
-**d. Determine next action** using this decision matrix:
+**c. Determine next action** using this decision matrix:
 
 | `should_refine` | `revision_count` vs `chapter_min_revisions` | `revision_count` vs `chapter_max_revisions` | Action |
 |----------------|----------------------------------------------|----------------------------------------------|--------|
 | false | `>= chapter_min_revisions` | any | **Accept** — exit loop |
-| false | `< chapter_min_revisions` | `< chapter_max_revisions` | **Force revision** — minimum not yet satisfied; proceed to step e |
+| false | `< chapter_min_revisions` | `< chapter_max_revisions` | **Force revision** — minimum not yet satisfied; proceed to step d |
 | true | any | `>= chapter_max_revisions` | **Accept** — max revisions exhausted; exit loop |
-| true | any | `< chapter_max_revisions` | **Revise** — proceed to step e |
+| true | any | `< chapter_max_revisions` | **Revise** — proceed to step d |
+| any | `< chapter_min_revisions` | `>= chapter_max_revisions` | **Accept** — cap overrides min (misconfigured thresholds); exit loop |
 
-**e. Generate feedback.** Call `critique-runner` with:
+**d. Generate feedback.** Call `critique-runner` with:
 - `operation`: `"generate-feedback"`
 - `name`: story name
+- `mode`: `"chapter"`
 - `iteration`: `revision_count + 1`
 
-**f. Revise chapter.** Call `scene-writer` with:
+**e. Revise chapter.** Call `scene-writer` with:
 - `operation`: `"revise"`
 - `name`: story name
 - `chapter`: `chapter_number`
 - `content`: `current_chapter_text`
-- `feedback`: feedback text from step e
+- `feedback`: feedback text from step d
 
 Update `current_chapter_text` with the revised chapter text returned by this call.
 
-**g. Increment and save.** Increment `revision_count` by 1. Call `savepoint-mgr` to save: `chapter_{N}/quality_revision_{revision_count}` (e.g. `chapter_3/quality_revision_1`).
+**f. Increment and save.** Increment `revision_count` by 1. Call `savepoint-mgr` to save:
+- `step`: `chapter_{N}_quality_revision_{revision_count}` (e.g. `chapter_3_quality_revision_1`)
+- `data`: `current_chapter_text`
 
-**h. Loop** — return to iteration start.
+**g. Loop** — return to iteration start.
 
 ### Step 3 — Return
 
@@ -108,14 +109,16 @@ Return a structured result to the orchestrator:
 
 ```json
 {
-  "accepted_chapter_text": "<final chapter text>",
-  "best_score": <numeric score>,
+  "accepted_chapter_text": "<best-scoring chapter text>",
+  "best_score": <numeric overall_average>,
   "revision_count": <integer>,
   "requires_post_processing": <true if revision_count > 0, false if chapter was accepted on first pass with no revisions>
 }
 ```
 
-`requires_post_processing` is `true` whenever at least one revision was made (the revised text may differ from what was processed in Phase 7c/7d/7e). It is `false` when the chapter passed on the first evaluation with zero revisions.
+`accepted_chapter_text` is `best_chapter_text` — the chapter draft with the highest `overall_average` score across all iterations. If the revision cap is exhausted and the final iteration scores lower than an earlier draft, the earlier best-scoring draft is returned. If no revisions occurred (first iteration passed), `best_chapter_text` equals the original `chapter_text`.
+
+`requires_post_processing` is `true` whenever at least one revision was made (the revised text may differ from what was processed in Phase 7c/7d/7e). It is `false` when the chapter passed the acceptance check with zero revisions.
 
 ---
 
