@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { resolve } from "path";
-import { runTool } from "./_run";
+import { runTool } from "../_run";
 
 export default {
   description:
