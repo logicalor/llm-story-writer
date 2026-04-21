@@ -24,7 +24,7 @@ You receive a chapter number and story name from the orchestrator. You generate 
 
 Execute these steps sequentially for the assigned chapter:
 
-1. **Load chapter outline.** Read the chapter's expanded outline from `story-state`, including the scene breakdown produced in Phase 8a.
+1. **Load chapter outline.** Read the chapter's expanded outline from `story-state` key `chapters.{N}.expanded_outline`, including the scene breakdown produced in Phase 8a.
 2. **Parse scene definitions.** Call `scene-writer` (operation: `parse-definitions`) to extract structured scene definitions from the chapter outline. Each scene definition includes: title, description, characters, setting, conflict, tone, key_events, dialogue, ending, lead_in_to_next_scene, and literary_devices.
 3. **Create scene definitions savepoint.** Call `savepoint-mgr` to save: `chapter_{N}/scene_definitions`.
 4. **Load previous chapter recap.** If this is not the first chapter, call `recap-manager` (operation: `load`) for chapter N-1. This provides continuity context — where the story left off, active tensions, character emotional states.
@@ -81,18 +81,14 @@ For each scene M in the chapter (M = 1, 2, ..., scene_count):
    - The chapter outline (for overall chapter direction)
    - Previous chapter recap (if available, for chapter 2+)
    - Previous scene content (if M > 1, for direct continuity)
+   - For the last scene in the chapter, fetch the next chapter's outline from `story-state` key `chapters.{N+1}.outline` and pass it as `nextChapterSynopsis`
 
 3. **Generate the scene.** Call `scene-writer` (operation: `generate`) with the assembled context. Pass the wiki snapshot string as the `baseContext` parameter.
+   Note: scene summaries and titles are held in working context only, not persisted as savepoints.
 
-4. **Save scene savepoint.** Call `savepoint-mgr` to save: `chapter_{N}/scene_{M}`.
+4. **Extract scene events.** Optionally extract key events, character state changes, and new information from the generated scene. These feed into context for subsequent scenes and post-chapter wiki updates.
 
-5. **Extract scene events.** Optionally extract key events, character state changes, and new information from the generated scene. These feed into context for subsequent scenes and post-chapter wiki updates.
-
-6. **Save scene summary savepoint.** Call `savepoint-mgr` to save: `chapter_{N}/scene_{M}_summary`.
-
-7. **Save scene title savepoint.** Call `savepoint-mgr` to save: `chapter_{N}/scene_{M}_title`.
-
-8. **Proceed to the next scene.** Pass the generated scene content as `previous_scene` context to the next iteration.
+5. **Proceed to the next scene.** Pass the generated scene content as `previous_scene` context to the next iteration.
 
 ---
 
@@ -105,9 +101,7 @@ Savepoints are created at each significant milestone within a chapter, enabling 
 | Savepoint | Created After |
 |-----------|--------------|
 | `chapter_{N}/scene_definitions` | Scene definitions parsed from outline (step 3) |
-| `chapter_{N}/scene_{M}` | Scene M generated successfully (loop step 4) |
-| `chapter_{N}/scene_{M}_summary` | Scene M events/summary extracted (loop step 6) |
-| `chapter_{N}/scene_{M}_title` | Scene M title confirmed (loop step 7) |
+| `chapter_{N}/scene_{M}` | Scene M generated successfully (written internally by `scene-writer`) |
 | `chapter_{N}/assembled` | All scenes assembled into chapter (step 7) |
 
 **Resuming from a savepoint:**

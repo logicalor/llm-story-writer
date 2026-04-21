@@ -601,6 +601,23 @@ def _enforce_token_budget(
         if not demoted:
             break  # All non-protected pages already at L1
 
+    if current_total > budget:
+        removable_slugs = sorted(
+            (
+                slug
+                for slug in sorted_slugs
+                if slug not in protected
+            ),
+            key=lambda slug: pages[slug].get("relevance_score", 0.0),
+        )
+        for slug in removable_slugs:
+            if current_total <= budget:
+                break
+            current_total -= slug_tokens.get(slug, 0)
+            pages.pop(slug, None)
+            if slug in sorted_slugs:
+                sorted_slugs.remove(slug)
+
 
 # ---------------------------------------------------------------------------
 # Stage 3: Structured Context Assembly

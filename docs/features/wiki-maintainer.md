@@ -9,7 +9,7 @@ The wiki maintainer is a specialised subagent invoked by the `story-orchestrator
 The agent operates in two distinct modes, mapped to pipeline phases:
 
 - **Mode 1: Initial Wiki Population** (Phase 7) — Extracts all known entities from the outline, character sheets, and setting sheets to populate the wiki before chapter generation begins.
-- **Mode 2: Post-Scene Incremental Update** (Phase 8c) — After each generated scene, extracts new entities, state changes, events, and aliases from the generated text to keep the wiki current.
+- **Mode 2: Post-Chapter Incremental Update** (Phase 8c) — After each assembled chapter, extracts new entities, state changes, events, and aliases from the generated text to keep the wiki current.
 
 The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) through the project's OpenAI-compatible inference server configuration, with instructions kept concise and structured for reliable execution at that model size.
 
@@ -48,11 +48,11 @@ Called once after outline and character/setting sheets are generated. All entiti
 6. **Build and execute batch payload** — Assemble all entities into a single JSON batch payload and submit via `wiki-update` (operation: `batch`).
 7. **Establish wikilinks** — Ensure cross-references exist between related entities (characters to locations, relationships to participants, events to involved entities).
 
-## Workflow — Mode 2: Post-Scene Incremental Update (Phase 8c)
+## Workflow — Mode 2: Post-Chapter Incremental Update (Phase 8c)
 
-Called after each scene is generated. Updates the wiki with `verified` information from the generated text.
+Called after each chapter is assembled. Updates the wiki with `verified` information from the generated text.
 
-1. **Match existing entities** — Call `wiki-read` (operation: `match-entities`) to identify which known entities appear in the scene.
+1. **Match existing entities** — Call `wiki-read` (operation: `match-entities`) to identify which known entities appear in the chapter.
 2. **Compare against wiki state** — Load current wiki state for matched entities to detect changes.
 3. **Extract new information** — Following the extraction rules from the wiki-maintenance skill, identify:
    - New entities not yet in the wiki
@@ -90,7 +90,7 @@ Every wiki page carries a confidence level that governs how facts are treated:
 
 | Level | Meaning | Default Mode |
 |-------|---------|--------------|
-| `verified` | Explicitly stated in generated text | Mode 2 (post-scene) |
+| `verified` | Explicitly stated in generated text | Mode 2 (post-chapter) |
 | `planned` | From the outline, not yet generated | Mode 1 (initial population) |
 | `speculative` | Inferred from context, not explicitly stated | Either mode, with reasoning |
 

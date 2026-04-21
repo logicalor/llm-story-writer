@@ -7,7 +7,7 @@
 When dispatching to any agent, the following errors are retryable:
 
 - "Response contained no choices"
-- Timeout failures
+- Timeout failures (see "Timeout with Possible Completion" below before retrying)
 - Rate limit errors
 
 **Retry protocol:**
@@ -18,6 +18,18 @@ When dispatching to any agent, the following errors are retryable:
 4. After 3 failed attempts, post a PR comment and notify the user — do not continue
 
 When retrying, include the same context but add: "This is retry attempt N of 3."
+
+---
+
+## Timeout with Possible Completion
+
+A timeout failure may mean the agent completed its work but ran out of time to return a report. Before retrying:
+
+1. **Check for side effects** — look for file changes, commits, or other expected outputs
+2. **If work appears completed** — treat as Empty Response (section below): proceed without retry
+3. **If no side effects found** — apply the standard retry protocol above
+
+Retrying a dispatch where work was already completed risks double-writes, duplicate commits, or conflicted state.
 
 ---
 

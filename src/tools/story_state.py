@@ -30,7 +30,17 @@ INITIAL_STATE = {
     "characters": {},
     "plot_threads": {},
     "chapters": {},
+    "pipeline_state": {"phase": None, "step": None, "chapter": None},
 }
+
+DEFAULT_PIPELINE_STATE = {"phase": None, "step": None, "chapter": None}
+
+
+def _ensure_state_defaults(data: dict) -> dict:
+    """Backfill newly added state fields for older stories."""
+    if "pipeline_state" not in data or not isinstance(data["pipeline_state"], dict):
+        data["pipeline_state"] = DEFAULT_PIPELINE_STATE.copy()
+    return data
 
 
 def _get_nested(data: dict, field: str) -> object:
@@ -81,7 +91,7 @@ def _read_state(state_path: Path) -> dict:
         print(f"Error: state file not found: {state_path}", file=sys.stderr)
         sys.exit(1)
     with open(state_path) as f:
-        return json.load(f)
+        return _ensure_state_defaults(json.load(f))
 
 
 def _write_state_atomic(state_path: Path, data: dict) -> None:
@@ -167,7 +177,7 @@ def cmd_write(name: str, field: str, value_str: str) -> None:
 
         # Read, modify, write all under the same lock to prevent TOCTOU
         with open(state_path) as f:
-            data = json.load(f)
+            data = _ensure_state_defaults(json.load(f))
         _set_nested(data, field, value)
 
         tmp_path = None

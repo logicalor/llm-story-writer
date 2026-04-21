@@ -24,6 +24,10 @@ export default {
       .string()
       .optional()
       .describe("Content to critique (if not loading from savepoint)"),
+    mode: z
+      .enum(["outline", "chapter"])
+      .optional()
+      .describe("Critique mode: outline or chapter (default: outline)"),
     criticType: z
       .string()
       .optional()
@@ -36,6 +40,12 @@ export default {
       .number()
       .optional()
       .describe("Quality threshold for should-refine (default: 85.0)"),
+    criterionFloor: z
+      .number()
+      .optional()
+      .describe(
+        "Minimum per-criterion score percentage for should-refine (default: 75.0)"
+      ),
     model: z.string().optional().describe("Override LLM model identifier"),
   }),
   execute: async ({
@@ -43,18 +53,22 @@ export default {
     name,
     iteration,
     content,
+    mode,
     criticType,
     responseText,
     qualityThreshold,
+    criterionFloor,
     model,
   }: {
     operation: string;
     name?: string;
     iteration?: number;
     content?: string;
+    mode?: string;
     criticType?: string;
     responseText?: string;
     qualityThreshold?: number;
+    criterionFloor?: number;
     model?: string;
   }) => {
     const projectRoot = resolve(__dirname, "../..");
@@ -73,6 +87,9 @@ export default {
     if (content) {
       args.push("--content", content);
     }
+    if (mode) {
+      args.push("--mode", mode);
+    }
     if (criticType) {
       args.push("--critic-type", criticType);
     }
@@ -81,6 +98,9 @@ export default {
     }
     if (qualityThreshold !== undefined) {
       args.push("--quality-threshold", String(qualityThreshold));
+    }
+    if (criterionFloor !== undefined) {
+      args.push("--criterion-floor", String(criterionFloor));
     }
     if (model) {
       args.push("--model", model);

@@ -254,7 +254,7 @@ def cmd_generate_elements(name: str, **_kwargs: Any) -> None:
     story_elements = "\n\n".join(combined_chunks)
     _save_savepoint(repo, "story_elements", story_elements)
 
-    _success("generate-elements", {"story_elements": story_elements})
+    _success("generate-elements", {"savepoint": "story_elements"})
 
 
 def cmd_generate_outline(

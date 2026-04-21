@@ -28,7 +28,6 @@ Create a brief skeleton outline for chapters {chunk_start} through {chunk_end} t
 - **Maintains proper escalation order** as specified in the continuity summary
 - Follows logical story progression from previous chapters (if any)
 - Maintains consistency with the established story elements and context
-- **Incorporates relevant enrichment suggestions** to deepen the story beyond its basic scope
 - **Respects established pacing and intensity patterns** from previous chunks
 - Provides concise chapter overviews suitable for later expansion
 - Connects smoothly to the overall story arc
@@ -40,14 +39,6 @@ Create a brief skeleton outline for chapters {chunk_start} through {chunk_end} t
 - **Plot Thread Continuity**: Address active storylines and unresolved elements from previous chunks
 - **Pacing Consistency**: Maintain the established rhythm of action/reflection and intensity patterns
 - **Thematic Development**: Continue building themes and symbols as established in previous chapters
-
-## ENRICHMENT INTEGRATION
-Use the provided enrichment suggestions to enhance your chapter outlines by:
-- **Character Development**: Integrate suggested character arcs, backstory reveals, and relationship dynamics
-- **World-Building**: Incorporate suggested setting details, cultural elements, and environmental factors
-- **Plot Complexity**: Weave in suggested subplots, foreshadowing, and obstacle escalation
-- **Thematic Depth**: Include suggested symbolic elements, moral dilemmas, and thematic reinforcement
-- **Chapter Placement**: Pay attention to suggested chapter ranges for implementing specific enrichments
 
 ## STORY STRUCTURE AWARENESS
 Based on your chunk position within the {total_chapters}-chapter story:
@@ -124,7 +115,6 @@ Before finalizing your output, verify each chapter meets these criteria:
 - ✅ **Specific Events**: Can someone clearly understand what exactly happens in this chapter?
 - ✅ **Clear Actions**: Are the character actions concrete and definitive (not vague)?
 - ✅ **Distinct Outcomes**: Does this chapter change something specific in the story?
-- ✅ **Enrichment Integration**: Does this chapter incorporate relevant suggestions to deepen the story?
 - ✅ **Thematic Resonance**: Does this chapter contribute to the story's emotional and thematic depth?
 
 ## OUTPUT REQUIREMENTS

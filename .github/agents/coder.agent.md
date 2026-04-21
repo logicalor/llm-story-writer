@@ -46,6 +46,7 @@ Read **`.github/agents/_shared/communication.md`** — use caveman for chat/prog
     - Grep the project for existing examples of the same artifact type and replicate the integration pattern.
     - **When writing or editing any agent or skill content** that includes tool operation names, parameter types, or return formats — verify each against the actual Python source (`src/tools/*.py`) and TypeScript wrapper (`.opencode/tools/*.ts`). Verify: (a) valid operation values by reading the Python dispatch/enum; (b) Zod parameter types (`z.string()` vs `z.object()`) from the TS wrapper; (c) return value shape from Python `return` statements; (d) parameter key names match the exact Zod field names declared in the TS wrapper (`z.object({ step: ... })` means the key is `step:`, not `savepoint:`) — mismatched keys pass Zod silently and produce misleading runtime failures. Wrong operation names and mismatched key names cause hard runtime failures invisible to lint or type checks.
 11. **Implement only the files listed in the dispatch.** The plan's task checklist defines the complete authorised scope of this dispatch. Do NOT modify, create, or delete files outside that list — no incidental improvements, no refactors, no abstractions, no "while I'm in here" changes to adjacent code. If you notice bugs, improvements, or technical debt in code you read while working, record them in your handoff summary under "Out-of-scope observations" but do not act on them. Every unauthorised change inflates the diff, pollutes the review, and may require manual revert work.
+   - **Test expectation drift:** when your implementation legitimately changes an output contract (savepoint key names, stdout format, internal counts), tests asserting the old values will break. These are **expectation drift** — they are not bugs in the implementation, and fixing them is **in scope** even if test files are not listed in the plan. The rule bars incidental improvements; it does not bar fixing the tests your own implementation breaks. Distinguish from genuine regression failures — if a test reveals an unintended behaviour change, fix the implementation rather than the test.
 
 > **When dispatched by the Orchestrator** (implementation or regression fix), do NOT commit, push, or post PR comments. The Orchestrator owns all git/GitHub operations. Just implement, lint, and return.
 
@@ -78,6 +79,8 @@ When implementing a feature that spans multiple layers:
 4. **Prompt templates last** — Jinja2/text templates in `src/infrastructure/prompts/`
 
 This ensures each layer's dependencies exist before it references them.
+
+**When modifying an existing Python tool's CLI** (adding or removing `--` flags, changing positional arguments) — treat Python tools (step 2) and TypeScript wrappers (step 3) as an **atomic pair**. Read the TypeScript wrapper alongside the Python changes and update the Zod schema AND the `args` builder in `execute()` to expose every new parameter. New Python `--flags` not added to the wrapper schema are silently dropped; the Python tool falls back to defaults and produces wrong output with no error — invisible to lint, type checks, and Python-layer tests.
 
 ## Code Patterns
 
