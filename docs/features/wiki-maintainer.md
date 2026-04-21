@@ -8,8 +8,8 @@ The wiki maintainer is a specialised subagent invoked by the `story-orchestrator
 
 The agent operates in two distinct modes, mapped to pipeline phases:
 
-- **Mode 1: Initial Wiki Population** (Phase 7) — Extracts all known entities from the outline, character sheets, and setting sheets to populate the wiki before chapter generation begins.
-- **Mode 2: Post-Chapter Incremental Update** (Phase 8c) — After each assembled chapter, extracts new entities, state changes, events, and aliases from the generated text to keep the wiki current.
+- **Mode 1: Initial Wiki Population** (Phase 6) — Extracts all known entities from the outline, character sheets, and setting sheets to populate the wiki before chapter generation begins.
+- **Mode 2: Post-Chapter Incremental Update** (Phase 7c) — After each assembled chapter, extracts new entities, state changes, events, and aliases from the generated text to keep the wiki current.
 
 The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) through the project's OpenAI-compatible inference server configuration, with instructions kept concise and structured for reliable execution at that model size.
 
@@ -36,7 +36,7 @@ The wiki maintainer uses five tools to inspect and update the wiki:
 
 See [Tools Reference](../tools.md) for full documentation of each tool's arguments, operations, and CLI interface.
 
-## Workflow — Mode 1: Initial Wiki Population (Phase 7)
+## Workflow — Mode 1: Initial Wiki Population (Phase 6)
 
 Called once after outline and character/setting sheets are generated. All entities are assigned `planned` confidence (or `verified` if character/setting sheets are treated as authoritative source material).
 
@@ -48,7 +48,7 @@ Called once after outline and character/setting sheets are generated. All entiti
 6. **Build and execute batch payload** — Assemble all entities into a single JSON batch payload and submit via `wiki-update` (operation: `batch`).
 7. **Establish wikilinks** — Ensure cross-references exist between related entities (characters to locations, relationships to participants, events to involved entities).
 
-## Workflow — Mode 2: Post-Chapter Incremental Update (Phase 8c)
+## Workflow — Mode 2: Post-Chapter Incremental Update (Phase 7c)
 
 Called after each chapter is assembled. Updates the wiki with `verified` information from the generated text.
 

@@ -239,24 +239,25 @@ Phase 4: Wiki Init
   → Create wiki directory structure
   → Initialize schema and page templates
 
-Phase 5: Characters
-  → Extract characters from outline
-  → Generate character sheets (JSON)
+Phase 5: Characters & Settings
+  → Extract characters and locations from outline
+  → Delegate to character-sheet-generator subagent
+  → Generate character sheets and setting sheets
 
-Phase 6: Settings
-  → Extract locations from outline
-  → Generate setting sheets (JSON)
+Phase 6: Wiki Population
+  → Delegate to wiki-maintainer subagent
+  → Populate wiki entity pages from outline + sheets
 
 Phase 7: Chapter Generation
   → For each chapter:
       → Load previous chapter recap
-      → Assemble RAG context (ChromaDB + wiki)
-      → Generate chapter content (multi-stage)
-      → Update wiki (scene-level extractions)
+      → Assemble context via wiki-snapshot
+      → Generate chapter content via chapter-writer subagent
+      → Update wiki (post-chapter)
       → Create savepoint
   → Chapter revision loop (if enabled)
 
-Phase 8: Final Polish
+Phase 8: Assembly
   → Final edit pass (if enabled)
   → Scrubbing (if enabled)
   → Assemble final manuscript

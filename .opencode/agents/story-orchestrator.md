@@ -91,41 +91,22 @@ Execute these phases sequentially. Each phase completes fully before the next be
 1. Call `wiki-init` (operation: `init`) to create the wiki directory structure and schema
 2. Verify the wiki structure was created successfully
 
-### Phase 5: Characters
+### Phase 5: Characters & Settings
 
-**Purpose:** Generate character sheets for all characters identified in the outline.
+**Purpose:** Generate character sheets and setting sheets for all entities identified in the outline.
 
 1. Extract the character list from the outline
-2. For each character, call `prompt-loader` with:
-   - `promptId`: `characters/create`
-   - `variables`: include `story_elements`, `character_name`, and any additional story context needed for the sheet
-3. Use the rendered prompt to generate the character sheet as **prose/markdown text** via the model. The output must be a readable narrative character sheet, not a JSON object of attributes.
-4. Pass the generated sheet to `character-mgr` with:
-   - `operation`: `"generate-sheet"`
-   - `character`: the character's display name
-   - `name`: story name
-   - `data`: a JSON string with the exact schema `{"sheet": "<prose text from step 3>", "chunks": {}, "summary": ""}` — the `sheet` field must contain the full prose text; `chunks` and `summary` are left empty at this stage
-5. Store character sheet references in story state
-6. Create savepoint: `characters_complete`
+2. Extract the settings/locations list from the outline
+3. Call `story-state` (operation: `read`, field: `story_elements`) to obtain the unified story elements text
+4. Delegate to the `character-sheet-generator` subagent, passing:
+   - `story_name`: the story name
+   - `character_names`: the list of extracted character names
+   - `setting_names`: the list of extracted setting names
+   - `story_elements`: the unified story elements text from step 3
+5. The subagent handles all sheet generation, storage, and savepoints (`characters_complete`, `settings_complete`) internally
+6. Record the compact list of processed character and setting names returned by the subagent for use in Phase 6
 
-### Phase 6: Settings
-
-**Purpose:** Generate setting sheets for all locations identified in the outline.
-
-1. Extract the settings/locations list from the outline
-2. For each setting, call `prompt-loader` with:
-   - `promptId`: `settings/create`
-   - `variables`: include `story_elements`, `setting_name`, and any additional story context needed for the sheet
-3. Use the rendered prompt to generate the setting sheet as **prose/markdown text** via the model. The output must be a readable narrative setting sheet, not a JSON object of attributes.
-4. Pass the generated sheet to `setting-mgr` with:
-   - `operation`: `"generate-sheet"`
-   - `setting`: the setting's display name (**note:** parameter is `setting`, not `character`)
-   - `name`: story name
-   - `data`: a JSON string with the exact schema `{"sheet": "<prose text from step 3>", "chunks": {}, "summary": ""}` — the `sheet` field must contain the full prose text; `chunks` and `summary` are left empty at this stage
-5. Store setting sheet references in story state
-6. Create savepoint: `settings_complete`
-
-### Phase 7: Wiki Population
+### Phase 6: Wiki Population
 
 **Purpose:** Populate the wiki with initial entity pages derived from the outline, character sheets, and setting sheets.
 
@@ -137,13 +118,13 @@ Execute these phases sequentially. Each phase completes fully before the next be
    - Generate L1/L2/L3 detail levels for each page ([ADR 005](../../docs/planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md))
 2. Create savepoint: `wiki_populated`
 
-### Phase 8: Per-Chapter Loop
+### Phase 7: Per-Chapter Loop
 
 **Purpose:** Generate each chapter through the scene generation pipeline.
 
 Iterate from chapter 1 to `wanted_chapters`:
 
-#### 8a. Expand Chapter Outline
+#### 7a. Expand Chapter Outline
 
 If `expand_outline` is true:
 1. Load the chapter's outline entry via `story-state`
@@ -156,11 +137,11 @@ If `expand_outline` is true:
    - `continuitySummary`: (optional) continuity analysis from the previous chapter's expand-chapter call, if available
 3. Parse the JSON response:
    - Extract `data.chunk_outline` as the expanded outline for this chapter.
-   - Extract `data.continuity_analysis` and retain it for the next chapter's Phase 8a call as the `continuitySummary` parameter.
+   - Extract `data.continuity_analysis` and retain it for the next chapter's Phase 7a call as the `continuitySummary` parameter.
 4. Store the expanded outline via `story-state`
 5. Store it under key `chapters.{N}.expanded_outline` where N is the current chapter number.
 
-#### 8b. Scene Generation
+#### 7b. Scene Generation
 
 If `scene_generation_pipeline` is true:
 1. Delegate scene generation to the `chapter-writer` subagent
@@ -170,7 +151,7 @@ If `scene_generation_pipeline` is true:
 If `scene_generation_pipeline` is false:
 1. Generate the chapter as a single unit using `prompt-loader` for the chapter generation prompt
 
-#### 8c. Post-Chapter Wiki Update
+#### 7c. Post-Chapter Wiki Update
 
 1. Delegate to `wiki-maintainer` to extract and record:
    - New entity appearances, state changes, relationship developments
@@ -179,13 +160,13 @@ If `scene_generation_pipeline` is false:
 2. The wiki-maintainer updates existing pages and creates new ones as needed
 3. Run this once after the full chapter is complete, not after individual scenes.
 
-#### 8d. Recap Generation
+#### 7d. Recap Generation
 
 1. Read the story start date: call `savepoint-mgr` (operation: `load`, name: story name, step: `story_start_date`) to retrieve `storyStartDate`. This was saved during Phase 1 by the `analyze-prompt` operation. Format as `YYYY-MM-DD`.
 2. Call `recap-manager` (operation: `generate`) for the completed chapter, passing `storyStartDate` so timeline annotations are consistent.
 3. Store the recap via `story-state`
 
-#### 8e. Wiki Lint
+#### 7e. Wiki Lint
 
 1. Write the assembled chapter text to disk at: `stories/{name}/chapters/chapter_{N}.md` (create directories as needed). This file must exist before calling `wiki-lint`.
 2. Call `wiki-lint` with:
@@ -200,7 +181,7 @@ If `scene_generation_pipeline` is false:
    - Character trait or appearance drift
 3. If contradictions are found, log them and flag for the quality evaluation step.
 
-#### 8f. Quality Evaluation
+#### 7f. Quality Evaluation
 
 If `enable_chapter_revisions` is true:
 1. Run `critique-runner` on the chapter with `mode: chapter` and `content: <assembled chapter text>`. Pass the assembled chapter text explicitly; do not rely on savepoint fallback for chapter critique.
@@ -211,16 +192,16 @@ If `enable_chapter_revisions` is true:
    - If score >= `chapter_quality` or max revisions reached, proceed
 4. If score >= `chapter_quality`, accept the chapter only after `chapter_min_revisions` is satisfied.
 5. After the chapter passes the quality gate or maximum revisions are reached:
-   - Re-run `wiki-maintainer` (Phase 8c)
-   - Re-run recap generation (Phase 8d)
-   - Re-run wiki lint (Phase 8e)
+   - Re-run `wiki-maintainer` (Phase 7c)
+   - Re-run recap generation (Phase 7d)
+   - Re-run wiki lint (Phase 7e)
 6. `enable_final_edit` and `enable_scrubbing` are planned features — not yet implemented.
 
-#### 8g. Chapter Savepoint
+#### 7g. Chapter Savepoint
 
 1. Create savepoint: `chapter_{N}_complete` (e.g., `chapter_1_complete`, `chapter_12_complete`)
 
-### Phase 9: Assembly
+### Phase 8: Assembly
 
 **Purpose:** Assemble all chapters into the final story output.
 
@@ -261,10 +242,11 @@ Delegate specialised creative work to these subagents (referenced by name):
 | Subagent | Purpose | Delegated In |
 |----------|---------|-------------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 |
-| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b |
-| `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 7, 8c |
+| `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 |
+| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
+| `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
 
-**These are the only three subagents you may dispatch.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
+**These are the only four subagents you may dispatch.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
 
 ---
 
@@ -279,10 +261,10 @@ Savepoints capture the full pipeline state at key milestones, enabling resume af
 | `init` | Phase 1 completes |
 | `outline_complete` | Phase 2 completes (outline finalised) |
 | `characters_complete` | Phase 5 completes (all character sheets generated) |
-| `settings_complete` | Phase 6 completes (all setting sheets generated) |
-| `wiki_populated` | Phase 7 completes (wiki initial population done) |
-| `chapter_{N}_complete` | Phase 8g per chapter (e.g., `chapter_1_complete`) |
-| `story_complete` | Phase 9 completes (final assembly done) |
+| `settings_complete` | Phase 5 completes (all setting sheets generated) |
+| `wiki_populated` | Phase 6 completes (wiki initial population done) |
+| `chapter_{N}_complete` | Phase 7g per chapter (e.g., `chapter_1_complete`) |
+| `story_complete` | Phase 8 completes (final assembly done) |
 
 **Resuming from a savepoint:**
 1. Load the savepoint via `savepoint-mgr` (operation: `load`)
@@ -299,8 +281,8 @@ Quality gates enforce minimum standards before the pipeline proceeds.
 |------|--------|-----------|-------------|------------|
 | Outline quality | `critique-runner` score | `outline_quality` (87) | `outline_max_revisions` (3) | Phase 2 |
 | Outline critique | `critique-runner` iterations | `outline_critique_iterations` (3) | — | Phase 2 (if enabled) |
-| Chapter quality | `critique-runner` score | `chapter_quality` (85) | `chapter_max_revisions` (3) | Phase 8f |
-| Wiki consistency | `wiki-lint` errors | 0 critical contradictions | — | Phase 8e (advisory) |
+| Chapter quality | `critique-runner` score | `chapter_quality` (85) | `chapter_max_revisions` (3) | Phase 7f |
+| Wiki consistency | `wiki-lint` errors | 0 critical contradictions | — | Phase 7e (advisory) |
 
 When a quality gate fails after maximum attempts, log a warning and proceed. Do not block the pipeline indefinitely on a single chapter.
 
@@ -316,14 +298,14 @@ When a quality gate fails after maximum attempts, log a warning and proceed. Do 
    - **`scene-writer` (parse-definitions):** If scene definition parsing fails internally, the tool may fall back to a single-scene default. Verify the returned definition count matches the expected scene count from the chapter outline before proceeding with the scene generation loop.
    - In both cases, the pipeline should log the output and proceed. Do not treat these as hard failures unless the returned data is empty or unparseable.
 5. **Resume after crash:** Use `savepoint-mgr` (operation: `load`) to load the latest savepoint. The pipeline resumes from the phase after the savepoint.
-6. **Wiki lint warnings:** Wiki lint findings in Phase 8e are advisory. Log them and include them as context for the quality evaluation, but do not halt the pipeline for non-critical findings.
+6. **Wiki lint warnings:** Wiki lint findings in Phase 7e are advisory. Log them and include them as context for the quality evaluation, but do not halt the pipeline for non-critical findings.
 
 ---
 
 ## Important Constraints
 
 - **Config is authoritative.** All thresholds, iteration counts, and feature flags come from `config.md`. Never hardcode these values — always read from config.
-- **Wiki is the source of truth** for world state after Phase 7. Character sheets and setting sheets are inputs to the wiki; after population, the wiki supersedes them.
+- **Wiki is the source of truth** for world state after Phase 6. Character sheets and setting sheets are inputs to the wiki; after population, the wiki supersedes them.
 - **Token budget awareness.** The context window is 65536 tokens. Use `wiki-snapshot` for token-budgeted context assembly. Do not manually concatenate large amounts of wiki content.
 - **Sequential chapter generation.** Chapters must be generated in order (1, 2, 3, ...) because each chapter's wiki updates inform the next chapter's context.
 - **Savepoint discipline.** Always create the savepoint after a phase completes successfully, before starting the next phase.

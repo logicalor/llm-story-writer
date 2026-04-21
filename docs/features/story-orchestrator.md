@@ -35,27 +35,26 @@ The pipeline executes nine phases sequentially. Each phase completes fully befor
 | 2 | Outline | Generate story outline; optionally critique and revise | `outline_complete` |
 | 3 | Approval | Human review gate (interactive) or auto-proceed (batch) | — |
 | 4 | Wiki Init | Create wiki directory structure and schema | — |
-| 5 | Characters | Generate character sheets for all outline characters | `characters_complete` |
-| 6 | Settings | Generate setting sheets for all outline locations | `settings_complete` |
-| 7 | Wiki Population | Populate wiki with entity pages from outline + sheets | `wiki_populated` |
-| 8 | Per-Chapter Loop | Expand outline → scene gen → wiki update → recap → lint → quality eval → revision | `chapter_{N}_complete` |
-| 9 | Assembly | Combine all chapters into final manuscript | `story_complete` |
+| 5 | Characters & Settings | Generate character and setting sheets via `character-sheet-generator` subagent | `characters_complete`, `settings_complete` |
+| 6 | Wiki Population | Populate wiki with entity pages from outline + sheets | `wiki_populated` |
+| 7 | Per-Chapter Loop | Expand outline → scene gen → wiki update → recap → lint → quality eval → revision | `chapter_{N}_complete` |
+| 8 | Assembly | Combine all chapters into final manuscript | `story_complete` |
 
-### Per-Chapter Loop (Phase 8)
+### Per-Chapter Loop (Phase 7)
 
 Each chapter passes through seven sub-phases:
 
 ```
 ┌──────────────┐   ┌─────────────┐   ┌────────────────┐   ┌───────────┐
 │ Expand       │──▶│ Scene Gen   │──▶│ Wiki Update    │──▶│ Recap     │
-│ Outline (8a) │   │ (8b)        │   │ (8c)           │   │ (8d)      │
+│ Outline (7a) │   │ (7b)        │   │ (7c)           │   │ (7d)      │
 └──────────────┘   └─────────────┘   └────────────────┘   └───────────┘
                                                                 │
       ┌─────────────────────────────────────────────────────────┘
-      ▼
+      │
 ┌───────────┐   ┌──────────────────────────────────────┐   ┌───────────────────┐
 │ Wiki Lint │──▶│ Quality Evaluation + Revision Loop   │──▶│ Chapter Savepoint │
-│ (8e)      │   │ (8f)                                 │   │ (8g)              │
+│ (7e)      │   │ (7f)                                 │   │ (7g)              │
 └───────────┘   └──────────────────────────────────────┘   └───────────────────┘
 ```
 
@@ -68,7 +67,7 @@ The orchestrator enforces quality thresholds via the `critique-runner` tool. Whe
 | Gate | Config Key | Default Threshold | Max Revisions | Applied In |
 |------|-----------|-------------------|---------------|------------|
 | Outline quality | `generation.outline_quality` | 87 | `outline_max_revisions` (3) | Phase 2 |
-| Chapter quality | `generation.chapter_quality` | 85 | `chapter_max_revisions` (3) | Phase 8f |
+| Chapter quality | `generation.chapter_quality` | 85 | `chapter_max_revisions` (3) | Phase 7f |
 
 ## Wiki Lifecycle
 
@@ -77,12 +76,12 @@ The wiki follows a lifecycle synchronised with the pipeline:
 | Phase | Wiki Interaction |
 |-------|-----------------|
 | Phase 4 | `wiki-init` creates directory structure and `_schema.md` |
-| Phase 7 | `wiki-maintainer` subagent populates pages for all entities from outline + sheets |
-| Phase 8b | `wiki-snapshot` assembles token-budgeted context for each scene generation prompt |
-| Phase 8c | `wiki-maintainer` subagent extracts and records new facts from the generated chapter |
-| Phase 8e | `wiki-lint` checks chapter consistency against the wiki |
+| Phase 6 | `wiki-maintainer` subagent populates pages for all entities from outline + sheets |
+| Phase 7b | `wiki-snapshot` assembles token-budgeted context for each scene generation prompt |
+| Phase 7c | `wiki-maintainer` subagent extracts and records new facts from the generated chapter |
+| Phase 7e | `wiki-lint` checks chapter consistency against the wiki |
 
-After Phase 7, the wiki is the **authoritative source of truth** for world state. Character sheets and setting sheets become historical inputs — the wiki supersedes them.
+After Phase 6, the wiki is the **authoritative source of truth** for world state. Character sheets and setting sheets become historical inputs — the wiki supersedes them.
 
 ## Subagents
 
@@ -91,12 +90,13 @@ The orchestrator delegates specialised work to three subagents:
 | Subagent | Purpose | Invoked In | Status |
 |----------|---------|------------|--------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 | Implemented (PR #64) |
-| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b | Implemented (PR #63) |
-| `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 7, 8c | Implemented (PR #65) |
+| `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 | Implemented |
+| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b | Implemented (PR #63) |
+| `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 6, 7c | Implemented (PR #65) |
 
 ### chapter-writer
 
-The `chapter-writer` subagent handles Phase 8b — generating all scenes for a single chapter. It receives a chapter number and story name from the orchestrator, then:
+The `chapter-writer` subagent handles Phase 7b — generating all scenes for a single chapter. It receives a chapter number and story name from the orchestrator, then:
 
 1. Loads the chapter's expanded outline and parses scene definitions via `scene-writer`
 2. Assembles token-budgeted context from the wiki via `wiki-snapshot` for each scene
@@ -128,10 +128,10 @@ See the [agent definition](../../.opencode/agents/outline-planner.md) for the fu
 
 ### wiki-maintainer
 
-The `wiki-maintainer` subagent handles Phase 7 (initial wiki population) and Phase 8c (post-chapter incremental updates). It operates in two modes:
+The `wiki-maintainer` subagent handles Phase 6 (initial wiki population) and Phase 7c (post-chapter incremental updates). It operates in two modes:
 
-- **Mode 1: Initial Population** (Phase 7) — Extracts all known entities from the outline, character sheets, and setting sheets. Creates wiki pages at `planned` confidence with L1/L2/L3 detail summaries and establishes cross-reference wikilinks between related entities.
-- **Mode 2: Incremental Update** (Phase 8c) — After each assembled chapter, extracts new entities, state changes, events, aliases, and plot thread progression from the text. Creates or updates wiki pages at `verified` confidence, then runs `wiki-lint` consistency checks for that chapter.
+- **Mode 1: Initial Population** (Phase 6) — Extracts all known entities from the outline, character sheets, and setting sheets. Creates wiki pages at `planned` confidence with L1/L2/L3 detail summaries and establishes cross-reference wikilinks between related entities.
+- **Mode 2: Incremental Update** (Phase 7c) — After each assembled chapter, extracts new entities, state changes, events, aliases, and plot thread progression from the text. Creates or updates wiki pages at `verified` confidence, then runs `wiki-lint` consistency checks for that chapter.
 
 The agent uses five tools: `wiki-read`, `wiki-update`, `wiki-lint`, `wiki-search`, and `story-state`. All wiki mutations are submitted as batch payloads for atomic execution with rollback on failure.
 
@@ -193,10 +193,10 @@ A savepoint contains:
 |-----------|-----------|
 | `init` | Phase 2 (Outline) |
 | `outline_complete` | Phase 3 (Approval) |
-| `characters_complete` | Phase 6 (Settings) |
-| `settings_complete` | Phase 7 (Wiki Population) |
-| `wiki_populated` | Phase 8, Chapter 1 |
-| `chapter_{N}_complete` | Phase 8, Chapter N+1 (or Phase 9 if last chapter) |
+| `characters_complete` | Phase 6 (Wiki Population) |
+| `settings_complete` | Phase 6 (Wiki Population) |
+| `wiki_populated` | Phase 7, Chapter 1 |
+| `chapter_{N}_complete` | Phase 7, Chapter N+1 (or Phase 8 if last chapter) |
 | `story_complete` | Pipeline complete |
 
 ## Configuration

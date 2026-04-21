@@ -95,27 +95,17 @@ Key behaviours:
 | **Outputs** | Empty wiki with `_schema.md` and directory structure |
 | **Savepoint** | None (lightweight, no state to preserve) |
 
-### Phase 5: Characters
+### Phase 5: Characters & Settings
 
 | Attribute | Value |
 |-----------|-------|
-| **Purpose** | Generate character sheets for all outline characters |
-| **Tools** | `character-mgr`, `story-state`, `savepoint-mgr` |
-| **Inputs** | Character list from outline |
-| **Outputs** | Character sheet files, references stored in story state |
-| **Savepoint** | `characters_complete` |
+| **Purpose** | Generate character and setting sheets for all entities in the outline |
+| **Subagent** | `character-sheet-generator` |
+| **Inputs** | Character list, setting list, and unified story elements from story state |
+| **Outputs** | Character sheet files, setting sheet files, references stored in story state |
+| **Savepoints** | `characters_complete`, `settings_complete` |
 
-### Phase 6: Settings
-
-| Attribute | Value |
-|-----------|-------|
-| **Purpose** | Generate setting sheets for all outline locations |
-| **Tools** | `setting-mgr`, `story-state`, `savepoint-mgr` |
-| **Inputs** | Location list from outline |
-| **Outputs** | Setting sheet files, references stored in story state |
-| **Savepoint** | `settings_complete` |
-
-### Phase 7: Wiki Population
+### Phase 6: Wiki Population
 
 | Attribute | Value |
 |-----------|-------|
@@ -128,21 +118,21 @@ Key behaviours:
 
 Entity types created during population: characters, locations, events, factions, items, plot threads, timelines, world rules, themes, relationships.
 
-### Phase 8: Per-Chapter Loop
+### Phase 7: Per-Chapter Loop
 
 Executes for each chapter from 1 to `wanted_chapters`.
 
 | Sub-phase | Purpose | Tools / Subagents |
 |-----------|---------|-------------------|
-| **8a** Expand outline | Break chapter outline into scene-level detail | `outline-generator`, `story-state` |
-| **8b** Scene generation | Generate scenes sequentially with wiki context | `chapter-writer` subagent, `wiki-snapshot` |
-| **8c** Wiki update | Record new facts, state changes, events | `wiki-maintainer` subagent |
-| **8d** Recap | Generate chapter recap | `recap-manager` |
-| **8e** Wiki lint | Check chapter consistency against wiki | `wiki-lint` |
-| **8f** Quality eval | Critique + revision loop | `critique-runner` |
-| **8g** Savepoint | Persist chapter completion | `savepoint-mgr` |
+| **7a** Expand outline | Break chapter outline into scene-level detail | `outline-generator`, `story-state` |
+| **7b** Scene generation | Generate scenes sequentially with wiki context | `chapter-writer` subagent, `wiki-snapshot` |
+| **7c** Wiki update | Record new facts, state changes, events | `wiki-maintainer` subagent |
+| **7d** Recap | Generate chapter recap | `recap-manager` |
+| **7e** Wiki lint | Check chapter consistency against wiki | `wiki-lint` |
+| **7f** Quality eval | Critique + revision loop | `critique-runner` |
+| **7g** Savepoint | Persist chapter completion | `savepoint-mgr` |
 
-### Phase 9: Assembly
+### Phase 8: Assembly
 
 | Attribute | Value |
 |-----------|-------|
@@ -197,26 +187,26 @@ The wiki follows a lifecycle synchronized with the pipeline phases:
 Phase 4: wiki-init
     └─▶ Creates directory structure, _schema.md
 
-Phase 7: wiki-maintainer (initial population)
+Phase 6: wiki-maintainer (initial population)
     └─▶ Creates pages for all entities from outline + character/setting sheets
     └─▶ Generates L1/L2/L3 detail levels per page
     └─▶ Establishes wikilinks between related entities
 
-Phase 8b: wiki-snapshot (pre-scene context)
+Phase 7b: wiki-snapshot (pre-scene context)
     └─▶ Assembles token-budgeted context for each scene generation prompt
     └─▶ Uses hybrid retrieval: entity matching → metadata query → semantic search → wikilink traversal
 
-Phase 8c: wiki-maintainer (post-chapter updates)
+Phase 7c: wiki-maintainer (post-chapter updates)
     └─▶ Extracts new entities, state changes, relationship developments
     └─▶ Updates existing pages, creates new ones
     └─▶ Updates timeline and plot thread progression
 
-Phase 8e: wiki-lint (post-chapter consistency check)
+Phase 7e: wiki-lint (post-chapter consistency check)
     └─▶ Detects contradictions, timeline issues, character drift
     └─▶ Results feed into quality evaluation (advisory, not blocking)
 ```
 
-After Phase 7, the wiki is the **authoritative source of truth** for world state. Character sheets and setting sheets become historical inputs — the wiki supersedes them.
+After Phase 6, the wiki is the **authoritative source of truth** for world state. Character sheets and setting sheets become historical inputs — the wiki supersedes them.
 
 ---
 
@@ -225,7 +215,7 @@ After Phase 7, the wiki is the **authoritative source of truth** for world state
 | Phase | Interactive | Batch |
 |-------|------------|-------|
 | Phase 3 (Approval) | Pause — present outline, wait for approval or revision request | Auto-proceed |
-| Phase 8f (Quality eval) | May pause to show failing scores and ask whether to continue | Auto-accept best version after max revisions |
+| Phase 7f (Quality eval) | May pause to show failing scores and ask whether to continue | Auto-accept best version after max revisions |
 
 All other phases execute identically in both modes.
 
@@ -241,11 +231,10 @@ Format: `{phase_descriptor}` — lowercase, underscore-separated, descriptive.
 |-------|---------------|---------|
 | 1 | `init` | `init` |
 | 2 | `outline_complete` | `outline_complete` |
-| 5 | `characters_complete` | `characters_complete` |
-| 6 | `settings_complete` | `settings_complete` |
-| 7 | `wiki_populated` | `wiki_populated` |
-| 8 (per chapter) | `chapter_{N}_complete` | `chapter_1_complete`, `chapter_25_complete` |
-| 9 | `story_complete` | `story_complete` |
+| 5 | `characters_complete`, `settings_complete` | `characters_complete` |
+| 6 | `wiki_populated` | `wiki_populated` |
+| 7 (per chapter) | `chapter_{N}_complete` | `chapter_1_complete`, `chapter_25_complete` |
+| 8 | `story_complete` | `story_complete` |
 
 No zero-padding on chapter numbers. The savepoint includes full pipeline state: story state, wiki state, all generated artifacts up to that point.
 
@@ -303,10 +292,10 @@ To resume a story generation run after interruption:
 |-----------|-----------|
 | `init` | Phase 2 (Outline) |
 | `outline_complete` | Phase 3 (Approval) |
-| `characters_complete` | Phase 6 (Settings) |
-| `settings_complete` | Phase 7 (Wiki Population) |
-| `wiki_populated` | Phase 8, Chapter 1 |
-| `chapter_{N}_complete` | Phase 8, Chapter N+1 (or Phase 9 if N == wanted_chapters) |
+| `characters_complete` | Phase 5 (Characters & Settings, settings portion) |
+| `settings_complete` | Phase 6 (Wiki Population) |
+| `wiki_populated` | Phase 7, Chapter 1 |
+| `chapter_{N}_complete` | Phase 7, Chapter N+1 (or Phase 8 if N == wanted_chapters) |
 | `story_complete` | Pipeline complete — nothing to resume |
 
 ---
