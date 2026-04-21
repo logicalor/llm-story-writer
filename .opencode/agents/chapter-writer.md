@@ -67,14 +67,16 @@ For each scene M in the chapter (M = 1, 2, ..., scene_count):
    - `sceneType`: the scene type (dialogue, action, exposition, mixed)
    - `budget`: 15000 (default, configurable via story config)
 
+   **Parse the JSON response.** `wiki-snapshot` returns `{"snapshot": "...", "stats": {...}}` — it does **not** return a bare string. Extract the `snapshot` field: `wiki_context = response["snapshot"]`. Discard the `stats` field.
+
 2. **Build generation context.** Combine:
-   - The wiki snapshot (primary context)
+   - The wiki snapshot string (the `snapshot` field extracted from the wiki-snapshot JSON response)
    - The scene definition (from parsed definitions)
    - The chapter outline (for overall chapter direction)
    - Previous chapter recap (if available, for chapter 2+)
    - Previous scene content (if M > 1, for direct continuity)
 
-3. **Generate the scene.** Call `scene-writer` (operation: `generate`) with the assembled context.
+3. **Generate the scene.** Call `scene-writer` (operation: `generate`) with the assembled context. Pass the wiki snapshot string as the `baseContext` parameter.
 
 4. **Save scene savepoint.** Call `savepoint-mgr` to save: `chapter_{N}/scene_{M}`.
 
@@ -103,7 +105,7 @@ Savepoints are created at each significant milestone within a chapter, enabling 
 | `chapter_{N}/assembled` | All scenes assembled into chapter (step 7) |
 
 **Resuming from a savepoint:**
-1. Load the savepoint via `savepoint-mgr` (operation: `restore`)
+1. Load the savepoint via `savepoint-mgr` (operation: `load`)
 2. Determine the last completed scene from the savepoint name
 3. Resume the scene generation loop from the next scene, or proceed to assembly if all scenes are complete
 

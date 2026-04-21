@@ -106,8 +106,8 @@ The outline pipeline uses the following savepoint names. Each is created automat
 | `base_context` | `analyze-prompt` | Extracted base context for generation |
 | `story_elements` | `generate-elements` | Unified analysis from all 8 chunks |
 | `outline_complete` | `generate-outline` | Full outline (non-chunked generation) |
-| `outline_chunk_{N}` | `expand-chapter` | Chunked outline segment N |
-| `continuity_analysis_{N}` | `expand-chapter` | Continuity summary after chunk N |
+| `outline_chunk_{start}_{end}` | `expand-chapter` | Chunked outline segment (e.g., `outline_chunk_1_10`) |
+| `continuity_{start}_{end}` | `expand-chapter` | Continuity summary after chunk (e.g., `continuity_1_10`) |
 | `critique_results_iteration_{N}` | `run-critics` | Critic scores for iteration N |
 | `outline_refined_{N}` | `refine` | Refined outline after iteration N |
 

@@ -293,7 +293,7 @@ To resume a story generation run after interruption:
 
 1. List available savepoints: `savepoint-mgr` (operation: `list`)
 2. Identify the latest savepoint (or a specific one to resume from)
-3. Restore: `savepoint-mgr` (operation: `restore`, savepoint: `<name>`)
+3. Load: `savepoint-mgr` (operation: `load`, step: `<savepoint-name>`)
 4. The story-orchestrator reads the restored story state to determine the last completed phase
 5. Execution resumes from the **next** phase after the savepoint
 

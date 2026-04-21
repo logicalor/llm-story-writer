@@ -23,9 +23,9 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
 **Purpose:** Load the story prompt, read configuration, initialise story state.
 
-1. Read the user-provided story prompt file using `prompt-loader`
+1. Receive the story prompt text from the invocation context. The prompt is provided as direct text — either the user's initial message or explicit input at invocation. **Do not use `prompt-loader`** to read the story prompt — `prompt-loader` only resolves internal template registry keys from the `prompts/` library and cannot read arbitrary file paths. If the user has referenced a file, ask them to paste the prompt text directly.
 2. Load `config.md` — parse the YAML frontmatter for all generation settings
-3. Initialise story state via `story-state` (operation: `init`) with prompt metadata and config values
+3. Initialise story state via `story-state` (operation: `init`). Note: `init` creates an empty state structure and accepts no payload. After `init` completes, write prompt metadata and config values using separate `story-state` (operation: `write`) calls.
 4. Create savepoint: `init`
 
 **Config values to extract and track:**
@@ -56,7 +56,7 @@ Execute these phases sequentially. Each phase completes fully before the next be
 1. Delegate outline generation to the `outline-planner` subagent, passing all relevant config values (`use_chunked_outline_generation`, `outline_chunk_size`, `enable_outline_critique`, `outline_quality`, `outline_critique_iterations`, `outline_min_revisions`, `wanted_chapters`)
 2. The `outline-planner` handles the full pipeline internally — prompt analysis, element synthesis, outline generation (chunked or monolithic), and the critique/refinement loop. Do **not** run critique or revision steps at the orchestrator level.
 3. Receive the finalised outline from `outline-planner`. If the orchestrator's own revision cap (`outline_max_revisions`) has not been reached and the user requests further revisions (Phase 3 feedback), re-invoke `outline-planner` with feedback.
-4. Store the finalised outline via `story-state` (operation: `update`, field: `outline`)
+4. Store the finalised outline via `story-state` (operation: `write`, field: `outline`, value: outline JSON string)
 5. Create savepoint: `outline_complete`
 
 ### Phase 3: Approval
@@ -78,7 +78,10 @@ Execute these phases sequentially. Each phase completes fully before the next be
 **Purpose:** Generate character sheets for all characters identified in the outline.
 
 1. Extract the character list from the outline
-2. For each character, call `character-mgr` (operation: `generate-sheet`)
+2. For each character, call `character-mgr` with:
+   - `operation`: `"generate-sheet"`
+   - `character`: the character's display name
+   - `data`: `"{}"` (JSON string — empty object; the TS wrapper accepts a JSON string, not a raw object)
 3. Store character sheet references in story state
 4. Create savepoint: `characters_complete`
 
@@ -87,7 +90,10 @@ Execute these phases sequentially. Each phase completes fully before the next be
 **Purpose:** Generate setting sheets for all locations identified in the outline.
 
 1. Extract the settings/locations list from the outline
-2. For each setting, call `setting-mgr` (operation: `generate-sheet`)
+2. For each setting, call `setting-mgr` with:
+   - `operation`: `"generate-sheet"`
+   - `setting`: the setting's display name (**note:** parameter is `setting`, not `character`)
+   - `data`: `"{}"` (JSON string — empty object; the TS wrapper accepts a JSON string, not a raw object)
 3. Store setting sheet references in story state
 4. Create savepoint: `settings_complete`
 
@@ -141,11 +147,18 @@ If `scene_generation_pipeline` is false:
 
 #### 8e. Wiki Lint
 
-1. Call `wiki-lint` (operation: `check-chapter`, chapter_number: N) to detect:
+1. Write the assembled chapter text to disk at: `stories/{name}/chapters/chapter_{N}.md` (create directories as needed). This file must exist before calling `wiki-lint`.
+2. Call `wiki-lint` with:
+   - `operation`: `"check-chapter"`
+   - `name`: story name
+   - `chapter_number`: N
+   - `chapter_text`: file path written in step 1 (e.g., `stories/my-story/chapters/chapter_3.md`)
+   **Note:** `chapter_text` is a **file path**, not raw text content. `wiki-lint` reads the chapter from disk and validates the path is inside the `stories/` directory.
+   `wiki-lint` detects:
    - Contradictions between the chapter content and established wiki facts
    - Timeline inconsistencies
    - Character trait or appearance drift
-2. If contradictions are found, log them and flag for the quality evaluation step
+3. If contradictions are found, log them and flag for the quality evaluation step.
 
 #### 8f. Quality Evaluation
 
@@ -180,7 +193,7 @@ You have access to these tools for deterministic operations:
 |------|---------|
 | `prompt-loader` | Load and render prompt templates with variable substitution |
 | `story-state` | Read/write story state (outline, chapters, metadata) |
-| `savepoint-mgr` | Create/restore/list savepoints |
+| `savepoint-mgr` | Create/load/list savepoints |
 | `character-mgr` | Generate and manage character sheets |
 | `setting-mgr` | Generate and manage setting sheets |
 | `recap-manager` | Generate and manage chapter recaps |
@@ -223,7 +236,7 @@ Savepoints capture the full pipeline state at key milestones, enabling resume af
 | `story_complete` | Phase 9 completes (final assembly done) |
 
 **Resuming from a savepoint:**
-1. Load the savepoint via `savepoint-mgr` (operation: `restore`)
+1. Load the savepoint via `savepoint-mgr` (operation: `load`)
 2. Determine the last completed phase from story state
 3. Resume execution from the next phase
 
@@ -249,7 +262,7 @@ When a quality gate fails after maximum attempts, log a warning and proceed. Do 
 1. **Tool failure:** If a tool call fails, retry once. If it fails again, log the error with full context and halt the pipeline with a diagnostic message indicating which phase and step failed.
 2. **Subagent failure:** If a subagent does not produce valid output, log the failure and retry the delegation once. On second failure, halt.
 3. **Quality gate exhaustion:** If maximum revisions are reached without meeting the quality threshold, log a warning (including the best score achieved), accept the best version, and proceed.
-4. **Resume after crash:** Use `savepoint-mgr` to restore the latest savepoint. The pipeline resumes from the phase after the savepoint.
+4. **Resume after crash:** Use `savepoint-mgr` (operation: `load`) to load the latest savepoint. The pipeline resumes from the phase after the savepoint.
 5. **Wiki lint warnings:** Wiki lint findings in Phase 8e are advisory. Log them and include them as context for the quality evaluation, but do not halt the pipeline for non-critical findings.
 
 ---
