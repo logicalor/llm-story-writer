@@ -146,7 +146,7 @@ def _make_critique_results_savepoint(
     _write_savepoint(
         stories_dir,
         story_name,
-        f"critique_results_iteration_{iteration}",
+        f"outline_critique_results_iteration_{iteration}",
         savepoint_data,
     )
 

@@ -200,12 +200,8 @@ def test_generate_elements_with_savepoints(story_env: tuple[Path, str]) -> None:
     assert result.returncode == 0, f"stderr: {result.stderr}"
     out = json.loads(result.stdout)
 
-    # All 8 chunks should be concatenated in story_elements
-    story_elements = out["data"]["story_elements"]
-    for chunk_type in CHUNK_TYPES:
-        header = chunk_type.replace("_", " ").title()
-        assert f"=== {header} ===" in story_elements
-        assert f"Content for {chunk_type} analysis." in story_elements
+    # Output returns savepoint key only (not full content) to avoid stdout bloat
+    assert out["data"]["savepoint"] == "story_elements"
 
 
 def test_generate_elements_output_format(story_env: tuple[Path, str]) -> None:
