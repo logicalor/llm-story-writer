@@ -1,4 +1,14 @@
-<!-- Archived — see archive/issue-111-coder-scope-creep-2026-04-21.md -->
+---
+date: "2026-04-21"
+issue: 111
+pr: 112
+category: agent
+targets:
+  - ".github/agents/coder.agent.md"
+  - ".github/agents/orchestrator-v3.agent.md"
+severity: major
+status: archived
+---
 
 ## Coder scope creep — ~60 files modified for a 4-5 file task
 
