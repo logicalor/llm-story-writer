@@ -126,7 +126,9 @@ If `expand_outline` is true:
    - `chunkEnd`: N (same as chunkStart — single chapter at a time)
    - `totalChapters`: `wanted_chapters` (from config)
    - `continuitySummary`: (optional) continuity analysis from the previous chapter's expand-chapter call, if available
-3. Parse the JSON response: extract `data.chunk_outline` as the expanded outline.
+3. Parse the JSON response:
+   - Extract `data.chunk_outline` as the expanded outline for this chapter.
+   - Extract `data.continuity_analysis` and retain it for the next chapter's Phase 8a call as the `continuitySummary` parameter.
 4. Store the expanded outline via `story-state`
 
 #### 8b. Scene Generation
@@ -149,7 +151,7 @@ If `scene_generation_pipeline` is false:
 
 #### 8d. Recap Generation
 
-1. Read the story start date: call `savepoint-mgr` (operation: `load`, name: story name, savepoint: `story_start_date`) to retrieve `storyStartDate`. This was saved during Phase 1 by the `analyze-prompt` operation. Format as `YYYY-MM-DD`.
+1. Read the story start date: call `savepoint-mgr` (operation: `load`, name: story name, step: `story_start_date`) to retrieve `storyStartDate`. This was saved during Phase 1 by the `analyze-prompt` operation. Format as `YYYY-MM-DD`.
 2. Call `recap-manager` (operation: `generate`) for the completed chapter, passing `storyStartDate` so timeline annotations are consistent.
 3. Store the recap via `story-state`
 
