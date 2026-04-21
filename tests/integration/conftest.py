@@ -8,7 +8,7 @@ import requests
 
 @pytest.fixture(scope="session")
 def llm_available() -> str:
-    base = os.environ.get("LLM_API_BASE", "http://localhost:11434/v1").rstrip("/")
+    base = os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1").rstrip("/")
 
     try:
         response = requests.get(f"{base}/models", timeout=10)

@@ -49,21 +49,21 @@ The integration suite requires a live OpenAI-compatible LLM API.
 
 `LLM_API_BASE` controls which endpoint the tests call:
 
-- Default: `http://localhost:11434/v1`
+- Default: `http://127.0.0.1:1234/v1`
 - Health check used by the fixture: `GET {LLM_API_BASE}/models`
 - Expected shape: an OpenAI-compatible `/models` route and compatible text-generation responses used by the tool layer
 
 Examples:
 
 ```bash
-# Default local Ollama-compatible endpoint
+# Default local LM Studio endpoint
 pytest tests/integration/ -v -m integration
 
 # Custom host or port
-LLM_API_BASE=http://192.168.1.50:11434/v1 pytest tests/integration/ -v -m integration
+LLM_API_BASE=http://192.168.1.50:1234/v1 pytest tests/integration/ -v -m integration
 
-# LM Studio or another OpenAI-compatible server
-LLM_API_BASE=http://127.0.0.1:1234/v1 pytest tests/integration/test_e2e_opencode.py -v -m integration --timeout=7200
+# Ollama or another OpenAI-compatible server
+LLM_API_BASE=http://127.0.0.1:11434/v1 pytest tests/integration/test_e2e_opencode.py -v -m integration --timeout=7200
 ```
 
 If `LLM_API_BASE` is unset, the suite falls back to the local default. If the endpoint is down, pytest reports the suite as skipped.

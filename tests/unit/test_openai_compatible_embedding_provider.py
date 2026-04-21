@@ -133,10 +133,10 @@ class TestOpenAICompatibleEmbeddingProvider:
 
     def test_base_url_constructed_correctly(self) -> None:
         provider = OpenAICompatibleEmbeddingProvider(
-            base_url="http://localhost:11434/v1"
+            base_url="http://127.0.0.1:1234/v1"
         )
 
-        assert provider.base_url == "http://localhost:11434/v1"
+        assert provider.base_url == "http://127.0.0.1:1234/v1"
 
     def test_get_embeddings_raises_on_api_failure(self) -> None:
         provider = OpenAICompatibleEmbeddingProvider()

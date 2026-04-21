@@ -64,7 +64,7 @@ class RAGConfig:
 
         host, _ = _parse_embedding_model_uri(self.embedding_model)
         return _normalize_model_api_base(
-            host or os.environ.get("LLM_API_BASE", "http://127.0.0.1:11434/v1")
+            host or os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1")
         )
 
     @property

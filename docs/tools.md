@@ -661,7 +661,7 @@ The tool uses `src/tools/_llm.py` for LLM access, configured via environment var
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLM_API_BASE` | `http://localhost:11434/v1` | OpenAI-compatible API base URL |
+| `LLM_API_BASE` | `http://127.0.0.1:1234/v1` | OpenAI-compatible API base URL |
 | `LLM_MODEL` | `huihui_ai/magistral-abliterated:24b` | Default model identifier |
 
 The `--model` argument overrides `LLM_MODEL` for a single invocation.
@@ -822,7 +822,7 @@ The tool uses `src/tools/_llm.py` for LLM access, configured via environment var
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLM_API_BASE` | `http://localhost:11434/v1` | OpenAI-compatible API base URL |
+| `LLM_API_BASE` | `http://127.0.0.1:1234/v1` | OpenAI-compatible API base URL |
 | `LLM_MODEL` | `huihui_ai/magistral-abliterated:24b` | Default model identifier |
 
 The `--model` argument overrides `LLM_MODEL` for a single invocation.
@@ -998,7 +998,7 @@ The tool uses `src/tools/_llm.py` for LLM access, configured via environment var
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLM_API_BASE` | `http://localhost:11434/v1` | OpenAI-compatible API base URL |
+| `LLM_API_BASE` | `http://127.0.0.1:1234/v1` | OpenAI-compatible API base URL |
 | `LLM_MODEL` | `huihui_ai/magistral-abliterated:24b` | Default model identifier |
 
 The `--model` argument overrides `LLM_MODEL` for a single invocation.

@@ -339,12 +339,12 @@ The supported local providers in the active runtime do not require cloud API key
 
 1. **Model Not Found**: Ensure the model is available via your configured OpenAI-compatible endpoint
    ```bash
-  curl http://127.0.0.1:11434/v1/models
+  curl http://127.0.0.1:1234/v1/models
    ```
 
 2. **Connection Refused**: Verify the inference server is running and the endpoint is reachable.
    ```bash
-  curl http://127.0.0.1:11434/v1/models
+  curl http://127.0.0.1:1234/v1/models
    ```
 
 3. **Memory Issues**: Use a smaller quantized model or a dedicated inference host with more VRAM.

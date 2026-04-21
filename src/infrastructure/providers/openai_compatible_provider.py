@@ -45,7 +45,7 @@ class OpenAICompatibleProvider(ModelProvider):
         randomize_seed: bool = True,
     ):
         if base_url is None:
-            base_url = os.environ.get("LLM_API_BASE", "http://127.0.0.1:11434/v1")
+            base_url = os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1")
         self.base_url = _normalize_base_url(base_url)
         self.context_length = context_length
         self.randomize_seed = randomize_seed

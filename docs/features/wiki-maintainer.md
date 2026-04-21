@@ -178,12 +178,12 @@ Beyond the standard alias identification rules, the wiki maintainer handles thre
 
 ## Model Configuration
 
-The wiki maintainer is registered in `opencode.json` with a 7b model for efficient operation. OpenCode keeps the provider key named `ollama`, but that key now uses the `@ai-sdk/openai-compatible` adapter and targets the generic `/v1` API:
+The wiki maintainer is registered in `opencode.json` with a 7b model for efficient operation. The provider key uses the `@ai-sdk/openai-compatible` adapter and targets the generic `/v1` API of whichever local server is configured:
 
 ```json
 {
   "wiki-maintainer": {
-    "model": "ollama/huihui_ai/deepseek-r1-abliterated:7b",
+    "model": "lmstudio/huihui_ai/deepseek-r1-abliterated:7b",
     "instructions": ".opencode/agents/wiki-maintainer.md",
     "skills": ["wiki-maintenance", "wiki-conventions"]
   }

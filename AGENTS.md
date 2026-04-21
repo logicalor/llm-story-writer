@@ -39,7 +39,7 @@ Story generation skills are defined in `.opencode/skills/`. The `story-pipeline`
 
 ### Model Configuration
 
-Local LLM inference via **Ollama**. Multiple model roles can be configured for different tasks (generation, analysis, embedding).
+Local LLM inference via any OpenAI-compatible endpoint — **LM Studio** (default: `http://127.0.0.1:1234/v1`), Ollama, or llama.cpp. Multiple model roles can be configured for different tasks (generation, analysis, embedding).
 
 ## Conventions
 

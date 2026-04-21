@@ -10,7 +10,7 @@ import requests
 
 def _get_api_base() -> str:
     """Return the OpenAI-compatible API base URL."""
-    return os.environ.get("LLM_API_BASE", "http://localhost:11434/v1")
+    return os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1")
 
 
 def _get_model() -> str:

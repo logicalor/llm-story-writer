@@ -1,7 +1,7 @@
 """End-to-end integration test for full story generation pipeline with wiki.
 
-Requires a running LLM service (Ollama or OpenAI-compatible API).
-Set LLM_API_BASE env var to configure endpoint (default: http://localhost:11434/v1).
+Requires a running OpenAI-compatible LLM service (LM Studio, Ollama, llama.cpp, etc).
+Set LLM_API_BASE env var to configure endpoint (default: http://127.0.0.1:1234/v1).
 
 Run with:
     pytest tests/integration/ -v

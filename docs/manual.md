@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Last Updated:** April 2026
-**Stack:** Python 3.x · TypeScript · OpenCode · ChromaDB · Ollama
+**Stack:** Python 3.x · TypeScript · OpenCode · ChromaDB · OpenAI-compatible local LLM (LM Studio default)
 
 ---
 
@@ -33,7 +33,7 @@ AI Story Writer is an AI-powered long-form story generation system. It produces 
 - Per-story semantic search via ChromaDB
 - Multiple writing strategies (outline-then-chapter vs stream-of-consciousness)
 - Savepoint/resume system for long generation runs
-- Local-only inference (Ollama, LM Studio, llama.cpp)
+- Local-only inference (LM Studio, Ollama, llama.cpp — any OpenAI-compatible server)
 
 ---
 
@@ -57,7 +57,7 @@ The system uses a **hybrid agent-tool architecture** (per [ADR 001](planning/adr
 ```
 src/domain/          → Entities, value objects (core business rules, no dependencies)
 src/application/     → Services, strategies (use cases, depends on domain)
-src/infrastructure/  → Providers, storage (external adapters: Ollama, ChromaDB, disk I/O)
+src/infrastructure/  → Providers, storage (external adapters: OpenAI-compatible LLM, ChromaDB, disk I/O)
 src/presentation/   → CLI interfaces
 src/tools/          → Python tool implementations (called by TypeScript wrappers)
 ```
@@ -82,7 +82,7 @@ story-orchestrator (OpenCode agent)
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
-│  Infrastructure (Ollama LLM, ChromaDB, disk)  │
+│  Infrastructure (OpenAI-compatible LLM, ChromaDB, disk) │
 └─────────────────────────────────────────────┘
     ↓
 stories/<name>/  (chapters, wiki, savepoints)
@@ -98,7 +98,7 @@ stories/<name>/  (chapters, wiki, savepoints)
 |-------------|---------|-------|
 | Python | 3.8+ | |
 | OpenCode | latest | CLI tool for agent orchestration |
-| Ollama | latest | Local LLM inference server |
+| OpenAI-compatible LLM server | any | LM Studio (default), Ollama, llama.cpp, vLLM, etc. |
 
 ### 3.2 Installation Steps
 
@@ -110,9 +110,9 @@ cd AIStoryWriter
 # 2. Install OpenCode (follow platform-specific instructions)
 opencode --version
 
-# 3. Start Ollama and pull models
-ollama serve
-ollama pull <model-name>   # e.g., huihui_ai/magistral-abliterated:24b
+# 3. Start your local LLM server and load models
+#    e.g. LM Studio (default: http://127.0.0.1:1234/v1) — load model via the UI
+#    or:  ollama serve && ollama pull <model-name>
 
 # 4. Install Python dependencies
 pip install -r requirements.txt
@@ -134,7 +134,7 @@ models:
   embedding_model: "openai-compat://nomic-embed-text"
 ```
 
-The `openai-compat://` prefix routes to the Ollama-compatible API. Override `model_api_base` in `infrastructure:` to change the endpoint (default: `http://127.0.0.1:11434/v1`).
+The `openai-compat://` prefix routes to the configured OpenAI-compatible API. Override `model_api_base` in `infrastructure:` to change the endpoint (default: `http://127.0.0.1:1234/v1`).
 
 ---
 
@@ -166,7 +166,7 @@ All configuration lives in `config.md` (YAML frontmatter at the top of the file)
 |---------|---------|-------------|
 | `output_dir` | — | Where to write final story files |
 | `savepoint_dir` | — | Where to store savepoints |
-| `model_api_base` | `http://127.0.0.1:11434/v1` | LLM API endpoint |
+| `model_api_base` | `http://127.0.0.1:1234/v1` | LLM API endpoint |
 | `context_length` | 16384 | Context window size |
 | `embedding_model` | `nomic-embed-text` | Embedding model for ChromaDB |
 | `vector_dimensions` | 1536 | Embedding vector dimensions |
@@ -284,7 +284,7 @@ llm-story-writer/
 │   │       ├── outline_chapter/
 │   │       └── stream_of_consciousness/
 │   ├── infrastructure/
-│   │   ├── providers/        # Ollama, LM Studio, llama.cpp providers
+│   │   ├── providers/        # OpenAI-compatible LLM providers (LM Studio, Ollama, llama.cpp)
 │   │   ├── storage/          # File-based story storage
 │   │   ├── prompts/          # PromptLoader class
 │   │   ├── savepoints/       # SavepointManager
@@ -562,7 +562,7 @@ tests/
 # Unit tests only (default, fast)
 pytest tests/unit/ -v
 
-# All tests including integration (requires live Ollama)
+# All tests including integration (requires live LLM)
 pytest tests/ -v
 
 # Single test file
@@ -574,7 +574,7 @@ pytest --cov=src tests/unit tests/integration
 
 ### 10.3 Integration Test Setup
 
-Integration tests exercise the full pipeline against a live Ollama endpoint. Set `LLM_API_BASE` to override the default (`http://localhost:11434/v1`). A full integration run typically takes 30–90 minutes.
+Integration tests exercise the full pipeline against a live OpenAI-compatible LLM endpoint. Set `LLM_API_BASE` to override the default (`http://127.0.0.1:1234/v1`). A full integration run typically takes 30–90 minutes.
 
 See [docs/testing/integration-tests.md](testing/integration-tests.md) for detailed setup instructions.
 
@@ -634,23 +634,21 @@ Significant architectural decisions are documented in `docs/planning/adr/`:
 
 ## 12. Troubleshooting
 
-### Ollama not responding
+### LLM endpoint not responding
 
 ```bash
-# Check Ollama is running
-ollama list
+# Verify your inference server is running (LM Studio, Ollama, or similar)
+#   LM Studio: check the Developer tab shows "Server running"
+#   Ollama:    ollama list
 
-# Verify model is pulled
-ollama pull huihui_ai/magistral-abliterated:24b
-
-# Test API endpoint
-curl http://127.0.0.1:11434/v1/models
+# Test API endpoint (defaults to LM Studio; adjust if using a different server)
+curl http://127.0.0.1:1234/v1/models
 ```
 
 ### ChromaDB search returning no results
 
 - Verify `.chromadb/` directory exists and is writable
-- Check `embedding_model` is loaded in Ollama: `ollama pull nomic-embed-text`
+- Check `embedding_model` is loaded in your inference server (e.g. LM Studio: load `nomic-embed-text`; Ollama: `ollama pull nomic-embed-text`)
 - Verify `similarity_threshold` in `config.md` is not set too high (try 0.5)
 
 ### Story generation producing inconsistent output
@@ -677,8 +675,7 @@ curl http://127.0.0.1:11434/v1/models
 ## Quick Reference
 
 ```bash
-# Start Ollama
-ollama serve
+# Start your local LLM server (e.g. LM Studio, or `ollama serve`)
 
 # Run OpenCode TUI
 opencode

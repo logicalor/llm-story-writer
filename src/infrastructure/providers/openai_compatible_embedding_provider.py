@@ -46,7 +46,7 @@ class OpenAICompatibleEmbeddingProvider:
         host: Optional[str] = None,
     ):
         if base_url is None:
-            base_url = os.environ.get("LLM_API_BASE", "http://127.0.0.1:11434/v1")
+            base_url = os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1")
         if host:
             base_url = f"http://{host}/v1"
 

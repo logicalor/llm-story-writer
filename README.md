@@ -7,13 +7,13 @@ A modern, clean AI story generation application built with clean architecture pr
 ## 🚀 Features
 
 - **Clean Architecture**: Built with domain-driven design and clean architecture principles
-- **Multiple Local Model Providers**: Support for Ollama, LM Studio, and llama.cpp
+- **Multiple Local Model Providers**: Works with any OpenAI-compatible server (LM Studio, Ollama, llama.cpp, vLLM, etc.)
 - **Async/Await**: Full async support for better performance
 - **Type Safety**: Comprehensive type hints and validation
 - **ChromaDB-backed wiki retrieval**: Per-story semantic search over progressive wiki memory
 - **Extensible Design**: Easy to add new features and providers
 - **Generate medium to full-length novels**: Produce substantial stories with coherent narratives
-- **Automatic model downloading**: The system can automatically download required models via Ollama
+- **Automatic model downloading**: Model provisioning is delegated to the local inference server (e.g. LM Studio's model browser or `ollama pull`)
 - **Translation support**: Translate stories and prompts to multiple languages
 - **Savepoint system**: Resume generation from any point
 
@@ -36,7 +36,7 @@ src/
 
 1. **Python 3.8+** installed
 2. **OpenCode** installed
-3. **Ollama** installed and running (for local models)
+3. An **OpenAI-compatible local model server** running (LM Studio, Ollama, or llama.cpp)
 
 ### Installation
 
@@ -49,8 +49,9 @@ cd AIStoryWriter
 # Follow your platform's OpenCode install instructions, then verify:
 opencode --version
 
-# Configure Ollama and pull the models referenced by config.md
-ollama serve
+# Start your local model server and load the models referenced by config.md
+# e.g. LM Studio (default: http://127.0.0.1:1234/v1)
+# or:  ollama serve        (http://127.0.0.1:11434/v1)
 
 # Install dependencies
 pip install -r requirements.txt
@@ -138,7 +139,7 @@ pytest tests/integration/test_e2e_opencode.py -v -m integration --timeout=7200
 pytest --cov=src tests/unit tests/integration
 ```
 
-Integration tests exercise the full story-generation pipeline with wiki support against a live OpenAI-compatible endpoint. Set `LLM_API_BASE` to override the default endpoint (`http://localhost:11434/v1`). A full run typically takes 30 to 90 minutes.
+Integration tests exercise the full story-generation pipeline with wiki support against a live OpenAI-compatible endpoint. Set `LLM_API_BASE` to override the default endpoint (`http://127.0.0.1:1234/v1`). A full run typically takes 30 to 90 minutes.
 
 See [docs/testing/integration-tests.md](docs/testing/integration-tests.md) for setup details, runtime expectations, and manual verification guidance.
 
