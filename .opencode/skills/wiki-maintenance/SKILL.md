@@ -181,6 +181,8 @@ All wiki operations produced by the agent use this JSON batch payload format, pa
 }
 ```
 
+> **Naming convention:** Batch payload JSON keys use `snake_case` (e.g., `page_type`, `page_name`, `first_appearance`, `detail_levels`, `merge_body`). This differs from direct tool call parameters, which use `camelCase` (e.g., `pageType`, `pageName`, `firstAppearance`, `detailLevels`, `mergeBody`). Always use `snake_case` inside the `payload` JSON string passed to `wiki-update (operation: batch)`.
+
 ### Field Reference
 
 **Create entries** require `slug`, `page_type`, and `page_name`. Optional fields: `body`, `confidence`, `first_appearance`, `aliases`, `detail_levels`, and type-specific fields (`role`, `status`, `region`, `chapter`, `impact`).

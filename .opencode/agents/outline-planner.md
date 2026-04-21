@@ -52,6 +52,8 @@ Execute these phases sequentially. Each phase must complete before the next begi
      - `chunkEnd`: `outline_chunk_size`
      - `totalChapters`: `wanted_chapters`
 
+   **After the first `expand-chapter` call**, parse the JSON response and extract `data.chunk_outline` and `data.continuity_analysis` (see note after subsequent chunks below).
+
    - For subsequent chunks, call `outline-generator` with:
      - `operation`: `"expand-chapter"`
      - `name`: story name
@@ -60,6 +62,10 @@ Execute these phases sequentially. Each phase must complete before the next begi
      - `totalChapters`: `wanted_chapters`
      - `previousChunks`: accumulated outline text from all prior chunks
      - `continuitySummary`: continuity analysis text from the previous chunk
+
+   **After each `expand-chapter` call**, parse the JSON response — the tool returns `{"status": "success", "operation": "expand-chapter", "data": {"chunk_outline": "...", "continuity_analysis": "..."}}`:
+   - Extract `data.chunk_outline` — append to `previousChunks` for the next iteration
+   - Extract `data.continuity_analysis` — use as the `continuitySummary` value for the next chunk's call
 
    Continue until all `wanted_chapters` chapters are covered.
 
@@ -125,8 +131,8 @@ Savepoints are created automatically by the tools at each pipeline stage. The ag
 | `base_context` | Prompt analysis | 1 |
 | `story_elements` | Elements synthesis | 2 |
 | `outline_complete` | Non-chunked generation | 3 |
-| `outline_chunk_{N}` | Chunked generation | 3 |
-| `continuity_analysis_{N}` | Chunked generation | 3 |
+| `outline_chunk_{start}_{end}` | Chunked generation (e.g., `outline_chunk_1_10`, `outline_chunk_11_20`) | 3 |
+| `continuity_{start}_{end}` | Chunked generation (e.g., `continuity_1_10`, `continuity_11_20`) | 3 |
 | `critique_results_iteration_{N}` | Critique loop | 4 |
 | `outline_refined_{N}` | Refinement | 4 |
 
