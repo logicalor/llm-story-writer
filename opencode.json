@@ -22,13 +22,12 @@
   "permission": {
     "*": "allow",
     "bash": {
-      "*": "ask",
-      "git *": "allow",
-      "python *": "allow",
-      "pytest *": "allow",
-      "ruff *": "allow",
-      "mypy *": "allow",
-      "rm *": "deny"
+      "": "ask",
+      "git ": "allow",
+      "pytest ": "allow",
+      "ruff ": "allow",
+      "mypy ": "allow",
+      "rm ": "deny"
     }
   },
   "plugin": [
@@ -41,22 +40,34 @@
     "story-orchestrator": {
       "mode": "primary",
       "description": "Primary pipeline controller for AI story generation. Drives the full story lifecycle from initial prompt through final assembled output, coordinating subagents, tools, quality gates, and savepoints.",
-      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff"
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
+      "permission": {
+        "bash": "deny"
+      }
     },
     "chapter-writer": {
       "mode": "subagent",
       "description": "Generates all scenes for a single chapter using wiki-based context assembly. Invoked per-chapter by the story-orchestrator to produce complete, polished chapter content.",
-      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff"
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
+      "permission": {
+        "bash": "deny"
+      }
     },
     "outline-planner": {
       "mode": "subagent",
       "description": "Transforms a raw story prompt into a structured, critiqued outline. Handles prompt analysis, element synthesis, outline generation (chunked or monolithic), and optional critique and refinement cycles.",
-      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff"
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
+      "permission": {
+        "bash": "deny"
+      }
     },
     "wiki-maintainer": {
       "mode": "subagent",
       "description": "Extracts entities from story content and maintains the wiki knowledge base. Creates and updates pages, tracks timelines, and ensures consistency during initial population and post-chapter incremental updates.",
-      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff"
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
+      "permission": {
+        "bash": "deny"
+      }
     }
   }
 }
