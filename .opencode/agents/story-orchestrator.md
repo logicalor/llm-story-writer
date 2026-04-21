@@ -81,7 +81,7 @@ Execute these phases sequentially. Each phase completes fully before the next be
 2. For each character, call `character-mgr` with:
    - `operation`: `"generate-sheet"`
    - `character`: the character's display name
-   - `data`: `{}` (empty object for first-time generation)
+   - `data`: `"{}"` (JSON string — empty object; the TS wrapper accepts a JSON string, not a raw object)
 3. Store character sheet references in story state
 4. Create savepoint: `characters_complete`
 
@@ -93,7 +93,7 @@ Execute these phases sequentially. Each phase completes fully before the next be
 2. For each setting, call `setting-mgr` with:
    - `operation`: `"generate-sheet"`
    - `setting`: the setting's display name (**note:** parameter is `setting`, not `character`)
-   - `data`: `{}` (empty object for first-time generation)
+   - `data`: `"{}"` (JSON string — empty object; the TS wrapper accepts a JSON string, not a raw object)
 3. Store setting sheet references in story state
 4. Create savepoint: `settings_complete`
 
@@ -193,7 +193,7 @@ You have access to these tools for deterministic operations:
 |------|---------|
 | `prompt-loader` | Load and render prompt templates with variable substitution |
 | `story-state` | Read/write story state (outline, chapters, metadata) |
-| `savepoint-mgr` | Create/restore/list savepoints |
+| `savepoint-mgr` | Create/load/list savepoints |
 | `character-mgr` | Generate and manage character sheets |
 | `setting-mgr` | Generate and manage setting sheets |
 | `recap-manager` | Generate and manage chapter recaps |
@@ -262,7 +262,7 @@ When a quality gate fails after maximum attempts, log a warning and proceed. Do 
 1. **Tool failure:** If a tool call fails, retry once. If it fails again, log the error with full context and halt the pipeline with a diagnostic message indicating which phase and step failed.
 2. **Subagent failure:** If a subagent does not produce valid output, log the failure and retry the delegation once. On second failure, halt.
 3. **Quality gate exhaustion:** If maximum revisions are reached without meeting the quality threshold, log a warning (including the best score achieved), accept the best version, and proceed.
-4. **Resume after crash:** Use `savepoint-mgr` to restore the latest savepoint. The pipeline resumes from the phase after the savepoint.
+4. **Resume after crash:** Use `savepoint-mgr` (operation: `load`) to load the latest savepoint. The pipeline resumes from the phase after the savepoint.
 5. **Wiki lint warnings:** Wiki lint findings in Phase 8e are advisory. Log them and include them as context for the quality evaluation, but do not halt the pipeline for non-critical findings.
 
 ---
