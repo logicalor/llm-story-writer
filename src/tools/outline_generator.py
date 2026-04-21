@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn
@@ -105,6 +106,27 @@ def _error(message: str, exit_code: int = 1) -> NoReturn:
     sys.exit(exit_code)
 
 
+_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+
+
+def _parse_story_start_date(raw: str) -> str:
+    """Extract a YYYY-MM-DD date from an LLM response.
+
+    Handles responses wrapped in <output> tags, code fences, or surrounded by
+    commentary. Falls back to the stripped raw text if no date pattern matches.
+    """
+    if not isinstance(raw, str):
+        raw = str(raw)
+    # Strip common wrappers: <output> tags, code fences, quotes
+    cleaned = re.sub(r"</?output[^>]*>", "", raw, flags=re.IGNORECASE)
+    cleaned = re.sub(r"```[a-zA-Z]*\n?", "", cleaned)
+    cleaned = cleaned.replace("```", "").strip().strip("\"'")
+    match = _DATE_RE.search(cleaned)
+    if match:
+        return match.group(1)
+    raise ValueError(f"no YYYY-MM-DD date found in response: {raw[:200]!r}")
+
+
 # ---------------------------------------------------------------------------
 # Operations
 # ---------------------------------------------------------------------------
@@ -198,7 +220,7 @@ def cmd_analyze_prompt(
                 "multistep/outline/story_start_date", {"prompt": core_chunk}
             )
             raw_date = _call_llm(date_prompt, model=model)
-            story_start_date = raw_date.strip()
+            story_start_date = _parse_story_start_date(raw_date)
             _save_savepoint(repo, "story_start_date", story_start_date)
         except Exception:
             story_start_date = "Present day"

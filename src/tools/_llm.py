@@ -80,9 +80,35 @@ def generate_text_messages(
         raise RuntimeError(f"LLM API returned non-JSON response: {exc}") from exc
 
     try:
-        return data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
         raise RuntimeError(f"Unexpected LLM API response structure: {exc}") from exc
+
+    return _unwrap_output_tags(content)
+
+
+_OUTPUT_TAG_RE = re.compile(
+    r"<output>\s*(.*?)\s*</output>", re.DOTALL | re.IGNORECASE
+)
+
+
+def _unwrap_output_tags(text: str) -> str:
+    """Strip surrounding ``<output>...</output>`` tags if present.
+
+    Many prompt templates ask the model to wrap its response in ``<output>``
+    tags. This helper extracts the inner content so savepoints store the
+    actual payload rather than the tag wrapper. Text without the tags is
+    returned unchanged.
+    """
+    if not isinstance(text, str):
+        return text
+    match = _OUTPUT_TAG_RE.search(text)
+    if match is None:
+        # Handle unclosed tag: strip a leading <output> opener
+        stripped = re.sub(r"^\s*<output>\s*", "", text, count=1, flags=re.IGNORECASE)
+        stripped = re.sub(r"\s*</output>\s*$", "", stripped, count=1, flags=re.IGNORECASE)
+        return stripped.strip() if stripped != text else text
+    return match.group(1).strip()
 
 
 def count_tokens(text: str) -> int:
