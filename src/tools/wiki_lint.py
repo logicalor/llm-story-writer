@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 import argparse
 import json
 import re
@@ -9,13 +11,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Add the project root to sys.path so 'src' can be imported
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_src = str(Path(__file__).resolve().parents[1])
-if _src not in sys.path:
-    sys.path.insert(0, _src)
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
 from src.tools._wiki import (  # noqa: E402
+
     WIKI_SUBDIRS,
     _TYPE_TO_DIR,
     _validate_slug,

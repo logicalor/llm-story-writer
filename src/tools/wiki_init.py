@@ -13,8 +13,8 @@ _src = str(Path(__file__).resolve().parents[1])
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-from src.tools._io import _atomic_write, _validate_story_name  # noqa: E402
-from src.tools._wiki import WIKI_SUBDIRS  # noqa: E402
+from tools._io import _atomic_write, _validate_story_name  # noqa: E402
+from tools._wiki import WIKI_SUBDIRS  # noqa: E402
 
 SCHEMA_TEMPLATE = Path(__file__).resolve().parent / "wiki_schema_template.md"
 

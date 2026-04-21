@@ -111,7 +111,7 @@ def read_index(wiki_dir: Path) -> list[dict]:
 
 def write_index(wiki_dir: Path, entries: list[dict]) -> None:
     """Write entity entries to index.md in structured format."""
-    from src.tools._io import _atomic_write
+    from tools._io import _atomic_write
 
     lines = ["# Wiki Index", "", "<!-- slug | type | name | aliases -->", ""]
     for entry in sorted(entries, key=lambda e: e.get("slug", "")):
