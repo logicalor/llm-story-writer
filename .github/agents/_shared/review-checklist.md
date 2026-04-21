@@ -98,6 +98,7 @@ Check documentation:
 - [ ] **README** — updated for new features
 - [ ] **ADRs** — architectural changes recorded
 - [ ] **Inline comments** — for complex logic
+- [ ] **Table/prose parity** — if a new entry (agent, subagent, tool, command) is added to a reference table, verify a corresponding prose subsection (`###`) exists for it in the same document; a table row without a prose section leaves the registry asymmetric and the feature doc incomplete
 - [ ] **Code matches docs** — if documentation describes a behavior (validation, fallback, default), verify the implementation actually provides it; a mismatch means the documented contract is a false promise
 - [ ] **Code example drift** — if this PR changes the semantics of an API method, removes a method, or makes a field immutable, grep docs (`.github/skills/`, `docs/`, `.github/notes/`) for code examples that use the old pattern; examples using removed or changed methods silently become misleading
 - [ ] **Role/taxonomy renames** — if a role or taxonomy name was changed in prose (e.g. a role table), grep the same file for old names in embedded code examples, comments, and annotation blocks; stale names in examples are equally misleading
