@@ -154,7 +154,7 @@ def cmd_run_critics(
     mode: str = "outline",
     model: str | None = None,
 ) -> None:
-    """Run all 6 critic types against story content."""
+    """Run all critics for the selected mode against story content."""
     from application.services.critique_parser import CritiqueParser
 
     story_dir = _validate_story_name(name)
@@ -163,20 +163,31 @@ def cmd_run_critics(
 
     repo = _make_repo(name)
 
-    # Load outline content
-    outline: str
-    if content:
-        outline = content
-    else:
-        # Try loading from savepoint
-        if iteration > 1 and _has_savepoint(repo, f"outline_iteration_{iteration - 1}"):
-            data = _load_savepoint(repo, f"outline_iteration_{iteration - 1}")
-            outline = data if isinstance(data, str) else json.dumps(data, default=str)
-        elif _has_savepoint(repo, "outline"):
-            data = _load_savepoint(repo, "outline")
-            outline = data if isinstance(data, str) else json.dumps(data, default=str)
+    if content is None:
+        savepoint_steps: list[str] = []
+        if mode == "chapter":
+            savepoint_steps.extend(
+                [
+                    "chapter_assembled",
+                    f"chapter_{iteration}_complete",
+                    f"chapter_{iteration}/complete",
+                ]
+            )
         else:
-            _error("no outline content provided and no outline savepoint found")
+            if iteration > 1:
+                savepoint_steps.append(f"outline_iteration_{iteration - 1}")
+            savepoint_steps.append("outline")
+
+        for step in savepoint_steps:
+            if _has_savepoint(repo, step):
+                data = _load_savepoint(repo, step)
+                content = data if isinstance(data, str) else json.dumps(data, default=str)
+                break
+
+        if content is None:
+            _error(
+                f"no content provided for {mode} critique and no {mode} savepoint found"
+            )
 
     parser = CritiqueParser()
     critique_results = []
@@ -184,7 +195,7 @@ def cmd_run_critics(
     for critic_type in _critic_types_for_mode(mode):
         try:
             prompt_content = _load_prompt(
-                f"{_prompt_prefix(mode)}/{critic_type}", variables={"outline": outline}
+                f"{_prompt_prefix(mode)}/{critic_type}", variables={"outline": content}
             )
             messages = [
                 {

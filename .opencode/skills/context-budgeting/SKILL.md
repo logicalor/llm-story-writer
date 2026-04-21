@@ -90,7 +90,7 @@ Pages are sorted by relevance score and assigned detail levels top-down within t
 - **Medium-priority:** world rules, graph-traversed entities → L2 default
 - **Low-priority:** themes, distant relationships → L1
 
-When total exceeds budget, lower-priority pages demote L3→L2→L1 starting from the bottom of the ranked list. Pages are never dropped entirely — minimum L1 ensures the generation LLM is at least aware of every relevant entity's existence.
+When total exceeds budget, lower-priority pages demote L3→L2→L1 starting from the bottom of the ranked list. If the token budget still cannot be satisfied after L1 demotion, non-protected pages are dropped entirely in ascending relevance order until the budget fits.
 
 ### Stage 3: Structured Context Assembly
 

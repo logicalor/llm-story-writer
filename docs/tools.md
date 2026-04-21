@@ -1021,7 +1021,7 @@ The `--model` argument overrides `LLM_MODEL` for a single invocation.
 
 ## critique-runner
 
-Runs critics against story outlines, parses scores, checks quality thresholds, and generates structured feedback for iterative outline refinement.
+Runs critics against story outlines or assembled chapters, parses scores, checks quality thresholds, and generates structured feedback for iterative refinement.
 
 **Source files:**
 - `.opencode/tools/critique-runner.ts` — TypeScript wrapper
@@ -1030,15 +1030,19 @@ Runs critics against story outlines, parses scores, checks quality thresholds, a
 
 ### Purpose
 
-During outline refinement, six specialised critic personas evaluate an outline against seven scoring criteria. This tool orchestrates the critique loop: running all critics, parsing their scores, determining whether the outline meets a quality threshold, and formatting feedback for the next refinement iteration.
+The critique-runner operates in two modes:
 
-The six critic types (evaluated in order):
-1. `audiobook-producer`
-2. `book-club-moderator`
-3. `commercial-fiction-editor`
-4. `literary-fiction-reviewer`
-5. `publishing-acquisitions-editor`
-6. `subject-expert`
+- **Outline mode** — evaluates story outlines during the outline refinement loop
+- **Chapter mode** — evaluates assembled chapter text during per-chapter quality review
+
+The tool orchestrates the critique loop: running all critics for the selected mode, parsing their scores, determining whether the content meets the configured thresholds, and formatting feedback for the next refinement iteration.
+
+Critic sets by mode:
+
+| Mode | Critics |
+|------|---------|
+| `outline` | `audiobook-producer`, `book-club-moderator`, `commercial-fiction-editor`, `literary-fiction-reviewer`, `publishing-acquisitions-editor`, `subject-expert` |
+| `chapter` | `commercial-fiction-editor`, `chapter-pacing`, `chapter-character-consistency` |
 
 The seven scoring criteria:
 
@@ -1059,35 +1063,41 @@ The seven scoring criteria:
 | `operation` | `"run-critics" \| "parse-scores" \| "should-refine" \| "generate-feedback"` | Yes | Operation to perform |
 | `name` | string | For `run-critics`, `should-refine`, `generate-feedback` | Story name (maps to directory under `stories/`) |
 | `iteration` | number | No | Critique iteration number (default: 1) |
-| `content` | string | No | Content to critique; if omitted, loads outline from savepoint |
+| `content` | string | No | Content to critique; if omitted, loads mode-appropriate content from savepoint |
+| `mode` | `"outline" \| "chapter"` | No | Critique mode (default: `outline`) |
 | `criticType` | string | For `parse-scores` | Critic type identifier |
 | `responseText` | string | For `parse-scores` | Raw critic response text to parse |
 | `qualityThreshold` | number | No | Quality threshold percentage for `should-refine` (default: 85.0) |
+| `criterionFloor` | number | No | Minimum per-criterion percentage for `should-refine` (default: 75.0) |
 | `model` | string | No | Override LLM model identifier |
 
 ### CLI Interface (Python script)
 
 ```bash
-python3 src/tools/critique_runner.py --operation <op> [--name <name>] [--iteration N] [--content '<text>'] [--critic-type <type>] [--response-text '<text>'] [--quality-threshold N] [--model <model>]
+python3 src/tools/critique_runner.py --operation <op> [--name <name>] [--iteration N] [--content '<text>'] [--mode outline|chapter] [--critic-type <type>] [--response-text '<text>'] [--quality-threshold N] [--criterion-floor N] [--model <model>]
 ```
 
 **Examples:**
 
 ```bash
-# Run all 6 critics against an outline (loads from savepoint)
+# Run all outline critics (loads outline content from savepoint)
 python3 src/tools/critique_runner.py --operation run-critics --name my-story --iteration 1
 
-# Run critics with inline content
+# Run chapter critics with explicit assembled chapter text
 python3 src/tools/critique_runner.py --operation run-critics --name my-story \
-  --content "Chapter 1: The Beginning..."
+  --mode chapter --content "Chapter 1: The Beginning..."
 
 # Parse scores from a single critic response
 python3 src/tools/critique_runner.py --operation parse-scores \
   --critic-type commercial-fiction-editor --response-text "### Pacing (12/15)..."
 
-# Check if outline needs further refinement
+# Check if an outline needs further refinement
 python3 src/tools/critique_runner.py --operation should-refine --name my-story \
   --iteration 1 --quality-threshold 85.0
+
+# Check if a chapter needs refinement with a stricter per-criterion floor
+python3 src/tools/critique_runner.py --operation should-refine --name my-story \
+  --mode chapter --iteration 3 --quality-threshold 85.0 --criterion-floor 80.0
 
 # Generate formatted feedback from critique results
 python3 src/tools/critique_runner.py --operation generate-feedback --name my-story \
@@ -1098,18 +1108,25 @@ python3 src/tools/critique_runner.py --operation generate-feedback --name my-sto
 
 | Operation | Effect | Output |
 |-----------|--------|--------|
-| `run-critics` | Runs all 6 critics via LLM, parses scores, saves results as savepoint `critique_results_iteration_{N}` | JSON with `iteration`, `critic_results`, `average_scores`, `overall_average` |
-| `parse-scores` | Parses scores from a single critic response text | Serialized `CritiqueResult` as JSON |
-| `should-refine` | Loads critique results from savepoint, checks if any criterion avg < 75% or overall avg < threshold | `{should_refine, average_scores, overall_average, threshold}` |
+| `run-critics` | Runs all critics for the selected mode via LLM, parses scores, saves results as `outline_critique_results_iteration_{N}` or `chapter_critique_results_iteration_{N}` | JSON with `iteration`, `mode`, `critic_results`, `average_scores`, `overall_average` |
+| `parse-scores` | Parses scores from a single critic response text; valid critic types depend on `mode` | Serialized `CritiqueResult` as JSON |
+| `should-refine` | Loads mode-specific critique results from savepoint, checks if any criterion avg < `criterionFloor` or overall avg < `qualityThreshold` | `{should_refine, average_scores, overall_average, threshold, criterion_floor}` |
 | `generate-feedback` | Loads critique results from savepoint, formats as structured markdown | `{feedback: "<markdown>"}` |
 
 ### Quality Threshold Logic
 
 The `should-refine` operation determines refinement need using two conditions:
-- **Any criterion average < 75%** — individual weakness detected
+- **Any criterion average < criterion_floor** — individual weakness detected (default: 75.0)
 - **Overall average < quality_threshold** — general quality below standard (default: 85.0)
 
 If either condition is true, `should_refine` returns `true`.
+
+When `content` is omitted, `run-critics` falls back to mode-appropriate savepoints:
+
+- `outline` mode: previous outline iteration or `outline`
+- `chapter` mode: `chapter_assembled`, `chapter_{iteration}_complete`, or `chapter_{iteration}/complete`
+
+For chapter critiques, passing the assembled chapter text explicitly via `content` is more reliable than relying on savepoint fallback.
 
 ### Exit Codes
 

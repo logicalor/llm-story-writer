@@ -190,7 +190,7 @@ If `scene_generation_pipeline` is false:
 #### 8f. Quality Evaluation
 
 If `enable_chapter_revisions` is true:
-1. Run `critique-runner` on the chapter with `mode: chapter`
+1. Run `critique-runner` on the chapter with `mode: chapter` and `content: <assembled chapter text>`. Pass the assembled chapter text explicitly; do not rely on savepoint fallback for chapter critique.
 2. Before checking the quality gate score, ensure the chapter has been revised at least `chapter_min_revisions` times (default: 1). Do not accept the chapter until `chapter_min_revisions` is satisfied even if the first score passes.
 3. If score < `chapter_quality`:
    - Enter revision loop (max `chapter_max_revisions` iterations)
