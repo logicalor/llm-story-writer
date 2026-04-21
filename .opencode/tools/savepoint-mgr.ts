@@ -50,6 +50,6 @@ export default tool({
       args.push("--data", data);
     }
 
-    return runTool("src/tools/savepoint_manager.py", args);
+    return runTool("src/tools/savepoint_manager.py", args, { cwd: projectRoot });
   },
 });

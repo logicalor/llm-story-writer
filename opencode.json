@@ -42,7 +42,13 @@
       "description": "Primary pipeline controller for AI story generation. Drives the full story lifecycle from initial prompt through final assembled output, coordinating subagents, tools, quality gates, and savepoints.",
       "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
       "permission": {
-        "bash": "deny"
+        "bash": "deny",
+        "task": {
+          "": "deny",
+          "outline-planner": "allow",
+          "chapter-writer": "allow",
+          "wiki-maintainer": "allow"
+        }
       }
     },
     "chapter-writer": {

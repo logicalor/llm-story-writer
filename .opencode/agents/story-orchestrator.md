@@ -262,6 +262,8 @@ Delegate specialised creative work to these subagents (referenced by name):
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 8b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 7, 8c |
 
+**These are the only three subagents you may dispatch.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
+
 ---
 
 ## Savepoint Strategy
@@ -304,7 +306,7 @@ When a quality gate fails after maximum attempts, log a warning and proceed. Do 
 
 ## Error Handling
 
-1. **Tool failure:** If a tool call fails, retry once. If it fails again, log the error with full context and halt the pipeline with a diagnostic message indicating which phase and step failed.
+1. **Tool failure:** If a tool call fails, retry once. If it fails again, log the error with full context and halt the pipeline with a diagnostic message indicating which phase and step failed. **Do not dispatch a subagent to investigate or troubleshoot tool failures.** Tool failures are infrastructure problems — report them to the user and halt.
 2. **Subagent failure:** If a subagent does not produce valid output, log the failure and retry the delegation once. On second failure, halt.
 3. **Quality gate exhaustion:** If maximum revisions are reached without meeting the quality threshold, log a warning (including the best score achieved), accept the best version, and proceed.
 4. **Silent partial failures.** Some tools succeed (return non-error output) while silently degrading due to internal partial failures:
