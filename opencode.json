@@ -48,7 +48,8 @@
           "outline-planner": "allow",
           "chapter-writer": "allow",
           "wiki-maintainer": "allow",
-          "chapter-outline-expander": "allow"
+          "chapter-outline-expander": "allow",
+          "story-planner": "allow"
         }
       }
     },
@@ -79,6 +80,14 @@
     "chapter-outline-expander": {
       "mode": "subagent",
       "description": "Expands all chapter outlines for a story during Phase 7a. Manages continuitySummary threading internally and reads prior chapter handoff artifacts. Calls outline-generator, story-state, and savepoint-mgr only.",
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
+      "permission": {
+        "bash": "deny"
+      }
+    },
+    "story-planner": {
+      "mode": "subagent",
+      "description": "Performs narrative arc analysis on the finalised outline. Runs 6 outline_review/ critics and arc-specific prompts, synthesises a structured dramatic arc assessment for the Phase 3 approval gate.",
       "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
       "permission": {
         "bash": "deny"

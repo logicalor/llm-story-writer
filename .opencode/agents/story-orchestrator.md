@@ -77,11 +77,35 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
 7. Create savepoint: `outline_complete`
 
+### Phase 2.5: Narrative Arc Analysis
+
+**Purpose:** Evaluate the dramatic arc quality of the finalised outline before human review.
+
+1. Dispatch `story-planner` with:
+   - `story_name`: the story name
+   - `outline_quality`: `outline_quality` config value (default: 87)
+
+2. Receive the structured arc assessment from `story-planner`:
+   - `arc_assessment`: full assessment text
+   - `overall_score`: numeric critic average
+   - `critic_scores`: individual critic scores
+   - `verdict`: one of `"strong"` / `"minor_concerns"` / `"significant_issues"`
+
+3. Store the arc assessment for display at Phase 3:
+   - Call `story-state` (operation: `write`, field: `arc_assessment`, value: `arc_assessment` JSON string)
+
+4. Create savepoint: `arc_analysis_complete`
+
+**Batch mode:** Continue to Phase 3 regardless of verdict. The assessment is logged but does not block generation.
+
 ### Phase 3: Approval
 
 **Purpose:** Gate for human review of the outline before committing to generation.
 
 - **Interactive mode:** Present the outline summary to the user. Wait for explicit approval. The user may request revisions — if so, return to Phase 2 with feedback.
+- Also present the arc assessment from Phase 2.5:
+  - **Interactive mode:** Display the full arc assessment (overall score, structural concerns, reviewer verdict). If the verdict is `significant_issues`, highlight this prominently before asking for approval.
+  - The user may decide to re-generate the outline with arc feedback — if so, return to Phase 2 with feedback (re-invoke `outline-planner` with the arc concerns as feedback context)
 - **Batch mode:** Auto-proceed immediately.
 
 ### Phase 4: Wiki Init
@@ -202,7 +226,7 @@ If `enable_chapter_revisions` is true:
 
 After the chapter is accepted (7f) and post-processing is complete:
 
-1. Load the handoff generation prompt via `prompt-loader:load` using `promptId: "chapters/generate_handoff"`
+1. Load the handoff generation prompt via `prompt-loader` using `promptId: "chapters/generate_handoff"`
 2. Substitute variables:
    - `CHAPTER_NUMBER`: current chapter number as a string
    - `CHAPTER_OUTLINE`: read `chapters.{N}.expanded_outline` from `story-state`
@@ -280,6 +304,7 @@ Delegate specialised creative work to these subagents (referenced by name):
 | Subagent | Purpose | Delegated In |
 |----------|---------|-------------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 |
+| `story-planner` | Evaluate dramatic arc quality for the finalised outline | Phase 2.5 |
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 |
 | `chapter-outline-expander` | Expand all chapter outlines and manage continuitySummary threading | Phase 7a |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
@@ -288,7 +313,7 @@ Delegate specialised creative work to these subagents (referenced by name):
 | `prose-scrubber` | Sentence/paragraph-level prose quality (adverbs, filter words, show-vs-tell) | Phase 7.5, when `enable_scrubbing: true` |
 | `final-editor` | Post-assembly chapter-by-chapter prose pass (voice, pacing, coherence) | Phase 9, when `enable_final_edit: true` |
 
-**These are the only eight subagents you may dispatch: `outline-planner`, `character-sheet-generator`, `chapter-outline-expander`, `chapter-writer`, `wiki-maintainer`, `quality-reviewer`, `prose-scrubber`, and `final-editor`.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
+**These are the only nine subagents you may dispatch: `outline-planner`, `story-planner`, `character-sheet-generator`, `chapter-outline-expander`, `chapter-writer`, `wiki-maintainer`, `quality-reviewer`, `prose-scrubber`, and `final-editor`.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
 
 ---
 
@@ -302,6 +327,7 @@ Savepoints capture the full pipeline state at key milestones, enabling resume af
 |-----------|--------------|
 | `init` | Phase 1 completes |
 | `outline_complete` | Phase 2 completes (outline finalised) |
+| `arc_analysis_complete` | Phase 2.5 completes (arc assessment saved) |
 | `characters_complete` | Phase 5 completes (all character sheets generated) |
 | `settings_complete` | Phase 5 completes (all setting sheets generated) |
 | `wiki_populated` | Phase 6 completes (wiki initial population done) |

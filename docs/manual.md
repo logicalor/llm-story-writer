@@ -231,8 +231,15 @@ Phase 2: Outline
   → Chunked or monolithic outline generation
   → Critique/refinement loop (if enabled)
 
+Phase 2.5: Narrative Arc Analysis
+  → Delegate to story-planner subagent
+  → Run six outline_review critics on the finalised outline
+  → Apply arc distribution, promise/payoff, and synthesis prompts
+  → Save advisory arc assessment for Phase 3 review
+
 Phase 3: Approval (interactive gate)
   → User reviews outline summary
+  → User reviews arc assessment and verdict
   → User may request revisions → return to Phase 2
 
 Phase 4: Wiki Init
@@ -248,19 +255,21 @@ Phase 6: Wiki Population
   → Delegate to wiki-maintainer subagent
   → Populate wiki entity pages from outline + sheets
 
-Phase 7: Chapter Generation
-  → For each chapter:
-      → Load previous chapter recap
-      → Assemble context via wiki-snapshot
-      → Generate chapter content via chapter-writer subagent
-      → Update wiki (post-chapter)
-      → Create savepoint
-  → Chapter revision loop (if enabled)
+Phase 7: Chapter Expansion + Generation
+  → Phase 7a: chapter-outline-expander expands all chapter outlines once
+  → Per chapter: chapter-writer generates scenes and assembles chapter
+  → wiki-maintainer updates wiki, recap-manager writes recap, wiki-lint checks consistency
+  → quality-reviewer runs chapter critique/revision loop (if enabled)
+  → Orchestrator writes chapter handoff artifact for downstream continuity
+
+Phase 7.5: Prose Scrub (conditional)
+  → prose-scrubber performs sentence/paragraph cleanup after chapter acceptance
 
 Phase 8: Assembly
-  → Final edit pass (if enabled)
-  → Scrubbing (if enabled)
-  → Assemble final manuscript
+  → Assemble final manuscript from accepted chapter outputs
+
+Phase 9: Final Edit (conditional)
+  → final-editor performs post-assembly voice, pacing, and coherence polish
 ```
 
 ---
@@ -305,6 +314,7 @@ llm-story-writer/
 │   ├── agents/
 │   │   ├── story-orchestrator.md
 │   │   ├── outline-planner.md
+│   │   ├── story-planner.md
 │   │   ├── chapter-writer.md
 │   │   └── wiki-maintainer.md
 │   ├── tools/                # TypeScript tool wrappers

@@ -44,7 +44,8 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 ## Features
 
 - [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) — Current runtime dependency model, removed migration leftovers, and guardrails for keeping the active stack lean
-- [Story Orchestrator](./features/story-orchestrator.md) — Primary pipeline controller agent: 9-phase story generation lifecycle plus conditional prose passes, quality gates, wiki lifecycle, savepoint strategy, subagent delegation
+- [Story Orchestrator](./features/story-orchestrator.md) — Primary pipeline controller agent: 10-phase story generation lifecycle plus conditional prose passes, quality gates, wiki lifecycle, savepoint strategy, subagent delegation
+- [Story Planner](./features/story-planner.md) — Phase 2.5 narrative arc analysis subagent: critic pass, arc prompt set, advisory verdicts, and approval-gate integration
 - [Chapter Outline Expander](./features/chapter-outline-expander.md) — Phase 7a subagent that expands all chapter outlines and carries structured handoff continuity between chapters
 - [Prose Quality Passes](./features/prose-quality-passes.md) — `prose-scrubber` and `final-editor` pipeline stages, config flags, scope constraints, and tool usage
 - [Wiki Maintainer](./features/wiki-maintainer.md) — Wiki maintenance subagent: entity extraction, confidence scoring, detail levels, alias identification, chapter boundary procedures
