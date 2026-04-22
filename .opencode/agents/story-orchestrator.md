@@ -37,6 +37,8 @@ Execute these phases sequentially. Each phase completes fully before the next be
 1. Receive the story prompt text from the invocation context. The prompt is provided as direct text — either the user's initial message or explicit input at invocation. **Do not use `prompt-loader`** to read the story prompt — `prompt-loader` only resolves internal template registry keys from the `prompts/` library and cannot read arbitrary file paths. If the user has referenced a file, ask them to paste the prompt text directly.
 2. Load `config.yml` — parse the YAML for all generation settings
 3. Initialise story state via `story-state` (operation: `init`). Note: `init` creates an empty state structure and accepts no payload. After `init` completes, write prompt metadata and config values using separate `story-state` (operation: `write`) calls.
+   - Write `prompt_metadata.prompt_text` = the full raw prompt text received from the user. This persists the prompt so subagents can retrieve it from state without relying on the orchestrator conversation context.
+   - Write `prompt_metadata.title`, `prompt_metadata.source_file`, `prompt_metadata.description` as before.
 4. Create savepoint: `init`
 
 **Config values to extract and track:**
@@ -64,7 +66,11 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
 **Purpose:** Generate the full story outline.
 
-1. Delegate outline generation to the `outline-planner` subagent, passing all relevant config values (`use_chunked_outline_generation`, `outline_chunk_size`, `enable_outline_critique`, `outline_quality`, `outline_critique_iterations`, `outline_min_revisions`, `wanted_chapters`)
+1. Read the story prompt text from `story-state` (operation: `read`, field: `prompt_metadata.prompt_text`). Use this as the `prompt` value passed to `outline-planner` — do not rely on the orchestrator's conversation context alone.
+2. Delegate outline generation to the `outline-planner` subagent, passing:
+   - `story_name`: the story name
+   - `prompt`: the full story prompt text read from state
+   - All relevant config values: `use_chunked_outline_generation`, `outline_chunk_size`, `enable_outline_critique`, `outline_quality`, `outline_critique_iterations`, `outline_min_revisions`, `wanted_chapters`
 2. The `outline-planner` handles the full pipeline internally — prompt analysis, element synthesis, outline generation (chunked or monolithic), and the critique/refinement loop. Do **not** run critique or revision steps at the orchestrator level.
 3. Receive the finalised outline from `outline-planner`. If the orchestrator's own revision cap (`outline_max_revisions`) has not been reached and the user requests further revisions (Phase 3 feedback), re-invoke `outline-planner` with feedback.
 4. Store the finalised outline via `story-state` (operation: `write`, field: `outline`, value: outline JSON string)
