@@ -5,10 +5,17 @@ import { resolve } from "path";
 
 export default tool({
   description:
-    "Scene writing pipeline: parse chapter outline into scene definitions, generate individual scenes, revise scenes with feedback, or assemble scenes into a chapter.",
+    "Scene writing pipeline: parse chapter outline into scene definitions, generate individual scenes, revise scenes with feedback, assemble scenes into a chapter, or analyze chapter prose for scrub and voice issues.",
   args: {
     operation: z
-      .enum(["parse-definitions", "generate", "revise", "assemble-chapter"])
+      .enum([
+        "parse-definitions",
+        "generate",
+        "revise",
+        "assemble-chapter",
+        "scrub-analyze",
+        "voice-analyze",
+      ])
       .describe("Operation to perform"),
     name: z.string().describe("Story name (directory under stories/)"),
     chapterNum: z
@@ -85,6 +92,14 @@ export default tool({
       .string()
       .optional()
       .describe("Override LLM model identifier"),
+    chapterText: z
+      .string()
+      .optional()
+      .describe("Chapter text for scrub-analyze and voice-analyze operations"),
+    priorChaptersSummary: z
+      .string()
+      .optional()
+      .describe("Prior chapters summary for voice-analyze"),
   },
   execute: async ({
     operation,
@@ -106,6 +121,8 @@ export default tool({
     nextSceneDefinition,
     nextChapterSynopsis,
     model,
+    chapterText,
+    priorChaptersSummary,
   }: {
     operation: string;
     name: string;
@@ -126,6 +143,8 @@ export default tool({
     nextSceneDefinition?: string;
     nextChapterSynopsis?: string;
     model?: string;
+    chapterText?: string;
+    priorChaptersSummary?: string;
   }) => {
     const projectRoot = resolve(__dirname, "../..");
     const args = [
@@ -186,6 +205,12 @@ export default tool({
     }
     if (model) {
       args.push("--model", model);
+    }
+    if (chapterText) {
+      args.push("--chapter-text", chapterText);
+    }
+    if (priorChaptersSummary) {
+      args.push("--prior-chapters-summary", priorChaptersSummary);
     }
 
     try {

@@ -16,8 +16,7 @@ Load `.opencode/skills/final-edit/SKILL.md` before proceeding.
 | Tool | Purpose | Verified Contract |
 |------|---------|-------------------|
 | `story-state` | Read and write chapter text in story state | `operation`: `init`\|`read`\|`write`\|`list`, `name`, `field`, `value` |
-| `scene-writer` | Apply prose revisions | `operation`: `parse-definitions`\|`generate`\|`revise`\|`assemble-chapter`, `name`, `chapterNum`, `sceneContent`, `feedback`, `model` |
-| `prompt-loader` | Load the scrub analysis prompt | `promptId`, `variables` |
+| `scene-writer` | Analyze prose issues and apply prose revisions | `operation`: `parse-definitions`\|`generate`\|`revise`\|`assemble-chapter`\|`scrub-analyze`\|`voice-analyze`, `name`, `chapterNum`, `sceneContent`, `feedback`, `chapterText`, `priorChaptersSummary`, `model` |
 | `savepoint-mgr` | Create chapter scrub checkpoints | `operation`: `save`\|`load`\|`has`\|`list`\|`list-full`\|`clear`, `name`, `step`, `data` |
 
 You call tools only — never dispatch subagents.
@@ -40,12 +39,12 @@ You call tools only — never dispatch subagents.
 2. Read the current chapter object via `story-state` with `operation: "read"`, `name: story_name`, `field: "chapters.{N}"` where `N = chapter_number`.
 	Then read the scenes list via `story-state` with `operation: "read"`, `name: story_name`, `field: "chapters.{N}.scenes"` to collect available `sceneNum` values for revision.
 3. Extract the current chapter text from the first populated text-bearing field in this order: `content`, `text`, `chapter_text`, `assembled`. If no text-bearing field exists, return zero revisions with status `needs_review`.
-4. Load the prompt via `prompt-loader` with `promptId: "final_edit/prose_scrub"` and variables `chapter_text` and stringified `chapter_number`.
-5. Run the scrub analysis with the `scrub_model` role. Parse the returned JSON object.
-6. Iterate over actionable issues. For each issue, identify the most likely matching scene by correlating the issue's `line_context` with the scenes list. If a specific scene is identifiable, use its index as `sceneNum`; if no specific scene can be identified, use `sceneNum: 1` as the default. Call `scene-writer` with `operation: "revise"`, `name: story_name`, `chapterNum: N`, `sceneNum`, `sceneContent: current chapter text`, and `feedback` set to a surgical correction instruction derived from `type`, `original_text`, `suggested_replacement`, and `line_context`. Stop after 5 revision calls total for the chapter. After each successful revision, replace the in-memory chapter text with the returned text.
-7. Write the revised chapter object back through `story-state` with `operation: "write"`, `name: story_name`, `field: "chapters.{N}"`, and `value` equal to the updated chapter object as a JSON string. Preserve sibling fields and update the original text-bearing field when present.
-8. Create a savepoint via `savepoint-mgr` with `operation: "save"`, `name: story_name`, `step: "chapter_{N}_scrubbed"`, and `data` set to a JSON string summary containing the chapter number, issues found count, revisions applied count, and status token.
-9. Return the chapter number, issues found count, and revisions applied count.
+4. Call `scene-writer` with `operation: "scrub-analyze"`, `name: story_name`, `chapterNum: chapter_number`, `chapterText: <chapter_text>`.
+   The tool returns `{ issues: [...], issues_found: N }`.
+5. Iterate over actionable issues. For each issue, identify the most likely matching scene by correlating the issue's `line_context` with the scenes list. If a specific scene is identifiable, use its index as `sceneNum`; if no specific scene can be identified, use `sceneNum: 1` as the default. Call `scene-writer` with `operation: "revise"`, `name: story_name`, `chapterNum: N`, `sceneNum`, `sceneContent: current chapter text`, and `feedback` set to a surgical correction instruction derived from `type`, `original_text`, `suggested_replacement`, and `line_context`. Stop after 5 revision calls total for the chapter. After each successful revision, replace the in-memory chapter text with the returned text.
+6. Write the revised chapter object back through `story-state` with `operation: "write"`, `name: story_name`, `field: "chapters.{N}"`, and `value` equal to the updated chapter object as a JSON string. Preserve sibling fields and update the original text-bearing field when present.
+7. Create a savepoint via `savepoint-mgr` with `operation: "save"`, `name: story_name`, `step: "chapter_{N}_scrubbed"`, and `data` set to a JSON string summary containing the chapter number, issues found count, revisions applied count, and status token.
+8. Return the chapter number, issues found count, and revisions applied count.
 
 ## Constraints
 

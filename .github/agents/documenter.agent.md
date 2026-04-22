@@ -90,6 +90,7 @@ Based on the changes, determine what documentation needs to be created or update
 > - For inventory tables (tools, collections, agents, categories): cross-check table entries against the actual source of truth on disk (e.g., `ls .opencode/tools/` for tool tables, `ls src/tools/` for script tables). Verify both that every row has a matching file AND that every file has a matching row — pre-existing missing entries compound with new additions to produce wrong counts.
 > - No hardcoded URLs — reference the project's routing conventions instead.
 > - Scan the entire file for `TODO`, `[placeholder]`, `...` stubs, and trivially short sections (3 lines or fewer where substance is expected). Remove or complete them before committing.
+> - For behavioral descriptions (routing logic, model selection, configuration options, feature flags): read the actual implementation to confirm the described behavior is present in the code. The issue description often contains planned behaviors that were not implemented — do not document them as if they were. Every behavioral claim in the docs must be verifiable in the current codebase by reading the relevant source file.
 
 Follow these conventions:
 
