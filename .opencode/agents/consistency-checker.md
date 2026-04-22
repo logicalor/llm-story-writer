@@ -54,10 +54,10 @@ Collect all findings: contradictions, timeline inconsistencies, character trait 
 
 1. Extract key entity mentions from the chapter (characters, locations, objects, dates).
 2. For each significant entity (up to 5 most prominent), call `wiki-search` with a semantic query targeting current state:
-   - `operation`: `"search"`
+  - `operation`: `"semantic"`
    - `name`: story name
    - `query`: e.g. `"Elena's current emotional state and relationships"`
-   - `limit`: 3
+  - `nResults`: 3
 3. For any entity where the wiki search suggests a potential drift, call `wiki-read` to get the full entity page for detailed comparison.
 4. Identify semantic inconsistencies not caught by deterministic lint.
 

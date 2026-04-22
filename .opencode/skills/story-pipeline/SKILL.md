@@ -36,10 +36,10 @@ The story generation pipeline transforms a story prompt into a complete novel-le
                                                                 │
       ┌─────────────────────────────────────────────────────────┘
       ▼
-┌───────────┐   ┌──────────────────────────────┐   ┌──────────────┐   ┌────────────────────┐
-│ Wiki Lint │──▶│ Quality Eval + Revision Loop │──▶│ Prose Scrub  │──▶│ Chapter Savepoint  │
-│ (7e)      │   │ (7f)                         │   │ (7.5)        │   │ (7g)               │
-└───────────┘   └──────────────────────────────┘   └──────────────┘   └────────────────────┘
+┌───────────────┐   ┌──────────────────────────────┐   ┌──────────────┐   ┌────────────────────┐
+│ Consistency   │──▶│ Quality Eval + Revision Loop │──▶│ Prose Scrub  │──▶│ Chapter Savepoint  │
+│ Check (7e)    │   │ (7f)                         │   │ (7.5)        │   │ (7g)               │
+└───────────────┘   └──────────────────────────────┘   └──────────────┘   └────────────────────┘
 ```
 
 ---
@@ -143,7 +143,7 @@ Phase 7 begins with a single delegated outline-expansion pass, then executes the
 | **7b** Scene generation | Generate scenes sequentially with wiki context | `chapter-writer` subagent, `wiki-snapshot` |
 | **7c** Wiki update | Record new facts, state changes, events | `wiki-maintainer` subagent |
 | **7d** Recap | Generate chapter recap | `recap-manager` |
-| **7e** Wiki lint | Check chapter consistency against wiki | `wiki-lint` |
+| **7e** Consistency check | Check chapter consistency with three-layer analysis | `consistency-checker` subagent (three-layer: wiki-lint + semantic + RAG) |
 | **7f** Quality eval | Critique + revision loop | `critique-runner` |
 | **7g** Handoff artifact | Generate structured per-chapter continuity handoff in story state | `prompt-loader`, `story-state` |
 | **7.5** Prose scrub | Sentence and paragraph-level prose cleanup | `prose-scrubber` subagent |
@@ -173,7 +173,7 @@ Phase 7 begins with a single delegated outline-expansion pass, then executes the
 
 ## Subagents
 
-The pipeline uses nine subagents for specialised creative work. The `story-orchestrator` dispatches these by name via OpenCode delegation.
+The pipeline uses ten subagents for specialised creative work. The `story-orchestrator` dispatches these by name via OpenCode delegation.
 
 | Subagent | Purpose | Invoked In |
 |----------|---------|------------|
@@ -183,11 +183,12 @@ The pipeline uses nine subagents for specialised creative work. The `story-orche
 | `chapter-outline-expander` | Expands all chapter outlines (Phase 7a); manages continuitySummary threading | Phase 7a |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
+| `consistency-checker` | Run the Phase 7e three-layer consistency analysis (wiki-lint + semantic + RAG) | Phase 7e |
 | `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f |
 | `prose-scrubber` | Run the Phase 7.5 sentence/paragraph scrub pass for a single chapter | Phase 7.5 |
 | `final-editor` | Run the Phase 9 post-assembly voice, pacing, and coherence pass | Phase 9 |
 
-**These are the only nine subagents the orchestrator may dispatch.** Do not dispatch built-in or external agents for any reason outside the pipeline phases above.
+**These are the only ten subagents the orchestrator may dispatch: `outline-planner`, `story-planner`, `character-sheet-generator`, `chapter-outline-expander`, `chapter-writer`, `wiki-maintainer`, `consistency-checker`, `quality-reviewer`, `prose-scrubber`, and `final-editor`.** Do not dispatch built-in or external agents for any reason outside the pipeline phases above.
 
 ---
 
@@ -259,8 +260,8 @@ Phase 7c: wiki-maintainer (post-chapter updates)
     └─▶ Updates existing pages, creates new ones
     └─▶ Updates timeline and plot thread progression
 
-Phase 7e: wiki-lint (post-chapter consistency check)
-    └─▶ Detects contradictions, timeline issues, character drift
+Phase 7e: consistency-checker (post-chapter consistency check)
+    └─▶ Runs three-layer analysis: wiki-lint, semantic wiki search, and cross-chapter RAG review
     └─▶ Results feed into quality evaluation (advisory, not blocking)
 ```
 
