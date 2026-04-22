@@ -266,7 +266,9 @@ If `enable_scrubbing: false`: skip this phase.
 
 **Purpose:** Assemble all chapters into the final story output.
 
-1. Invoke `story-assembler` with `storyName`: the story name
+1. Invoke `story-assembler` with:
+   - `operation`: `"assemble"`
+   - `storyName`: the story name
 2. The assembled story will be written to `stories/<name>/output/story.md` in Markdown format
 3. Create savepoint: `story_complete`
 4. Report the output path to the user
@@ -297,7 +299,7 @@ You have access to these tools for deterministic operations:
 | `outline-generator` | Generate and expand story outlines |
 | `scene-writer` | Generate individual scenes |
 | `critique-runner` | Evaluate content quality and produce scores |
-| `story-assembler` | Assemble completed chapter savepoints into final story markdown |
+| `story-assembler` | Assemble completed chapter savepoints into final story markdown; generate per-chapter continuity handoff artifacts |
 | `wiki-init` | Initialise wiki directory structure and schema |
 | `wiki-read` | Read wiki pages by slug or type |
 | `wiki-search` | Semantic search across wiki pages |
