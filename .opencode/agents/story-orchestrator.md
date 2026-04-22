@@ -172,7 +172,8 @@ If `scene_generation_pipeline` is true:
 3. Collect all generated scenes and assemble into the chapter
 
 If `scene_generation_pipeline` is false:
-1. Generate the chapter as a single unit using `prompt-loader` for the chapter generation prompt
+1. Call `scene-writer` (operation: `generate-chapter`) with `name` and `chapterNum`. Optionally pass `model` if a model override is configured. The tool reads chapter context from story state and savepoints internally, calls the LLM, and writes the assembled chapter to `chapters.{N}.content` in story state.
+2. The returned `data` field is the full chapter text — use it as `chapter_text` for subsequent phases (7c–7h).
 
 #### 7c. Post-Chapter Wiki Update
 

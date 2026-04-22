@@ -233,7 +233,167 @@ def test_generate_scene_savepoint_resume(
 
 
 # ---------------------------------------------------------------------------
-# 6. test_revise_scene_success
+# 6. TestCmdGenerateChapter
+# ---------------------------------------------------------------------------
+
+
+class TestCmdGenerateChapter:
+    def test_generate_chapter_success(
+        self,
+        patched_env: tuple[Path, str],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Generate full chapter, persist savepoint, and update state."""
+        stories_dir, name = patched_env
+        repo = sw._make_repo(name)
+
+        state_path = stories_dir / name / "state.json"
+        state_path.write_text(
+            json.dumps({"chapters": {"1": {"expanded_outline": "Chapter outline"}}})
+        )
+
+        sw._save_savepoint(repo, "base_context", "Base context")
+        sw._save_savepoint(repo, "initial_outline", "Initial outline")
+
+        monkeypatch.setattr(
+            sw, "_call_llm", lambda *_a, **_kw: "Generated chapter content"
+        )
+
+        sw.cmd_generate_chapter(name, 1)
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["status"] == "success"
+        assert out["operation"] == "generate-chapter"
+        assert out["data"] == "Generated chapter content"
+
+        assert sw._has_savepoint(repo, "chapter_1/chapter_content")
+        assert (
+            sw._load_savepoint(repo, "chapter_1/chapter_content")
+            == "Generated chapter content"
+        )
+
+        updated_state = json.loads(state_path.read_text())
+        assert updated_state["chapters"]["1"]["content"] == "Generated chapter content"
+
+    def test_generate_chapter_savepoint_resume(
+        self,
+        patched_env: tuple[Path, str],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Use cached chapter content when savepoint already exists."""
+        _stories_dir, name = patched_env
+        repo = sw._make_repo(name)
+        sw._save_savepoint(repo, "chapter_1/chapter_content", "Cached content")
+
+        def llm_should_not_be_called(*_a: object, **_kw: object) -> str:
+            raise AssertionError("_call_llm should not be called when savepoint exists")
+
+        monkeypatch.setattr(sw, "_call_llm", llm_should_not_be_called)
+
+        sw.cmd_generate_chapter(name, 1)
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["status"] == "success"
+        assert out["operation"] == "generate-chapter"
+        assert out["data"] == "Cached content"
+
+    def test_generate_chapter_previous_recap_included(
+        self,
+        patched_env: tuple[Path, str],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Include prior chapter recap in prompt variables for later chapters."""
+        stories_dir, name = patched_env
+        repo = sw._make_repo(name)
+        state_path = stories_dir / name / "state.json"
+        state_path.write_text(
+            json.dumps(
+                {
+                    "chapters": {
+                        "1": {"expanded_outline": "Chapter 1 outline"},
+                        "2": {"expanded_outline": "Chapter 2 outline"},
+                    }
+                }
+            )
+        )
+        sw._save_savepoint(repo, "chapter_1/recap", "Prior recap")
+
+        captured_variables: dict[str, object] = {}
+
+        def capture_prompt(prompt_id: str, variables: dict[str, object] | None = None) -> str:
+            assert prompt_id == "chapters/create_content"
+            if variables is not None:
+                captured_variables.update(variables)
+            return "mock prompt text"
+
+        monkeypatch.setattr(sw, "_load_prompt", capture_prompt)
+        monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: "Generated chapter 2")
+
+        sw.cmd_generate_chapter(name, 2)
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["status"] == "success"
+        assert captured_variables["previous_recap"] == "Prior recap"
+
+    def test_generate_chapter_additional_context_appended(
+        self,
+        patched_env: tuple[Path, str],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Append additional context to base_context before prompt render."""
+        stories_dir, name = patched_env
+        repo = sw._make_repo(name)
+        state_path = stories_dir / name / "state.json"
+        state_path.write_text(
+            json.dumps({"chapters": {"1": {"expanded_outline": "Chapter outline"}}})
+        )
+        sw._save_savepoint(repo, "base_context", "Base info")
+
+        captured_variables: dict[str, object] = {}
+
+        def capture_prompt(_prompt_id: str, variables: dict[str, object] | None = None) -> str:
+            if variables is not None:
+                captured_variables.update(variables)
+            return "mock prompt text"
+
+        monkeypatch.setattr(sw, "_load_prompt", capture_prompt)
+        monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: "Generated chapter")
+
+        sw.cmd_generate_chapter(name, 1, additional_context="Extra context")
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["status"] == "success"
+        assert "Base info" in str(captured_variables["base_context"])
+        assert "Extra context" in str(captured_variables["base_context"])
+
+    def test_generate_chapter_missing_state_graceful(
+        self,
+        patched_env: tuple[Path, str],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Missing story state and savepoints should not crash chapter generation."""
+        stories_dir, name = patched_env
+        state_path = stories_dir / name / "state.json"
+        if state_path.exists():
+            state_path.unlink()
+
+        monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: "Content")
+
+        sw.cmd_generate_chapter(name, 1)
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["status"] == "success"
+        assert out["operation"] == "generate-chapter"
+        assert out["data"] == "Content"
+
+
+# ---------------------------------------------------------------------------
+# 7. test_revise_scene_success
 # ---------------------------------------------------------------------------
 
 

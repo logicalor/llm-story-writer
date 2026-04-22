@@ -24,6 +24,7 @@ if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
 from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
+from src.tools.story_state import _set_nested, _write_state_atomic  # noqa: E402
 
 
 def _make_repo(name: str) -> FilesystemSavepointRepository:
@@ -66,6 +67,30 @@ def _call_llm(prompt: str, *, model: str | None = None) -> str:
     from src.tools._llm import generate_text
 
     return generate_text(prompt, model=model)
+
+
+def _load_story_state(name: str) -> dict[str, Any]:
+    """Load story state from disk; returns empty dict if not found."""
+    story_dir = _validate_story_name(name, base_dir=STORIES_DIR)
+    state_path = story_dir / "state.json"
+    if not state_path.exists():
+        return {}
+    try:
+        with open(state_path) as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {}
+
+
+def _get_state_field(state: dict[str, Any], field: str) -> Any:
+    """Get nested field from state dict using dot-notation; returns None if absent."""
+    keys = field.split(".")
+    current: Any = state
+    for key in keys:
+        if not isinstance(current, dict) or key not in current:
+            return None
+        current = current[key]
+    return current
 
 
 def _success(operation: str, data: Any) -> None:
@@ -336,6 +361,85 @@ def cmd_voice_analyze(
     _success("voice-analyze", {"issues": issues, "issues_found": len(issues)})
 
 
+def cmd_generate_chapter(
+    name: str,
+    chapter_num: int,
+    *,
+    model: str | None = None,
+    additional_context: str | None = None,
+) -> None:
+    """Generate a complete chapter as a single unit (fallback for scene_generation_pipeline: false)."""
+    _validate_story_name(name)
+    repo = _make_repo(name)
+    step = f"chapter_{chapter_num}/chapter_content"
+
+    if _has_savepoint(repo, step):
+        content = _load_savepoint(repo, step)
+        _success("generate-chapter", content)
+        return
+
+    state = _load_story_state(name)
+    chapters_state = state.get("chapters", {})
+    total_chapters = len(chapters_state) if chapters_state else chapter_num
+
+    chapter_outline = (
+        _get_state_field(state, f"chapters.{chapter_num}.expanded_outline") or ""
+    )
+
+    base_context: str = (
+        _load_savepoint(repo, "base_context")
+        if _has_savepoint(repo, "base_context")
+        else ""
+    )
+    outline: str = (
+        _load_savepoint(repo, "initial_outline")
+        if _has_savepoint(repo, "initial_outline")
+        else ""
+    )
+
+    previous_recap: str = ""
+    if chapter_num > 1 and _has_savepoint(repo, f"chapter_{chapter_num - 1}/recap"):
+        previous_recap = _load_savepoint(repo, f"chapter_{chapter_num - 1}/recap") or ""
+
+    next_chapter_synopsis = (
+        _get_state_field(state, f"chapters.{chapter_num + 1}.expanded_outline") or ""
+    )
+
+    if additional_context:
+        base_context = (
+            f"{base_context}\n\n{additional_context}"
+            if base_context
+            else additional_context
+        )
+
+    prompt_text = _load_prompt(
+        "chapters/create_content",
+        {
+            "chapter_num": str(chapter_num),
+            "total_chapters": str(total_chapters),
+            "outline": outline,
+            "base_context": base_context,
+            "chapter_outline": chapter_outline,
+            "previous_recap": previous_recap,
+            "next_chapter_synopsis": next_chapter_synopsis,
+        },
+    )
+
+    try:
+        content = _call_llm(prompt_text, model=model)
+    except RuntimeError as exc:
+        _error(f"chapter generation failed: {exc}")
+
+    _save_savepoint(repo, step, content)
+
+    story_dir = _validate_story_name(name, base_dir=STORIES_DIR)
+    state_path = story_dir / "state.json"
+    _set_nested(state, f"chapters.{chapter_num}.content", content)
+    _write_state_atomic(state_path, state)
+
+    _success("generate-chapter", content)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -353,6 +457,7 @@ def main() -> None:
             "assemble-chapter",
             "scrub-analyze",
             "voice-analyze",
+            "generate-chapter",
         ],
         help="Operation to perform",
     )
@@ -389,6 +494,11 @@ def main() -> None:
         "--prior-chapters-summary",
         default=None,
         help="Prior chapters summary for voice analysis",
+    )
+    parser.add_argument(
+        "--additional-context",
+        default=None,
+        help="Additional context appended to base_context",
     )
     args = parser.parse_args()
 
@@ -506,6 +616,18 @@ def main() -> None:
             args.chapter_text,
             prior_chapters_summary=args.prior_chapters_summary or "",
             model=args.model,
+        )
+
+    elif op == "generate-chapter":
+        if args.chapter_num is None:
+            _error("--chapter-num is required for generate-chapter")
+        if args.chapter_num < 1:
+            _error("--chapter-num must be >= 1")
+        cmd_generate_chapter(
+            args.name,
+            args.chapter_num,
+            model=args.model,
+            additional_context=args.additional_context,
         )
 
 
