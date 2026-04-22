@@ -388,3 +388,204 @@ def test_invalid_story_name(story_env: tuple[Path, str]) -> None:
     )
     assert result.returncode == 1
     assert "escapes" in result.stderr.lower()
+
+
+# ---------------------------------------------------------------------------
+# 11. test_scrub_analyze_success
+# ---------------------------------------------------------------------------
+
+
+def test_scrub_analyze_success(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Mock LLM scrub analysis response. Verify issues returned and counted."""
+    _stories_dir, name = patched_env
+
+    issues = [
+        {"type": "passive-voice", "excerpt": "was opened", "suggestion": "opened"},
+        {
+            "type": "wordiness",
+            "excerpt": "in order to",
+            "suggestion": "to",
+        },
+    ]
+    raw_llm = f"```json\n{json.dumps({'issues': issues})}\n```"
+
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: raw_llm)
+
+    sw.cmd_scrub_analyze(name, 1, "Chapter text", model="test")
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["status"] == "success"
+    assert out["operation"] == "scrub-analyze"
+    assert out["data"]["issues_found"] == 2
+    assert issues == out["data"]["issues"]
+
+
+# ---------------------------------------------------------------------------
+# 12. test_scrub_analyze_empty_issues
+# ---------------------------------------------------------------------------
+
+
+def test_scrub_analyze_empty_issues(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Mock empty scrub issues response. Verify zero count and empty list."""
+    _stories_dir, name = patched_env
+
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: '{"issues": []}')
+
+    sw.cmd_scrub_analyze(name, 1, "Chapter text", model="test")
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["status"] == "success"
+    assert out["data"]["issues_found"] == 0
+    assert out["data"]["issues"] == []
+
+
+# ---------------------------------------------------------------------------
+# 13. test_scrub_analyze_json_parse_error_exits
+# ---------------------------------------------------------------------------
+
+
+def test_scrub_analyze_json_parse_error_exits(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mock invalid scrub response. Verify command exits on parse failure."""
+    _stories_dir, name = patched_env
+
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: "not json")
+
+    with pytest.raises(SystemExit):
+        sw.cmd_scrub_analyze(name, 1, "Chapter text", model="test")
+
+
+# ---------------------------------------------------------------------------
+# 14. test_voice_analyze_success
+# ---------------------------------------------------------------------------
+
+
+def test_voice_analyze_success(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Mock voice analysis response. Verify issues and prior summary flow through."""
+    _stories_dir, name = patched_env
+
+    issues = [
+        {"type": "voice", "excerpt": "slang spike", "suggestion": "match tone"},
+        {"type": "pacing", "excerpt": "slow middle", "suggestion": "tighten"},
+        {
+            "type": "continuity",
+            "excerpt": "shifted worldview",
+            "suggestion": "align with prior chapters",
+        },
+    ]
+    raw_llm = f"```json\n{json.dumps({'issues': issues})}\n```"
+    captured_prompts: list[str] = []
+
+    def mock_load_prompt(prompt_id: str, variables: dict | None = None) -> str:
+        rendered = f"prompt:{prompt_id}"
+        if variables:
+            for key, value in variables.items():
+                rendered += f" {key}={value}"
+        captured_prompts.append(rendered)
+        return rendered
+
+    monkeypatch.setattr(sw, "_load_prompt", mock_load_prompt)
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: raw_llm)
+
+    prior_summary = "Summary of prior events"
+    sw.cmd_voice_analyze(
+        name,
+        1,
+        "Chapter text",
+        prior_chapters_summary=prior_summary,
+        model="test",
+    )
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["status"] == "success"
+    assert out["operation"] == "voice-analyze"
+    assert out["data"]["issues_found"] == 3
+    assert issues == out["data"]["issues"]
+    assert len(captured_prompts) == 1
+    assert prior_summary in captured_prompts[0]
+
+
+# ---------------------------------------------------------------------------
+# 15. test_voice_analyze_empty_issues
+# ---------------------------------------------------------------------------
+
+
+def test_voice_analyze_empty_issues(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Mock empty voice issues response. Verify zero count and empty list."""
+    _stories_dir, name = patched_env
+
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: '{"issues": []}')
+
+    sw.cmd_voice_analyze(name, 1, "Chapter text", prior_chapters_summary="", model="test")
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["data"]["issues_found"] == 0
+    assert out["data"]["issues"] == []
+
+
+# ---------------------------------------------------------------------------
+# 16. test_scrub_analyze_cli_missing_chapter_text
+# ---------------------------------------------------------------------------
+
+
+def test_scrub_analyze_cli_missing_chapter_text(
+    story_env: tuple[Path, str],
+) -> None:
+    """Run scrub analyze via CLI without chapter text. Verify validation failure."""
+    stories_dir, name = story_env
+
+    result = _run_tool(
+        "--operation",
+        "scrub-analyze",
+        "--name",
+        name,
+        "--chapter-num",
+        "1",
+        stories_dir=stories_dir,
+    )
+
+    assert result.returncode != 0
+    assert "chapter-text is required" in result.stderr.lower()
+
+
+# ---------------------------------------------------------------------------
+# 17. test_voice_analyze_cli_missing_chapter_text
+# ---------------------------------------------------------------------------
+
+
+def test_voice_analyze_cli_missing_chapter_text(
+    story_env: tuple[Path, str],
+) -> None:
+    """Run voice analyze via CLI without chapter text. Verify validation failure."""
+    stories_dir, name = story_env
+
+    result = _run_tool(
+        "--operation",
+        "voice-analyze",
+        "--name",
+        name,
+        "--chapter-num",
+        "1",
+        stories_dir=stories_dir,
+    )
+
+    assert result.returncode != 0
+    assert "chapter-text is required" in result.stderr.lower()

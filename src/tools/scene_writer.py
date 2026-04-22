@@ -280,6 +280,62 @@ def cmd_assemble_chapter(
     _success("assemble-chapter", assembled)
 
 
+def cmd_scrub_analyze(
+    name: str,
+    chapter_num: int,
+    chapter_text: str,
+    *,
+    model: str | None = None,
+) -> None:
+    """Analyze chapter prose for sentence-level issues."""
+    _validate_story_name(name)
+    prompt_text = _load_prompt(
+        "final_edit/prose_scrub",
+        {"chapter_text": chapter_text, "chapter_number": str(chapter_num)},
+    )
+    try:
+        from src.tools._llm import _extract_json_block
+
+        raw = _call_llm(prompt_text, model=model)
+        json_str = _extract_json_block(raw)
+        result = json.loads(json_str)
+    except (json.JSONDecodeError, RuntimeError) as exc:
+        _error(f"scrub analysis failed: {exc}")
+
+    issues = result.get("issues", [])
+    _success("scrub-analyze", {"issues": issues, "issues_found": len(issues)})
+
+
+def cmd_voice_analyze(
+    name: str,
+    chapter_num: int,
+    chapter_text: str,
+    prior_chapters_summary: str = "",
+    *,
+    model: str | None = None,
+) -> None:
+    """Analyze chapter for voice consistency and pacing issues."""
+    _validate_story_name(name)
+    prompt_text = _load_prompt(
+        "final_edit/voice_consistency_pass",
+        {
+            "chapter_text": chapter_text,
+            "prior_chapters_summary": prior_chapters_summary,
+        },
+    )
+    try:
+        from src.tools._llm import _extract_json_block
+
+        raw = _call_llm(prompt_text, model=model)
+        json_str = _extract_json_block(raw)
+        result = json.loads(json_str)
+    except (json.JSONDecodeError, RuntimeError) as exc:
+        _error(f"voice analysis failed: {exc}")
+
+    issues = result.get("issues", [])
+    _success("voice-analyze", {"issues": issues, "issues_found": len(issues)})
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -290,7 +346,14 @@ def main() -> None:
     parser.add_argument(
         "--operation",
         required=True,
-        choices=["parse-definitions", "generate", "revise", "assemble-chapter"],
+        choices=[
+            "parse-definitions",
+            "generate",
+            "revise",
+            "assemble-chapter",
+            "scrub-analyze",
+            "voice-analyze",
+        ],
         help="Operation to perform",
     )
     parser.add_argument("--name", required=True, help="Story name")
@@ -319,6 +382,14 @@ def main() -> None:
         "--next-chapter-synopsis", default=None, help="Next chapter synopsis"
     )
     parser.add_argument("--model", default=None, help="Override LLM model identifier")
+    parser.add_argument(
+        "--chapter-text", default=None, help="Chapter text for scrub/voice analysis"
+    )
+    parser.add_argument(
+        "--prior-chapters-summary",
+        default=None,
+        help="Prior chapters summary for voice analysis",
+    )
     args = parser.parse_args()
 
     # --- Dispatch ---
@@ -406,6 +477,35 @@ def main() -> None:
             args.chapter_num,
             args.scene_count,
             chapter_title=args.chapter_title,
+        )
+
+    elif op == "scrub-analyze":
+        if args.chapter_num is None:
+            _error("--chapter-num is required for scrub-analyze")
+        if args.chapter_num < 1:
+            _error("--chapter-num must be >= 1")
+        if not args.chapter_text:
+            _error("--chapter-text is required for scrub-analyze")
+        cmd_scrub_analyze(
+            args.name,
+            args.chapter_num,
+            args.chapter_text,
+            model=args.model,
+        )
+
+    elif op == "voice-analyze":
+        if args.chapter_num is None:
+            _error("--chapter-num is required for voice-analyze")
+        if args.chapter_num < 1:
+            _error("--chapter-num must be >= 1")
+        if not args.chapter_text:
+            _error("--chapter-text is required for voice-analyze")
+        cmd_voice_analyze(
+            args.name,
+            args.chapter_num,
+            args.chapter_text,
+            prior_chapters_summary=args.prior_chapters_summary or "",
+            model=args.model,
         )
 
 
