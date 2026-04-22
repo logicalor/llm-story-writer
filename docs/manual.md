@@ -260,7 +260,7 @@ Phase 7: Chapter Expansion + Generation
   → Per chapter: chapter-writer generates scenes and assembles chapter
   → wiki-maintainer updates wiki, recap-manager writes recap, wiki-lint checks consistency
   → quality-reviewer runs chapter critique/revision loop (if enabled)
-  → Orchestrator writes chapter handoff artifact for downstream continuity
+  → Orchestrator delegates chapter handoff generation to story-assembler for downstream continuity
 
 Phase 7.5: Prose Scrub (conditional)
   → prose-scrubber performs sentence/paragraph cleanup after chapter acceptance

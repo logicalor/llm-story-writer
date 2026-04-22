@@ -234,19 +234,12 @@ If `enable_chapter_revisions` is true:
 
 After the chapter is accepted (7f) and post-processing is complete:
 
-1. Load the handoff generation prompt via `prompt-loader` using `promptId: "chapters/generate_handoff"`
-2. Substitute variables:
-   - `CHAPTER_NUMBER`: current chapter number as a string
-   - `CHAPTER_OUTLINE`: read `chapters.{N}.expanded_outline` from `story-state`
-   - `CHAPTER_TITLE`: the chapter title
-   - `STORY_TITLE`: the story title
-3. Generate the structured handoff JSON using the loaded prompt as a direct reasoning step — do not dispatch a subagent
-4. Write the result to `story-state` with:
-   - `operation`: `"write"`
-   - `name`: story name
-   - `field`: `"chapters.{N}.handoff"`
-   - `value`: the generated JSON object string
-5. Embed the accepted chapter text into the story's RAG index for cross-chapter continuity analysis. Call `rag-query` with:
+1. Call `story-assembler` with:
+   - `operation`: `"generate-handoff"`
+   - `storyName`: story name
+   - `chapterNum`: N
+   The tool reads context internally, calls the LLM, and writes the result to `chapters.{N}.handoff` in `story-state`.
+2. Embed the accepted chapter text into the story's RAG index for cross-chapter continuity analysis. Call `rag-query` with:
    - `operation`: `"index"`
    - `name`: story name
    - `docId`: `chapter-{N}-raw` (e.g. `chapter-3-raw`)
@@ -273,7 +266,9 @@ If `enable_scrubbing: false`: skip this phase.
 
 **Purpose:** Assemble all chapters into the final story output.
 
-1. Invoke `story-assembler` with `storyName`: the story name
+1. Invoke `story-assembler` with:
+   - `operation`: `"assemble"`
+   - `storyName`: the story name
 2. The assembled story will be written to `stories/<name>/output/story.md` in Markdown format
 3. Create savepoint: `story_complete`
 4. Report the output path to the user
@@ -304,7 +299,7 @@ You have access to these tools for deterministic operations:
 | `outline-generator` | Generate and expand story outlines |
 | `scene-writer` | Generate individual scenes |
 | `critique-runner` | Evaluate content quality and produce scores |
-| `story-assembler` | Assemble completed chapter savepoints into final story markdown |
+| `story-assembler` | Assemble completed chapter savepoints into final story markdown; generate per-chapter continuity handoff artifacts |
 | `wiki-init` | Initialise wiki directory structure and schema |
 | `wiki-read` | Read wiki pages by slug or type |
 | `wiki-search` | Semantic search across wiki pages |

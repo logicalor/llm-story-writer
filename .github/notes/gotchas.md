@@ -248,10 +248,10 @@ ChromaDB ID: `gotcha-savepoint-stale-sibling-extension-009`
 
 ### 011 — `STORIES_DIR` lives in `src.tools._io`, not in individual tool modules
 
-**Source:** issue #132, PR #136
+**Source:** issue #132, PR #136; extended issue #133, PR #137
 **Severity:** info
 
-Individual tool scripts (`src/tools/critique_runner.py`, `src/tools/story_state.py`, etc.) do
+Most tool scripts (`src/tools/critique_runner.py`, `src/tools/story_state.py`, etc.) do
 **not** expose `STORIES_DIR` at module level. The constant is defined in `src/tools/_io.py`
 and read from the environment at import time:
 
@@ -262,12 +262,28 @@ STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
 
 Each tool imports `_validate_story_name` from `_io`, which uses that constant internally.
 
-Three valid test approaches:
+**Exception — modules that re-bind `STORIES_DIR` at import time:** `story_assembler.py` does:
+
+```python
+from src.tools._io import STORIES_DIR, _validate_story_name
+```
+
+This `from … import` creates a **separate module-level binding** `sa.STORIES_DIR` that
+captures the value at import time. Patching `_io.STORIES_DIR` alone does **not** update
+`sa.STORIES_DIR`. In-process tests for such modules must patch **both** bindings:
+
+```python
+monkeypatch.setattr(_io_module, "STORIES_DIR", stories_dir)   # updates _io authority
+monkeypatch.setattr(sa, "STORIES_DIR", stories_dir)            # updates captured binding
+```
+
+Four valid test approaches:
 
 | Approach | When to use |
 |----------|-------------|
 | Subprocess with `env["STORIES_DIR"] = str(tmp_path)` | CLI integration tests (standard pattern) |
-| `patch("src.tools._io.STORIES_DIR", tmp_path / "stories")` | In-process unit tests using real `_validate_story_name` |
+| `patch("src.tools._io.STORIES_DIR", tmp_path / "stories")` | In-process unit tests for tools that do NOT re-export `STORIES_DIR` |
+| Double-patch: `_io.STORIES_DIR` + module-level binding | In-process unit tests for modules that `from src.tools._io import STORIES_DIR` |
 | `patch("src.tools.<module>._validate_story_name", ...)` | In-process unit tests overriding validation entirely |
 
 **Wrong:** `patch("src.tools.critique_runner.STORIES_DIR", ...)` — `critique_runner` has no

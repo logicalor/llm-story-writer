@@ -15,7 +15,7 @@ The subagent runs once after wiki population and before chapter drafting starts.
 | Step | Runs When | What It Produces |
 |------|-----------|------------------|
 | Phase 7a | Once per story, before any chapter drafting | `chapters.{N}.expanded_outline` entries and chapter-outline expansion savepoints |
-| Phase 7h dependency | After each accepted chapter, on later iterations | Consumes `chapters.{N-1}.handoff` to enrich continuity for the next expansion |
+| Phase 7g dependency | After each accepted chapter, on later iterations | Consumes `chapters.{N-1}.handoff` to enrich continuity for the next expansion |
 
 Operationally, this means the orchestrator no longer expands chapter outlines chapter-by-chapter inside its own loop. It dispatches one subagent, waits for expansion to complete, then starts the normal per-chapter drafting flow.
 
@@ -46,7 +46,7 @@ At completion it returns a small status object to the orchestrator, such as `com
 
 ## Handoff Artifact Relationship
 
-The per-chapter handoff artifact is the developer-facing reason this subagent matters. After each accepted chapter, the orchestrator generates `chapters.{N}.handoff` from the accepted chapter outline using `prompts/chapters/generate_handoff.md`.
+The per-chapter handoff artifact is the developer-facing reason this subagent matters. After each accepted chapter, the orchestrator delegates `chapters.{N}.handoff` generation to `story-assembler` with `operation: "generate-handoff"`. That tool reads the accepted chapter's expansion context from story state, renders `prompts/chapters/generate_handoff.md`, and writes the structured JSON artifact back to `state.json`.
 
 That artifact contains five continuity categories:
 
@@ -70,7 +70,7 @@ On the next expansion iteration, `chapter-outline-expander` reads that structure
 | File | Purpose |
 |------|---------|
 | `.opencode/agents/chapter-outline-expander.md` | Subagent workflow, tool contract, continuity threading rules |
-| `.opencode/agents/story-orchestrator.md` | Parent orchestration logic for Phase 7a dispatch and Phase 7h handoff generation |
+| `.opencode/agents/story-orchestrator.md` | Parent orchestration logic for Phase 7a dispatch and Phase 7g handoff delegation |
 | `prompts/chapters/generate_handoff.md` | Prompt template for the structured handoff JSON artifact |
 | `.opencode/skills/story-pipeline/SKILL.md` | Pipeline reference updated with the new Phase 7a subagent |
 

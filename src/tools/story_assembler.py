@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn
 
 if TYPE_CHECKING:
-    from infrastructure.storage.savepoint_repository import FilesystemSavepointRepository
+    from infrastructure.storage.savepoint_repository import (
+        FilesystemSavepointRepository,
+    )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -22,7 +24,7 @@ if _src_path not in sys.path:
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
-from src.tools._io import _validate_story_name  # noqa: E402
+from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
 
 CHAPTER_SAVEPOINT_PATTERNS = (
     "chapter_{chapter_num}_complete",
@@ -33,7 +35,9 @@ CHAPTER_SAVEPOINT_PATTERNS = (
 
 def _make_repo(name: str) -> FilesystemSavepointRepository:
     """Create a FilesystemSavepointRepository for the given story."""
-    from infrastructure.storage.savepoint_repository import FilesystemSavepointRepository
+    from infrastructure.storage.savepoint_repository import (
+        FilesystemSavepointRepository,
+    )
 
     story_dir = _validate_story_name(name)
     repo = FilesystemSavepointRepository(base_path=story_dir)
@@ -78,6 +82,37 @@ def _load_story_state(story_dir: Path) -> dict[str, Any]:
         return _normalize_state(json.loads(state_path.read_text(encoding="utf-8")))
     except json.JSONDecodeError as exc:
         _error(f"invalid state.json for story: {exc}")
+
+
+def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str:
+    """Load and render a prompt template."""
+    from infrastructure.prompts.prompt_loader import PromptLoader
+
+    loader = PromptLoader(prompts_dir=str(PROJECT_ROOT / "prompts"))
+    return loader.load_prompt(prompt_id, variables)
+
+
+def _call_llm(prompt: str, *, model: str | None = None) -> str:
+    """Call LLM with a single prompt and return text response."""
+    from src.tools._llm import generate_text
+
+    return generate_text(prompt, model=model)
+
+
+def _strip_json_fences(text: str) -> str:
+    """Strip markdown code fences from a JSON response."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # Remove first and last fence lines.
+        start = 1
+        end = len(lines)
+        for i in range(len(lines) - 1, 0, -1):
+            if lines[i].strip() == "```":
+                end = i
+                break
+        text = "\n".join(lines[start:end]).strip()
+    return text
 
 
 def _extract_state_chapter_text(chapters: Any, chapter_num: int) -> str | None:
@@ -193,6 +228,75 @@ def cmd_assemble(story_name: str) -> None:
     )
 
 
+def cmd_generate_handoff(
+    story_name: str,
+    chapter_num: int,
+    model: str | None = None,
+) -> None:
+    """Generate a chapter handoff artifact and write it to story state."""
+    story_dir = _validate_story_name(story_name)
+    if not story_dir.exists():
+        _error(f"story not found: {story_name}")
+    if not story_dir.resolve().is_relative_to(STORIES_DIR.resolve()):
+        _error(f"story path escapes stories dir: {story_name}")
+
+    story_state = _load_story_state(story_dir)
+
+    chapters = story_state.get("chapters", {})
+    chapter_data: dict[str, Any] = {}
+    if isinstance(chapters, dict):
+        candidate = chapters.get(str(chapter_num)) or chapters.get(chapter_num) or {}
+        if isinstance(candidate, dict):
+            chapter_data = candidate
+
+    expanded_outline = chapter_data.get("expanded_outline", "")
+    if not expanded_outline:
+        _error(
+            f"expanded_outline not found for chapter {chapter_num} — run outline expansion first"
+        )
+
+    chapter_title = chapter_data.get("title", f"Chapter {chapter_num}")
+    story_context = story_state.get("story_context", {})
+    story_title = story_context.get("title", "")
+
+    prompt = _load_prompt(
+        "chapters/generate_handoff",
+        {
+            "CHAPTER_NUMBER": str(chapter_num),
+            "CHAPTER_OUTLINE": expanded_outline,
+            "CHAPTER_TITLE": chapter_title,
+            "STORY_TITLE": story_title,
+        },
+    )
+
+    raw_response = _call_llm(prompt, model=model)
+    cleaned = _strip_json_fences(raw_response)
+
+    try:
+        handoff = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        _error(f"LLM returned invalid JSON for handoff: {exc}")
+
+    from src.tools.story_state import _set_nested, _write_state_atomic
+
+    state_path = story_dir / "state.json"
+    _set_nested(story_state, f"chapters.{chapter_num}.handoff", handoff)
+    _write_state_atomic(state_path, story_state)
+
+    print(
+        json.dumps(
+            {
+                "status": "success",
+                "chapter_num": chapter_num,
+                "handoff_keys": list(handoff.keys())
+                if isinstance(handoff, dict)
+                else [],
+            },
+            indent=2,
+        )
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Assemble completed chapter content")
     subparsers = parser.add_subparsers(dest="command")
@@ -204,10 +308,34 @@ def main() -> None:
         help="Story name (directory under stories/)",
     )
 
+    generate_handoff_parser = subparsers.add_parser(
+        "generate-handoff", help="Generate chapter handoff artifact"
+    )
+    generate_handoff_parser.add_argument(
+        "--story-name",
+        required=True,
+        help="Story name (directory under stories/)",
+    )
+    generate_handoff_parser.add_argument(
+        "--chapter-num",
+        required=True,
+        type=int,
+        help="Chapter number to generate handoff for",
+    )
+    generate_handoff_parser.add_argument(
+        "--model",
+        default=None,
+        help="Model override (optional)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "assemble":
         cmd_assemble(args.story_name)
+        return
+
+    if args.command == "generate-handoff":
+        cmd_generate_handoff(args.story_name, args.chapter_num, args.model)
         return
 
     parser.print_help()
