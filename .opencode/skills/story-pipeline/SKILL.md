@@ -191,6 +191,17 @@ The pipeline uses nine subagents for specialised creative work. The `story-orche
 
 ---
 
+## Savepoint Ownership
+
+**The orchestrator owns the savepoint lifecycle. Subagents must never call `savepoint-mgr` directly.**
+
+- Savepoints are checkpoints created by `story-orchestrator` at the boundary of each phase — not by subagents during their internal work.
+- When a subagent completes its delegated work, it writes results to `story-state` (or produces handoff artifacts) and returns to the orchestrator. The orchestrator then creates the savepoint after confirming results are stored.
+- **Why this matters:** If a subagent creates its own savepoint and the orchestrator also creates one at the same step name, the orchestrator's write silently overwrites the subagent's richer payload (`savepoint-mgr` overwrites existing entries by default). A pipeline resumed from that savepoint recovers a degraded snapshot.
+- **Correct pattern:** `story-orchestrator` Phase 2.5 creates `arc_analysis_complete` with the full arc payload after `story-planner` returns. `story-planner` writes only to `story-state` — it never calls `savepoint-mgr`.
+
+---
+
 ## Quality Gates
 
 ### Thresholds
