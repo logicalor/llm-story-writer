@@ -259,15 +259,20 @@ def cmd_generate_handoff(
     story_context = story_state.get("story_context", {})
     story_title = story_context.get("title", "")
 
-    prompt = _load_prompt(
-        "chapters/generate_handoff",
-        {
-            "CHAPTER_NUMBER": str(chapter_num),
-            "CHAPTER_OUTLINE": expanded_outline,
-            "CHAPTER_TITLE": chapter_title,
-            "STORY_TITLE": story_title,
-        },
-    )
+    from domain.exceptions import ConfigurationError
+
+    try:
+        prompt = _load_prompt(
+            "chapters/generate_handoff",
+            {
+                "CHAPTER_NUMBER": str(chapter_num),
+                "CHAPTER_OUTLINE": expanded_outline,
+                "CHAPTER_TITLE": chapter_title,
+                "STORY_TITLE": story_title,
+            },
+        )
+    except ConfigurationError:
+        _error("prompt not found: chapters/generate_handoff")
 
     raw_response = _call_llm(prompt, model=model)
     cleaned = _strip_json_fences(raw_response)

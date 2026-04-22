@@ -15,6 +15,8 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from domain.exceptions import ConfigurationError
+
 import src.tools._io as _io_module
 import src.tools.story_assembler as sa
 
@@ -28,7 +30,9 @@ def patched_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return stories_dir
 
 
-def _write_story_state(stories_dir: Path, story_name: str, state: dict[str, Any]) -> Path:
+def _write_story_state(
+    stories_dir: Path, story_name: str, state: dict[str, Any]
+) -> Path:
     story_dir = stories_dir / story_name
     (story_dir / "savepoints").mkdir(parents=True, exist_ok=True)
     state_path = story_dir / "state.json"
@@ -59,7 +63,7 @@ def _state_with_outline() -> dict[str, Any]:
 
 class TestStripJsonFences:
     def test_strip_json_fences_removes_code_block_markers(self) -> None:
-        result = sa._strip_json_fences("```json\n{\"key\": \"val\"}\n```")
+        result = sa._strip_json_fences('```json\n{"key": "val"}\n```')
 
         assert result == '{"key": "val"}'
 
@@ -73,8 +77,12 @@ class TestCmdGenerateHandoff:
     def test_generate_handoff_writes_handoff_to_state(
         self, patched_env: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        state_path = _write_story_state(patched_env, "test-story", _state_with_outline())
-        monkeypatch.setattr(sa, "_load_prompt", lambda prompt_id, variables: "mock prompt")
+        state_path = _write_story_state(
+            patched_env, "test-story", _state_with_outline()
+        )
+        monkeypatch.setattr(
+            sa, "_load_prompt", lambda prompt_id, variables: "mock prompt"
+        )
         monkeypatch.setattr(
             sa,
             "_call_llm",
@@ -93,7 +101,9 @@ class TestCmdGenerateHandoff:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         _write_story_state(patched_env, "test-story", _state_with_outline())
-        monkeypatch.setattr(sa, "_load_prompt", lambda prompt_id, variables: "mock prompt")
+        monkeypatch.setattr(
+            sa, "_load_prompt", lambda prompt_id, variables: "mock prompt"
+        )
         monkeypatch.setattr(
             sa,
             "_call_llm",
@@ -124,13 +134,30 @@ class TestCmdGenerateHandoff:
 
         assert exc_info.value.code == 1
 
+    def test_generate_handoff_errors_when_prompt_is_missing(
+        self, patched_env: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_story_state(patched_env, "test-story", _state_with_outline())
+
+        def _raise_missing_prompt(prompt_id: str, variables: dict[str, Any]) -> str:
+            raise ConfigurationError("Prompt file not found: chapters/generate_handoff")
+
+        monkeypatch.setattr(sa, "_load_prompt", _raise_missing_prompt)
+
+        with pytest.raises(SystemExit) as exc_info:
+            sa.cmd_generate_handoff("test-story", 3)
+
+        assert exc_info.value.code == 1
+
     def test_generate_handoff_passes_model_to_llm(
         self, patched_env: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         _write_story_state(patched_env, "test-story", _state_with_outline())
         spy: dict[str, Any] = {}
 
-        monkeypatch.setattr(sa, "_load_prompt", lambda prompt_id, variables: "mock prompt")
+        monkeypatch.setattr(
+            sa, "_load_prompt", lambda prompt_id, variables: "mock prompt"
+        )
 
         def _spy_call_llm(prompt: str, *, model: str | None = None) -> str:
             spy["prompt"] = prompt
@@ -147,14 +174,18 @@ class TestCmdGenerateHandoff:
     def test_generate_handoff_handles_fenced_json_response(
         self, patched_env: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        state_path = _write_story_state(patched_env, "test-story", _state_with_outline())
-        monkeypatch.setattr(sa, "_load_prompt", lambda prompt_id, variables: "mock prompt")
+        state_path = _write_story_state(
+            patched_env, "test-story", _state_with_outline()
+        )
+        monkeypatch.setattr(
+            sa, "_load_prompt", lambda prompt_id, variables: "mock prompt"
+        )
         monkeypatch.setattr(
             sa,
             "_call_llm",
-            lambda prompt, model=None: "```json\n"
-            + json.dumps(_valid_handoff_payload())
-            + "\n```",
+            lambda prompt, model=None: (
+                "```json\n" + json.dumps(_valid_handoff_payload()) + "\n```"
+            ),
         )
 
         sa.cmd_generate_handoff("test-story", 3)
@@ -169,7 +200,9 @@ class TestCmdGenerateHandoff:
         self, patched_env: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         _write_story_state(patched_env, "test-story", _state_with_outline())
-        monkeypatch.setattr(sa, "_load_prompt", lambda prompt_id, variables: "mock prompt")
+        monkeypatch.setattr(
+            sa, "_load_prompt", lambda prompt_id, variables: "mock prompt"
+        )
         monkeypatch.setattr(sa, "_call_llm", lambda prompt, model=None: "not json")
 
         with pytest.raises(SystemExit) as exc_info:
