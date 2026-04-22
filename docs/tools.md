@@ -1030,10 +1030,12 @@ Runs critics against story outlines or assembled chapters, parses scores, checks
 
 ### Purpose
 
-The critique-runner operates in two modes:
+The critique-runner operates in three critique modes and one arc-analysis operation:
 
 - **Outline mode** — evaluates story outlines during the outline refinement loop
 - **Chapter mode** — evaluates assembled chapter text during per-chapter quality review
+- **Character-voice mode** — evaluates accepted chapter text for character voice consistency
+- **Arc-analysis operation** — runs the Phase 2.5 dramatic-arc prompt chain for `story-planner`
 
 The tool orchestrates the critique loop: running all critics for the selected mode, parsing their scores, determining whether the content meets the configured thresholds, and formatting feedback for the next refinement iteration.
 
@@ -1061,21 +1063,22 @@ The seven scoring criteria:
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `operation` | `"run-critics" \| "parse-scores" \| "should-refine" \| "generate-feedback"` | Yes | Operation to perform |
-| `name` | string | For `run-critics`, `should-refine`, `generate-feedback` | Story name (maps to directory under `stories/`) |
+| `operation` | `"run-critics" \| "parse-scores" \| "should-refine" \| "generate-feedback" \| "run-arc-analysis"` | Yes | Operation to perform |
+| `name` | string | For `run-critics`, `should-refine`, `generate-feedback`, `run-arc-analysis` | Story name (maps to directory under `stories/`) |
 | `iteration` | number | No | Critique iteration number (default: 1) |
-| `content` | string | No | Content to critique; if omitted, loads mode-appropriate content from savepoint |
+| `content` | string | No for critique operations; Yes for `run-arc-analysis` | Content to critique; if omitted for `run-critics`, loads mode-appropriate content from savepoint |
 | `mode` | `"outline" \| "chapter" \| "character-voice"` | No | Critique mode (default: `outline`) |
 | `criticType` | string | For `parse-scores` | Critic type identifier |
 | `responseText` | string | For `parse-scores` | Raw critic response text to parse |
 | `qualityThreshold` | number | No | Quality threshold percentage for `should-refine` (default: 85.0) |
 | `criterionFloor` | number | No | Minimum per-criterion percentage for `should-refine` (default: 75.0) |
 | `model` | string | No | Override LLM model identifier |
+| `criticSummary` | string | No | Optional compact critic summary forwarded to `run-arc-analysis` for the synthesis prompt |
 
 ### CLI Interface (Python script)
 
 ```bash
-python3 src/tools/critique_runner.py --operation <op> [--name <name>] [--iteration N] [--content '<text>'] [--mode outline|chapter] [--critic-type <type>] [--response-text '<text>'] [--quality-threshold N] [--criterion-floor N] [--model <model>]
+python3 src/tools/critique_runner.py --operation <op> [--name <name>] [--iteration N] [--content '<text>'] [--mode outline|chapter|character-voice] [--critic-type <type>] [--response-text '<text>'] [--quality-threshold N] [--criterion-floor N] [--model <model>] [--critic-summary '<text>']
 ```
 
 **Examples:**
@@ -1103,6 +1106,11 @@ python3 src/tools/critique_runner.py --operation should-refine --name my-story \
 # Generate formatted feedback from critique results
 python3 src/tools/critique_runner.py --operation generate-feedback --name my-story \
   --iteration 1
+
+# Run Phase 2.5 arc analysis with outline content and compact critic summary
+python3 src/tools/critique_runner.py --operation run-arc-analysis --name my-story \
+  --content "# Final Outline..." \
+  --critic-summary "audiobook-producer: 84/100\nsubject-expert: 81/100"
 ```
 
 ### Operations
@@ -1113,6 +1121,23 @@ python3 src/tools/critique_runner.py --operation generate-feedback --name my-sto
 | `parse-scores` | Parses scores from a single critic response text; valid critic types depend on `mode` | Serialized `CritiqueResult` as JSON |
 | `should-refine` | Loads mode-specific critique results from savepoint, checks if any criterion avg < `criterionFloor` or overall avg < `qualityThreshold` | `{should_refine, average_scores, overall_average, threshold, criterion_floor}` |
 | `generate-feedback` | Loads critique results from savepoint, formats as structured markdown | `{feedback: "<markdown>"}` |
+| `run-arc-analysis` | Runs `outline_arc/arc_distribution`, `outline_arc/promise_payoff`, and `outline_arc/arc_synthesis` sequentially, saving each intermediate result for later inspection | `{arc_assessment, verdict_code, arc_distribution, promise_payoff}` |
+
+### Arc Analysis Workflow
+
+`run-arc-analysis` is used by `story-planner` after the six outline critics complete. The operation:
+
+1. Runs `prompts/outline_arc/arc_distribution.md` against the finalized outline and saves the result to `arc_distribution`.
+2. Runs `prompts/outline_arc/promise_payoff.md` against the same outline and saves the result to `arc_promise_payoff`.
+3. Runs `prompts/outline_arc/arc_synthesis.md` using the outline, the optional `criticSummary`, and both intermediate analyses, then saves the final report to `arc_assessment`.
+
+The final synthesis is normalized into one of three verdict codes:
+
+| Verdict Code | Meaning |
+|--------------|---------|
+| `strong` | Arc structure is strong enough to proceed without major concern |
+| `minor_concerns` | Arc is viable but notable pacing or payoff issues remain |
+| `significant_issues` | Arc problems are serious enough to warrant user review before proceeding |
 
 ### Quality Threshold Logic
 

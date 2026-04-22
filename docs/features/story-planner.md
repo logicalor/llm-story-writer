@@ -10,17 +10,14 @@ The subagent is advisory only. It does not trigger an automatic rewrite loop and
 
 ## Workflow
 
-`story-planner` executes a fixed tool-only pipeline:
+`story-planner` now executes a four-step, tool-only pipeline:
 
-1. Read the finalized `outline` from story state.
-2. Read `story_elements` from story state and extract a working genre label.
-3. Run the six `outline_review/` critics through `critique-runner` in `outline` mode.
-4. Load and apply the arc-analysis prompts in `prompts/outline_arc/`.
-5. Synthesize one dramatic arc assessment.
-6. Save the result to `arc_analysis_complete`.
-7. Return the structured assessment payload to the orchestrator.
+1. Read the finalized `outline` and supporting `story_elements` context from story state.
+2. Run the six `outline_review/` critics through `critique-runner` in `outline` mode.
+3. Call `critique-runner` once with `run-arc-analysis`, which executes the three `prompts/outline_arc/` prompts internally and returns the synthesized arc result.
+4. Return the structured assessment payload to the orchestrator.
 
-Because the agent calls tools only, orchestration depth stays at 1. The orchestrator remains responsible for user interaction and for any outline regeneration if the user decides the arc findings warrant a rewrite.
+Because the agent calls tools only, orchestration depth stays at 1. The orchestrator remains responsible for user interaction and for any outline regeneration if the user decides the arc findings warrant a rewrite. `story-planner` no longer depends on `prompt-loader`; the prompt chaining moved into `critique-runner`.
 
 ## Inputs And Outputs
 
@@ -78,7 +75,7 @@ The subagent reuses the existing outline review stack rather than inventing a se
 
 ## Arc Prompt Set
 
-Phase 2.5 adds three prompts under `prompts/outline_arc/`:
+Phase 2.5 still uses three prompts under `prompts/outline_arc/`, but `story-planner` no longer loads them directly. It delegates that prompt chain to `critique-runner run-arc-analysis`.
 
 | Prompt | Purpose |
 |--------|---------|
@@ -90,21 +87,25 @@ These prompts complement the generic outline critics. They do not replace them.
 
 ## Savepoint And State
 
-The feature introduces one new checkpoint and one new story-state field:
+The arc-analysis flow now persists its intermediate artifacts inside `critique-runner`, then the orchestrator stores the returned assessment in the existing Phase 2.5 handoff surfaces:
 
 | Location | Purpose |
 |----------|---------|
-| `arc_analysis_complete` savepoint | Persist the synthesized arc assessment after Phase 2.5 completes |
-| `arc_assessment` story-state field | Give the orchestrator a stable payload to show at Phase 3 |
+| `arc_distribution` savepoint | Persist the dramatic-weight analysis generated from `outline_arc/arc_distribution` |
+| `arc_promise_payoff` savepoint | Persist the setup/payoff analysis generated from `outline_arc/promise_payoff` |
+| `arc_assessment` savepoint | Persist the final synthesis generated from `outline_arc/arc_synthesis` |
+| `arc_assessment` story-state field | Give the orchestrator a stable payload to show during Phase 3 approval |
+| `arc_analysis_complete` savepoint | Persist the final Phase 2.5 arc payload after `story-planner` returns |
 
-The outline itself remains the authoritative input. Phase 2.5 analyzes the existing outline; it does not mutate it.
+The outline itself remains the authoritative input. Phase 2.5 analyzes the existing outline; it does not mutate it. `critique-runner` owns the prompt-chain savepoints; the orchestrator owns the approval-gate state and final Phase 2.5 checkpoint.
 
 ## Developer Notes
 
 ### Key Files
 
 - `.opencode/agents/story-planner.md` — subagent contract and workflow
-- `.opencode/skills/narrative-arc/SKILL.md` — output schema, verdict codes, workflow reference
+- `.opencode/tools/critique-runner.ts` — wrapper that forwards `run-arc-analysis` and optional `criticSummary`
+- `src/tools/critique_runner.py` — arc-analysis prompt orchestration and savepoint persistence
 - `prompts/outline_arc/arc_distribution.md` — dramatic-weight prompt
 - `prompts/outline_arc/promise_payoff.md` — setup/payoff prompt
 - `prompts/outline_arc/arc_synthesis.md` — synthesis prompt
@@ -116,6 +117,7 @@ The outline itself remains the authoritative input. Phase 2.5 analyzes the exist
 - Advisory only: no automated outline rewrite loop.
 - Uses finalized outline content explicitly, not a fallback savepoint lookup.
 - Keeps returned payload compact so the approval gate stays readable.
+- Uses `critique-runner` for both critic execution and arc prompt orchestration; no direct `prompt-loader` dependency remains.
 
 ## Testing
 

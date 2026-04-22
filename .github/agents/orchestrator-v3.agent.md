@@ -537,7 +537,7 @@ Write the synthesis to: .github/notes/reviews/YYYY-MM-DD-pr{N}-synthesis.md
     - **★★★ Critical/Warning** (Unanimous) → **must fix** — dispatch to **Coder**
     - **★★☆ Critical/Warning** (Majority) → **should fix** — dispatch to **Coder**
     - **★★☆ Suggestion** (Majority) → evaluate individually, fix if warranted
-    - **★☆☆ Singular** → evaluate individually — may be a false positive, fix only if clearly valid. If the claim is a syntax error on a modified file, verify by re-reading the actual file — diff whitespace (leading `+`/`-` markers, indentation shifts) is a known source of reviewer misreads that do not appear in the real file.
+    - **★☆☆ Singular** → evaluate individually — may be a false positive, fix only if clearly valid. If the claim is a syntax error on a modified file, verify by re-reading the actual file — diff whitespace (leading `+`/`-` markers, indentation shifts) is a known source of reviewer misreads that do not appear in the real file. If the claim references a companion file (e.g. a SKILL.md, config file, or shared process file) that should have been updated, verify the file actually exists on disk (`ls path/to/file`) before acting on the finding — reviewer models occasionally fabricate file paths that do not exist; an update-required finding for a non-existent file is a false positive. (Example: issue #132, PR #136 — GPT cited a non-existent `narrative-arc/SKILL.md`.)
     - **Out-of-scope findings** → do not fix in this PR; create a follow-up GitHub issue capturing the finding and its rationale, then proceed
 3. If fixes are needed:
     - Dispatch to **Coder** with the specific findings and suggested fixes

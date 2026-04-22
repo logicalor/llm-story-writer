@@ -243,3 +243,35 @@ path.with_suffix(".md").unlink(missing_ok=True)
 This maintains the invariant at write time rather than leaving cleanup to the caller.
 
 ChromaDB ID: `gotcha-savepoint-stale-sibling-extension-009`
+
+---
+
+### 011 — `STORIES_DIR` lives in `src.tools._io`, not in individual tool modules
+
+**Source:** issue #132, PR #136
+**Severity:** info
+
+Individual tool scripts (`src/tools/critique_runner.py`, `src/tools/story_state.py`, etc.) do
+**not** expose `STORIES_DIR` at module level. The constant is defined in `src/tools/_io.py`
+and read from the environment at import time:
+
+```python
+# src/tools/_io.py
+STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
+```
+
+Each tool imports `_validate_story_name` from `_io`, which uses that constant internally.
+
+Three valid test approaches:
+
+| Approach | When to use |
+|----------|-------------|
+| Subprocess with `env["STORIES_DIR"] = str(tmp_path)` | CLI integration tests (standard pattern) |
+| `patch("src.tools._io.STORIES_DIR", tmp_path / "stories")` | In-process unit tests using real `_validate_story_name` |
+| `patch("src.tools.<module>._validate_story_name", ...)` | In-process unit tests overriding validation entirely |
+
+**Wrong:** `patch("src.tools.critique_runner.STORIES_DIR", ...)` — `critique_runner` has no
+such attribute; the patch silently creates a new attribute that `_validate_story_name` never
+reads, leaving the tool targeting the real stories directory.
+
+ChromaDB ID: `gotcha-stories-dir-not-module-constant-011`

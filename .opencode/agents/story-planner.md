@@ -17,7 +17,6 @@ You call tools only. Never dispatch subagents.
 |------|---------|
 | `story-state` | Read the final outline and story elements |
 | `critique-runner` | Run the 6 outline critics and collect the parsed scores |
-| `prompt-loader` | Load the arc analysis and synthesis prompts |
 
 ---
 
@@ -83,51 +82,21 @@ Execute these steps sequentially.
 
 > Do not call `parse-scores` in this workflow. `run-critics` already returns parsed `critic_results` and `overall_average`. The standalone `parse-scores` operation only accepts a single `criticType` and `responseText` pair.
 
-### Step 3 - Arc Distribution Analysis
+### Step 3 - Arc Analysis
 
-1. Call `prompt-loader` with:
-   - `promptId`: `"outline_arc/arc_distribution"`
-   - `variables`: `{ "outline": outline_text }`
+1. Call `critique-runner` with:
+   - `operation`: `"run-arc-analysis"`
+   - `name`: story name
+   - `content`: `outline_text`
+   - `criticSummary`: `critic_summary`
 
-2. Use the loaded prompt as a direct reasoning step to generate the arc distribution analysis.
+2. Read the structured response and record:
+   - `arc_assessment` from `data.arc_assessment`
+   - `verdict_code` from `data.verdict_code` (one of: `strong`, `minor_concerns`, `significant_issues`)
+   - `arc_distribution` from `data.arc_distribution`
+   - `promise_payoff` from `data.promise_payoff`
 
-3. Store the result as `arc_distribution_result`.
-
-### Step 4 - Promise/Payoff Analysis
-
-1. Call `prompt-loader` with:
-   - `promptId`: `"outline_arc/promise_payoff"`
-   - `variables`: `{ "outline": outline_text }`
-
-2. Use the loaded prompt as a direct reasoning step to generate the promise/payoff analysis.
-
-3. Store the result as `promise_payoff_result`.
-
-### Step 5 - Synthesize Assessment
-
-1. Call `prompt-loader` with:
-   - `promptId`: `"outline_arc/arc_synthesis"`
-   - `variables`:
-     - `"outline"`: `outline_text`
-     - `"critic_summary"`: `critic_summary`
-     - `"arc_distribution"`: `arc_distribution_result`
-     - `"promise_payoff"`: `promise_payoff_result`
-
-2. Use the loaded prompt as a direct reasoning step to generate the final dramatic arc assessment.
-
-3. Store the result as `arc_assessment`.
-
-4. Extract the reviewer verdict from the `### Reviewer Verdict` section and normalize it to one of these codes:
-   - `strong`
-   - `minor_concerns`
-   - `significant_issues`
-
-   Map the verdict lines as follows:
-   - `✅ Strong arc - proceed to generation` -> `strong`
-   - `⚠️ Minor arc concerns - review recommendations before proceeding` -> `minor_concerns`
-   - `❌ Significant arc issues - consider re-generating outline with feedback` -> `significant_issues`
-
-### Step 6 - Return Result
+### Step 4 - Return Result
 
 Return this structured result to the orchestrator:
 
@@ -142,8 +111,8 @@ Return this structured result to the orchestrator:
     "literary-fiction-reviewer": 80,
     "publishing-acquisitions-editor": 86,
     "subject-expert": 81
-  },
-  "verdict": "minor_concerns"
+   },
+   "verdict_code": "minor_concerns"
 }
 ```
 

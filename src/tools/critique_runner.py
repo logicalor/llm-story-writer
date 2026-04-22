@@ -23,7 +23,7 @@ if _src_path not in sys.path:
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
-from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
+from src.tools._io import _validate_story_name  # noqa: E402
 
 OUTLINE_CRITIC_TYPES = [
     "audiobook-producer",
@@ -190,7 +190,9 @@ def cmd_run_critics(
         for step in savepoint_steps:
             if _has_savepoint(repo, step):
                 data = _load_savepoint(repo, step)
-                content = data if isinstance(data, str) else json.dumps(data, default=str)
+                content = (
+                    data if isinstance(data, str) else json.dumps(data, default=str)
+                )
                 break
 
         if content is None:
@@ -283,7 +285,9 @@ def cmd_should_refine(
     average_scores: dict[str, float] = data.get("average_scores", {})
     overall_average: float = data.get("overall_average", 0.0)
 
-    any_criterion_low = any(score < criterion_floor for score in average_scores.values())
+    any_criterion_low = any(
+        score < criterion_floor for score in average_scores.values()
+    )
     # overall_average is raw score sum (max 100) — effectively a percentage
     overall_low = overall_average < quality_threshold
 
@@ -356,6 +360,90 @@ def cmd_generate_feedback(name: str, iteration: int, *, mode: str = "outline") -
     _success("generate-feedback", {"feedback": feedback})
 
 
+def cmd_run_arc_analysis(
+    name: str,
+    content: str,
+    critic_summary: str = "",
+    *,
+    model: str | None = None,
+) -> None:
+    """Run the three arc analysis prompts and return a structured assessment."""
+    story_dir = _validate_story_name(name)
+    if not story_dir.exists():
+        _error(f"story not found: {name}")
+
+    repo = _make_repo(name)
+
+    # Step 1: Arc distribution analysis
+    arc_dist_prompt = _load_prompt("outline_arc/arc_distribution", {"outline": content})
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an expert story structure analyst. "
+                "Analyse the outline carefully and follow the exact format specified."
+            ),
+        },
+        {"role": "user", "content": arc_dist_prompt},
+    ]
+    arc_distribution = _call_llm_messages(messages, model=model)
+    _save_savepoint(repo, "arc_distribution", arc_distribution)
+
+    # Step 2: Promise/payoff analysis
+    promise_prompt = _load_prompt("outline_arc/promise_payoff", {"outline": content})
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an expert story structure analyst. "
+                "Analyse the outline carefully and follow the exact format specified."
+            ),
+        },
+        {"role": "user", "content": promise_prompt},
+    ]
+    promise_payoff = _call_llm_messages(messages, model=model)
+    _save_savepoint(repo, "arc_promise_payoff", promise_payoff)
+
+    # Step 3: Synthesis
+    synthesis_prompt = _load_prompt(
+        "outline_arc/arc_synthesis",
+        {
+            "outline": content,
+            "critic_summary": critic_summary,
+            "arc_distribution": arc_distribution,
+            "promise_payoff": promise_payoff,
+        },
+    )
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an expert story structure analyst. "
+                "Analyse the outline carefully and follow the exact format specified."
+            ),
+        },
+        {"role": "user", "content": synthesis_prompt},
+    ]
+    arc_assessment = _call_llm_messages(messages, model=model)
+    _save_savepoint(repo, "arc_assessment", arc_assessment)
+
+    verdict_code = "significant_issues"
+    if "✅" in arc_assessment or "Strong arc" in arc_assessment:
+        verdict_code = "strong"
+    elif "⚠️" in arc_assessment or "Minor arc concerns" in arc_assessment:
+        verdict_code = "minor_concerns"
+
+    _success(
+        "run-arc-analysis",
+        {
+            "arc_assessment": arc_assessment,
+            "verdict_code": verdict_code,
+            "arc_distribution": arc_distribution,
+            "promise_payoff": promise_payoff,
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -366,7 +454,13 @@ def main() -> None:
     parser.add_argument(
         "--operation",
         required=True,
-        choices=["run-critics", "parse-scores", "should-refine", "generate-feedback"],
+        choices=[
+            "run-critics",
+            "parse-scores",
+            "should-refine",
+            "generate-feedback",
+            "run-arc-analysis",
+        ],
         help="Operation to perform",
     )
     parser.add_argument(
@@ -399,6 +493,11 @@ def main() -> None:
         help="Minimum allowed per-criterion score for should-refine",
     )
     parser.add_argument("--model", help="Override LLM model identifier")
+    parser.add_argument(
+        "--critic-summary",
+        default="",
+        help="Optional critic summary for arc synthesis",
+    )
 
     args = parser.parse_args()
     op = args.operation
@@ -433,6 +532,17 @@ def main() -> None:
         if not args.name:
             _error("--name required for generate-feedback", exit_code=2)
         cmd_generate_feedback(args.name, args.iteration, mode=args.mode)
+    elif op == "run-arc-analysis":
+        if not args.name:
+            _error("--name required for run-arc-analysis", exit_code=2)
+        if not args.content:
+            _error("--content required for run-arc-analysis", exit_code=2)
+        cmd_run_arc_analysis(
+            args.name,
+            args.content,
+            args.critic_summary,
+            model=args.model,
+        )
 
 
 if __name__ == "__main__":
