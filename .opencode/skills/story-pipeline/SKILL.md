@@ -118,20 +118,21 @@ Key behaviours:
 
 Entity types created during population: characters, locations, events, factions, items, plot threads, timelines, world rules, themes, relationships.
 
-### Phase 7: Per-Chapter Loop
+### Phase 7: Chapter Expansion + Per-Chapter Loop
 
-Executes for each chapter from 1 to `wanted_chapters`.
+Phase 7 begins with a single delegated outline-expansion pass, then executes the remaining sub-phases per chapter from 1 to `wanted_chapters`.
 
 | Sub-phase | Purpose | Tools / Subagents |
 |-----------|---------|-------------------|
-| **7a** Expand outline | Break chapter outline into scene-level detail | `outline-generator`, `story-state` |
+| **7a** Expand outline | Delegate full chapter-outline expansion loop and continuitySummary threading | `chapter-outline-expander` subagent |
 | **7b** Scene generation | Generate scenes sequentially with wiki context | `chapter-writer` subagent, `wiki-snapshot` |
 | **7c** Wiki update | Record new facts, state changes, events | `wiki-maintainer` subagent |
 | **7d** Recap | Generate chapter recap | `recap-manager` |
 | **7e** Wiki lint | Check chapter consistency against wiki | `wiki-lint` |
 | **7f** Quality eval | Critique + revision loop | `critique-runner` |
+| **7g** Handoff artifact | Generate structured per-chapter continuity handoff in story state | `prompt-loader`, `story-state` |
 | **7.5** Prose scrub | Sentence and paragraph-level prose cleanup | `prose-scrubber` subagent |
-| **7g** Savepoint | Persist chapter completion | `savepoint-mgr` |
+| **7h** Savepoint | Persist chapter completion | `savepoint-mgr` |
 
 ### Phase 8: Assembly
 
@@ -157,19 +158,20 @@ Executes for each chapter from 1 to `wanted_chapters`.
 
 ## Subagents
 
-The pipeline uses seven subagents for specialised creative work. The `story-orchestrator` dispatches these by name via OpenCode delegation.
+The pipeline uses eight subagents for specialised creative work. The `story-orchestrator` dispatches these by name via OpenCode delegation.
 
 | Subagent | Purpose | Invoked In |
 |----------|---------|------------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 |
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 |
+| `chapter-outline-expander` | Expands all chapter outlines (Phase 7a); manages continuitySummary threading | Phase 7a |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
 | `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f |
 | `prose-scrubber` | Run the Phase 7.5 sentence/paragraph scrub pass for a single chapter | Phase 7.5 |
 | `final-editor` | Run the Phase 9 post-assembly voice, pacing, and coherence pass | Phase 9 |
 
-**These are the only seven subagents the orchestrator may dispatch.** Do not dispatch built-in or external agents for any reason outside the pipeline phases above.
+**These are the only eight subagents the orchestrator may dispatch.** Do not dispatch built-in or external agents for any reason outside the pipeline phases above.
 
 ---
 

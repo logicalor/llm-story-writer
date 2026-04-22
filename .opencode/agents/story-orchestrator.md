@@ -118,28 +118,21 @@ Execute these phases sequentially. Each phase completes fully before the next be
    - Generate L1/L2/L3 detail levels for each page ([ADR 005](../../docs/planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md))
 2. Create savepoint: `wiki_populated`
 
-### Phase 7: Per-Chapter Loop
+### Phase 7: Chapter Expansion + Per-Chapter Loop
 
-**Purpose:** Generate each chapter through the scene generation pipeline.
+**Purpose:** Expand all chapter outlines once, then generate each chapter through the scene generation pipeline.
 
-Iterate from chapter 1 to `wanted_chapters`:
+#### 7a. Dispatch chapter-outline-expander
 
-#### 7a. Expand Chapter Outline
+Dispatch `chapter-outline-expander` with:
+- `story_name`: story name
+- `wanted_chapters`: total chapter count
+- `expand_outline`: the `expand_outline` config value
+- `model`: model config if set
 
-If `expand_outline` is true:
-1. Load the chapter's outline entry via `story-state`
-2. Call `outline-generator` with:
-   - `operation`: `"expand-chapter"`
-   - `name`: story name
-   - `chunkStart`: N (current chapter number)
-   - `chunkEnd`: N (same as chunkStart — single chapter at a time)
-   - `totalChapters`: `wanted_chapters` (from config)
-   - `continuitySummary`: (optional) continuity analysis from the previous chapter's expand-chapter call, if available
-3. Parse the JSON response:
-   - Extract `data.chunk_outline` as the expanded outline for this chapter.
-   - Extract `data.continuity_analysis` and retain it for the next chapter's Phase 7a call as the `continuitySummary` parameter.
-4. Store the expanded outline via `story-state`
-5. Store it under key `chapters.{N}.expanded_outline` where N is the current chapter number.
+The subagent owns the full `expand-chapter` loop and returns when all outlines are expanded or `expand_outline` is false.
+
+After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases 7b through 7g, 7.5, and 7h.
 
 #### 7b. Scene Generation
 
@@ -205,6 +198,25 @@ If `enable_chapter_revisions` is true:
 
    This ensures the wiki, recap, and lint all reflect the final revised chapter, not a superseded draft.
 
+#### 7g. Generate Chapter Handoff Artifact
+
+After the chapter is accepted (7f) and post-processing is complete:
+
+1. Load the handoff generation prompt via `prompt-loader:load` using `promptId: "chapters/generate_handoff"`
+2. Substitute variables:
+   - `CHAPTER_NUMBER`: current chapter number as a string
+   - `CHAPTER_OUTLINE`: read `chapters.{N}.expanded_outline` from `story-state`
+   - `CHAPTER_TITLE`: the chapter title
+   - `STORY_TITLE`: the story title
+3. Generate the structured handoff JSON using the loaded prompt as a direct reasoning step — do not dispatch a subagent
+4. Write the result to `story-state` with:
+   - `operation`: `"write"`
+   - `name`: story name
+   - `field`: `"chapters.{N}.handoff"`
+   - `value`: the generated JSON object string
+
+The handoff artifact is consumed by `chapter-outline-expander` in the next chapter's Phase 7a to supplement `continuitySummary` with structured continuity state.
+
 ### Phase 7.5 — Prose Scrub (conditional)
 
 If `enable_scrubbing: true` in config:
@@ -214,7 +226,7 @@ If `enable_scrubbing: true` in config:
 
 If `enable_scrubbing: false`: skip this phase.
 
-#### 7g. Chapter Savepoint
+#### 7h. Chapter Savepoint
 
 1. Create savepoint: `chapter_{N}_complete` (e.g., `chapter_1_complete`, `chapter_12_complete`)
 
@@ -269,13 +281,14 @@ Delegate specialised creative work to these subagents (referenced by name):
 |----------|---------|-------------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 |
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 |
+| `chapter-outline-expander` | Expand all chapter outlines and manage continuitySummary threading | Phase 7a |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
 | `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f |
 | `prose-scrubber` | Sentence/paragraph-level prose quality (adverbs, filter words, show-vs-tell) | Phase 7.5, when `enable_scrubbing: true` |
 | `final-editor` | Post-assembly chapter-by-chapter prose pass (voice, pacing, coherence) | Phase 9, when `enable_final_edit: true` |
 
-**These are the only seven subagents you may dispatch: `outline-planner`, `character-sheet-generator`, `chapter-writer`, `wiki-maintainer`, `quality-reviewer`, `prose-scrubber`, and `final-editor`.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
+**These are the only eight subagents you may dispatch: `outline-planner`, `character-sheet-generator`, `chapter-outline-expander`, `chapter-writer`, `wiki-maintainer`, `quality-reviewer`, `prose-scrubber`, and `final-editor`.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
 
 ---
 
@@ -292,7 +305,7 @@ Savepoints capture the full pipeline state at key milestones, enabling resume af
 | `characters_complete` | Phase 5 completes (all character sheets generated) |
 | `settings_complete` | Phase 5 completes (all setting sheets generated) |
 | `wiki_populated` | Phase 6 completes (wiki initial population done) |
-| `chapter_{N}_complete` | Phase 7g per chapter (e.g., `chapter_1_complete`) |
+| `chapter_{N}_complete` | Phase 7h per chapter (e.g., `chapter_1_complete`) |
 | `story_complete` | Phase 8 completes (final assembly done) |
 
 **Resuming from a savepoint:**

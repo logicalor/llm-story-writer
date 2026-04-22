@@ -319,6 +319,123 @@ class TestSecurity:
         assert "escapes" in result.stderr
 
 
+class TestChapterHandoff:
+    def test_write_and_read_chapter_handoff(self, story_dir: Path) -> None:
+        _run_tool("--operation", "init", "--name", "handoff", stories_dir=story_dir)
+        handoff_data = json.dumps(
+            {
+                "resolved_beats": ["Beacon activated", "Crew regroups"],
+                "obligations": ["Decode signal", "Repair antenna"],
+                "active_tensions": ["Trust fracture", "Storm closing in"],
+                "timeline": {
+                    "start": "Day 3 08:00",
+                    "end": "Day 3 10:30",
+                    "duration": "2h30m",
+                },
+                "character_deltas": [
+                    {"character": "Mara", "change": "Commits to lead rescue"},
+                    {"character": "Ivo", "change": "Admits beacon sabotage"},
+                ],
+            }
+        )
+
+        write_result = _run_tool(
+            "--operation",
+            "write",
+            "--name",
+            "handoff",
+            "--field",
+            "chapters.1.handoff",
+            "--value",
+            handoff_data,
+            stories_dir=story_dir,
+        )
+        assert write_result.returncode == 0, f"stderr: {write_result.stderr}"
+
+        read_result = _run_tool(
+            "--operation",
+            "read",
+            "--name",
+            "handoff",
+            "--field",
+            "chapters.1.handoff",
+            stories_dir=story_dir,
+        )
+        assert read_result.returncode == 0, f"stderr: {read_result.stderr}"
+        assert json.loads(read_result.stdout) == json.loads(handoff_data)
+
+    def test_missing_handoff_returns_none_or_error(self, story_dir: Path) -> None:
+        _run_tool(
+            "--operation", "init", "--name", "missing-handoff", stories_dir=story_dir
+        )
+        result = _run_tool(
+            "--operation",
+            "read",
+            "--name",
+            "missing-handoff",
+            "--field",
+            "chapters.1.handoff",
+            stories_dir=story_dir,
+        )
+        if result.returncode == 0:
+            assert json.loads(result.stdout) is None
+        else:
+            assert result.returncode == 1
+            assert "field not found" in result.stderr.lower()
+
+    def test_handoff_json_structure_preserved(self, story_dir: Path) -> None:
+        _run_tool(
+            "--operation", "init", "--name", "structure-handoff", stories_dir=story_dir
+        )
+        handoff_data = {
+            "resolved_beats": ["Alarm silenced", "Archive opened"],
+            "obligations": ["Brief captain", "Secure archive key"],
+            "active_tensions": ["Crew panic", "Power drain"],
+            "timeline": {
+                "start": "Night 4 21:15",
+                "end": "Night 4 22:05",
+                "duration": "50m",
+            },
+            "character_deltas": [
+                {"character": "Sen", "change": "Stops hiding map fragment"},
+                {"character": "Tavi", "change": "Accepts station command"},
+            ],
+        }
+
+        write_result = _run_tool(
+            "--operation",
+            "write",
+            "--name",
+            "structure-handoff",
+            "--field",
+            "chapters.1.handoff",
+            "--value",
+            json.dumps(handoff_data),
+            stories_dir=story_dir,
+        )
+        assert write_result.returncode == 0, f"stderr: {write_result.stderr}"
+
+        read_result = _run_tool(
+            "--operation",
+            "read",
+            "--name",
+            "structure-handoff",
+            "--field",
+            "chapters.1.handoff",
+            stories_dir=story_dir,
+        )
+        assert read_result.returncode == 0, f"stderr: {read_result.stderr}"
+
+        read_value = json.loads(read_result.stdout)
+        assert set(read_value) == {
+            "resolved_beats",
+            "obligations",
+            "active_tensions",
+            "timeline",
+            "character_deltas",
+        }
+
+
 class TestArgparse:
     def test_missing_operation(self) -> None:
         result = _run_tool()
