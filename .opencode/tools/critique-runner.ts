@@ -8,7 +8,13 @@ export default tool({
     "Run critics against story content, parse scores, check quality thresholds, and generate feedback",
   args: {
     operation: z
-      .enum(["run-critics", "parse-scores", "should-refine", "generate-feedback"])
+      .enum([
+        "run-critics",
+        "parse-scores",
+        "should-refine",
+        "generate-feedback",
+        "run-arc-analysis",
+      ])
       .describe("Operation to perform"),
     name: z
       .string()
@@ -47,6 +53,10 @@ export default tool({
         "Minimum per-criterion score percentage for should-refine (default: 75.0)"
       ),
     model: z.string().optional().describe("Override LLM model identifier"),
+    criticSummary: z
+      .string()
+      .optional()
+      .describe("Optional critic summary for arc synthesis (run-arc-analysis)"),
   },
   execute: async ({
     operation,
@@ -59,6 +69,7 @@ export default tool({
     qualityThreshold,
     criterionFloor,
     model,
+    criticSummary,
   }: {
     operation: string;
     name?: string;
@@ -70,6 +81,7 @@ export default tool({
     qualityThreshold?: number;
     criterionFloor?: number;
     model?: string;
+    criticSummary?: string;
   }) => {
     const projectRoot = resolve(__dirname, "../..");
     const args = [
@@ -104,6 +116,9 @@ export default tool({
     }
     if (model) {
       args.push("--model", model);
+    }
+    if (criticSummary !== undefined) {
+      args.push("--critic-summary", criticSummary);
     }
 
     try {

@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import src.tools.critique_runner as cr
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TOOL_SCRIPT = str(PROJECT_ROOT / "src" / "tools" / "critique_runner.py")
@@ -486,3 +487,85 @@ def test_character_voice_prompt_prefix() -> None:
     from tools.critique_runner import _prompt_prefix
 
     assert _prompt_prefix("character-voice") == "chapter_review"
+
+
+# ---------------------------------------------------------------------------
+# run-arc-analysis tests
+# ---------------------------------------------------------------------------
+
+
+def test_run_arc_analysis_missing_name_error() -> None:
+    """run-arc-analysis without --name exits with argparse-style validation error."""
+    result = _run_tool(
+        "--operation",
+        "run-arc-analysis",
+        "--content",
+        "some outline",
+    )
+    assert result.returncode == 2
+    assert "--name" in result.stderr or "name" in result.stderr.lower()
+
+
+def test_run_arc_analysis_missing_content_error(
+    story_env: tuple[Path, str],
+) -> None:
+    """run-arc-analysis without --content exits with argparse-style validation error."""
+    stories_dir, story_name = story_env
+    result = _run_tool(
+        "--operation",
+        "run-arc-analysis",
+        "--name",
+        story_name,
+        stories_dir=stories_dir,
+    )
+    assert result.returncode == 2
+    assert "--content" in result.stderr or "content" in result.stderr.lower()
+
+
+def test_run_arc_analysis_returns_structured_result(
+    story_env: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Direct call with monkeypatched LLM and prompt loader returns structured result."""
+    stories_dir, story_name = story_env
+    monkeypatch.setattr(cr, "_validate_story_name", lambda _name: stories_dir / story_name)
+    monkeypatch.setattr(cr, "_load_prompt", lambda *_a, **_kw: "mock prompt text")
+
+    call_count = 0
+
+    def fake_llm(messages: list, *, model: str | None = None) -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return "Arc distribution analysis result."
+        if call_count == 2:
+            return "Promise payoff analysis result."
+        return (
+            "## Dramatic Arc Assessment\n\n"
+            "### Reviewer Verdict\n"
+            "Reviewer Verdict: ✅ Strong arc - proceed to generation"
+        )
+
+    monkeypatch.setattr(cr, "_call_llm_messages", fake_llm)
+
+    import contextlib
+    import io
+
+    captured = io.StringIO()
+    with contextlib.redirect_stdout(captured):
+        try:
+            cr.cmd_run_arc_analysis(story_name, "The outline content.", "Critic: 85/100")
+        except SystemExit:
+            pass
+
+    output = captured.getvalue()
+    assert output.strip(), "Expected JSON output"
+    data = json.loads(output)
+
+    assert data["status"] == "success"
+    assert data["operation"] == "run-arc-analysis"
+    assert "arc_assessment" in data["data"]
+    assert "verdict_code" in data["data"]
+    assert "arc_distribution" in data["data"]
+    assert "promise_payoff" in data["data"]
+    assert data["data"]["verdict_code"] == "strong"
+    assert call_count == 3
