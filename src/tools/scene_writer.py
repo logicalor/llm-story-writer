@@ -75,11 +75,11 @@ def _load_story_state(name: str) -> dict[str, Any]:
     state_path = story_dir / "state.json"
     if not state_path.exists():
         return {}
-    try:
-        with open(state_path) as f:
+    with open(state_path) as f:
+        try:
             return json.load(f)
-    except json.JSONDecodeError:
-        return {}
+        except json.JSONDecodeError as exc:
+            _error(f"state.json is corrupt and cannot be read: {exc}")
 
 
 def _get_state_field(state: dict[str, Any], field: str) -> Any:
@@ -375,6 +375,11 @@ def cmd_generate_chapter(
 
     if _has_savepoint(repo, step):
         content = _load_savepoint(repo, step)
+        state = _load_story_state(name)
+        story_dir = _validate_story_name(name, base_dir=STORIES_DIR)
+        state_path = story_dir / "state.json"
+        _set_nested(state, f"chapters.{chapter_num}.content", content)
+        _write_state_atomic(state_path, state)
         _success("generate-chapter", content)
         return
 
