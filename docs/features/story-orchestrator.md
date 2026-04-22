@@ -37,32 +37,41 @@ The pipeline executes nine primary phases sequentially, with an additional condi
 | 4 | Wiki Init | Create wiki directory structure and schema | — |
 | 5 | Characters & Settings | Generate character and setting sheets via `character-sheet-generator` | `characters_complete`, `settings_complete` |
 | 6 | Wiki Population | Populate wiki with entity pages from outline + sheets via `wiki-maintainer` | `wiki_populated` |
-| 7 | Per-Chapter Loop | Expand outline → scene gen → wiki update → recap → lint → quality evaluation | `chapter_{N}_complete` |
+| 7 | Chapter Expansion + Per-Chapter Loop | Dispatch outline expansion once, then run scene gen → wiki update → recap → lint → quality evaluation → handoff generation for each chapter | `chapter_{N}_complete` |
 | 7.5 | Prose Scrub | Run `prose-scrubber` for sentence and paragraph-level cleanup when enabled | `chapter_{N}_scrubbed` |
 | 8 | Assembly | Combine all chapters into the assembled manuscript | `story_complete` |
 | 9 | Final Edit | Run `final-editor` across assembled chapters when enabled | `final_edit_complete` |
 
-### Per-Chapter Loop (Phase 7)
+### Phase 7 Structure
 
-Each chapter passes through eight sub-phases when scrubbing is enabled:
+Phase 7 now has two layers:
+
+- **Phase 7a** runs once before chapter drafting starts. The orchestrator dispatches `chapter-outline-expander`, which expands all chapter outlines in one dedicated pass and manages rolling continuity internally.
+- **Per-chapter loop** then runs for each chapter from 1 to `wanted_chapters`.
+
+After the one-time Phase 7a dispatch, each chapter passes through seven core sub-phases, plus the conditional prose scrub:
 
 ```
-┌──────────────┐   ┌─────────────┐   ┌────────────────┐   ┌───────────┐
-│ Expand       │──▶│ Scene Gen   │──▶│ Wiki Update    │──▶│ Recap     │
-│ Outline (7a) │   │ (7b)        │   │ (7c)           │   │ (7d)      │
-└──────────────┘   └─────────────┘   └────────────────┘   └───────────┘
-                                                                │
-      ┌─────────────────────────────────────────────────────────┘
-      │
-┌───────────┐   ┌──────────────────────────────┐   ┌──────────────┐   ┌───────────────────┐
-│ Wiki Lint │──▶│ Quality Evaluation (7f)      │──▶│ Prose Scrub  │──▶│ Chapter Savepoint │
-│ (7e)      │   │ via quality-reviewer         │   │ (7.5)        │   │ (7g)              │
-└───────────┘   └──────────────────────────────┘   └──────────────┘   └───────────────────┘
+┌─────────────┐   ┌────────────────┐   ┌───────────┐   ┌───────────┐
+│ Scene Gen   │──▶│ Wiki Update    │──▶│ Recap     │──▶│ Wiki Lint │
+│ (7b)        │   │ (7c)           │   │ (7d)      │   │ (7e)      │
+└─────────────┘   └────────────────┘   └───────────┘   └───────────┘
+                                                              │
+      ┌───────────────────────────────────────────────────────┘
+      ▼
+┌──────────────────────────────┐   ┌──────────────┐   ┌──────────────┐   ┌───────────────────┐
+│ Quality Evaluation (7f)      │──▶│ Handoff      │──▶│ Prose Scrub  │──▶│ Chapter Savepoint │
+│ via quality-reviewer         │   │ Gen (7h)     │   │ (7.5)        │   │ (7g)              │
+└──────────────────────────────┘   └──────────────┘   └──────────────┘   └───────────────────┘
 ```
 
 Chapters are generated sequentially because each chapter's wiki updates inform the next chapter's context.
 
+Phase 7a no longer keeps `continuitySummary` inside the orchestrator's working memory. That state now lives inside `chapter-outline-expander`, which can also read the prior chapter's structured handoff artifact from story state.
+
 Phase 7f dispatches the `quality-reviewer` subagent instead of running the critique/revision loop inline. The subagent owns scoring, refinement decisions, feedback generation, and revision for one chapter, then returns a structured result to the orchestrator. When `requires_post_processing` is `true`, the orchestrator re-runs Phases 7c, 7d, and 7e so the wiki, recap, and lint outputs reflect the final accepted chapter text.
+
+Phase 7h runs after the chapter is accepted and any required post-processing is complete. The orchestrator loads `prompts/chapters/generate_handoff.md`, generates one structured JSON handoff artifact inline, and writes it to `story-state` at `chapters.{N}.handoff`. That artifact captures continuity state for the next chapter expansion pass: resolved beats, obligations, active tensions, timeline movement, and character deltas.
 
 Phase 7.5 dispatches `prose-scrubber` only after the chapter has passed the quality gate. The scrubber operates at sentence and paragraph scope, writes the revised chapter text back to story state, and creates a `chapter_{N}_scrubbed` savepoint before the orchestrator records `chapter_{N}_complete`. Because the scrubber is constrained to prose-only edits, the orchestrator does not re-run wiki update, recap generation, or lint after this pass.
 
@@ -85,9 +94,11 @@ The wiki follows a lifecycle synchronised with the pipeline:
 |-------|-----------------|
 | Phase 4 | `wiki-init` creates directory structure and `_schema.md` |
 | Phase 6 | `wiki-maintainer` subagent populates pages for all entities from outline + sheets |
+| Phase 7a | `chapter-outline-expander` reads prior handoff state, expands all chapter outlines, and writes `chapters.{N}.expanded_outline` |
 | Phase 7b | `wiki-snapshot` assembles token-budgeted context for each scene generation prompt |
 | Phase 7c | `wiki-maintainer` subagent extracts and records new facts from the generated chapter |
 | Phase 7e | `wiki-lint` checks chapter consistency against the wiki |
+| Phase 7h | Orchestrator writes `chapters.{N}.handoff` for downstream continuity planning |
 | Phase 7.5 | No wiki mutation; `prose-scrubber` is prose-only and must preserve facts |
 | Phase 9 | No wiki mutation; `final-editor` polishes prose after assembly without changing entity state |
 
@@ -95,12 +106,13 @@ After Phase 6, the wiki is the **authoritative source of truth** for world state
 
 ## Subagents
 
-The orchestrator delegates specialised work to seven subagents:
+The orchestrator delegates specialised work to eight subagents:
 
 | Subagent | Purpose | Invoked In | Status |
 |----------|---------|------------|--------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 | Implemented (PR #64) |
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 | Implemented |
+| `chapter-outline-expander` | Expand all chapter outlines and manage rolling continuity state | Phase 7a | Implemented (PR #129) |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b | Implemented (PR #63) |
 | `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 6, 7c | Implemented (PR #65) |
 | `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f | Implemented (PR #127) |
@@ -136,6 +148,18 @@ The agent uses three skills:
 - **context-budgeting** — token budget strategy, three-stage retrieval pipeline reference, composite scoring formula, detail level allocation, and delta caching strategy
 
 Named `chapter-writer` (not `scene-writer`) to avoid collision with the existing `scene-writer` tool. See the [agent definition](../../.opencode/agents/chapter-writer.md) for the full workflow, savepoint strategy, and error handling.
+
+### chapter-outline-expander
+
+The `chapter-outline-expander` subagent handles Phase 7a — the one-time outline expansion pass that runs before chapter drafting begins. It receives the story name, total chapter count, `expand_outline` flag, and optional model override, then:
+
+1. Skips cleanly when outline expansion is disabled in config
+2. Loops from chapter 1 to `wanted_chapters`, calling `outline-generator` with `expand-chapter`
+3. Threads `continuitySummary` internally instead of keeping it in orchestrator memory
+4. Reads `chapters.{N-1}.handoff` from story state when available and prepends that structured continuity state to the next expansion request
+5. Writes each expanded outline to `chapters.{N}.expanded_outline` and records expansion progress savepoints
+
+The agent calls tools only and never dispatches subagents, preserving the depth-1 rule. Its main output is a complete set of expanded chapter outlines plus persisted continuity state for downstream chapter generation. See the [feature doc](./chapter-outline-expander.md) and the [agent definition](../../.opencode/agents/chapter-outline-expander.md) for the full contract.
 
 ### outline-planner
 
@@ -251,6 +275,7 @@ A savepoint contains:
 - Wiki directory snapshot
 - Character and setting sheets
 - Generated recaps
+- Chapter handoff artifacts stored under `chapters.{N}.handoff`
 - Pipeline position (which phase/step completed)
 
 ### Resume Mapping
