@@ -541,6 +541,19 @@ def test_voice_analyze_empty_issues(
     assert out["data"]["issues"] == []
 
 
+def test_voice_analyze_json_parse_error_exits(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mock invalid voice response. Verify command exits on parse failure."""
+    _stories_dir, name = patched_env
+
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: "not json")
+
+    with pytest.raises(SystemExit):
+        sw.cmd_voice_analyze(name, 1, "Chapter text", model="test")
+
+
 # ---------------------------------------------------------------------------
 # 16. test_scrub_analyze_cli_missing_chapter_text
 # ---------------------------------------------------------------------------
