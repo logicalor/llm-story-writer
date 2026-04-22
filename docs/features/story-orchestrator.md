@@ -44,7 +44,7 @@ The pipeline executes ten primary phases sequentially, with an additional condit
 | 4 | Wiki Init | Create wiki directory structure and schema | — |
 | 5 | Characters & Settings | Generate character and setting sheets via `character-sheet-generator` | `characters_complete`, `settings_complete` |
 | 6 | Wiki Population | Populate wiki with entity pages from outline + sheets via `wiki-maintainer` | `wiki_populated` |
-| 7 | Chapter Expansion + Per-Chapter Loop | Dispatch outline expansion once, then run scene gen → wiki update → recap → lint → quality evaluation → handoff generation for each chapter | `chapter_{N}_complete` |
+| 7 | Chapter Expansion + Per-Chapter Loop | Dispatch outline expansion once, then run scene gen → wiki update → recap → lint → quality evaluation → tool-driven handoff generation for each chapter | `chapter_{N}_complete` |
 | 7.5 | Prose Scrub | Run `prose-scrubber` for sentence and paragraph-level cleanup when enabled | `chapter_{N}_scrubbed` |
 | 8 | Assembly | Combine all chapters into the assembled manuscript | `story_complete` |
 | 9 | Final Edit | Run `final-editor` across assembled chapters when enabled | `final_edit_complete` |
@@ -80,7 +80,7 @@ Phase 7e dispatches the `consistency-checker` subagent, which runs a three-layer
 
 Phase 7f dispatches the `quality-reviewer` subagent instead of running the critique/revision loop inline. The subagent receives the assembled chapter text and the Phase 7e `consistency_report`, then owns scoring, refinement decisions, feedback generation, and revision for one chapter before returning a structured result to the orchestrator. When `requires_post_processing` is `true`, the orchestrator re-runs Phases 7c, 7d, and 7e so the wiki, recap, and consistency-check outputs reflect the final accepted chapter text.
 
-Phase 7g runs after the chapter is accepted and any required post-processing is complete. The orchestrator loads `prompts/chapters/generate_handoff.md`, generates one structured JSON handoff artifact inline, and writes it to `story-state` at `chapters.{N}.handoff`. That artifact captures continuity state for the next chapter expansion pass: resolved beats, obligations, active tensions, timeline movement, and character deltas. After writing the handoff, the orchestrator also calls `rag-query` with `contentType: "raw-chapter"` to embed the accepted chapter text into the story's ChromaDB collection, enabling cross-chapter factual analysis in subsequent `consistency-checker` invocations.
+Phase 7g runs after the chapter is accepted and any required post-processing is complete. The orchestrator delegates handoff generation to `story-assembler` with `operation: "generate-handoff"`. That tool reads `chapters.{N}.expanded_outline`, chapter title, and story title from `state.json`, renders `prompts/chapters/generate_handoff.md`, calls the LLM, validates the returned JSON, and writes the artifact to `chapters.{N}.handoff`. The resulting handoff captures continuity state for the next chapter expansion pass: resolved beats, obligations, active tensions, timeline movement, and character deltas. After the tool writes the handoff, the orchestrator still calls `rag-query` with `contentType: "raw-chapter"` to embed the accepted chapter text into the story's ChromaDB collection, enabling cross-chapter factual analysis in subsequent `consistency-checker` invocations.
 
 Phase 7.5 dispatches `prose-scrubber` only after the chapter has passed the quality gate. The scrubber operates at sentence and paragraph scope, writes the revised chapter text back to story state, and creates a `chapter_{N}_scrubbed` savepoint before the orchestrator records `chapter_{N}_complete`. Because the scrubber is constrained to prose-only edits, the orchestrator does not re-run wiki update, recap generation, or lint after this pass.
 
@@ -109,7 +109,7 @@ The wiki follows a lifecycle synchronised with the pipeline:
 | Phase 7b | `wiki-snapshot` assembles token-budgeted context for each scene generation prompt |
 | Phase 7c | `wiki-maintainer` subagent extracts and records new facts from the generated chapter |
 | Phase 7e | `consistency-checker` subagent runs three-layer consistency analysis: `wiki-lint` deterministic check, semantic wiki search, and RAG cross-chapter analysis |
-| Phase 7g | Orchestrator writes `chapters.{N}.handoff` and calls `rag-query` to embed accepted chapter text as `raw-chapter` content type |
+| Phase 7g | `story-assembler` writes `chapters.{N}.handoff`; orchestrator then calls `rag-query` to embed accepted chapter text as `raw-chapter` content type |
 | Phase 7.5 | No wiki mutation; `prose-scrubber` is prose-only and must preserve facts |
 | Phase 9 | No wiki mutation; `final-editor` polishes prose after assembly without changing entity state |
 
@@ -299,7 +299,7 @@ The orchestrator uses 16 deterministic tools for file I/O, state management, ass
 | `outline-generator` | Generate and expand story outlines |
 | `scene-writer` | Generate individual scenes |
 | `critique-runner` | Evaluate content quality and produce scores |
-| `story-assembler` | Assemble completed chapters into final story markdown |
+| `story-assembler` | Assemble completed chapters into final story markdown and generate Phase 7g chapter handoff artifacts |
 | `wiki-init` | Initialise wiki directory structure |
 | `wiki-read` | Read wiki pages by slug or type |
 | `wiki-search` | Semantic search across wiki pages |

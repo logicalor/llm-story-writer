@@ -1170,6 +1170,107 @@ For chapter critiques, passing the assembled chapter text explicitly via `conten
 
 ---
 
+## story-assembler
+
+Assembles completed chapter outputs into the final manuscript, or generates the structured handoff artifact used to carry continuity into the next chapter expansion pass.
+
+**Source files:**
+- `.opencode/tools/story-assembler.ts` — TypeScript wrapper
+- `src/tools/story_assembler.py` — Python CLI script
+- `src/tools/_llm.py` — Shared LLM client used by `generate-handoff`
+
+### Purpose
+
+`story-assembler` has two distinct responsibilities in the pipeline:
+
+- **Phase 7g** — generate `chapters.{N}.handoff` from the accepted chapter's expanded outline so later chapter expansion can inherit explicit continuity state
+- **Phase 8** — assemble all completed chapter content into `stories/<name>/output/story.md`
+
+The `generate-handoff` operation keeps prompt loading, LLM invocation, JSON parsing, and state persistence inside one deterministic tool boundary. The orchestrator now delegates the full handoff-generation step instead of loading `prompts/chapters/generate_handoff.md` inline.
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"assemble" \| "generate-handoff"` | Yes | Operation to perform |
+| `storyName` | string | Yes | Story name (maps to directory under `stories/`) |
+| `chapterNum` | number | For `generate-handoff` | Chapter number whose handoff artifact should be generated |
+| `model` | string | No | Optional model override for `generate-handoff` |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/story_assembler.py <assemble|generate-handoff> --story-name <name> [--chapter-num <N>] [--model <model>]
+```
+
+**Examples:**
+
+```bash
+# Assemble the final manuscript from completed chapters
+python3 src/tools/story_assembler.py assemble --story-name my-story
+
+# Generate a structured handoff artifact for chapter 7
+python3 src/tools/story_assembler.py generate-handoff \
+  --story-name my-story \
+  --chapter-num 7
+
+# Generate a handoff with a specific model override
+python3 src/tools/story_assembler.py generate-handoff \
+  --story-name my-story \
+  --chapter-num 7 \
+  --model gpt-4.1-mini
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `assemble` | Discovers available chapter numbers from savepoints and story state, loads chapter content, and writes a combined manuscript to `stories/<name>/output/story.md` | `{output_path, chapter_count}` |
+| `generate-handoff` | Reads `chapters.{N}.expanded_outline`, chapter title, and story title from `state.json`; renders `prompts/chapters/generate_handoff.md`; calls the LLM; validates returned JSON; and writes the result to `chapters.{N}.handoff` | `{status: "success", chapter_num, handoff_keys}` |
+
+### Handoff Generation Contract
+
+`generate-handoff` expects `chapters.{N}.expanded_outline` to exist in story state. If outline expansion has not run yet, the tool exits with a domain error.
+
+When the required state is present, the tool builds the prompt with four values:
+
+| Prompt Variable | Source |
+|-----------------|--------|
+| `CHAPTER_NUMBER` | CLI `--chapter-num` |
+| `CHAPTER_OUTLINE` | `chapters.{N}.expanded_outline` |
+| `CHAPTER_TITLE` | `chapters.{N}.title` or fallback `Chapter N` |
+| `STORY_TITLE` | `story_context.title` |
+
+The tool strips Markdown code fences from the model response before JSON parsing, then stores the parsed object at `chapters.{N}.handoff` in `state.json`.
+
+### Assembly Behavior
+
+The `assemble` operation discovers chapter numbers from both savepoints and story state, then loads chapter text from the first available source:
+
+1. `chapter_{N}_complete`
+2. `chapter_{N}/complete`
+3. `chapter_{N}`
+4. `chapters.{N}` in story state (`content`, `text`, `chapter_text`, or `assembled`)
+
+This fallback order lets Phase 8 succeed even when chapter content was persisted through different intermediate surfaces during development or recovery workflows.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — story not found, no chapter content found, missing `expanded_outline`, or invalid JSON returned by the model |
+| 2 | Argument error — missing subcommand or required flags |
+
+### Security
+
+- **Path traversal prevention** — story names are validated against the configured `stories/` root before reads or writes occur
+- **State write discipline** — `generate-handoff` updates only `chapters.{N}.handoff` through the existing atomic story-state write helpers
+- **Shell injection prevention** — the TypeScript wrapper uses `execFileSync` with an argument array, never shell interpolation
+- **Test isolation** — the `STORIES_DIR` environment variable still redirects story I/O for tests and local sandboxes
+
+---
+
 ## wiki-init
 
 Initialises a story wiki directory structure with subdirectories, schema template, index, log, and contradictions files.
