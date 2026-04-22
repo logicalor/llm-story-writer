@@ -1,10 +1,10 @@
 # Story Orchestrator Agent
 
-> The primary pipeline controller for AI-powered long-form story generation — coordinates nine primary phases plus a conditional prose-scrub pass from initial prompt through final manuscript polish.
+> The primary pipeline controller for AI-powered long-form story generation — coordinates ten primary phases plus a conditional prose-scrub pass from initial prompt through final manuscript polish.
 
 ## Overview
 
-The story orchestrator is the first agent defined in the OpenCode agentic architecture migration. It encodes the full story generation lifecycle as a nine-phase pipeline, plus a conditional Phase 7.5 prose pass, delegating specialised creative tasks to subagents while using deterministic tools for file I/O, state management, and wiki operations.
+The story orchestrator is the first agent defined in the OpenCode agentic architecture migration. It encodes the full story generation lifecycle as a ten-phase pipeline, plus a conditional Phase 7.5 prose pass, delegating specialised creative tasks to subagents while using deterministic tools for file I/O, state management, and wiki operations.
 
 The orchestrator operates in two modes:
 
@@ -13,13 +13,19 @@ The orchestrator operates in two modes:
 
 ## Pipeline Phases
 
-The pipeline executes nine primary phases sequentially, with an additional conditional Phase 7.5 prose scrub inside the per-chapter loop. Each phase completes fully before the next begins, and key phases create savepoints for resume capability.
+The pipeline executes ten primary phases sequentially, with an additional conditional Phase 7.5 prose scrub inside the per-chapter loop. Phase 2.5 inserts a dedicated dramatic arc analysis pass after the outline is finalized and before the human approval gate. Each phase completes fully before the next begins, and key phases create savepoints for resume capability.
 
 ```
-┌─────────┐   ┌─────────┐   ┌──────────┐   ┌───────────┐   ┌───────────────────┐
-│  Init   │──▶│ Outline │──▶│ Approval │──▶│ Wiki Init │──▶│ Characters +      │
-│ (1)     │   │ (2)     │   │ (3)      │   │ (4)       │   │ Settings (5)      │
-└─────────┘   └─────────┘   └──────────┘   └───────────┘   └───────────────────┘
+┌─────────┐   ┌─────────┐   ┌────────────────┐   ┌──────────┐   ┌───────────┐
+│  Init   │──▶│ Outline │──▶│ Story Planner  │──▶│ Approval │──▶│ Wiki Init │
+│ (1)     │   │ (2)     │   │ (2.5)          │   │ (3)      │   │ (4)       │
+└─────────┘   └─────────┘   └────────────────┘   └──────────┘   └───────────┘
+                                                                     │
+                                                                     ▼
+                                                      ┌───────────────────┐
+                                                      │ Characters +      │
+                                                      │ Settings (5)      │
+                                                      └───────────────────┘
                                                                          │
       ┌────────────────────────────────────────────────────────────────┘
       ▼
@@ -33,6 +39,7 @@ The pipeline executes nine primary phases sequentially, with an additional condi
 |-------|------|---------|-----------|
 | 1 | Init | Load prompt, read `config.md`, initialise story state | `init` |
 | 2 | Outline | Generate story outline; optionally critique and revise | `outline_complete` |
+| 2.5 | Narrative Arc Analysis | Dispatch `story-planner` to score the finalised outline's dramatic arc and synthesize an advisory assessment | `arc_analysis_complete` |
 | 3 | Approval | Human review gate (interactive) or auto-proceed (batch) | — |
 | 4 | Wiki Init | Create wiki directory structure and schema | — |
 | 5 | Characters & Settings | Generate character and setting sheets via `character-sheet-generator` | `characters_complete`, `settings_complete` |
@@ -84,6 +91,8 @@ The orchestrator enforces outline quality directly and delegates chapter quality
 | Outline quality | `generation.outline_quality` | 87 | `outline_max_revisions` (3) | Phase 2 |
 | Chapter quality | `generation.chapter_quality` | 85 | `chapter_max_revisions` (3) | Phase 7f |
 
+Phase 2.5 adds a second review surface before generation starts, but it is advisory rather than blocking. `story-planner` packages critic scores, arc-shape analysis, and a normalized verdict for the Phase 3 approval screen; the user decides whether to proceed or send the outline back through Phase 2.
+
 See [Prose Quality Passes](./prose-quality-passes.md) for the non-gating polish layers that run after the chapter quality gate and after assembly.
 
 ## Wiki Lifecycle
@@ -106,11 +115,12 @@ After Phase 6, the wiki is the **authoritative source of truth** for world state
 
 ## Subagents
 
-The orchestrator delegates specialised work to eight subagents:
+The orchestrator delegates specialised work to nine subagents:
 
 | Subagent | Purpose | Invoked In | Status |
 |----------|---------|------------|--------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 | Implemented (PR #64) |
+| `story-planner` | Evaluate dramatic arc quality for the finalised outline and return an advisory assessment | Phase 2.5 | Implemented (PR #130) |
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 | Implemented |
 | `chapter-outline-expander` | Expand all chapter outlines and manage rolling continuity state | Phase 7a | Implemented (PR #129) |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b | Implemented (PR #63) |
@@ -118,6 +128,22 @@ The orchestrator delegates specialised work to eight subagents:
 | `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f | Implemented (PR #127) |
 | `prose-scrubber` | Run the Phase 7.5 sentence/paragraph scrub pass for a single chapter | Phase 7.5 | Implemented (PR #128) |
 | `final-editor` | Run the Phase 9 post-assembly voice, pacing, and coherence pass | Phase 9 | Implemented (PR #128) |
+
+### story-planner
+
+The `story-planner` subagent handles Phase 2.5 between outline completion and the human approval gate. It receives the story name and outline-quality threshold from the orchestrator, then:
+
+1. Reads the finalised outline and `story_elements` from story state
+2. Extracts the working genre label from `story_elements` for arc interpretation
+3. Runs all six `outline_review/` critics through `critique-runner` in `outline` mode
+4. Loads and applies three dedicated arc prompts from `prompts/outline_arc/`:
+      - `arc_distribution` for chapter dramatic-weight analysis
+      - `promise_payoff` for setup/payoff mapping
+      - `arc_synthesis` for the final structured report
+5. Saves the synthesized report at the `arc_analysis_complete` checkpoint
+6. Returns `arc_assessment`, `overall_score`, `critic_scores`, and a normalized `verdict` (`strong`, `minor_concerns`, or `significant_issues`)
+
+The agent is depth-1 by design: it calls tools only and never dispatches nested subagents. Its output is advisory only. The orchestrator surfaces the assessment during Phase 3, but batch mode still proceeds automatically and interactive mode leaves the final decision to the user.
 
 ### character-sheet-generator
 
