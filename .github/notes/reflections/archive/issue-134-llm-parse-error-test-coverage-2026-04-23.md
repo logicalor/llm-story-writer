@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/test-writer.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Test Writer omits LLM-response JSON parse-error path tests

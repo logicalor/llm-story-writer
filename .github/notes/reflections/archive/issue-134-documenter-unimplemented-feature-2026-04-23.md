@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/documenter.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Documenter documents unimplemented feature behavior as implemented

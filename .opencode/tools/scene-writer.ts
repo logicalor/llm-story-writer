@@ -15,6 +15,7 @@ export default tool({
         "assemble-chapter",
         "scrub-analyze",
         "voice-analyze",
+        "generate-chapter",
       ])
       .describe("Operation to perform"),
     name: z.string().describe("Story name (directory under stories/)"),
@@ -100,6 +101,10 @@ export default tool({
       .string()
       .optional()
       .describe("Prior chapters summary for voice-analyze"),
+    additionalContext: z
+      .string()
+      .optional()
+      .describe("Additional context appended to base_context for generate-chapter"),
   },
   execute: async ({
     operation,
@@ -123,6 +128,7 @@ export default tool({
     model,
     chapterText,
     priorChaptersSummary,
+    additionalContext,
   }: {
     operation: string;
     name: string;
@@ -145,6 +151,7 @@ export default tool({
     model?: string;
     chapterText?: string;
     priorChaptersSummary?: string;
+    additionalContext?: string;
   }) => {
     const projectRoot = resolve(__dirname, "../..");
     const args = [
@@ -211,6 +218,9 @@ export default tool({
     }
     if (priorChaptersSummary) {
       args.push("--prior-chapters-summary", priorChaptersSummary);
+    }
+    if (additionalContext) {
+      args.push("--additional-context", additionalContext);
     }
 
     try {

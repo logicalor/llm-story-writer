@@ -140,7 +140,7 @@ Phase 7 begins with a single delegated outline-expansion pass, then executes the
 | Sub-phase | Purpose | Tools / Subagents |
 |-----------|---------|-------------------|
 | **7a** Expand outline | Delegate full chapter-outline expansion loop and continuitySummary threading | `chapter-outline-expander` subagent |
-| **7b** Scene generation | Generate scenes sequentially with wiki context | `chapter-writer` subagent, `wiki-snapshot` |
+| **7b** Scene generation | `scene_generation_pipeline: true`: generate scenes sequentially with wiki context; `scene_generation_pipeline: false`: generate full chapter in one LLM call | `chapter-writer` + `wiki-snapshot` (`scene_generation_pipeline: true`); `scene-writer` (`generate-chapter`) (`scene_generation_pipeline: false`) |
 | **7c** Wiki update | Record new facts, state changes, events | `wiki-maintainer` subagent |
 | **7d** Recap | Generate chapter recap | `recap-manager` |
 | **7e** Consistency check | Check chapter consistency with three-layer analysis | `consistency-checker` subagent (three-layer: wiki-lint + semantic + RAG) |

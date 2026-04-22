@@ -92,6 +92,10 @@ Follow the conventions defined in `copilot-instructions.md` for language-specifi
 
 **TypeScript `data` parameter type:** TS tool wrappers that accept a JSON payload via a `data` parameter may declare it as `z.string()` (agent must pass a serialised JSON string: `data: "{}"`) or `z.object()` (agent passes an object literal: `data: {}`). These are not interchangeable — passing `{}` to `z.string()` causes a Zod validation error. Always read the `z.` declaration in the TS wrapper before documenting call examples or writing agent/skill files that include `data` call syntax.
 
+**Story state JSON loading:** When implementing `_load_story_state` helpers (or any function that reads `state.json` / chapter state files), treat `json.JSONDecodeError` as a fatal error — call `_error()` and exit. Never catch a JSON parse error and return `{}` or any other fallback value. Missing file (`state_path.exists() == False`) is expected on first run and warrants an empty-dict return; corrupt file is a data integrity failure and must surface immediately. Returning `{}` for a corrupt file silently clobbers all existing story progress on the next write.
+
+**Savepoint resume write symmetry:** When an operation writes results to story state (via `_set_nested` + `_write_state_atomic` or equivalent), its savepoint resume path must perform the same write. A resume path that loads from a savepoint and returns immediately without updating story state leaves the two stores out of sync: downstream operations reading state see a missing field even though the savepoint exists. Pattern: load content from savepoint → write to story state → return. Do not treat the resume path as "cache hit, skip side-effects" — the story-state write is not a side-effect of generation; it is a required synchronisation step.
+
 ## After Every Change
 
 Run the project's lint and type-check commands (see `copilot-instructions.md`).
