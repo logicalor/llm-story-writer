@@ -8,12 +8,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn
-
-if TYPE_CHECKING:
-    from infrastructure.storage.savepoint_repository import (
-        FilesystemSavepointRepository,
-    )
+from typing import Any, NoReturn
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -24,7 +19,14 @@ if _src_path not in sys.path:
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
+from domain.exceptions import ConfigurationError  # noqa: E402
+from infrastructure.prompts.prompt_loader import PromptLoader  # noqa: E402
+from infrastructure.storage.savepoint_repository import (  # noqa: E402
+    FilesystemSavepointRepository,
+)
 from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
+from src.tools._llm import generate_text  # noqa: E402
+from src.tools.story_state import _set_nested, _write_state_atomic  # noqa: E402
 
 CHAPTER_SAVEPOINT_PATTERNS = (
     "chapter_{chapter_num}_complete",
@@ -35,10 +37,6 @@ CHAPTER_SAVEPOINT_PATTERNS = (
 
 def _make_repo(name: str) -> FilesystemSavepointRepository:
     """Create a FilesystemSavepointRepository for the given story."""
-    from infrastructure.storage.savepoint_repository import (
-        FilesystemSavepointRepository,
-    )
-
     story_dir = _validate_story_name(name)
     repo = FilesystemSavepointRepository(base_path=story_dir)
     repo.set_story_directory("savepoints")
@@ -86,16 +84,12 @@ def _load_story_state(story_dir: Path) -> dict[str, Any]:
 
 def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str:
     """Load and render a prompt template."""
-    from infrastructure.prompts.prompt_loader import PromptLoader
-
     loader = PromptLoader(prompts_dir=str(PROJECT_ROOT / "prompts"))
     return loader.load_prompt(prompt_id, variables)
 
 
 def _call_llm(prompt: str, *, model: str | None = None) -> str:
     """Call LLM with a single prompt and return text response."""
-    from src.tools._llm import generate_text
-
     return generate_text(prompt, model=model)
 
 
@@ -259,8 +253,6 @@ def cmd_generate_handoff(
     story_context = story_state.get("story_context", {})
     story_title = story_context.get("title", "")
 
-    from domain.exceptions import ConfigurationError
-
     try:
         prompt = _load_prompt(
             "chapters/generate_handoff",
@@ -281,8 +273,6 @@ def cmd_generate_handoff(
         handoff = json.loads(cleaned)
     except json.JSONDecodeError as exc:
         _error(f"LLM returned invalid JSON for handoff: {exc}")
-
-    from src.tools.story_state import _set_nested, _write_state_atomic
 
     state_path = story_dir / "state.json"
     _set_nested(story_state, f"chapters.{chapter_num}.handoff", handoff)
