@@ -28,8 +28,18 @@ export default tool({
       .string()
       .optional()
       .describe(
-        "JSON string input (required for extract-names, generate-sheet, update-sheet)"
+        "JSON string input (required for extract-names, update-sheet; optional escape hatch for generate-sheet)"
       ),
+    additionalContext: z
+      .string()
+      .optional()
+      .describe(
+        "Extra context to inject into setting generation prompt (generate-sheet only)"
+      ),
+    model: z
+      .string()
+      .optional()
+      .describe("LLM model name for generate-sheet"),
     budget: z
       .number()
       .optional()
@@ -44,6 +54,8 @@ export default tool({
     name,
     setting,
     data,
+    additionalContext,
+    model,
     budget,
     abridged,
   }: {
@@ -51,6 +63,8 @@ export default tool({
     name: string;
     setting?: string;
     data?: string;
+    additionalContext?: string;
+    model?: string;
     budget?: number;
     abridged?: boolean;
   }) => {
@@ -68,6 +82,12 @@ export default tool({
     }
     if (data !== undefined) {
       args.push("--data", data);
+    }
+    if (additionalContext !== undefined) {
+      args.push("--additional-context", additionalContext);
+    }
+    if (model !== undefined) {
+      args.push("--model", model);
     }
     if (budget !== undefined) {
       args.push("--budget", String(budget));

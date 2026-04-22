@@ -41,8 +41,8 @@ def cmd_semantic(args: argparse.Namespace) -> None:
         print("Error: --query is required for semantic", file=sys.stderr)
         sys.exit(2)
 
-    _validate_story_name(args.name)
-    collection = _get_collection(args.name)
+    story_dir = _validate_story_name(args.name)
+    collection = _get_collection(story_dir.name)
 
     if collection is None or collection.count() == 0:
         print(json.dumps({"status": "ok", "results": []}))
@@ -92,7 +92,7 @@ def cmd_metadata(args: argparse.Namespace) -> None:
         print("Error: --where is required for metadata", file=sys.stderr)
         sys.exit(2)
 
-    _validate_story_name(args.name)
+    story_dir = _validate_story_name(args.name)
 
     try:
         where_filter = json.loads(args.where)
@@ -104,7 +104,7 @@ def cmd_metadata(args: argparse.Namespace) -> None:
         print("Error: --where must be a JSON object", file=sys.stderr)
         sys.exit(2)
 
-    collection = _get_collection(args.name)
+    collection = _get_collection(story_dir.name)
 
     if collection is None or collection.count() == 0:
         print(json.dumps({"status": "ok", "results": []}))

@@ -321,7 +321,10 @@ def test_missing_required_args(story_env: tuple[Path, str]) -> None:
         "Test",
         stories_dir=stories_dir,
     )
-    assert result.returncode == 2
+    # Without --data and without a story_elements savepoint, tool exits 1
+    # with a descriptive error (not argparse exit 2, since --data is optional).
+    assert result.returncode == 1
+    assert "story_elements" in result.stderr
 
 
 def test_extract_names_double_wrapped_json(story_env: tuple[Path, str]) -> None:

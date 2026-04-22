@@ -47,7 +47,8 @@ def _get_collection(story_name: str):  # type: ignore[no-untyped-def]
 
 def cmd_index(args: argparse.Namespace) -> None:
     """Index a piece of content into the story's ChromaDB collection."""
-    _validate_story_name(args.name)
+    story_dir = _validate_story_name(args.name)
+    story_name = story_dir.name
 
     if not args.doc_id:
         print("Error: --doc-id is required for index", file=sys.stderr)
@@ -65,10 +66,10 @@ def cmd_index(args: argparse.Namespace) -> None:
     content_type = args.content_type or "outline"
 
     try:
-        collection = _get_or_create_collection(args.name)
+        collection = _get_or_create_collection(story_name)
 
         metadata: dict[str, str | int | float | bool] = {
-            "story": args.name,
+            "story": story_name,
             "content_type": content_type,
             "doc_id": args.doc_id,
         }
@@ -90,7 +91,7 @@ def cmd_index(args: argparse.Namespace) -> None:
                 "status": "ok",
                 "indexed": args.doc_id,
                 "content_type": content_type,
-                "story": args.name,
+                "story": story_name,
             }
         )
     )
@@ -98,13 +99,14 @@ def cmd_index(args: argparse.Namespace) -> None:
 
 def cmd_query(args: argparse.Namespace) -> None:
     """Query the story's ChromaDB collection for relevant chunks."""
-    _validate_story_name(args.name)
+    story_dir = _validate_story_name(args.name)
+    story_name = story_dir.name
 
     if not args.query:
         print("Error: --query is required for query", file=sys.stderr)
         sys.exit(2)
 
-    collection = _get_collection(args.name)
+    collection = _get_collection(story_name)
 
     if collection is None or collection.count() == 0:
         print(json.dumps({"status": "ok", "results": []}))

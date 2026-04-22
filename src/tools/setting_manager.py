@@ -3,17 +3,53 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+_src_path = str(PROJECT_ROOT / "src")
+_root_path = str(PROJECT_ROOT)
+if _src_path not in sys.path:
+    sys.path.insert(0, _src_path)
+if _root_path not in sys.path:
+    sys.path.insert(0, _root_path)
 
 from src.tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
+
+
+def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str:
+    """Load and render a prompt template."""
+    from infrastructure.prompts.prompt_loader import PromptLoader
+
+    loader = PromptLoader(prompts_dir=str(PROJECT_ROOT / "prompts"))
+    return loader.load_prompt(prompt_id, variables)
+
+
+def _call_llm(prompt: str, *, model: str | None = None) -> str:
+    """Call LLM with a single prompt and return text response."""
+    from src.tools._llm import generate_text
+
+    return generate_text(prompt, model=model)
+
+
+def _load_story_elements(story_name: str) -> str | None:
+    """Load story_elements savepoint content if present."""
+    from infrastructure.storage.savepoint_repository import (
+        FilesystemSavepointRepository,
+    )
+
+    story_dir = _validate_story_name(story_name, base_dir=STORIES_DIR)
+    repo = FilesystemSavepointRepository(base_path=story_dir)
+    repo.set_story_directory("savepoints")
+    if not asyncio.run(repo.has_savepoint("story_elements")):
+        return None
+    data = asyncio.run(repo.load_savepoint("story_elements"))
+    return data if isinstance(data, str) else str(data)
 
 
 def _slugify(setting_name: str) -> str:
@@ -39,7 +75,8 @@ def _validate_setting_name(name: str, story_name: str) -> Path:
             file=sys.stderr,
         )
         sys.exit(1)
-    settings_dir = (STORIES_DIR / story_name / "settings").resolve()
+    story_dir = _validate_story_name(story_name)
+    settings_dir = (story_dir / "settings").resolve()
     setting_path = (settings_dir / f"{slug}.json").resolve()
     if not setting_path.is_relative_to(settings_dir):
         print(
@@ -86,10 +123,11 @@ def cmd_extract_names(args: argparse.Namespace) -> None:
 
 
 def cmd_generate_sheet(args: argparse.Namespace) -> None:
-    """Generate and save a setting sheet."""
-    if args.data is None:
-        print("Error: --data is required for generate-sheet", file=sys.stderr)
-        sys.exit(2)
+    """Generate and save a setting sheet.
+
+    Default mode: load prompt, call LLM, store result.
+    Escape hatch: pass --data to skip generation and store provided content directly.
+    """
     if not args.setting:
         print("Error: --setting is required for generate-sheet", file=sys.stderr)
         sys.exit(2)
@@ -97,28 +135,76 @@ def cmd_generate_sheet(args: argparse.Namespace) -> None:
     _validate_story_name(args.name)
     setting_path = _validate_setting_name(args.setting, args.name)
 
-    try:
-        data = json.loads(args.data)
-    except json.JSONDecodeError:
-        print("Error: --data is not valid JSON", file=sys.stderr)
-        sys.exit(1)
+    if args.data is not None:
+        # Escape hatch: direct storage of caller-provided content
+        try:
+            data = json.loads(args.data)
+        except json.JSONDecodeError:
+            print("Error: --data is not valid JSON", file=sys.stderr)
+            sys.exit(1)
 
-    if not isinstance(data, dict):
-        print("Error: --data must be a JSON object", file=sys.stderr)
-        sys.exit(1)
+        if not isinstance(data, dict):
+            print("Error: --data must be a JSON object", file=sys.stderr)
+            sys.exit(1)
+
+        sheet_text = data.get("sheet", "")
+        chunks = data.get("chunks", {})
+        summary = data.get("summary", "")
+    else:
+        # Default: generate sheet via LLM
+        story_elements = _load_story_elements(args.name)
+        if story_elements is None:
+            print(
+                "Error: story_elements savepoint not found — run outline generation first, or pass --data",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        additional_context = args.additional_context or ""
+        try:
+            prompt_text = _load_prompt(
+                "settings/create",
+                {
+                    "story_elements": story_elements,
+                    "setting_name": args.setting,
+                    "additional_context": additional_context,
+                },
+            )
+        except Exception as exc:
+            print(f"Error: failed to load prompt: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        try:
+            sheet_text = _call_llm(prompt_text, model=args.model)
+        except Exception as exc:
+            print(f"Error: LLM call failed: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        if not sheet_text.strip():
+            print("Error: LLM returned empty sheet content", file=sys.stderr)
+            sys.exit(1)
+
+        chunks = {}
+        summary = ""
 
     sheet_data = {
         "name": args.setting,
-        "sheet": data.get("sheet", ""),
-        "chunks": data.get("chunks", {}),
-        "summary": data.get("summary", ""),
+        "sheet": sheet_text,
+        "chunks": chunks,
+        "summary": summary,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
     _atomic_write(setting_path, json.dumps(sheet_data, indent=2))
 
     rel_path = str(setting_path.relative_to(STORIES_DIR.resolve().parent))
-    print(json.dumps({"status": "ok", "path": rel_path}, indent=2))
+    word_count = len(sheet_text.split())
+    print(
+        json.dumps(
+            {"status": "ok", "path": rel_path, "word_count": word_count},
+            indent=2,
+        )
+    )
 
 
 def cmd_update_sheet(args: argparse.Namespace) -> None:
@@ -278,7 +364,17 @@ def main() -> None:
     parser.add_argument(
         "--data",
         default=None,
-        help="JSON string input (required for extract-names, generate-sheet, update-sheet)",
+        help="JSON string input (required for extract-names, update-sheet; optional escape hatch for generate-sheet)",
+    )
+    parser.add_argument(
+        "--additional-context",
+        default=None,
+        help="Extra context to inject into setting generation prompt",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="LLM model name for generate-sheet (default: uses default model)",
     )
     parser.add_argument(
         "--budget",

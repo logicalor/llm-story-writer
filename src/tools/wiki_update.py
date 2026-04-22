@@ -211,7 +211,7 @@ def cmd_create(args: argparse.Namespace) -> None:
     _append_log(wiki_dir, f"[create] {slug}: Created {page_type} page")
 
     # ChromaDB upsert
-    _upsert_to_chromadb(args.name, slug, body, metadata)
+    _upsert_to_chromadb(story_dir.name, slug, body, metadata)
 
     print(json.dumps({"status": "ok", "slug": slug, "path": str(page_path)}))
 
@@ -309,7 +309,7 @@ def cmd_update(args: argparse.Namespace) -> None:
     _append_log(wiki_dir, f"[update] {slug}: Updated to version {metadata['version']}")
 
     # ChromaDB upsert
-    _upsert_to_chromadb(args.name, slug, body, metadata)
+    _upsert_to_chromadb(story_dir.name, slug, body, metadata)
 
     print(json.dumps({"status": "ok", "slug": slug, "version": metadata["version"]}))
 
@@ -513,7 +513,7 @@ def cmd_batch(args: argparse.Namespace) -> None:
             created_count += 1
 
             # ChromaDB upsert
-            _upsert_to_chromadb(args.name, slug, body, metadata)
+            _upsert_to_chromadb(story_dir.name, slug, body, metadata)
 
         # Update index with all new creates
         if creates:
@@ -582,7 +582,7 @@ def cmd_batch(args: argparse.Namespace) -> None:
             _atomic_write(page_path, new_content)
             updated_count += 1
 
-            _upsert_to_chromadb(args.name, slug, body, metadata)
+            _upsert_to_chromadb(story_dir.name, slug, body, metadata)
 
         # --- Index sync for name/alias changes in updates ---
         needs_index_sync = False

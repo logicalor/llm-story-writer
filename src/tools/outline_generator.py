@@ -45,7 +45,7 @@ def _make_repo(name: str) -> FilesystemSavepointRepository:
         FilesystemSavepointRepository,
     )
 
-    story_dir = _validate_story_name(name)
+    story_dir = _validate_story_name(name, base_dir=STORIES_DIR)
     repo = FilesystemSavepointRepository(base_path=story_dir)
     repo.set_story_directory("savepoints")
     return repo

@@ -127,12 +127,12 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
 1. Extract the character list from the outline
 2. Extract the settings/locations list from the outline
-3. Call `story-state` (operation: `read`, field: `story_elements`) to obtain the unified story elements text
-4. Delegate to the `character-sheet-generator` subagent, passing:
+3. Delegate to the `character-sheet-generator` subagent, passing:
    - `story_name`: the story name
    - `character_names`: the list of extracted character names
    - `setting_names`: the list of extracted setting names
-   - `story_elements`: the unified story elements text from step 3
+   - `model`: the model override if any (optional)
+4. The subagent dispatches `character-mgr`/`setting-mgr` per entity. Those tools read the `story_elements` savepoint internally, load their prompts, and call the model — do not pass `story_elements` to the subagent.
 5. The subagent handles all sheet generation, storage, and savepoints (`characters_complete`, `settings_complete`) internally
 6. Record the compact list of processed character and setting names returned by the subagent for use in Phase 6
 

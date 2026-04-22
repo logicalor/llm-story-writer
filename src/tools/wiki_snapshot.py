@@ -603,11 +603,7 @@ def _enforce_token_budget(
 
     if current_total > budget:
         removable_slugs = sorted(
-            (
-                slug
-                for slug in sorted_slugs
-                if slug not in protected
-            ),
+            (slug for slug in sorted_slugs if slug not in protected),
             key=lambda slug: pages[slug].get("relevance_score", 0.0),
         )
         for slug in removable_slugs:
@@ -990,8 +986,8 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
                         "wikilink_proximity": 0.0,
                     }
 
-    t2_results = _tier2_metadata_query(args.name)
-    t3_results = _tier3_semantic_search(args.name, args.outline)
+    t2_results = _tier2_metadata_query(story_dir.name)
+    t3_results = _tier3_semantic_search(story_dir.name, args.outline)
 
     # Build pre-T4 page set for wikilink traversal
     pre_t4: dict[str, dict] = dict(t1_results)

@@ -22,8 +22,9 @@ def _slugify_story_name(name: str) -> str:
     return slug
 
 
-def _validate_story_name(name: str) -> Path:
+def _validate_story_name(name: str, base_dir: Path | None = None) -> Path:
     """Validate and normalize story name to kebab-case directory path."""
+    stories_base = base_dir if base_dir is not None else STORIES_DIR
     # Reject traversal sequences before normalization
     if ".." in name:
         print(
@@ -38,8 +39,8 @@ def _validate_story_name(name: str) -> Path:
             file=sys.stderr,
         )
         sys.exit(1)
-    story_dir = (STORIES_DIR / name).resolve()
-    if not story_dir.is_relative_to(STORIES_DIR.resolve()):
+    story_dir = (stories_base / name).resolve()
+    if not story_dir.is_relative_to(stories_base.resolve()):
         print(
             f"Error: story name escapes stories directory: {name}",
             file=sys.stderr,
