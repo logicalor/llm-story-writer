@@ -854,7 +854,7 @@ Invalid values produce exit code 1 with a descriptive error message.
 
 ## scene-writer
 
-Scene writing pipeline: parse a chapter outline into scene definitions, generate individual scenes, revise scenes with feedback, assemble scenes into a chapter, or analyze chapter prose for scrub and voice issues.
+Scene writing pipeline: parse a chapter outline into scene definitions, generate individual scenes, revise scenes with feedback, assemble scenes into a chapter, generate a full chapter in one pass, or analyze chapter prose for scrub and voice issues.
 
 **Source files:**
 - `.opencode/tools/scene-writer.ts` — TypeScript wrapper
@@ -865,7 +865,9 @@ Scene writing pipeline: parse a chapter outline into scene definitions, generate
 
 ### Purpose
 
-The scene writer breaks chapter-level generation into finer-grained scene units. A chapter outline is first parsed into individual scene definitions (structured JSON), then each scene is generated independently. Scenes can be revised with targeted feedback, and once all scenes in a chapter are complete they are assembled into a single chapter document with section headers and separators.
+The scene writer primarily breaks chapter-level generation into finer-grained scene units. A chapter outline is first parsed into individual scene definitions (structured JSON), then each scene is generated independently. Scenes can be revised with targeted feedback, and once all scenes in a chapter are complete they are assembled into a single chapter document with section headers and separators.
+
+For orchestrator fallback mode (`scene_generation_pipeline: false`), the same tool also supports generating a whole chapter as one LLM call. In that mode, the tool loads chapter context directly from story state and savepoints, writes the completed chapter to both savepoints and story state, and remains resumable through the same savepoint mechanism.
 
 The same tool also owns the prose-analysis prompts used by the late-stage editing passes. `scrub-analyze` performs sentence-level issue extraction for accepted chapter prose, and `voice-analyze` performs manuscript-context voice and pacing analysis. Unlike scene generation operations, these analysis calls are stateless and do not create savepoints.
 
@@ -873,7 +875,7 @@ The same tool also owns the prose-analysis prompts used by the late-stage editin
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `operation` | `"parse-definitions" \| "generate" \| "revise" \| "assemble-chapter" \| "scrub-analyze" \| "voice-analyze"` | Yes | Operation to perform |
+| `operation` | `"parse-definitions" \| "generate" \| "revise" \| "assemble-chapter" \| "scrub-analyze" \| "voice-analyze" \| "generate-chapter"` | Yes | Operation to perform |
 | `name` | string | Yes | Story name (directory under `stories/`) |
 | `chapterNum` | integer | For all operations | Chapter number (must be ≥ 1) |
 | `sceneNum` | integer | For `generate`, `revise` | Scene number within the chapter (must be ≥ 1) |
@@ -891,6 +893,7 @@ The same tool also owns the prose-analysis prompts used by the late-stage editin
 | `previousScene` | string | No | Previous scene content (for `generate`) |
 | `nextSceneDefinition` | string | No | Next scene definition (for `generate`) |
 | `nextChapterSynopsis` | string | No | Next chapter synopsis (for `generate`) |
+| `additionalContext` | string | No | Extra context appended to `base_context` for `generate-chapter` |
 | `chapterText` | string | For `scrub-analyze`, `voice-analyze` | Full chapter text to analyze |
 | `priorChaptersSummary` | string | No | Prior-chapter continuity summary for `voice-analyze` |
 | `model` | string | No | Override LLM model identifier |
@@ -930,6 +933,11 @@ python3 src/tools/scene_writer.py --operation assemble-chapter \
   --name my-story --chapter-num 3 --scene-count 4 \
   --chapter-title "The Ancient City"
 
+# Generate a whole chapter in one pass (fallback path)
+python3 src/tools/scene_writer.py --operation generate-chapter \
+  --name my-story --chapter-num 3 \
+  --additional-context "Keep focus on Elena's distrust of the council"
+
 # Analyze accepted chapter prose for scrub issues
 python3 src/tools/scene_writer.py --operation scrub-analyze \
   --name my-story --chapter-num 3 \
@@ -950,6 +958,7 @@ python3 src/tools/scene_writer.py --operation voice-analyze \
 | `generate` | Renders `scenes/create_content` prompt with scene definition and full story context, calls LLM, saves result to savepoint | `{"status": "success", "operation": "generate", "data": "<scene text>"}` |
 | `revise` | Renders `scenes/revise_content` prompt with current content, feedback, and optional context, calls LLM, overwrites the scene savepoint | `{"status": "success", "operation": "revise", "data": "<revised text>"}` |
 | `assemble-chapter` | Loads all scene savepoints for the chapter, retrieves scene titles from definitions savepoint, concatenates with `## <title>` headers and `---` separators | `{"status": "success", "operation": "assemble-chapter", "data": "# <title>\n\n## Scene 1\n\n..."}` |
+| `generate-chapter` | Renders `chapters/create_content` for a full chapter fallback flow. Reads `chapters.N.expanded_outline` and `chapters.N+1.expanded_outline` from story state, loads `base_context`, `initial_outline`, and prior chapter recap savepoints, appends optional `additionalContext`, calls LLM, saves to `chapter_N/chapter_content`, and writes the result to `chapters.N.content` in story state. | `{"status": "success", "operation": "generate-chapter", "data": "<chapter text>"}` |
 | `scrub-analyze` | Renders `final_edit/prose_scrub` with accepted chapter text, extracts the JSON block, and returns structured sentence-level issues for adverbs, filter words, repetition, and show-vs-tell drift. No savepoint is written. | `{"status": "success", "operation": "scrub-analyze", "data": {"issues": [{"type": "...", "original_text": "...", "suggested_replacement": "...", "line_context": "..."}], "issues_found": 2}}` |
 | `voice-analyze` | Renders `final_edit/voice_consistency_pass` with chapter text plus an optional prior-chapter summary, extracts the JSON block, and returns structured voice, pacing, and coherence issues. No savepoint is written. | `{"status": "success", "operation": "voice-analyze", "data": {"issues": [{"type": "...", "location": "...", "description": "...", "suggested_fix": "..."}], "issues_found": 1}}` |
 
@@ -977,13 +986,14 @@ The `parse-definitions` operation produces (and `generate` consumes) scene defin
 
 ### Prompt Templates
 
-The tool uses three scene-generation templates from `prompts/scenes/` plus two analysis templates from `prompts/final_edit/`:
+The tool uses three scene-generation templates from `prompts/scenes/`, one full-chapter fallback template from `prompts/chapters/`, and two analysis templates from `prompts/final_edit/`:
 
 | Template | Used By | Purpose |
 |----------|---------|---------|
 | `scenes/parse_definitions` | `parse-definitions` | Analyse a chapter outline and extract scene objects as JSON |
 | `scenes/create_content` | `generate` | Generate 750–1500 words of scene prose from a definition and context |
 | `scenes/revise_content` | `revise` | Revise scene content based on specific feedback |
+| `chapters/create_content` | `generate-chapter` | Generate a complete chapter from outline, story context, prior recap, and next-chapter synopsis |
 | `final_edit/prose_scrub` | `scrub-analyze` | Extract sentence and paragraph-level prose issues as structured JSON |
 | `final_edit/voice_consistency_pass` | `voice-analyze` | Extract voice, pacing, and cross-chapter coherence issues as structured JSON |
 
@@ -995,15 +1005,17 @@ Savepoint-backed operations persist intermediate results under `stories/<name>/s
 |---------------|-----------|---------|
 | `chapter_N/scene_definitions` | `parse-definitions` | JSON array of scene definition objects |
 | `chapter_N/scene_M` | `generate`, `revise` | Scene prose text |
+| `chapter_N/chapter_content` | `generate-chapter` | Full chapter prose text |
 
 `scrub-analyze`, `voice-analyze`, and `assemble-chapter` are stateless with respect to savepoint storage. `assemble-chapter` reads existing scene savepoints but does not write a new checkpoint.
 
 ### Resumability
 
-The `parse-definitions` and `generate` operations check for existing savepoints before calling the LLM. If a savepoint exists, the saved result is returned immediately and the LLM call is skipped. This means:
+The `parse-definitions`, `generate`, and `generate-chapter` operations check for existing savepoints before calling the LLM. If a savepoint exists, the saved result is returned immediately and the LLM call is skipped. This means:
 
 - If `parse-definitions` has already run for a chapter, re-running returns the cached definitions
 - If a scene has already been generated, re-running `generate` returns the cached content
+- If a full chapter has already been generated through the fallback flow, re-running `generate-chapter` returns the cached chapter content
 - The `revise` operation always calls the LLM and overwrites the scene savepoint, since revisions are intentional changes
 - `assemble-chapter` is purely deterministic (no LLM) — it reads scene savepoints and concatenates them
 
