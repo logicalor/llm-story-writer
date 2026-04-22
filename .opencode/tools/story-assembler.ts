@@ -5,22 +5,47 @@ import { resolve } from "path";
 
 export default tool({
   description:
-    "Assemble completed chapter savepoints into a single story markdown file.",
+    "Assemble completed chapter savepoints into a single story markdown file, or generate a chapter handoff artifact.",
   args: {
-    storyName: z.string().describe("Story name (directory under stories/)")
+    operation: z
+      .enum(["assemble", "generate-handoff"])
+      .describe("Operation to perform"),
+    storyName: z.string().describe("Story name (directory under stories/)"),
+    chapterNum: z
+      .number()
+      .int()
+      .optional()
+      .describe("Chapter number (required for generate-handoff)"),
+    model: z.string().optional().describe("Model override (generate-handoff only)"),
   },
   execute: async ({
+    operation,
     storyName,
+    chapterNum,
+    model,
   }: {
+    operation: "assemble" | "generate-handoff";
     storyName: string;
+    chapterNum?: number;
+    model?: string;
   }) => {
     const projectRoot = resolve(__dirname, "../..");
     const args = [
       "src/tools/story_assembler.py",
-      "assemble",
+      operation,
       "--story-name",
       storyName,
     ];
+
+    if (operation === "generate-handoff") {
+      if (chapterNum === undefined) {
+        return "Error: chapterNum is required for generate-handoff operation";
+      }
+      args.push("--chapter-num", String(chapterNum));
+      if (model) {
+        args.push("--model", model);
+      }
+    }
 
     try {
       const stdout = execFileSync("python3", args, {
