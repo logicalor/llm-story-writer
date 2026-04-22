@@ -205,7 +205,14 @@ If `enable_chapter_revisions` is true:
 
    This ensures the wiki, recap, and lint all reflect the final revised chapter, not a superseded draft.
 
-`enable_final_edit` and `enable_scrubbing` are planned features — not yet implemented.
+### Phase 7.5 — Prose Scrub (conditional)
+
+If `enable_scrubbing: true` in config:
+- Dispatch `prose-scrubber` with: `story_name`, `chapter_number`, `config`
+- `prose-scrubber` returns: `issues_found`, `revisions_applied`
+- Log result; continue to savepoint
+
+If `enable_scrubbing: false`: skip this phase.
 
 #### 7g. Chapter Savepoint
 
@@ -219,6 +226,15 @@ If `enable_chapter_revisions` is true:
 2. The assembled story will be written to `stories/<name>/output/story.md` in Markdown format
 3. Create savepoint: `story_complete`
 4. Report the output path to the user
+
+### Phase 9 — Final Edit (conditional)
+
+If `enable_final_edit: true` in config:
+- Dispatch `final-editor` with: `story_name`, `chapter_numbers` (all assembled), `config`
+- `final-editor` returns: `chapters_processed`, `total_issues_found`, `total_revisions_made`
+- Log result
+
+If `enable_final_edit: false`: skip this phase.
 
 ---
 
@@ -256,8 +272,10 @@ Delegate specialised creative work to these subagents (referenced by name):
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
 | `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f |
+| `prose-scrubber` | Sentence/paragraph-level prose quality (adverbs, filter words, show-vs-tell) | Phase 7.5, when `enable_scrubbing: true` |
+| `final-editor` | Post-assembly chapter-by-chapter prose pass (voice, pacing, coherence) | Phase 9, when `enable_final_edit: true` |
 
-**These are the only five subagents you may dispatch.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
+**These are the only seven subagents you may dispatch: `outline-planner`, `character-sheet-generator`, `chapter-writer`, `wiki-maintainer`, `quality-reviewer`, `prose-scrubber`, and `final-editor`.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
 
 ---
 

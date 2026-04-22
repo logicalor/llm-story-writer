@@ -10,20 +10,20 @@ Reference guide for the full story generation pipeline orchestrated by the `stor
 
 ## Pipeline Overview
 
-The story generation pipeline transforms a story prompt into a complete novel-length manuscript through nine sequential phases. Each phase produces concrete artifacts, creates savepoints for resume capability, and enforces quality gates where configured.
+The story generation pipeline transforms a story prompt into a complete novel-length manuscript through nine primary phases plus the conditional Phase 7.5 prose scrub pass. Each phase produces concrete artifacts, creates savepoints for resume capability, and enforces quality gates where configured.
 
 ```
-┌─────────┐   ┌─────────┐   ┌──────────┐   ┌───────────┐   ┌────────────┐
-│  Init   │──▶│ Outline │──▶│ Approval │──▶│ Wiki Init │──▶│ Characters │
-│ (1)     │   │ (2)     │   │ (3)      │   │ (4)       │   │ (5)        │
-└─────────┘   └─────────┘   └──────────┘   └───────────┘   └────────────┘
-                                                                  │
-      ┌───────────────────────────────────────────────────────────┘
-      ▼
-┌──────────┐   ┌─────────────────┐   ┌────────────────────────┐   ┌──────────┐
-│ Settings │──▶│ Wiki Population │──▶│ Per-Chapter Loop (8)   │──▶│ Assembly │
-│ (6)      │   │ (7)             │   │ [1..wanted_chapters]   │   │ (9)      │
-└──────────┘   └─────────────────┘   └────────────────────────┘   └──────────┘
+┌─────────┐   ┌─────────┐   ┌──────────┐   ┌───────────┐   ┌───────────────────┐
+│  Init   │──▶│ Outline │──▶│ Approval │──▶│ Wiki Init │──▶│ Characters +      │
+│ (1)     │   │ (2)     │   │ (3)      │   │ (4)       │   │ Settings (5)      │
+└─────────┘   └─────────┘   └──────────┘   └───────────┘   └───────────────────┘
+                                                 │
+    ┌────────────────────────────────────────────────────────────────┘
+    ▼
+┌─────────────────┐   ┌────────────────────────┐   ┌──────────┐   ┌────────────┐
+│ Wiki Population │──▶│ Per-Chapter Loop (7)   │──▶│ Assembly │──▶│ Final Edit │
+│ (6)             │   │ [1..wanted_chapters]   │   │ (8)      │   │ (9)        │
+└─────────────────┘   └────────────────────────┘   └──────────┘   └────────────┘
 ```
 
 ### Per-Chapter Loop Detail
@@ -31,15 +31,15 @@ The story generation pipeline transforms a story prompt into a complete novel-le
 ```
 ┌──────────────┐   ┌─────────────┐   ┌────────────────┐   ┌───────────┐
 │ Expand       │──▶│ Scene Gen   │──▶│ Wiki Update    │──▶│ Recap     │
-│ Outline (8a) │   │ (8b)        │   │ (8c)           │   │ (8d)      │
+│ Outline (7a) │   │ (7b)        │   │ (7c)           │   │ (7d)      │
 └──────────────┘   └─────────────┘   └────────────────┘   └───────────┘
                                                                 │
       ┌─────────────────────────────────────────────────────────┘
       ▼
-┌───────────┐   ┌──────────────────────────────┐   ┌────────────────────┐
-│ Wiki Lint │──▶│ Quality Eval + Revision Loop │──▶│ Chapter Savepoint  │
-│ (8e)      │   │ (8f)                         │   │ (8g)               │
-└───────────┘   └──────────────────────────────┘   └────────────────────┘
+┌───────────┐   ┌──────────────────────────────┐   ┌──────────────┐   ┌────────────────────┐
+│ Wiki Lint │──▶│ Quality Eval + Revision Loop │──▶│ Prose Scrub  │──▶│ Chapter Savepoint  │
+│ (7e)      │   │ (7f)                         │   │ (7.5)        │   │ (7g)               │
+└───────────┘   └──────────────────────────────┘   └──────────────┘   └────────────────────┘
 ```
 
 ---
@@ -130,6 +130,7 @@ Executes for each chapter from 1 to `wanted_chapters`.
 | **7d** Recap | Generate chapter recap | `recap-manager` |
 | **7e** Wiki lint | Check chapter consistency against wiki | `wiki-lint` |
 | **7f** Quality eval | Critique + revision loop | `critique-runner` |
+| **7.5** Prose scrub | Sentence and paragraph-level prose cleanup | `prose-scrubber` subagent |
 | **7g** Savepoint | Persist chapter completion | `savepoint-mgr` |
 
 ### Phase 8: Assembly
@@ -142,11 +143,21 @@ Executes for each chapter from 1 to `wanted_chapters`.
 | **Outputs** | Final story file in configured output directory |
 | **Savepoint** | `story_complete` |
 
+### Phase 9: Final Edit
+
+| Attribute | Value |
+|-----------|-------|
+| **Purpose** | Run post-assembly chapter-by-chapter prose polish for voice, pacing, and cross-chapter coherence |
+| **Subagent** | `final-editor` |
+| **Inputs** | Assembled chapter numbers, chapter text in story state, config |
+| **Outputs** | Revised chapter text entries and final edit summary |
+| **Savepoint** | `final_edit_complete` |
+
 ---
 
 ## Subagents
 
-The pipeline uses five subagents for specialised creative work. The `story-orchestrator` dispatches these by name via OpenCode delegation.
+The pipeline uses seven subagents for specialised creative work. The `story-orchestrator` dispatches these by name via OpenCode delegation.
 
 | Subagent | Purpose | Invoked In |
 |----------|---------|------------|
@@ -155,8 +166,10 @@ The pipeline uses five subagents for specialised creative work. The `story-orche
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
 | `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f |
+| `prose-scrubber` | Run the Phase 7.5 sentence/paragraph scrub pass for a single chapter | Phase 7.5 |
+| `final-editor` | Run the Phase 9 post-assembly voice, pacing, and coherence pass | Phase 9 |
 
-**These are the only five subagents the orchestrator may dispatch.** Do not dispatch built-in or external agents for any reason outside the pipeline phases above.
+**These are the only seven subagents the orchestrator may dispatch.** Do not dispatch built-in or external agents for any reason outside the pipeline phases above.
 
 ---
 
@@ -251,6 +264,7 @@ Format: `{phase_descriptor}` — lowercase, underscore-separated, descriptive.
 | 6 | `wiki_populated` | `wiki_populated` |
 | 7 (per chapter) | `chapter_{N}_complete` | `chapter_1_complete`, `chapter_25_complete` |
 | 8 | `story_complete` | `story_complete` |
+| 9 | `final_edit_complete` | `final_edit_complete` |
 
 No zero-padding on chapter numbers. The savepoint includes full pipeline state: story state, wiki state, all generated artifacts up to that point.
 
@@ -313,6 +327,7 @@ To resume a story generation run after interruption:
 | `wiki_populated` | Phase 7, Chapter 1 |
 | `chapter_{N}_complete` | Phase 7, Chapter N+1 (or Phase 8 if N == wanted_chapters) |
 | `story_complete` | Pipeline complete — nothing to resume |
+| `final_edit_complete` | Pipeline complete — final edit already applied |
 
 ---
 
