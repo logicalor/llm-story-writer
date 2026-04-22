@@ -35,7 +35,8 @@ def _make_repo(name: str) -> FilesystemSavepointRepository:
     """Create a FilesystemSavepointRepository for the given story."""
     from infrastructure.storage.savepoint_repository import FilesystemSavepointRepository
 
-    repo = FilesystemSavepointRepository(base_path=STORIES_DIR / name)
+    story_dir = _validate_story_name(name)
+    repo = FilesystemSavepointRepository(base_path=story_dir)
     repo.set_story_directory("savepoints")
     return repo
 
