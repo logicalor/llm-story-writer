@@ -299,7 +299,7 @@ All settings are read from `config.md` YAML frontmatter under the `generation` k
 | `use_chunked_outline_generation` | bool | true | Whether to generate outline in chunks |
 | `outline_chunk_size` | int | 10 | Number of chapters per outline chunk |
 | `enable_final_edit` | bool | false | Whether to run a final editing pass |
-| `enable_scrubbing` | bool | true | Whether to scrub metacognition artifacts |
+| `enable_scrubbing` | bool | true | Whether to run the Phase 7.5 prose-scrubber pass (adverbs, filter words, repetition, show-vs-tell) |
 | `stream` | bool | true | Whether to stream LLM output |
 | `debug` | bool | true | Whether to enable debug logging |
 | `strategy` | string | "outline-chapter" | Generation strategy identifier |
@@ -326,7 +326,7 @@ To resume a story generation run after interruption:
 | `settings_complete` | Phase 6 (Wiki Population) |
 | `wiki_populated` | Phase 7, Chapter 1 |
 | `chapter_{N}_complete` | Phase 7, Chapter N+1 (or Phase 8 if N == wanted_chapters) |
-| `story_complete` | Pipeline complete — nothing to resume |
+| `story_complete` | Phase 9 (Final Edit) when `enable_final_edit: true`; otherwise pipeline complete |
 | `final_edit_complete` | Pipeline complete — final edit already applied |
 
 ---
