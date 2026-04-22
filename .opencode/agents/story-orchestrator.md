@@ -132,7 +132,7 @@ Dispatch `chapter-outline-expander` with:
 
 The subagent owns the full `expand-chapter` loop and returns when all outlines are expanded or `expand_outline` is false.
 
-After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases 7b through 7h, 7.5, and 7g.
+After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases 7b through 7g, 7.5, and 7h.
 
 #### 7b. Scene Generation
 
@@ -198,7 +198,7 @@ If `enable_chapter_revisions` is true:
 
    This ensures the wiki, recap, and lint all reflect the final revised chapter, not a superseded draft.
 
-#### 7h. Generate Chapter Handoff Artifact
+#### 7g. Generate Chapter Handoff Artifact
 
 After the chapter is accepted (7f) and post-processing is complete:
 
@@ -226,7 +226,7 @@ If `enable_scrubbing: true` in config:
 
 If `enable_scrubbing: false`: skip this phase.
 
-#### 7g. Chapter Savepoint
+#### 7h. Chapter Savepoint
 
 1. Create savepoint: `chapter_{N}_complete` (e.g., `chapter_1_complete`, `chapter_12_complete`)
 
@@ -305,7 +305,7 @@ Savepoints capture the full pipeline state at key milestones, enabling resume af
 | `characters_complete` | Phase 5 completes (all character sheets generated) |
 | `settings_complete` | Phase 5 completes (all setting sheets generated) |
 | `wiki_populated` | Phase 6 completes (wiki initial population done) |
-| `chapter_{N}_complete` | Phase 7g per chapter (e.g., `chapter_1_complete`) |
+| `chapter_{N}_complete` | Phase 7h per chapter (e.g., `chapter_1_complete`) |
 | `story_complete` | Phase 8 completes (final assembly done) |
 
 **Resuming from a savepoint:**

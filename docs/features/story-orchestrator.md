@@ -61,7 +61,7 @@ After the one-time Phase 7a dispatch, each chapter passes through seven core sub
       ▼
 ┌──────────────────────────────┐   ┌──────────────┐   ┌──────────────┐   ┌───────────────────┐
 │ Quality Evaluation (7f)      │──▶│ Handoff      │──▶│ Prose Scrub  │──▶│ Chapter Savepoint │
-│ via quality-reviewer         │   │ Gen (7h)     │   │ (7.5)        │   │ (7g)              │
+│ via quality-reviewer         │   │ Gen (7g)     │   │ (7.5)        │   │ (7h)              │
 └──────────────────────────────┘   └──────────────┘   └──────────────┘   └───────────────────┘
 ```
 
@@ -71,7 +71,7 @@ Phase 7a no longer keeps `continuitySummary` inside the orchestrator's working m
 
 Phase 7f dispatches the `quality-reviewer` subagent instead of running the critique/revision loop inline. The subagent owns scoring, refinement decisions, feedback generation, and revision for one chapter, then returns a structured result to the orchestrator. When `requires_post_processing` is `true`, the orchestrator re-runs Phases 7c, 7d, and 7e so the wiki, recap, and lint outputs reflect the final accepted chapter text.
 
-Phase 7h runs after the chapter is accepted and any required post-processing is complete. The orchestrator loads `prompts/chapters/generate_handoff.md`, generates one structured JSON handoff artifact inline, and writes it to `story-state` at `chapters.{N}.handoff`. That artifact captures continuity state for the next chapter expansion pass: resolved beats, obligations, active tensions, timeline movement, and character deltas.
+Phase 7g runs after the chapter is accepted and any required post-processing is complete. The orchestrator loads `prompts/chapters/generate_handoff.md`, generates one structured JSON handoff artifact inline, and writes it to `story-state` at `chapters.{N}.handoff`. That artifact captures continuity state for the next chapter expansion pass: resolved beats, obligations, active tensions, timeline movement, and character deltas.
 
 Phase 7.5 dispatches `prose-scrubber` only after the chapter has passed the quality gate. The scrubber operates at sentence and paragraph scope, writes the revised chapter text back to story state, and creates a `chapter_{N}_scrubbed` savepoint before the orchestrator records `chapter_{N}_complete`. Because the scrubber is constrained to prose-only edits, the orchestrator does not re-run wiki update, recap generation, or lint after this pass.
 
@@ -98,7 +98,7 @@ The wiki follows a lifecycle synchronised with the pipeline:
 | Phase 7b | `wiki-snapshot` assembles token-budgeted context for each scene generation prompt |
 | Phase 7c | `wiki-maintainer` subagent extracts and records new facts from the generated chapter |
 | Phase 7e | `wiki-lint` checks chapter consistency against the wiki |
-| Phase 7h | Orchestrator writes `chapters.{N}.handoff` for downstream continuity planning |
+| Phase 7g | Orchestrator writes `chapters.{N}.handoff` for downstream continuity planning |
 | Phase 7.5 | No wiki mutation; `prose-scrubber` is prose-only and must preserve facts |
 | Phase 9 | No wiki mutation; `final-editor` polishes prose after assembly without changing entity state |
 

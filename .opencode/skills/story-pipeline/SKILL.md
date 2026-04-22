@@ -130,9 +130,9 @@ Phase 7 begins with a single delegated outline-expansion pass, then executes the
 | **7d** Recap | Generate chapter recap | `recap-manager` |
 | **7e** Wiki lint | Check chapter consistency against wiki | `wiki-lint` |
 | **7f** Quality eval | Critique + revision loop | `critique-runner` |
-| **7h** Handoff artifact | Generate structured per-chapter continuity handoff in story state | `prompt-loader`, `story-state` |
+| **7g** Handoff artifact | Generate structured per-chapter continuity handoff in story state | `prompt-loader`, `story-state` |
 | **7.5** Prose scrub | Sentence and paragraph-level prose cleanup | `prose-scrubber` subagent |
-| **7g** Savepoint | Persist chapter completion | `savepoint-mgr` |
+| **7h** Savepoint | Persist chapter completion | `savepoint-mgr` |
 
 ### Phase 8: Assembly
 

@@ -47,7 +47,8 @@
           "": "deny",
           "outline-planner": "allow",
           "chapter-writer": "allow",
-          "wiki-maintainer": "allow"
+          "wiki-maintainer": "allow",
+          "chapter-outline-expander": "allow"
         }
       }
     },
@@ -70,6 +71,14 @@
     "wiki-maintainer": {
       "mode": "subagent",
       "description": "Extracts entities from story content and maintains the wiki knowledge base. Creates and updates pages, tracks timelines, and ensures consistency during initial population and post-chapter incremental updates.",
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
+      "permission": {
+        "bash": "deny"
+      }
+    },
+    "chapter-outline-expander": {
+      "mode": "subagent",
+      "description": "Expands all chapter outlines for a story during Phase 7a. Manages continuitySummary threading internally and reads prior chapter handoff artifacts. Calls outline-generator, story-state, and savepoint-mgr only.",
       "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
       "permission": {
         "bash": "deny"
