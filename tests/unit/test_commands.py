@@ -91,7 +91,7 @@ def test_status_injects_shell_commands():
 
 def test_settings_includes_config():
     _, body = _parse_command("settings.md")
-    assert "@config.md" in body, "settings.md should reference @config.md"
+    assert "@config.yml" in body, "settings.md should reference @config.yml"
 
 
 def test_wiki_runs_lint():

@@ -7,7 +7,7 @@ This directory contains the story writing strategies that can be used by the AI 
 The strategy system allows you to:
 - **Swap story writing approaches** without changing the core application
 - **Add new strategies** as plugins
-- **Configure different strategies** via the `config.md` file
+- **Configure different strategies** via the `config.yml` file
 - **Maintain clean separation** between story logic and application logic
 - **Organize prompts by strategy** with dedicated prompt directories
 
@@ -66,7 +66,7 @@ src/application/strategies/
 
 ## Configuration
 
-To select a strategy, update your `config.md` file:
+To select a strategy, update your `config.yml` file:
 
 ```yaml
 generation:

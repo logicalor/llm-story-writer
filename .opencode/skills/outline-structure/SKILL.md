@@ -137,7 +137,7 @@ The critique system employs 6 specialised critics:
 
 ## Config Reference
 
-Outline-related keys from `config.md` under the `generation` section:
+Outline-related keys from `config.yml` under the `generation` section:
 
 | Key | Default | Used By | Description |
 |-----|---------|---------|-------------|

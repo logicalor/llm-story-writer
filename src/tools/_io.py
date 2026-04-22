@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -11,8 +12,32 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
 
 
+def _slugify_story_name(name: str) -> str:
+    """Normalize a story name to kebab-case for use as a directory name."""
+    slug = name.lower()
+    slug = re.sub(r"[^\w\s-]", "", slug)   # strip special chars except spaces/hyphens
+    slug = re.sub(r"[\s_]+", "-", slug)    # spaces/underscores → hyphens
+    slug = re.sub(r"-+", "-", slug)         # collapse consecutive hyphens
+    slug = slug.strip("-")
+    return slug
+
+
 def _validate_story_name(name: str) -> Path:
-    """Validate story name does not escape the stories directory."""
+    """Validate and normalize story name to kebab-case directory path."""
+    # Reject traversal sequences before normalization
+    if ".." in name:
+        print(
+            f"Error: story name escapes stories directory: {name}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    name = _slugify_story_name(name)
+    if not name:
+        print(
+            "Error: story name is empty or contains only special characters",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     story_dir = (STORIES_DIR / name).resolve()
     if not story_dir.is_relative_to(STORIES_DIR.resolve()):
         print(

@@ -52,7 +52,7 @@ The story generation pipeline transforms a story prompt into a complete novel-le
 |-----------|-------|
 | **Purpose** | Load prompt, read config, initialise story state |
 | **Tools** | `prompt-loader`, `story-state`, `savepoint-mgr` |
-| **Inputs** | Story prompt file path, `config.md` |
+| **Inputs** | Story prompt file path, `config.yml` |
 | **Outputs** | Initialised story state with config values |
 | **Savepoint** | `init` |
 
@@ -310,7 +310,7 @@ No zero-padding on chapter numbers. The savepoint includes full pipeline state: 
 
 ## Config Settings Reference
 
-All settings are read from `config.md` YAML frontmatter under the `generation` key.
+All settings are read from `config.yml` under the `generation` key.
 
 | Setting | Type | Default | Purpose |
 |---------|------|---------|---------|

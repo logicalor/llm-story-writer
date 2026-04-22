@@ -1,4 +1,4 @@
-"""Configuration loader for reading from config.md frontmatter."""
+"""Configuration loader for reading from config.yml."""
 
 import os
 import re
@@ -38,13 +38,13 @@ def _normalize_model_api_base(value: str) -> str:
 
 
 class ConfigLoader:
-    """Loads configuration from config.md frontmatter."""
+    """Loads configuration from config.yml."""
 
-    def __init__(self, config_file: str = "config.md"):
+    def __init__(self, config_file: str = "config.yml"):
         self.config_file = Path(config_file)
 
     def load_config(self) -> Dict[str, Any]:
-        """Load configuration from config.md frontmatter."""
+        """Load configuration from config.yml."""
         if not self.config_file.exists():
             raise ConfigurationError(
                 f"Configuration file not found: {self.config_file}"
@@ -52,8 +52,7 @@ class ConfigLoader:
 
         try:
             content = self.config_file.read_text(encoding="utf-8")
-            frontmatter = self._extract_frontmatter(content)
-            config_data = yaml.safe_load(frontmatter)
+            config_data = yaml.safe_load(content)
 
             # Merge translation settings into generation settings
             if "translation" in config_data:
@@ -113,17 +112,6 @@ class ConfigLoader:
             raise ConfigurationError(
                 f"Failed to load configuration from {self.config_file}: {e}"
             ) from e
-
-    def _extract_frontmatter(self, content: str) -> str:
-        """Extract YAML frontmatter from markdown content."""
-        # Match YAML frontmatter between --- markers
-        pattern = r"^---\s*\n(.*?)\n---\s*\n"
-        match = re.search(pattern, content, re.DOTALL)
-
-        if not match:
-            raise ConfigurationError("No YAML frontmatter found in config.md")
-
-        return match.group(1)
 
     def get_generation_settings(self) -> "GenerationSettings":
         """Get generation settings from config."""

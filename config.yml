@@ -1,0 +1,74 @@
+# AI Story Writer Configuration
+# All configuration options are defined here.
+# See config-guide.md for full documentation of each setting.
+
+# Model Configuration
+models:
+  initial_outline_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_outline_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_stage1_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_stage2_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_stage3_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_stage4_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_revision_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  revision_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  eval_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  info_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  scrub_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  checker_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  translator_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  sanity_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  logical_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  scene_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  creative_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  #scene_writer: "openai-compat://hf.co/DavidAU/L3-DARKEST-PLANET-16.5B-GGUF"
+
+# Generation Settings
+generation:
+  seed: 12
+  outline_quality: 87
+  chapter_quality: 85
+  wanted_chapters: 25
+  outline_min_revisions: 0
+  outline_max_revisions: 3
+  chapter_min_revisions: 0
+  chapter_max_revisions: 3
+  enable_final_edit: false
+  enable_scrubbing: true
+  enable_chapter_revisions: true
+  expand_outline: true
+  scene_generation_pipeline: true
+  enable_outline_critique: false
+  outline_critique_iterations: 3
+  stream: true
+  debug: true
+#  strategy: "outline-chapter"
+  strategy: "outline-chapter"
+  use_improved_recap_sanitizer: true
+  use_multi_stage_recap_sanitizer: true
+  use_chunked_outline_generation: true
+  outline_chunk_size: 10
+  log_prompt_inputs: true
+
+# Translation Settings
+translation:
+  translate_language: null
+  translate_prompt_language: null
+
+# Infrastructure Settings
+infrastructure:
+  output_dir: "/home/shaun/Documents/stories/output"
+  savepoint_dir: "/home/shaun/Documents/stories/saves"
+  logs_dir: "Logs"
+  model_api_base: "http://127.0.0.1:1234/v1"
+  context_length: 16384
+  randomize_seed: true
+  
+  # RAG Configuration
+  embedding_model: "openai-compat://nomic-embed-text"
+  vector_dimensions: 1536
+  similarity_threshold: 0.7
+  max_context_chunks: 20
+  max_chunk_size: 1000
+  overlap_size: 200

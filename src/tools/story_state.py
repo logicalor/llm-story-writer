@@ -129,8 +129,9 @@ def _write_state_atomic(state_path: Path, data: dict) -> None:
 def cmd_init(name: str) -> None:
     """Initialize a new story directory with empty state."""
     story_dir = _validate_story_name(name)
+    normalized_name = story_dir.name
     if story_dir.exists():
-        print(f"Error: story already exists: {name}", file=sys.stderr)
+        print(f"Error: story already exists: {normalized_name}", file=sys.stderr)
         sys.exit(1)
 
     for subdir in ("chapters", "characters", "settings", "savepoints"):
@@ -138,7 +139,7 @@ def cmd_init(name: str) -> None:
 
     state_path = story_dir / "state.json"
     _write_state_atomic(state_path, INITIAL_STATE)
-    print(json.dumps({"status": "created", "story": name}))
+    print(json.dumps({"status": "created", "story": normalized_name}))
 
 
 def cmd_read(name: str, field: str | None) -> None:

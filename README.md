@@ -49,7 +49,7 @@ cd AIStoryWriter
 # Follow your platform's OpenCode install instructions, then verify:
 opencode --version
 
-# Start your local model server and load the models referenced by config.md
+# Start your local model server and load the models referenced by config.yml
 # e.g. LM Studio (default: http://127.0.0.1:1234/v1)
 # or:  ollama serve        (http://127.0.0.1:11434/v1)
 
@@ -71,11 +71,11 @@ opencode
 /status                              # Show generation progress
 ```
 
-The application will use all configuration options defined in `config.md`.
+The application will use all configuration options defined in `config.yml`.
 
 ## 🧰 Configuration
 
-All configuration options are defined in the YAML frontmatter of `config.md`. You can modify these values to customize the behavior of the application.
+All configuration options are defined in `config.yml`. You can modify these values to customize the behavior of the application.
 
 ### Model Configuration
 
@@ -118,7 +118,7 @@ See `src/application/strategies/README.md` for detailed information about creati
 
 The supported local providers do not require cloud API keys.
 
-For detailed configuration options, see [config.md](config.md).
+For detailed configuration options, see [config-guide.md](config-guide.md).
 
 ## 🧪 Testing
 

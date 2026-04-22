@@ -35,7 +35,7 @@ Execute these phases sequentially. Each phase completes fully before the next be
 **Purpose:** Load the story prompt, read configuration, initialise story state.
 
 1. Receive the story prompt text from the invocation context. The prompt is provided as direct text — either the user's initial message or explicit input at invocation. **Do not use `prompt-loader`** to read the story prompt — `prompt-loader` only resolves internal template registry keys from the `prompts/` library and cannot read arbitrary file paths. If the user has referenced a file, ask them to paste the prompt text directly.
-2. Load `config.md` — parse the YAML frontmatter for all generation settings
+2. Load `config.yml` — parse the YAML for all generation settings
 3. Initialise story state via `story-state` (operation: `init`). Note: `init` creates an empty state structure and accepts no payload. After `init` completes, write prompt metadata and config values using separate `story-state` (operation: `write`) calls.
 4. Create savepoint: `init`
 
@@ -382,7 +382,7 @@ When a quality gate fails after maximum attempts, log a warning and proceed. Do 
 
 ## Important Constraints
 
-- **Config is authoritative.** All thresholds, iteration counts, and feature flags come from `config.md`. Never hardcode these values — always read from config.
+- **Config is authoritative.** All thresholds, iteration counts, and feature flags come from `config.yml`. Never hardcode these values — always read from config.
 - **Wiki is the source of truth** for world state after Phase 6. Character sheets and setting sheets are inputs to the wiki; after population, the wiki supersedes them.
 - **Token budget awareness.** The context window is 65536 tokens. Use `wiki-snapshot` for token-budgeted context assembly. Do not manually concatenate large amounts of wiki content.
 - **Sequential chapter generation.** Chapters must be generated in order (1, 2, 3, ...) because each chapter's wiki updates inform the next chapter's context.
