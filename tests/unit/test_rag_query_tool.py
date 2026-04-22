@@ -376,3 +376,29 @@ class TestValidation:
             chromadb_dir=chromadb_dir,
         )
         assert result.returncode != 0
+
+
+# ---------------------------------------------------------------------------
+# Issue #125: raw-chapter content type
+# ---------------------------------------------------------------------------
+
+
+class TestRawChapterContentType:
+    def test_raw_chapter_content_type_accepted(self, chromadb_dir: Path) -> None:
+        """'raw-chapter' is a valid content-type; index succeeds and echoes it back."""
+        result = _run_tool(
+            "--operation",
+            "index",
+            "--name",
+            "test-story",
+            "--doc-id",
+            "chapter-1-raw",
+            "--content",
+            "The sun rose over the hills.",
+            "--content-type",
+            "raw-chapter",
+            chromadb_dir=chromadb_dir,
+        )
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert data["content_type"] == "raw-chapter"

@@ -19,7 +19,7 @@ CHROMADB_DIR = os.environ.get("CHROMADB_DIR", str(PROJECT_ROOT / ".chromadb"))
 
 # Valid content types that can be indexed
 CONTENT_TYPES = frozenset(
-    ["outline", "chapter", "character", "setting", "wiki", "recap"]
+    ["outline", "chapter", "character", "setting", "wiki", "recap", "raw-chapter"]
 )
 
 

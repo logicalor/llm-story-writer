@@ -25,9 +25,9 @@ export default tool({
       .optional()
       .describe("Content to critique (if not loading from savepoint)"),
     mode: z
-      .enum(["outline", "chapter"])
+      .enum(["outline", "chapter", "character-voice"])
       .optional()
-      .describe("Critique mode: outline or chapter (default: outline)"),
+      .describe("Critique mode: outline, chapter, or character-voice (default: outline)"),
     criticType: z
       .string()
       .optional()

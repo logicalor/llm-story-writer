@@ -70,3 +70,30 @@ def test_critique_service_has_dict_any_imports():
     assert "Any" in imported_names, (
         "Any not imported from typing in critique_service.py"
     )
+
+
+# ---------------------------------------------------------------------------
+# Issue #125: character-voice-consistency in CritiqueParser
+# ---------------------------------------------------------------------------
+
+
+def test_character_voice_consistency_in_critic_criteria() -> None:
+    """CritiqueParser knows 'character-voice-consistency' with correct criteria."""
+    from application.services.critique_parser import CritiqueParser
+
+    parser = CritiqueParser()
+
+    assert "character-voice-consistency" in parser.critic_criteria
+
+    criteria = parser.critic_criteria["character-voice-consistency"]
+    expected_keys = {
+        "Pacing",
+        "Details",
+        "Flow",
+        "Genre",
+        "Consistency",
+        "Character Arc & Theme",
+        "Structure",
+    }
+    assert expected_keys == set(criteria.keys())
+    assert sum(criteria.values()) == 100

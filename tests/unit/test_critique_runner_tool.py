@@ -451,3 +451,38 @@ def test_invalid_operation() -> None:
     result = _run_tool("--operation", "bogus-operation")
     assert result.returncode == 2
     assert "invalid choice" in result.stderr.lower()
+
+
+# ---------------------------------------------------------------------------
+# Issue #125: character-voice mode
+# ---------------------------------------------------------------------------
+
+
+def test_character_voice_mode_is_valid() -> None:
+    """'character-voice' is a recognised mode in MODES."""
+    import sys
+
+    sys.path.insert(0, str(PROJECT_ROOT / "src"))
+    from tools.critique_runner import MODES
+
+    assert "character-voice" in MODES
+
+
+def test_character_voice_critic_types() -> None:
+    """character-voice mode returns exactly ['character-voice-consistency']."""
+    import sys
+
+    sys.path.insert(0, str(PROJECT_ROOT / "src"))
+    from tools.critique_runner import _critic_types_for_mode
+
+    assert _critic_types_for_mode("character-voice") == ["character-voice-consistency"]
+
+
+def test_character_voice_prompt_prefix() -> None:
+    """character-voice mode uses the 'chapter_review' prompt prefix."""
+    import sys
+
+    sys.path.insert(0, str(PROJECT_ROOT / "src"))
+    from tools.critique_runner import _prompt_prefix
+
+    assert _prompt_prefix("character-voice") == "chapter_review"

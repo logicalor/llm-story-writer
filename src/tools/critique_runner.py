@@ -40,7 +40,11 @@ CHAPTER_CRITIC_TYPES = [
     "chapter-character-consistency",
 ]
 
-MODES = ["outline", "chapter"]
+CHARACTER_VOICE_CRITIC_TYPES = [
+    "character-voice-consistency",
+]
+
+MODES = ["outline", "chapter", "character-voice"]
 
 
 def _make_repo(name: str) -> FilesystemSavepointRepository:
@@ -131,6 +135,8 @@ def _prompt_prefix(mode: str) -> str:
     """Return the prompt subdirectory for the selected critique mode."""
     if mode == "chapter":
         return "chapter_review"
+    if mode == "character-voice":
+        return "chapter_review"
     return "outline_review"
 
 
@@ -138,6 +144,8 @@ def _critic_types_for_mode(mode: str) -> list[str]:
     """Return the critic set for the selected critique mode."""
     if mode == "chapter":
         return CHAPTER_CRITIC_TYPES
+    if mode == "character-voice":
+        return CHARACTER_VOICE_CRITIC_TYPES
     return OUTLINE_CRITIC_TYPES
 
 
