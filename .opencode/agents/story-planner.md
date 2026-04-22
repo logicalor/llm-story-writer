@@ -112,7 +112,7 @@ Return this structured result to the orchestrator:
     "publishing-acquisitions-editor": 86,
     "subject-expert": 81
    },
-   "verdict": "minor_concerns"
+   "verdict_code": "minor_concerns"
 }
 ```
 
