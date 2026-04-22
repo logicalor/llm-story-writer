@@ -92,7 +92,7 @@ Execute these phases sequentially. Each phase completes fully before the next be
    - `verdict`: one of `"strong"` / `"minor_concerns"` / `"significant_issues"`
 
 3. Store the arc assessment for display at Phase 3:
-   - Call `story-state` (operation: `write`, field: `arc_assessment`, value: `arc_assessment` text)
+   - Call `story-state` (operation: `write`, field: `arc_assessment`, value: `arc_assessment` JSON string)
 
 4. Create savepoint: `arc_analysis_complete`
 

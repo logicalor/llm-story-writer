@@ -18,7 +18,6 @@ You call tools only. Never dispatch subagents.
 | `story-state` | Read the final outline and story elements |
 | `critique-runner` | Run the 6 outline critics and collect the parsed scores |
 | `prompt-loader` | Load the arc analysis and synthesis prompts |
-| `savepoint-mgr` | Save the `arc_analysis_complete` checkpoint |
 
 ---
 
@@ -128,15 +127,9 @@ Execute these steps sequentially.
    - `⚠️ Minor arc concerns - review recommendations before proceeding` -> `minor_concerns`
    - `❌ Significant arc issues - consider re-generating outline with feedback` -> `significant_issues`
 
-### Step 6 - Save and Return
+### Step 6 - Return Result
 
-1. Call `savepoint-mgr` with:
-   - `operation`: `"save"`
-   - `name`: story name
-   - `step`: `"arc_analysis_complete"`
-   - `data`: `arc_assessment`
-
-2. Return this structured result to the orchestrator:
+Return this structured result to the orchestrator:
 
 ```json
 {

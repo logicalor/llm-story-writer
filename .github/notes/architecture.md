@@ -113,7 +113,7 @@ Three agents defined in `.opencode/agents/`, registered in `opencode.json`:
 
 | Agent | Definition | Skills | Purpose |
 |-------|-----------|--------|--------|
-| `story-orchestrator` | `.opencode/agents/story-orchestrator.md` | `story-pipeline` | Primary pipeline controller — coordinates 9-phase story generation lifecycle, delegates to subagents |
+| `story-orchestrator` | `.opencode/agents/story-orchestrator.md` | `story-pipeline` | Primary pipeline controller — coordinates 10-phase story generation lifecycle, delegates to subagents |
 | `chapter-writer` | `.opencode/agents/chapter-writer.md` | `scene-writing`, `character-voice` | Per-chapter scene generation — invoked by orchestrator during Phase 8b, generates scenes sequentially using wiki-snapshot context |
 | `outline-planner` | `.opencode/agents/outline-planner.md` | `story-pipeline`, `outline-structure` | Outline generation — invoked by orchestrator during Phase 2, runs 5-phase pipeline: prompt analysis, element synthesis, outline generation (chunked/monolithic), optional critique & refinement |
 

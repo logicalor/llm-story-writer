@@ -23,7 +23,7 @@ Initializes a new story and starts the full generation pipeline. The argument is
 
 1. Verifies the prompt file exists at the given path
 2. Reads the prompt file contents
-3. Begins the nine-phase pipeline from Phase 1 (initialization) through to completion
+3. Begins the ten-phase pipeline from Phase 1 (initialization) through to completion
 
 **Example:**
 

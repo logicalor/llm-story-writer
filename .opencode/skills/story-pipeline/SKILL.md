@@ -72,6 +72,21 @@ Key behaviours:
 - If `enable_outline_critique` is true, run critique loop up to `outline_critique_iterations` passes
 - Revise up to `outline_max_revisions` times if score < `outline_quality`
 
+### Phase 2.5: Narrative Arc Analysis
+
+| Attribute | Value |
+|-----------|-------|
+| **Purpose** | Evaluate dramatic arc quality of the finalised outline before human review |
+| **Subagent** | `story-planner` |
+| **Inputs** | Finalised outline and story elements from story state |
+| **Outputs** | Structured arc assessment stored in story state (`arc_assessment` field) |
+| **Savepoint** | `arc_analysis_complete` |
+
+Key behaviours:
+- Advisory only — verdict never blocks the pipeline
+- Runs 6 outline critics via `critique-runner` plus two arc-specific prompt analyses
+- Arc assessment is presented alongside the outline at Phase 3 approval
+
 ### Phase 3: Approval
 
 | Attribute | Value |
@@ -158,11 +173,12 @@ Phase 7 begins with a single delegated outline-expansion pass, then executes the
 
 ## Subagents
 
-The pipeline uses eight subagents for specialised creative work. The `story-orchestrator` dispatches these by name via OpenCode delegation.
+The pipeline uses nine subagents for specialised creative work. The `story-orchestrator` dispatches these by name via OpenCode delegation.
 
 | Subagent | Purpose | Invoked In |
 |----------|---------|------------|
 | `outline-planner` | Generate and refine the story outline | Phase 2 |
+| `story-planner` | Evaluate dramatic arc quality for the finalised outline — narrative arc analysis gate | Phase 2.5 |
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 |
 | `chapter-outline-expander` | Expands all chapter outlines (Phase 7a); manages continuitySummary threading | Phase 7a |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
@@ -171,7 +187,7 @@ The pipeline uses eight subagents for specialised creative work. The `story-orch
 | `prose-scrubber` | Run the Phase 7.5 sentence/paragraph scrub pass for a single chapter | Phase 7.5 |
 | `final-editor` | Run the Phase 9 post-assembly voice, pacing, and coherence pass | Phase 9 |
 
-**These are the only eight subagents the orchestrator may dispatch.** Do not dispatch built-in or external agents for any reason outside the pipeline phases above.
+**These are the only nine subagents the orchestrator may dispatch.** Do not dispatch built-in or external agents for any reason outside the pipeline phases above.
 
 ---
 
