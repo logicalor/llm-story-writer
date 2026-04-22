@@ -24,7 +24,7 @@ export default tool({
       .optional()
       .describe("Text content to embed. Required for index."),
     contentType: z
-      .enum(["outline", "chapter", "character", "setting", "wiki", "recap"])
+      .enum(["outline", "chapter", "character", "setting", "wiki", "recap", "raw-chapter"])
       .optional()
       .describe("Content type tag. Defaults to 'outline' for index; filters results for query."),
     chapterNum: z

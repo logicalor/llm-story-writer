@@ -87,6 +87,15 @@ class CritiqueParser:
                 "Character Arc & Theme": 20,
                 "Structure": 15,
             },
+            "character-voice-consistency": {
+                "Pacing": 15,
+                "Details": 15,
+                "Flow": 15,
+                "Genre": 10,
+                "Consistency": 10,
+                "Character Arc & Theme": 20,
+                "Structure": 15,
+            },
         }
 
     def parse_critique(self, critic_type: str, response: str) -> CritiqueResult:

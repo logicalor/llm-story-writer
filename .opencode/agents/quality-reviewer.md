@@ -34,6 +34,7 @@ Received from the orchestrator at dispatch time:
 | `chapter_quality` | Quality threshold (from config, default 85) |
 | `chapter_min_revisions` | Minimum revisions before acceptance (from config, default 0) |
 | `chapter_max_revisions` | Maximum revision iterations (from config, default 3) |
+| `consistency_report` | Structured consistency report from Phase 7e (optional) — contains wiki-lint findings, semantic drift, and cross-chapter contradictions |
 
 ---
 
@@ -47,6 +48,7 @@ Execute these steps sequentially. Carry the current chapter text in a variable `
 2. Set `best_chapter_text` = the provided `chapter_text`
 3. Set `revision_count` = 0
 4. Set `best_score` = 0
+5. If `consistency_report` is provided and `has_critical_findings` is true, note the critical findings. These will be injected into the first `generate-feedback` call to ensure revision instructions address consistency issues.
 
 ### Step 2 — Critique/Revision Loop
 
@@ -87,6 +89,8 @@ Record the `overall_average` field from the response as `current_score`. If `cur
 - `name`: story name
 - `mode`: `"chapter"`
 - `iteration`: `revision_count + 1`
+
+> **Consistency context:** If `consistency_report` was provided and this is the first revision (`revision_count == 0`), append a section to the feedback summarising critical wiki-lint and cross-chapter contradictions. This ensures the revising `chapter-writer` is aware of consistency issues alongside quality critique. On subsequent revisions, only include consistency context if new critical findings remain relevant.
 
 **e. Revise chapter.** Call `scene-writer` with:
 - `operation`: `"revise"`

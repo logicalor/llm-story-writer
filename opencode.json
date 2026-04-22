@@ -49,7 +49,8 @@
           "chapter-writer": "allow",
           "wiki-maintainer": "allow",
           "chapter-outline-expander": "allow",
-          "story-planner": "allow"
+            "story-planner": "allow",
+            "consistency-checker": "allow"
         }
       }
     },
@@ -88,6 +89,14 @@
     "story-planner": {
       "mode": "subagent",
       "description": "Performs narrative arc analysis on the finalised outline. Runs 6 outline_review/ critics and arc-specific prompts, synthesises a structured dramatic arc assessment for the Phase 3 approval gate.",
+      "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
+      "permission": {
+        "bash": "deny"
+      }
+    },
+    "consistency-checker": {
+      "mode": "subagent",
+      "description": "Runs the Phase 7e three-layer consistency analysis against an assembled chapter: deterministic wiki-lint validation, semantic wiki search, and RAG-based cross-chapter factual analysis. Returns a structured consistency report to the story-orchestrator.",
       "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
       "permission": {
         "bash": "deny"

@@ -74,6 +74,39 @@ ChromaDB is a **derived semantic index** over the authoritative Markdown knowled
 
 ---
 
+## Per-Story Collections
+
+Each story has a dedicated ChromaDB collection named `stories-{story_name}` (e.g. `stories-my-story`). These collections are created automatically by `rag-query` on first index.
+
+| Collection | Name Pattern | Managed By |
+|------------|-------------|------------|
+| **Per-story RAG** | `stories-{story_name}` | `rag-query` tool (story-orchestrator, wiki-maintainer) |
+
+### Per-Story Collection Metadata Schema
+
+| Field | Type | Examples |
+|-------|------|---------|
+| `story` | string | `"my-story"` |
+| `content_type` | string | `"outline"`, `"chapter"`, `"character"`, `"setting"`, `"wiki"`, `"recap"`, `"raw-chapter"` |
+| `doc_id` | string | `"outline"`, `"chapter-1"`, `"character-elena"`, `"chapter-3-raw"` |
+| `chapter_num` | integer | `1`, `3` (optional, for chapter-related content) |
+
+### Per-Story Document ID Conventions
+
+| Content Type | ID Pattern | Example |
+|-------------|------------|---------|
+| `outline` | `outline` | `outline` |
+| `chapter` | `chapter-{N}` | `chapter-1` |
+| `character` | `character-{slug}` | `character-elena` |
+| `setting` | `setting-{slug}` | `setting-northwood-village` |
+| `wiki` | `wiki-{slug}` | `wiki-elena-vasquez` |
+| `recap` | `recap-chapter-{N}` | `recap-chapter-3` |
+| `raw-chapter` | `chapter-{N}-raw` | `chapter-3-raw` |
+
+**`raw-chapter`** — full accepted chapter text embedded after Phase 7g acceptance. Used by `consistency-checker` for cross-chapter factual continuity analysis and by the `character-voice` critic mode for voice sample retrieval.
+
+---
+
 ## Document ID Conventions
 
 IDs are stable and slugified. Re-indexing the same source produces the same IDs (upsert behaviour).

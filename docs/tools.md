@@ -1043,6 +1043,7 @@ Critic sets by mode:
 |------|---------|
 | `outline` | `audiobook-producer`, `book-club-moderator`, `commercial-fiction-editor`, `literary-fiction-reviewer`, `publishing-acquisitions-editor`, `subject-expert` |
 | `chapter` | `commercial-fiction-editor`, `chapter-pacing`, `chapter-character-consistency` |
+| `character-voice` | `character-voice-consistency` |
 
 The seven scoring criteria:
 
@@ -1064,7 +1065,7 @@ The seven scoring criteria:
 | `name` | string | For `run-critics`, `should-refine`, `generate-feedback` | Story name (maps to directory under `stories/`) |
 | `iteration` | number | No | Critique iteration number (default: 1) |
 | `content` | string | No | Content to critique; if omitted, loads mode-appropriate content from savepoint |
-| `mode` | `"outline" \| "chapter"` | No | Critique mode (default: `outline`) |
+| `mode` | `"outline" \| "chapter" \| "character-voice"` | No | Critique mode (default: `outline`) |
 | `criticType` | string | For `parse-scores` | Critic type identifier |
 | `responseText` | string | For `parse-scores` | Raw critic response text to parse |
 | `qualityThreshold` | number | No | Quality threshold percentage for `should-refine` (default: 85.0) |
@@ -2076,7 +2077,7 @@ This replaces the previous PostgreSQL/pgvector RAG system from the pre-migration
 | `name` | string | Yes | Story name (maps to `stories/<name>/`) |
 | `docId` | string | For `index` | Stable unique identifier for the content chunk (e.g. `"outline"`, `"chapter-1"`, `"character-elena"`) |
 | `content` | string | For `index` | Full text content to embed |
-| `contentType` | string | No | One of: `outline`, `chapter`, `character`, `setting`, `wiki`, `recap`. Defaults to `outline` for index; acts as a filter for query. |
+| `contentType` | string | No | One of: `outline`, `chapter`, `character`, `setting`, `wiki`, `recap`, `raw-chapter`. Defaults to `outline` for index; acts as a filter for query. |
 | `chapterNum` | number | No | Chapter number (stored as `chapter_num` metadata for chapter content) |
 | `query` | string | For `query` | Semantic search query text |
 | `nResults` | number | No | Number of results to return (default: 10) |

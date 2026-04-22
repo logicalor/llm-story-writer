@@ -59,10 +59,10 @@ Phase 7 now has two layers:
 After the one-time Phase 7a dispatch, each chapter passes through seven core sub-phases, plus the conditional prose scrub:
 
 ```
-┌─────────────┐   ┌────────────────┐   ┌───────────┐   ┌───────────┐
-│ Scene Gen   │──▶│ Wiki Update    │──▶│ Recap     │──▶│ Wiki Lint │
-│ (7b)        │   │ (7c)           │   │ (7d)      │   │ (7e)      │
-└─────────────┘   └────────────────┘   └───────────┘   └───────────┘
+┌─────────────┐   ┌────────────────┐   ┌───────────┐   ┌─────────────────────┐
+│ Scene Gen   │──▶│ Wiki Update    │──▶│ Recap     │──▶│ Consistency Check   │
+│ (7b)        │   │ (7c)           │   │ (7d)      │   │ (7e)                │
+└─────────────┘   └────────────────┘   └───────────┘   └─────────────────────┘
                                                               │
       ┌───────────────────────────────────────────────────────┘
       ▼
@@ -76,9 +76,11 @@ Chapters are generated sequentially because each chapter's wiki updates inform t
 
 Phase 7a no longer keeps `continuitySummary` inside the orchestrator's working memory. That state now lives inside `chapter-outline-expander`, which can also read the prior chapter's structured handoff artifact from story state.
 
-Phase 7f dispatches the `quality-reviewer` subagent instead of running the critique/revision loop inline. The subagent owns scoring, refinement decisions, feedback generation, and revision for one chapter, then returns a structured result to the orchestrator. When `requires_post_processing` is `true`, the orchestrator re-runs Phases 7c, 7d, and 7e so the wiki, recap, and lint outputs reflect the final accepted chapter text.
+Phase 7e dispatches the `consistency-checker` subagent, which runs a three-layer analysis: deterministic `wiki-lint` validation, semantic wiki search for entity state, and RAG-based cross-chapter factual analysis against prior embedded chapter text. The subagent returns a structured consistency report that the orchestrator passes to Phase 7f.
 
-Phase 7g runs after the chapter is accepted and any required post-processing is complete. The orchestrator loads `prompts/chapters/generate_handoff.md`, generates one structured JSON handoff artifact inline, and writes it to `story-state` at `chapters.{N}.handoff`. That artifact captures continuity state for the next chapter expansion pass: resolved beats, obligations, active tensions, timeline movement, and character deltas.
+Phase 7f dispatches the `quality-reviewer` subagent instead of running the critique/revision loop inline. The subagent receives the assembled chapter text and the Phase 7e `consistency_report`, then owns scoring, refinement decisions, feedback generation, and revision for one chapter before returning a structured result to the orchestrator. When `requires_post_processing` is `true`, the orchestrator re-runs Phases 7c, 7d, and 7e so the wiki, recap, and consistency-check outputs reflect the final accepted chapter text.
+
+Phase 7g runs after the chapter is accepted and any required post-processing is complete. The orchestrator loads `prompts/chapters/generate_handoff.md`, generates one structured JSON handoff artifact inline, and writes it to `story-state` at `chapters.{N}.handoff`. That artifact captures continuity state for the next chapter expansion pass: resolved beats, obligations, active tensions, timeline movement, and character deltas. After writing the handoff, the orchestrator also calls `rag-query` with `contentType: "raw-chapter"` to embed the accepted chapter text into the story's ChromaDB collection, enabling cross-chapter factual analysis in subsequent `consistency-checker` invocations.
 
 Phase 7.5 dispatches `prose-scrubber` only after the chapter has passed the quality gate. The scrubber operates at sentence and paragraph scope, writes the revised chapter text back to story state, and creates a `chapter_{N}_scrubbed` savepoint before the orchestrator records `chapter_{N}_complete`. Because the scrubber is constrained to prose-only edits, the orchestrator does not re-run wiki update, recap generation, or lint after this pass.
 
@@ -106,8 +108,8 @@ The wiki follows a lifecycle synchronised with the pipeline:
 | Phase 7a | `chapter-outline-expander` reads prior handoff state, expands all chapter outlines, and writes `chapters.{N}.expanded_outline` |
 | Phase 7b | `wiki-snapshot` assembles token-budgeted context for each scene generation prompt |
 | Phase 7c | `wiki-maintainer` subagent extracts and records new facts from the generated chapter |
-| Phase 7e | `wiki-lint` checks chapter consistency against the wiki |
-| Phase 7g | Orchestrator writes `chapters.{N}.handoff` for downstream continuity planning |
+| Phase 7e | `consistency-checker` subagent runs three-layer consistency analysis: `wiki-lint` deterministic check, semantic wiki search, and RAG cross-chapter analysis |
+| Phase 7g | Orchestrator writes `chapters.{N}.handoff` and calls `rag-query` to embed accepted chapter text as `raw-chapter` content type |
 | Phase 7.5 | No wiki mutation; `prose-scrubber` is prose-only and must preserve facts |
 | Phase 9 | No wiki mutation; `final-editor` polishes prose after assembly without changing entity state |
 
@@ -115,7 +117,7 @@ After Phase 6, the wiki is the **authoritative source of truth** for world state
 
 ## Subagents
 
-The orchestrator delegates specialised work to nine subagents:
+The orchestrator delegates specialised work to ten subagents:
 
 | Subagent | Purpose | Invoked In | Status |
 |----------|---------|------------|--------|
@@ -126,6 +128,7 @@ The orchestrator delegates specialised work to nine subagents:
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b | Implemented (PR #63) |
 | `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 6, 7c | Implemented (PR #65) |
 | `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f | Implemented (PR #127) |
+| `consistency-checker` | Run the Phase 7e three-layer consistency analysis (wiki-lint + semantic + RAG) | Phase 7e | Implemented (PR #131) |
 | `prose-scrubber` | Run the Phase 7.5 sentence/paragraph scrub pass for a single chapter | Phase 7.5 | Implemented (PR #128) |
 | `final-editor` | Run the Phase 9 post-assembly voice, pacing, and coherence pass | Phase 9 | Implemented (PR #128) |
 
@@ -231,6 +234,18 @@ The `quality-reviewer` subagent handles Phase 7f for one assembled chapter. It r
 The agent calls tools only and never dispatches subagents, preserving the depth-1 nesting rule introduced after the earlier nested-dispatch freeze. The orchestrator keeps ownership of downstream re-processing: when `requires_post_processing` is true, it re-runs the wiki update, recap generation, and wiki lint phases against the final accepted chapter.
 
 See the [agent definition](../../.opencode/agents/quality-reviewer.md) for the full decision matrix, return contract, and savepoint naming.
+
+### consistency-checker
+
+The `consistency-checker` subagent handles Phase 7e for one assembled chapter. It receives the story name, chapter number, chapter file path, and full chapter text from the orchestrator, then runs a three-layer consistency analysis:
+
+1. **Wiki lint** — Calls `wiki-lint` with `operation: "check-chapter"` and the chapter file path (not inline text) to detect contradictions, timeline inconsistencies, and character trait drift against the wiki knowledge base
+2. **Semantic wiki analysis** — Extracts key entity mentions from the chapter (up to 5 most prominent) and calls `wiki-search` for each to retrieve current wiki state and cross-check against the chapter's portrayal
+3. **RAG cross-chapter analysis** — Calls `rag-query` with `contentType: "raw-chapter"` to retrieve prior accepted chapter passages and identify factual inconsistencies that span chapter boundaries
+
+The agent returns a structured consistency report to the orchestrator containing categorised findings, severity levels, affected entities, and an `is_blocking` flag for critical violations. The orchestrator passes this report to the `quality-reviewer` in Phase 7f. When `requires_post_processing` is `true`, the orchestrator re-dispatches `consistency-checker` against the final accepted chapter text before creating the chapter savepoint.
+
+The agent calls tools only and never dispatches subagents (depth-1 rule). See the [agent definition](../../.opencode/agents/consistency-checker.md) for the full workflow, layer details, and return contract.
 
 ### prose-scrubber
 

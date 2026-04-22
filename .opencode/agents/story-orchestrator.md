@@ -183,20 +183,21 @@ If `scene_generation_pipeline` is false:
 2. Call `recap-manager` (operation: `generate`) for the completed chapter, passing `storyStartDate` so timeline annotations are consistent.
 3. Store the recap via `story-state`
 
-#### 7e. Wiki Lint
+#### 7e. Consistency Check
 
-1. Write the assembled chapter text to disk at: `stories/{name}/chapters/chapter_{N}.md` (create directories as needed). This file must exist before calling `wiki-lint`.
-2. Call `wiki-lint` with:
-   - `operation`: `"check-chapter"`
-   - `name`: story name
+1. Write the assembled chapter text to disk at: `stories/{name}/chapters/chapter_{N}.md` (create directories as needed). This file must exist before dispatching `consistency-checker`.
+2. Dispatch `consistency-checker` with:
+   - `story_name`: the story name
    - `chapter_number`: N
-   - `chapter_text`: file path written in step 1 (e.g., `stories/my-story/chapters/chapter_3.md`)
-   **Note:** `chapter_text` is a **file path**, not raw text content. `wiki-lint` reads the chapter from disk and validates the path is inside the `stories/` directory.
-   `wiki-lint` detects:
-   - Contradictions between the chapter content and established wiki facts
-   - Timeline inconsistencies
-   - Character trait or appearance drift
-3. If contradictions are found, log them and flag for the quality evaluation step.
+   - `chapter_file_path`: the file path written in step 1 (e.g., `stories/my-story/chapters/chapter_3.md`)
+   - `chapter_text`: the assembled chapter text (for semantic analysis)
+3. Receive the structured consistency report from `consistency-checker`:
+   - `wiki_lint_findings` — deterministic contradictions, timeline issues, trait drift
+   - `semantic_findings` — semantic wiki analysis results
+   - `cross_chapter_findings` — RAG-based cross-chapter factual inconsistencies
+   - `has_critical_findings` — true if any critical wiki-lint contradictions found
+4. Store the consistency report for use in Phase 7f. Log findings for observability.
+5. If `has_critical_findings` is true, log a warning — consistency findings are advisory and do not halt the pipeline, but are passed to `quality-reviewer` for context.
 
 #### 7f. Quality Evaluation
 
@@ -208,6 +209,7 @@ If `enable_chapter_revisions` is true:
    - `chapter_quality`: `chapter_quality` config value (default 85)
    - `chapter_min_revisions`: `chapter_min_revisions` config value (default 0)
    - `chapter_max_revisions`: `chapter_max_revisions` config value (default 3)
+   - `consistency_report`: the structured consistency report from Phase 7e (optional — pass the full report object)
 
 2. Receive the structured result from `quality-reviewer`:
    - `accepted_chapter_text` — use this as the chapter text for the remainder of the pipeline
@@ -218,7 +220,7 @@ If `enable_chapter_revisions` is true:
 3. If `requires_post_processing` is true:
    - Re-run Phase 7c (wiki update) using `accepted_chapter_text`
    - Re-run Phase 7d (recap generation) for the chapter
-   - Re-run Phase 7e (wiki lint) using `accepted_chapter_text`
+   - Re-run Phase 7e (consistency check) using `accepted_chapter_text` — re-dispatch `consistency-checker` with the updated chapter file (overwrite `stories/{name}/chapters/chapter_{N}.md` with `accepted_chapter_text` before dispatching)
 
    This ensures the wiki, recap, and lint all reflect the final revised chapter, not a superseded draft.
 
@@ -238,6 +240,13 @@ After the chapter is accepted (7f) and post-processing is complete:
    - `name`: story name
    - `field`: `"chapters.{N}.handoff"`
    - `value`: the generated JSON object string
+5. Embed the accepted chapter text into the story's RAG index for cross-chapter continuity analysis. Call `rag-query` with:
+   - `operation`: `"index"`
+   - `name`: story name
+   - `docId`: `chapter-{N}-raw` (e.g. `chapter-3-raw`)
+   - `content`: the accepted chapter text (from `quality-reviewer` result or assembled chapter if no revisions)
+   - `contentType`: `"raw-chapter"`
+   - `chapterNum`: N
 
 The handoff artifact is consumed by `chapter-outline-expander` in the next chapter's Phase 7a to supplement `continuitySummary` with structured continuity state.
 
@@ -310,10 +319,11 @@ Delegate specialised creative work to these subagents (referenced by name):
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
 | `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f |
+| `consistency-checker` | Run the Phase 7e three-layer consistency analysis (wiki-lint + semantic + RAG) | Phase 7e |
 | `prose-scrubber` | Sentence/paragraph-level prose quality (adverbs, filter words, show-vs-tell) | Phase 7.5, when `enable_scrubbing: true` |
 | `final-editor` | Post-assembly chapter-by-chapter prose pass (voice, pacing, coherence) | Phase 9, when `enable_final_edit: true` |
 
-**These are the only nine subagents you may dispatch: `outline-planner`, `story-planner`, `character-sheet-generator`, `chapter-outline-expander`, `chapter-writer`, `wiki-maintainer`, `quality-reviewer`, `prose-scrubber`, and `final-editor`.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
+**These are the only ten subagents you may dispatch: `outline-planner`, `story-planner`, `character-sheet-generator`, `chapter-outline-expander`, `chapter-writer`, `wiki-maintainer`, `quality-reviewer`, `consistency-checker`, `prose-scrubber`, and `final-editor`.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
 
 ---
 
@@ -350,7 +360,7 @@ Quality gates enforce minimum standards before the pipeline proceeds.
 | Outline quality | `critique-runner` score | `outline_quality` (87) | `outline_max_revisions` (3) | Phase 2 |
 | Outline critique | `critique-runner` iterations | `outline_critique_iterations` (3) | — | Phase 2 (if enabled) |
 | Chapter quality | `critique-runner` score | `chapter_quality` (85) | `chapter_max_revisions` (3) | Phase 7f |
-| Wiki consistency | `wiki-lint` errors | 0 critical contradictions | — | Phase 7e (advisory) |
+| Wiki consistency | `consistency-checker` report | 0 critical contradictions | — | Phase 7e (advisory) |
 
 When a quality gate fails after maximum attempts, log a warning and proceed. Do not block the pipeline indefinitely on a single chapter.
 
@@ -366,7 +376,7 @@ When a quality gate fails after maximum attempts, log a warning and proceed. Do 
    - **`scene-writer` (parse-definitions):** If scene definition parsing fails internally, the tool may fall back to a single-scene default. Verify the returned definition count matches the expected scene count from the chapter outline before proceeding with the scene generation loop.
    - In both cases, the pipeline should log the output and proceed. Do not treat these as hard failures unless the returned data is empty or unparseable.
 5. **Resume after crash:** Use `savepoint-mgr` (operation: `load`) to load the latest savepoint. The pipeline resumes from the phase after the savepoint.
-6. **Wiki lint warnings:** Wiki lint findings in Phase 7e are advisory. Log them and include them as context for the quality evaluation, but do not halt the pipeline for non-critical findings.
+6. **Consistency findings:** Consistency findings in Phase 7e are advisory. Log them and pass the full `consistency_report` to `quality-reviewer` for context, but do not halt the pipeline for non-critical findings.
 
 ---
 

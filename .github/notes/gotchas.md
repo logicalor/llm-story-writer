@@ -102,6 +102,37 @@ ChromaDB ID: `gotcha-scene-writer-assemble-no-savepoint-005`
 
 ---
 
+### 010 — `wiki-search`: valid `operation` values are `"semantic"` and `"metadata"` — not `"search"`
+
+**Source:** issue #125, PR #131
+**Severity:** warning
+
+`wiki-search` defines its `operation` parameter as `z.enum(["semantic", "metadata"])` in
+the TypeScript wrapper. The value `"search"` is **not** in the enum and is rejected by Zod
+at runtime with no informative error.
+
+| Value | Use |
+|-------|-----|
+| `"semantic"` | Natural-language free-text query (default for most wiki lookups) |
+| `"metadata"` | Structured field matching (filter by page type, tags, etc.) |
+
+The count parameter key is `nResults`, **not** `limit`.
+
+```
+# Wrong (rejected at runtime):
+operation: "search", limit: 3
+
+# Right:
+operation: "semantic", nResults: 3
+```
+
+The contrast: `rag-query` also uses `nResults`. Step 2 wiki lookups and Step 3 RAG queries both
+use `nResults` — only the tool name and operation enum differ.
+
+ChromaDB ID: `gotcha-wiki-search-operation-names-010`
+
+---
+
 ## URI Parsing
 
 ### 006 — Python `urlparse` silently drops URI schemes containing underscores
