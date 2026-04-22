@@ -57,6 +57,8 @@ Follow the test conventions and patterns established in the project (see `copilo
 
 **Custom URI schemes:** When testing functions that parse URI-format strings with project-specific schemes (e.g., `lm_studio://`, `llama_cpp://`), write at least one positive-path test per supported scheme. Python's `urlparse` silently ignores schemes containing underscores (see `gotchas.md` #006), so a positive-path assertion is the only reliable guard against silent parsing regressions — negative-path tests alone are insufficient.
 
+**LLM-response parse-error paths:** When writing tests for CLI tool operations that send a prompt to an LLM and parse the response as JSON (`json.loads()`), always include a test for the JSON decode failure path. Mock the LLM call to return a non-JSON string (e.g., `"not valid json"` or `""`), and assert the process exits with a non-zero return code (typically 1). Name these tests `test_<operation>_json_parse_error_exits`. This exit path is as mandatory as the happy path — reviewers will flag its absence unanimously. A tool that lacks this test has unverified error handling on a failure mode that LLMs produce regularly.
+
 After writing each test, run the project's test command (see `copilot-instructions.md`).
 
 ### 3. Classify Results
