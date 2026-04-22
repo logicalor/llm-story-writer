@@ -253,7 +253,7 @@ The `prose-scrubber` subagent handles the conditional Phase 7.5 cleanup for one 
 
 1. Loads the shared `final-edit` skill for scope constraints and revision-budget rules
 2. Reads the current chapter object from story state and extracts the active text-bearing field
-3. Loads the `final_edit/prose_scrub` prompt and runs sentence/paragraph-level analysis using the `scrub_model` named model role when configured
+3. Calls `scene-writer` `scrub-analyze` to load the `final_edit/prose_scrub` prompt, run sentence/paragraph-level analysis, and return structured issues using the `scrub_model` named model role when configured
 4. Applies up to five targeted `scene-writer` revision calls for actionable issues such as adverb overuse, filter words, repetitive phrasing, and show-vs-tell drift
 5. Writes the revised chapter object back to story state and records a `chapter_{N}_scrubbed` savepoint
 
@@ -265,8 +265,8 @@ The `final-editor` subagent handles the conditional Phase 9 manuscript polish af
 
 1. Loads the shared `final-edit` skill for scope constraints, pass types, and revision budgets
 2. Reads each chapter from story state and retrieves prior-chapter context via `rag-query`
-3. Runs the `final_edit/voice_consistency_pass` prompt to detect voice, pacing, and cross-chapter coherence issues
-4. Runs the `final_edit/prose_scrub` prompt for a second sentence-level cleanup pass on the assembled manuscript text
+3. Calls `scene-writer` `voice-analyze` to run `final_edit/voice_consistency_pass` and return structured voice, pacing, and cross-chapter coherence issues
+4. Calls `scene-writer` `scrub-analyze` for a second sentence-level cleanup pass on the assembled manuscript text
 5. Applies targeted `scene-writer` revisions, writes each revised chapter back to story state, and creates `chapter_{N}_final_edited` savepoints plus a final `final_edit_complete` checkpoint
 
 This pass runs after assembly, not instead of Phase 7f. It preserves story events and facts while smoothing chapter-to-chapter style and pacing. See [Prose Quality Passes](./prose-quality-passes.md) and the [agent definition](../../.opencode/agents/final-editor.md) for details.
