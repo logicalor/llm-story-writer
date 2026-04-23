@@ -703,7 +703,7 @@ The tool uses `generate_text_messages()` from `src/tools/_llm.py` to maintain mu
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `operation` | `"analyze-prompt" \| "generate-elements" \| "generate-outline" \| "expand-chapter" \| "refine"` | Yes | Operation to perform |
+| `operation` | `"analyze-prompt" \| "generate-elements" \| "generate-outline" \| "expand-chapter" \| "expand-to-scenes" \| "refine"` | Yes | Operation to perform |
 | `name` | string | Yes | Story name (directory under `stories/`) |
 | `prompt` | string | For `analyze-prompt`; optional for `generate-outline` | Story prompt text |
 | `desiredChapters` | integer | For `generate-outline` | Number of desired chapters (must be ≥ 1) |
@@ -712,6 +712,12 @@ The tool uses `generate_text_messages()` from `src/tools/_llm.py` to maintain mu
 | `totalChapters` | integer | For `expand-chapter` | Total chapters in the story (must be ≥ `chunkEnd`) |
 | `previousChunks` | string | No | Previous chunk outlines text (for `expand-chapter` continuity) |
 | `continuitySummary` | string | No | Continuity summary from prior chunks (for `expand-chapter`) |
+| `chapterNum` | integer | For `expand-to-scenes` | Chapter number whose synopsis is being decomposed |
+| `chapterSynopsis` | string | For `expand-to-scenes` | Expanded chapter synopsis text to decompose into scene objects |
+| `scenesMin` | integer | For `expand-to-scenes` | Minimum scene count to generate (1–30) |
+| `scenesMax` | integer | For `expand-to-scenes` | Maximum scene count to generate (1–30, and must be ≥ `scenesMin`) |
+| `previousRecap` | string | No | Prior chapter recap for scene-level continuity hints |
+| `nextChapterSynopsis` | string | No | Next chapter synopsis used to shape the chapter ending and lead-in |
 | `feedback` | string | For `refine` | Critique/feedback text to apply |
 | `model` | string | No | Override LLM model identifier |
 
@@ -745,6 +751,14 @@ python3 src/tools/outline_generator.py --operation expand-chapter \
   --name my-story --chunk-start 5 --chunk-end 8 --total-chapters 12 \
   --previous-chunks "<chapters 1-4 text>" --continuity-summary "<summary>"
 
+# Expand chapter 5 synopsis into 8-16 structured scene definitions
+python3 src/tools/outline_generator.py --operation expand-to-scenes \
+  --name my-story --chapter-num 5 \
+  --chapter-synopsis "<expanded chapter synopsis>" \
+  --scenes-min 8 --scenes-max 16 \
+  --previous-recap "<chapter 4 recap>" \
+  --next-chapter-synopsis "<chapter 6 synopsis>"
+
 # Refine outline with critique feedback
 python3 src/tools/outline_generator.py --operation refine \
   --name my-story --feedback "The pacing in chapters 3-5 needs tightening..."
@@ -758,6 +772,7 @@ python3 src/tools/outline_generator.py --operation refine \
 | `generate-elements` | Concatenates all 8 analysis chunks (with headers) into a single `story_elements` savepoint | `{"status": "success", "operation": "generate-elements", "data": {"story_elements": "..."}}` |
 | `generate-outline` | Generates initial outline from story elements + base context using `outline/create` prompt | `{"status": "success", "operation": "generate-outline", "data": {"outline": "..."}}` |
 | `expand-chapter` | Generates outline chunk for a chapter range, then runs continuity analysis for the next chunk | `{"status": "success", "operation": "expand-chapter", "data": {"chunk_outline": "...", "continuity_analysis": "..."}}` |
+| `expand-to-scenes` | Expands one chapter synopsis into a validated JSON array of scene objects, enforces the requested scene-count band, and writes the result to a scene-definitions savepoint | Returns compact success data with `scene_count` and `savepoint_step`; writes `chapter_{N}/scene_definitions` |
 | `refine` | Applies enrichment analysis using `outline/analyze_enrichment` prompt against current outline | `{"status": "success", "operation": "refine", "data": {"refined_outline": "..."}}` |
 
 ### Analyze-Prompt Pipeline Detail
@@ -798,6 +813,7 @@ All intermediate results are persisted under `stories/<name>/savepoints/`:
 | `initial_outline` | `generate-outline` | Generated outline text |
 | `outline_chunk_N_M` | `expand-chapter` | Expanded outline for chapters N–M |
 | `continuity_N_M` | `expand-chapter` | Continuity analysis for chunk N–M |
+| `chapter_{N}/scene_definitions` | `expand-to-scenes` | JSON array of validated scene objects for chapter `N` |
 | `refined_outline` | `refine` | Refined outline incorporating user feedback |
 
 ### Resumability
@@ -831,8 +847,8 @@ The `--model` argument overrides `LLM_MODEL` for a single invocation.
 
 Numeric arguments are validated at both layers:
 
-- **TypeScript (Zod)** — `desiredChapters`, `chunkStart`, `chunkEnd`, and `totalChapters` are validated as positive integers (`.int().min(1)`)
-- **Python (argparse)** — `--desired-chapters` must be ≥ 1; `--chunk-start` must be ≥ 1; `--chunk-end` must be ≥ `--chunk-start`; `--total-chapters` must be ≥ `--chunk-end`
+- **TypeScript (Zod)** — `desiredChapters`, `chunkStart`, `chunkEnd`, `totalChapters`, `chapterNum`, `scenesMin`, and `scenesMax` are validated as bounded integers before the Python tool runs
+- **Python (argparse and command validation)** — `--desired-chapters` must be ≥ 1; `--chunk-start` must be ≥ 1; `--chunk-end` must be ≥ `--chunk-start`; `--total-chapters` must be ≥ `--chunk-end`; `expand-to-scenes` enforces `1 <= scenesMin <= scenesMax <= 30`
 
 Invalid values produce exit code 1 with a descriptive error message.
 
