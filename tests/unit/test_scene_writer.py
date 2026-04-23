@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import pytest
 
 import src.tools.scene_writer as sw
@@ -185,7 +187,9 @@ def test_generate_scene_success(
     out = json.loads(captured.out)
     assert out["status"] == "success"
     assert out["operation"] == "generate"
-    assert out["data"] == scene_text
+    assert out["data"]["scene_ref"] == "chapter_2/scene_1"
+    assert out["data"]["char_count"] == len(scene_text)
+    assert "content" not in out["data"]
 
     # Verify savepoint
     repo = sw._make_repo(name)
@@ -229,7 +233,8 @@ def test_generate_scene_savepoint_resume(
     out = json.loads(captured.out)
     assert out["status"] == "success"
     assert out["operation"] == "generate"
-    assert "Cached scene content" in str(out["data"])
+    assert out["data"]["scene_ref"] == "chapter_1/scene_2"
+    assert "content" not in out["data"]
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +270,9 @@ class TestCmdGenerateChapter:
         out = json.loads(capsys.readouterr().out)
         assert out["status"] == "success"
         assert out["operation"] == "generate-chapter"
-        assert out["data"] == "Generated chapter content"
+        assert out["data"]["chapter_ref"] == "chapter_1/chapter_content"
+        assert out["data"]["char_count"] == len("Generated chapter content")
+        assert "content" not in out["data"]
 
         assert sw._has_savepoint(repo, "chapter_1/chapter_content")
         assert (
@@ -297,7 +304,8 @@ class TestCmdGenerateChapter:
         out = json.loads(capsys.readouterr().out)
         assert out["status"] == "success"
         assert out["operation"] == "generate-chapter"
-        assert out["data"] == "Cached content"
+        assert out["data"]["chapter_ref"] == "chapter_1/chapter_content"
+        assert "content" not in out["data"]
 
     def test_generate_chapter_previous_recap_included(
         self,
@@ -323,7 +331,9 @@ class TestCmdGenerateChapter:
 
         captured_variables: dict[str, object] = {}
 
-        def capture_prompt(prompt_id: str, variables: dict[str, object] | None = None) -> str:
+        def capture_prompt(
+            prompt_id: str, variables: dict[str, object] | None = None
+        ) -> str:
             assert prompt_id == "chapters/create_content"
             if variables is not None:
                 captured_variables.update(variables)
@@ -355,7 +365,9 @@ class TestCmdGenerateChapter:
 
         captured_variables: dict[str, object] = {}
 
-        def capture_prompt(_prompt_id: str, variables: dict[str, object] | None = None) -> str:
+        def capture_prompt(
+            _prompt_id: str, variables: dict[str, object] | None = None
+        ) -> str:
             if variables is not None:
                 captured_variables.update(variables)
             return "mock prompt text"
@@ -389,7 +401,9 @@ class TestCmdGenerateChapter:
         out = json.loads(capsys.readouterr().out)
         assert out["status"] == "success"
         assert out["operation"] == "generate-chapter"
-        assert out["data"] == "Content"
+        assert out["data"]["chapter_ref"] == "chapter_1/chapter_content"
+        assert out["data"]["char_count"] == len("Content")
+        assert "content" not in out["data"]
 
 
 # ---------------------------------------------------------------------------
@@ -436,7 +450,9 @@ def test_revise_scene_success(
     out = json.loads(captured.out)
     assert out["status"] == "success"
     assert out["operation"] == "revise"
-    assert out["data"] == revised_text
+    assert out["data"]["scene_ref"] == "chapter_1/scene_1"
+    assert out["data"]["char_count"] == len(revised_text)
+    assert "content" not in out["data"]
 
     # CRITICAL: Verify feedback text appears in the LLM call arguments
     assert len(captured_prompts) == 1
@@ -473,14 +489,18 @@ def test_assemble_chapter_success(
     sw._save_savepoint(repo, "chapter_1/scene_2", "Content of scene two.")
     sw._save_savepoint(repo, "chapter_1/scene_3", "Content of scene three.")
 
-    sw.cmd_assemble_chapter(name, 1, 3, chapter_title="The Beginning")
+    sw.cmd_assemble_chapter(
+        name, 1, 3, chapter_title="The Beginning", include_content=True
+    )
 
     captured = capsys.readouterr()
     out = json.loads(captured.out)
     assert out["status"] == "success"
     assert out["operation"] == "assemble-chapter"
+    assert out["data"]["chapter_ref"] == "chapter_1/chapter_content"
+    assert out["data"]["scene_count"] == 3
 
-    assembled = out["data"]
+    assembled = out["data"]["content"]
     assert "# The Beginning" in assembled
     assert "## The Arrival" in assembled
     assert "## The Battle" in assembled
@@ -489,6 +509,223 @@ def test_assemble_chapter_success(
     assert "Content of scene two." in assembled
     assert "Content of scene three." in assembled
     assert "---" in assembled
+    assert sw._has_savepoint(repo, "chapter_1/chapter_content")
+
+
+def test_generate_include_content_returns_content(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Include-content flag should restore legacy scene text in response."""
+    _stories_dir, name = patched_env
+
+    scene_text = "Scene text returned with include-content enabled."
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: scene_text)
+
+    sw.cmd_generate(
+        name,
+        chapter_num=1,
+        scene_num=1,
+        scene_definition="Scene definition",
+        chapter_outline="Chapter outline",
+        include_content=True,
+    )
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["data"]["scene_ref"] == "chapter_1/scene_1"
+    assert out["data"]["content"] == scene_text
+
+
+def test_generate_auto_loads_previous_scene(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Second scene should auto-load previous_scene from prior savepoint."""
+    _stories_dir, name = patched_env
+    repo = sw._make_repo(name)
+    sw._save_savepoint(repo, "chapter_1/scene_1", "Previous scene content")
+
+    captured_variables: dict[str, object] = {}
+
+    def capture_prompt(
+        _prompt_id: str, variables: dict[str, object] | None = None
+    ) -> str:
+        if variables is not None:
+            captured_variables.update(variables)
+        return "mock prompt text"
+
+    monkeypatch.setattr(sw, "_load_prompt", capture_prompt)
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: "Generated scene")
+
+    sw.cmd_generate(
+        name,
+        chapter_num=1,
+        scene_num=2,
+        scene_definition="Scene definition",
+        chapter_outline="Chapter outline",
+    )
+
+    json.loads(capsys.readouterr().out)
+    assert captured_variables["previous_scene"] == "Previous scene content"
+
+
+def test_generate_explicit_previous_scene_overrides_savepoint(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Explicit previous_scene arg should win over auto-loaded savepoint text."""
+    _stories_dir, name = patched_env
+    repo = sw._make_repo(name)
+    sw._save_savepoint(repo, "chapter_1/scene_1", "Savepoint scene content")
+
+    captured_variables: dict[str, object] = {}
+
+    def capture_prompt(
+        _prompt_id: str, variables: dict[str, object] | None = None
+    ) -> str:
+        if variables is not None:
+            captured_variables.update(variables)
+        return "mock prompt text"
+
+    monkeypatch.setattr(sw, "_load_prompt", capture_prompt)
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: "Generated scene")
+
+    sw.cmd_generate(
+        name,
+        chapter_num=1,
+        scene_num=2,
+        scene_definition="Scene definition",
+        chapter_outline="Chapter outline",
+        previous_scene="Explicit content",
+    )
+
+    json.loads(capsys.readouterr().out)
+    assert captured_variables["previous_scene"] == "Explicit content"
+
+
+def test_generate_scene1_no_previous_scene_loaded(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """First scene in chapter should render empty previous_scene context."""
+    _stories_dir, name = patched_env
+
+    captured_variables: dict[str, object] = {}
+
+    def capture_prompt(
+        _prompt_id: str, variables: dict[str, object] | None = None
+    ) -> str:
+        if variables is not None:
+            captured_variables.update(variables)
+        return "mock prompt text"
+
+    monkeypatch.setattr(sw, "_load_prompt", capture_prompt)
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: "Generated scene")
+
+    sw.cmd_generate(
+        name,
+        chapter_num=1,
+        scene_num=1,
+        scene_definition="Scene definition",
+        chapter_outline="Chapter outline",
+    )
+
+    json.loads(capsys.readouterr().out)
+    assert captured_variables["previous_scene"] == ""
+
+
+def test_revise_default_returns_scene_ref(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Revise should default to compact scene ref response when include-content off."""
+    _stories_dir, name = patched_env
+    repo = sw._make_repo(name)
+    sw._save_savepoint(repo, "chapter_1/scene_1", "Original scene text")
+
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: "Revised scene text")
+
+    sw.cmd_revise(name, chapter_num=1, scene_num=1, feedback="Make it darker")
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["data"]["scene_ref"] == "chapter_1/scene_1"
+    assert "content" not in out["data"]
+
+
+def test_revise_auto_loads_scene_content(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Revise should auto-load scene_content from savepoint when omitted."""
+    _stories_dir, name = patched_env
+    repo = sw._make_repo(name)
+    sw._save_savepoint(repo, "chapter_1/scene_1", "Original scene text")
+
+    captured_variables: dict[str, object] = {}
+
+    def capture_prompt(
+        _prompt_id: str, variables: dict[str, object] | None = None
+    ) -> str:
+        if variables is not None:
+            captured_variables.update(variables)
+        return "mock prompt text"
+
+    monkeypatch.setattr(sw, "_load_prompt", capture_prompt)
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: "Revised scene text")
+
+    sw.cmd_revise(name, chapter_num=1, scene_num=1, feedback="Tighten prose")
+
+    json.loads(capsys.readouterr().out)
+    assert captured_variables["scene_content"] == "Original scene text"
+
+
+def test_revise_include_content_returns_content(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Revise include-content flag should return revised scene text."""
+    _stories_dir, name = patched_env
+    repo = sw._make_repo(name)
+    sw._save_savepoint(repo, "chapter_1/scene_1", "Original scene text")
+
+    revised_text = "Revised scene text returned in payload"
+    monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: revised_text)
+
+    sw.cmd_revise(
+        name,
+        chapter_num=1,
+        scene_num=1,
+        feedback="Improve pacing",
+        include_content=True,
+    )
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["data"]["content"] == revised_text
+
+
+def test_assemble_chapter_default_returns_chapter_ref(
+    patched_env: tuple[Path, str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Assemble should default to compact chapter ref response without content."""
+    _stories_dir, name = patched_env
+    repo = sw._make_repo(name)
+    sw._save_savepoint(repo, "chapter_1/scene_1", "Scene one")
+    sw._save_savepoint(repo, "chapter_1/scene_2", "Scene two")
+
+    sw.cmd_assemble_chapter(name, 1, 2)
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["data"]["chapter_ref"] == "chapter_1/chapter_content"
+    assert out["data"]["scene_count"] == 2
+    assert "content" not in out["data"]
 
 
 # ---------------------------------------------------------------------------
@@ -694,7 +931,9 @@ def test_voice_analyze_empty_issues(
 
     monkeypatch.setattr(sw, "_call_llm", lambda *_a, **_kw: '{"issues": []}')
 
-    sw.cmd_voice_analyze(name, 1, "Chapter text", prior_chapters_summary="", model="test")
+    sw.cmd_voice_analyze(
+        name, 1, "Chapter text", prior_chapters_summary="", model="test"
+    )
 
     out = json.loads(capsys.readouterr().out)
     assert out["data"]["issues_found"] == 0

@@ -81,22 +81,21 @@ ChromaDB ID: `gotcha-character-setting-mgr-storage-only-004`
 
 ---
 
-### 005 — `scene-writer assemble-chapter`: no implicit savepoint
+### 005 — `scene-writer assemble-chapter`: implicit savepoint at `chapter_{N}/chapter_content`
 
-**Source:** issue #27, PR #87
-**Severity:** warning
+**Source:** issue #27, PR #87 (original); updated PR #153
+**Severity:** info
 
-`scene-writer assemble-chapter` assembles generated scenes into a chapter file but **does not create a savepoint**. After calling `assemble-chapter`, an explicit `savepoint-mgr save` call is required to checkpoint the story state.
+`scene-writer assemble-chapter` **automatically creates a savepoint** at `chapter_{N}/chapter_content` after assembly. No separate `savepoint-mgr save` call is required for the assembled chapter.
+
+To receive the assembled prose inline (e.g. to pass to `quality-reviewer`), pass `includeContent: true`:
 
 ```bash
-# After assembling:
-scene-writer assemble-chapter --story-name my-story --chapter 2
-
-# Must explicitly save:
-savepoint-mgr save --story-name my-story --label "chapter-2-complete"
+# Assembled chapter saved automatically; prose returned inline:
+scene-writer assemble-chapter --story-name my-story --chapter 2 --include-content
 ```
 
-Not calling `savepoint-mgr save` means the assembled chapter cannot be restored from a savepoint. Silent data-loss risk.
+The response includes `{"chapter_ref": "chapter_2/chapter_content", "savepoint_step": "...", "char_count": N, "scene_count": N, "content": "..."}` when `--include-content` is set. Without it, output is `{"chapter_ref": ..., "char_count": N, "scene_count": N}` and the prose is on disk only.
 
 ChromaDB ID: `gotcha-scene-writer-assemble-no-savepoint-005`
 
