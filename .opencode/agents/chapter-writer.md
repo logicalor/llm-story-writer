@@ -34,9 +34,9 @@ Execute these steps sequentially for the assigned chapter:
 3. **Create scene definitions savepoint.** Call `savepoint-mgr` to save: `chapter_{N}/scene_definitions`.
 4. **Load previous chapter recap.** If this is not the first chapter, call `recap-manager` (operation: `load`) for chapter N-1. This provides continuity context — where the story left off, active tensions, character emotional states.
 5. **Enter the scene generation loop** (see [Scene Generation Loop](#scene-generation-loop) below). Generate each scene sequentially.
-6. **Assemble the chapter.** After all scenes are generated, call `scene-writer` (operation: `assemble-chapter`) to combine all scenes into the final chapter text. The tool saves the assembled chapter to the `chapter_{N}/chapter_content` savepoint automatically and returns a compact reference `{chapter_ref, char_count, scene_count}`.
+6. **Assemble the chapter.** After all scenes are generated, call `scene-writer` (operation: `assemble-chapter`) to combine all scenes into the final chapter text. The tool saves the assembled chapter to the `chapter_{N}/chapter_content` savepoint automatically and returns a compact reference `{chapter_ref, char_count, scene_count}`. **Do not pass `includeContent: true`** — the prose must stay on disk, not flow through agent context.
 7. **Assembly savepoint is automatic.** The `scene-writer assemble-chapter` operation saves the assembled chapter to `chapter_{N}/chapter_content` automatically. No separate `savepoint-mgr save` call is needed for the assembled chapter.
-8. **Return the assembled chapter to the orchestrator.** Pass `includeContent: true` when calling `scene-writer assemble-chapter` so the response includes the `content` field containing the full assembled prose. Return this prose (`response.content`) to the orchestrator for post-chapter processing (wiki update, recap, lint, quality evaluation). The compact `chapter_ref` savepoint is still created automatically — `includeContent: true` adds the prose inline without changing savepoint behaviour.
+8. **Return the compact reference to the orchestrator.** Return `{chapter_ref, savepoint_step, char_count, scene_count}` exactly as received from `scene-writer assemble-chapter`. Do **not** load the assembled prose and do **not** return `content`. The orchestrator consumes downstream phases by passing the savepoint file path (`stories/{name}/savepoints/chapter_{N}/chapter_content.md`) or the savepoint step to downstream tools/subagents — never by threading prose through its own context.
 
 ---
 
@@ -90,7 +90,7 @@ For each scene M in the chapter (M = 1, 2, ..., scene_count):
 
 3. **Generate the scene.** Call `scene-writer` (operation: `generate`) with the assembled context. Pass the wiki snapshot string as the `baseContext` parameter.
    Note: scene summaries and titles are held in working context only, not persisted as savepoints.
-   The tool returns `{"scene_ref": "chapter_{N}/scene_{M}", "savepoint_step": "...", "char_count": N}`. The full prose is on disk, not in the response. To receive the prose (e.g., for fallback single-chapter mode), pass `includeContent: true`.
+   The tool returns `{"scene_ref": "chapter_{N}/scene_{M}", "savepoint_step": "...", "char_count": N}`. The full prose is on disk, not in the response. **Do not pass `includeContent: true`** — subsequent scenes will load the previous scene from the savepoint automatically.
 
 4. **Extract scene events.** Optionally extract key events, character state changes, and new information from the generated scene. These feed into context for subsequent scenes and post-chapter wiki updates.
 

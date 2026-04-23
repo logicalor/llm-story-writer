@@ -32,6 +32,8 @@ Narrating "I will now dispatch X", "Next step: Y", or "Starting Z…" is **not**
 
 When resuming via `/continue`, the workflow is unattended. No user is available between phases. Stopping mid-pipeline strands the run.
 
+**Dispatch contract completeness:** When a subagent reads config values at runtime, every config key it reads must be (1) listed in the subagent's **Input** table, and (2) passed explicitly in the orchestrator's dispatch parameters for that subagent. A config key referenced in a subagent's body text but absent from its Input table is a silent bug — the orchestrator will omit it.
+
 ---
 
 ## Pipeline Phases
@@ -166,6 +168,9 @@ Dispatch `chapter-outline-expander` with:
 - `story_name`: story name
 - `wanted_chapters`: total chapter count
 - `expand_outline`: the `expand_outline` config value
+- `scene_expansion_enabled`: the `generation.scene_expansion_enabled` config value (default: true)
+- `scenes_per_chapter_min`: the `generation.scenes_per_chapter_min` config value (default: 8)
+- `scenes_per_chapter_max`: the `generation.scenes_per_chapter_max` config value (default: 16)
 - `model`: model config if set
 
 The subagent owns the full `expand-chapter` loop and returns when all outlines are expanded or `expand_outline` is false.
@@ -180,10 +185,10 @@ After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases
 
 | Step | Phase | Required call(s) |
 |------|-------|------------------|
-| 1 | 7b | `chapter-writer` subagent **or** `scene-writer generate-chapter` (with `includeContent: true`) |
+| 1 | 7b | `chapter-writer` subagent **or** `scene-writer generate-chapter` (prose stays on disk; receive only compact reference) |
 | 2 | 7c | `wiki-maintainer` subagent (post-chapter wiki update) |
 | 3 | 7d | `savepoint-mgr load story_start_date` then `recap-manager generate` |
-| 4 | 7e | Write `stories/{name}/chapters/chapter_{N}.md`, then dispatch `consistency-checker` |
+| 4 | 7e | Dispatch `consistency-checker` with `chapter_file_path` pointing to the savepoint |
 | 5 | 7f | `quality-reviewer` (only if `enable_chapter_revisions` true; otherwise skip) — and re-run 7c, 7d, 7e if `requires_post_processing` |
 | 6 | 7g | `story-assembler generate-handoff` then `rag-query index` for `chapter-{N}-raw` |
 | 7 | 7.5 | `prose-scrubber` subagent (only if `enable_scrubbing` true; otherwise skip) |
@@ -195,14 +200,16 @@ After step 8, immediately begin chapter N+1 at step 1 in the same turn until N =
 
 **Branch on `scene_generation_pipeline` (read fresh from `config.yml` — see Resume Protocol). The default is `true`.**
 
+**Critical context-hygiene rule.** The assembled chapter prose must **never** enter orchestrator context. All downstream phases consume it from disk via the savepoint file path `stories/{name}/savepoints/chapter_{N}/chapter_content.md` (referred to below as `chapter_file_path`). Do not pass `includeContent: true`, do not load `chapters.{N}.content` from story state into your context, and do not carry a `chapter_text` variable.
+
 If `scene_generation_pipeline` is true:
 1. Dispatch the `chapter-writer` subagent with `story_name` and `chapter_number: N`.
-2. The subagent generates each scene sequentially, calls `scene-writer assemble-chapter` with `includeContent: true`, and returns the full assembled prose as `content`.
-3. Use the returned `content` as `chapter_text` for subsequent phases (7c–7h).
+2. The subagent returns `{chapter_ref, savepoint_step, char_count, scene_count}` — no prose. The prose is already persisted at `chapter_file_path`.
+3. For subsequent phases (7c–7h) pass `chapter_file_path` (or the `savepoint_step`) to downstream tools/subagents — never prose.
 
 If `scene_generation_pipeline` is false:
-1. Call `scene-writer` (operation: `generate-chapter`) with `name`, `chapterNum`, and **`includeContent: true`**. Optionally pass `model` if a model override is configured. The tool reads chapter context from story state and savepoints internally, calls the LLM, writes the prose to the `chapter_{N}/chapter_content` savepoint, **and writes it to `chapters.{N}.content` in story state**. Do not call `story-state write` for `chapters.{N}.content` yourself — the tool already did it. Writing a placeholder string will overwrite the real prose.
-2. The response is JSON: `{"chapter_ref", "savepoint_step", "char_count", "content"}`. Extract `content` and use it as `chapter_text` for subsequent phases (7c–7h). If `includeContent` was omitted, `content` will be missing and you must reload it via `savepoint-mgr` (operation: `load`, step: `chapter_{N}/chapter_content`).
+1. Call `scene-writer` (operation: `generate-chapter`) with `name` and `chapterNum` only. Optionally pass `model` if a model override is configured. **Do not pass `includeContent: true`.** The tool reads chapter context from story state and savepoints internally, calls the LLM, writes the prose to the `chapter_{N}/chapter_content` savepoint, **and writes it to `chapters.{N}.content` in story state**. Do not call `story-state write` for `chapters.{N}.content` yourself — the tool already did it.
+2. The response is JSON: `{chapter_ref, savepoint_step, char_count}` — no `content` field. The prose is on disk at `chapter_file_path`. Pass `chapter_file_path` to downstream phases; never load the prose into your context.
 
 #### 7c. Post-Chapter Wiki Update
 
@@ -221,12 +228,12 @@ If `scene_generation_pipeline` is false:
 
 #### 7e. Consistency Check
 
-1. Write the assembled chapter text to disk at: `stories/{name}/chapters/chapter_{N}.md` (create directories as needed). This file must exist before dispatching `consistency-checker`.
+1. The chapter prose is already on disk at the savepoint path `stories/{name}/savepoints/chapter_{N}/chapter_content.md`. Use this as `chapter_file_path`. **Do not** write a copy to `stories/{name}/chapters/chapter_{N}.md` — that would require loading the prose into your context. Final assembly (Phase 8) reads chapters directly from savepoints via `story-assembler`.
 2. Dispatch `consistency-checker` with:
    - `story_name`: the story name
    - `chapter_number`: N
-   - `chapter_file_path`: the file path written in step 1 (e.g., `stories/my-story/chapters/chapter_3.md`)
-   - `chapter_text`: the assembled chapter text (for semantic analysis)
+   - `chapter_file_path`: `stories/{name}/savepoints/chapter_{N}/chapter_content.md`
+   The subagent loads the chapter text from disk itself. Do **not** pass `chapter_text` inline.
 3. Receive the structured consistency report from `consistency-checker`:
    - `wiki_lint_findings` — deterministic contradictions, timeline issues, trait drift
    - `semantic_findings` — semantic wiki analysis results
@@ -241,24 +248,26 @@ If `enable_chapter_revisions` is true:
 1. Dispatch `quality-reviewer` with:
    - `story_name`: the story name
    - `chapter_number`: N
-   - `chapter_text`: the assembled chapter text from Phase 7b
+   - `chapter_file_path`: `stories/{name}/savepoints/chapter_{N}/chapter_content.md`
    - `chapter_quality`: `chapter_quality` config value (default 85)
    - `chapter_min_revisions`: `chapter_min_revisions` config value (default 0)
    - `chapter_max_revisions`: `chapter_max_revisions` config value (default 3)
    - `consistency_report`: the structured consistency report from Phase 7e (optional — pass the full report object)
 
+   Do **not** pass `chapter_text` inline. The subagent loads the chapter from disk itself.
+
 2. Receive the structured result from `quality-reviewer`:
-   - `accepted_chapter_text` — use this as the chapter text for the remainder of the pipeline
+   - `accepted_chapter_ref` — savepoint step pointing to the best-scoring draft (the subagent has already written it to `chapter_{N}/chapter_content`, overwriting the original if revisions occurred)
    - `best_score` — log for observability
    - `revision_count` — log for observability
    - `requires_post_processing` — flag indicating whether at least one revision occurred
 
 3. If `requires_post_processing` is true:
-   - Re-run Phase 7c (wiki update) using `accepted_chapter_text`
-   - Re-run Phase 7d (recap generation) for the chapter
-   - Re-run Phase 7e (consistency check) using `accepted_chapter_text` — re-dispatch `consistency-checker` with the updated chapter file (overwrite `stories/{name}/chapters/chapter_{N}.md` with `accepted_chapter_text` before dispatching)
+   - Re-run Phase 7c (wiki update) — `wiki-maintainer` reads the savepoint path directly
+   - Re-run Phase 7d (recap generation) — `recap-manager generate` reads the savepoint internally
+   - Re-run Phase 7e (consistency check) — re-dispatch `consistency-checker` with the same `chapter_file_path` (the savepoint was overwritten by `quality-reviewer` with `accepted_chapter_ref`)
 
-   This ensures the wiki, recap, and lint all reflect the final revised chapter, not a superseded draft.
+   This ensures the wiki, recap, and lint all reflect the final revised chapter, not a superseded draft. At no point does the orchestrator hold the chapter prose.
 
 #### 7g. Generate Chapter Handoff Artifact
 
@@ -269,13 +278,15 @@ After the chapter is accepted (7f) and post-processing is complete:
    - `storyName`: story name
    - `chapterNum`: N
    The tool reads context internally, calls the LLM, and writes the result to `chapters.{N}.handoff` in `story-state`.
-2. Embed the accepted chapter text into the story's RAG index for cross-chapter continuity analysis. Call `rag-query` with:
+2. Embed the accepted chapter text into the story's RAG index for cross-chapter continuity analysis. Load the chapter text from the savepoint just for this call (it enters context for one turn only, then is discarded): call `savepoint-mgr` (operation: `load`, name: story name, step: `chapter_{N}/chapter_content`) to retrieve the text, then call `rag-query` with:
    - `operation`: `"index"`
    - `name`: story name
    - `docId`: `chapter-{N}-raw` (e.g. `chapter-3-raw`)
-   - `content`: the accepted chapter text (from `quality-reviewer` result or assembled chapter if no revisions)
+   - `content`: the text loaded from the savepoint
    - `contentType`: `"raw-chapter"`
    - `chapterNum`: N
+
+   Do not retain the loaded text in your context after this call.
 
 The handoff artifact is consumed by `chapter-outline-expander` in the next chapter's Phase 7a to supplement `continuitySummary` with structured continuity state.
 

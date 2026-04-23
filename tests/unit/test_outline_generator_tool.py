@@ -9,10 +9,13 @@ import json
 import os
 import subprocess
 import sys
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 import pytest
 
+import src.tools._io as tool_io
 import src.tools.outline_generator as og
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -29,6 +32,20 @@ CHUNK_TYPES = (
     "conflict_stakes",
     "world_rules_logic",
 )
+
+SCENE_TEMPLATE = {
+    "title": "Scene Title",
+    "description": "A pivotal story beat unfolds.",
+    "characters": ["Character 1"],
+    "setting": "Observation deck",
+    "conflict": "Conflicting goals collide.",
+    "tone": "tense",
+    "key_events": ["Event 1"],
+    "dialogue": "sample dialogue",
+    "ending": "A new complication emerges.",
+    "lead_in_to_next_scene": "Pressure carries into the next scene.",
+    "literary_devices": "Foreshadowing",
+}
 
 
 @pytest.fixture()
@@ -71,6 +88,60 @@ def _write_savepoint(
     else:
         filepath = savepoint_dir / f"{step_name}.md"
     filepath.write_text(f"# Savepoint: {step_name}\n\n{data}", encoding="utf-8")
+
+
+def _make_scene(index: int, *, missing_keys: set[str] | None = None) -> dict[str, object]:
+    """Build one valid scene definition with optional missing keys."""
+    scene = {
+        **SCENE_TEMPLATE,
+        "title": f"Scene {index}",
+        "description": f"Scene {index} description.",
+        "characters": [f"Character {index}"],
+        "setting": f"Location {index}",
+        "conflict": f"Conflict {index}",
+        "key_events": [f"Event {index}"],
+        "dialogue": f"Dialogue {index}",
+        "ending": f"Ending {index}",
+        "lead_in_to_next_scene": f"Lead in {index}",
+        "literary_devices": f"Device {index}",
+    }
+    for key in missing_keys or set():
+        scene.pop(key, None)
+    return scene
+
+
+def _invoke_expand_to_scenes(
+    name: str,
+    chapter_num: int,
+    chapter_synopsis: str,
+    scenes_min: int,
+    scenes_max: int,
+    *,
+    previous_recap: str = "",
+    next_chapter_synopsis: str = "",
+    model: str | None = None,
+) -> tuple[int, str, str]:
+    """Run cmd_expand_to_scenes and capture exit code and stdio."""
+    stdout = StringIO()
+    stderr = StringIO()
+    exit_code = 0
+
+    with redirect_stdout(stdout), redirect_stderr(stderr):
+        try:
+            og.cmd_expand_to_scenes(
+                name,
+                chapter_num,
+                chapter_synopsis,
+                scenes_min,
+                scenes_max,
+                previous_recap=previous_recap,
+                next_chapter_synopsis=next_chapter_synopsis,
+                model=model,
+            )
+        except SystemExit as exc:
+            exit_code = exc.code if isinstance(exc.code, int) else 1
+
+    return exit_code, stdout.getvalue(), stderr.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +345,7 @@ def patched_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, 
     (stories_dir / story_name / "savepoints").mkdir(parents=True)
 
     monkeypatch.setattr(og, "STORIES_DIR", stories_dir)
+    monkeypatch.setattr(tool_io, "STORIES_DIR", stories_dir)
     monkeypatch.setattr(og, "_load_prompt", lambda *_a, **_kw: "mock prompt text")
 
     return stories_dir, story_name
@@ -587,3 +659,215 @@ def test_numeric_validation_errors(
     )
     assert result.returncode == 1
     assert expected_err in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# Test: expand-to-scenes verification
+# ---------------------------------------------------------------------------
+
+
+def test_expand_to_scenes_success(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Valid scene JSON writes scene_definitions savepoint and returns scene count."""
+    stories_dir, name = patched_env
+    scenes = [_make_scene(index) for index in range(1, 11)]
+
+    _write_savepoint(stories_dir, name, "story_elements", "Story elements content")
+    _write_savepoint(stories_dir, name, "base_context", "Base context content")
+
+    call_count = 0
+
+    def fake_call_llm(prompt: str, *, model: str | None = None) -> str:
+        nonlocal call_count
+        call_count += 1
+        assert model == "test-model"
+        assert "mock prompt text" == prompt
+        return json.dumps(scenes)
+
+    monkeypatch.setattr(og, "_call_llm", fake_call_llm)
+
+    returncode, stdout, stderr = _invoke_expand_to_scenes(
+        name,
+        1,
+        "Chapter 1 synopsis",
+        8,
+        16,
+        previous_recap="Chapter 0 recap",
+        next_chapter_synopsis="Chapter 2 synopsis",
+        model="test-model",
+    )
+
+    assert returncode == 0, stderr
+    assert call_count == 1
+    out = json.loads(stdout)
+    assert out["status"] == "success"
+    assert out["operation"] == "expand-to-scenes"
+    assert out["data"]["scene_count"] == 10
+    assert out["data"]["savepoint_step"] == "chapter_1/scene_definitions"
+
+    repo = og._make_repo(name)
+    assert og._has_savepoint(repo, "chapter_1/scene_definitions")
+    saved = og._load_savepoint(repo, "chapter_1/scene_definitions")
+    assert isinstance(saved, list)
+    assert saved == scenes
+
+
+def test_expand_to_scenes_rejects_too_few_scenes(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Scene count below minimum retries once, then exits with error."""
+    stories_dir, name = patched_env
+    scenes = [_make_scene(index) for index in range(1, 4)]
+
+    _write_savepoint(stories_dir, name, "story_elements", "Story elements content")
+    _write_savepoint(stories_dir, name, "base_context", "Base context content")
+
+    call_count = 0
+
+    def fake_call_llm(*_args: object, **_kwargs: object) -> str:
+        nonlocal call_count
+        call_count += 1
+        return json.dumps(scenes)
+
+    monkeypatch.setattr(og, "_call_llm", fake_call_llm)
+
+    returncode, _stdout, stderr = _invoke_expand_to_scenes(
+        name,
+        1,
+        "Chapter 1 synopsis",
+        8,
+        16,
+    )
+
+    assert returncode == 1
+    assert call_count == 2
+    error = json.loads(stderr)
+    assert error["status"] == "error"
+    assert error["operation"] == "expand-to-scenes"
+    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    assert "scene count 3 outside allowed range [8, 16]" in error["data"]["detail"]
+
+
+def test_expand_to_scenes_rejects_too_many_scenes(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Scene count above maximum retries once, then exits with error."""
+    stories_dir, name = patched_env
+    scenes = [_make_scene(index) for index in range(1, 21)]
+
+    _write_savepoint(stories_dir, name, "story_elements", "Story elements content")
+    _write_savepoint(stories_dir, name, "base_context", "Base context content")
+
+    call_count = 0
+
+    def fake_call_llm(*_args: object, **_kwargs: object) -> str:
+        nonlocal call_count
+        call_count += 1
+        return json.dumps(scenes)
+
+    monkeypatch.setattr(og, "_call_llm", fake_call_llm)
+
+    returncode, _stdout, stderr = _invoke_expand_to_scenes(
+        name,
+        1,
+        "Chapter 1 synopsis",
+        8,
+        16,
+    )
+
+    assert returncode == 1
+    assert call_count == 2
+    error = json.loads(stderr)
+    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    assert "scene count 20 outside allowed range [8, 16]" in error["data"]["detail"]
+
+
+def test_expand_to_scenes_retry_once_then_error(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid JSON on both attempts exits with error after one retry."""
+    stories_dir, name = patched_env
+
+    _write_savepoint(stories_dir, name, "story_elements", "Story elements content")
+    _write_savepoint(stories_dir, name, "base_context", "Base context content")
+
+    call_count = 0
+
+    def fake_call_llm(*_args: object, **_kwargs: object) -> str:
+        nonlocal call_count
+        call_count += 1
+        return "not json"
+
+    monkeypatch.setattr(og, "_call_llm", fake_call_llm)
+
+    returncode, _stdout, stderr = _invoke_expand_to_scenes(
+        name,
+        1,
+        "Chapter 1 synopsis",
+        8,
+        16,
+    )
+
+    assert returncode == 1
+    assert call_count == 2
+    error = json.loads(stderr)
+    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    assert error["data"]["detail"]
+
+
+def test_expand_to_scenes_missing_required_key(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing required scene key retries once, then exits with detail."""
+    stories_dir, name = patched_env
+    scenes = [_make_scene(index) for index in range(1, 11)]
+    scenes[4] = _make_scene(5, missing_keys={"literary_devices"})
+
+    _write_savepoint(stories_dir, name, "story_elements", "Story elements content")
+    _write_savepoint(stories_dir, name, "base_context", "Base context content")
+
+    call_count = 0
+
+    def fake_call_llm(*_args: object, **_kwargs: object) -> str:
+        nonlocal call_count
+        call_count += 1
+        return json.dumps(scenes)
+
+    monkeypatch.setattr(og, "_call_llm", fake_call_llm)
+
+    returncode, _stdout, stderr = _invoke_expand_to_scenes(
+        name,
+        1,
+        "Chapter 1 synopsis",
+        8,
+        16,
+    )
+
+    assert returncode == 1
+    assert call_count == 2
+    error = json.loads(stderr)
+    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    assert "scene 5 missing required keys: literary_devices" in error["data"]["detail"]
+
+
+def test_expand_to_scenes_missing_chapter_num(story_env: tuple[Path, str]) -> None:
+    """CLI rejects expand-to-scenes without chapter number via argparse-style exit code."""
+    stories_dir, name = story_env
+    result = _run_tool(
+        "--operation",
+        "expand-to-scenes",
+        "--name",
+        name,
+        "--chapter-synopsis",
+        "Chapter synopsis",
+        stories_dir=stories_dir,
+    )
+
+    assert result.returncode == 2
+    assert "--chapter-num" in result.stderr or "required" in result.stderr.lower()

@@ -56,10 +56,10 @@ Called after each chapter is completed. Updates the wiki with verified informati
 
 ### Steps
 
-1. **Run extraction tool.** Call `wiki-extract` (operation: `update-from-chapter`, name: story name, chapterNumber: N, chapterTextPath: path). The tool matches known entities, extracts new and changed information from the completed chapter, generates detail levels for new entities, assembles the snake_case batch payload, and applies the batch.
+1. **Run extraction tool.** Call `wiki-extract` (operation: `update-from-chapter`, name: story name, chapterNumber: N, chapterTextPath: `stories/{name}/savepoints/chapter_{N}/chapter_content.md`). The tool matches known entities, extracts new and changed information from the completed chapter, generates detail levels for new entities, assembles the snake_case batch payload, and applies the batch. **Always use the savepoint path** \u2014 the chapter prose stays on disk and must not enter agent context.
 
 2. **Chapter boundary check.**
-   - Call `wiki-lint` (operation: `check-chapter`, name: story name, chapter_number: current chapter number, chapter_text: path to assembled chapter file)
+   - Call `wiki-lint` (operation: `check-chapter`, name: story name, chapter_number: current chapter number, chapter_text: `stories/{name}/savepoints/chapter_{N}/chapter_content.md`)
    - Review results for missing cross-references, orphaned entities, stale `planned` confidence, and contradictions
    - Fix critical issues via targeted `wiki-update` calls
    - Report non-critical issues to the orchestrator

@@ -51,6 +51,9 @@ The `generation` section controls the story generation process:
 - `enable_chapter_revisions`: Enable chapter revisions
 - `expand_outline`: Enable chapter-by-chapter outline expansion
 - `scene_generation_pipeline`: Use scene-by-scene generation pipeline
+- `scenes_per_chapter_min`: Minimum number of scenes per chapter during Phase 7a expansion (integer, default: 8, range: 1-30)
+- `scenes_per_chapter_max`: Maximum number of scenes per chapter during Phase 7a expansion (integer, default: 16, range: 1-30)
+- `scene_expansion_enabled`: When false, Phase 7a skips scene expansion and reverts to legacy one-scene-per-chapter behaviour (boolean, default: true)
 - `enable_outline_critique`: Enable iterative outline critique and refinement
 - `outline_critique_iterations`: Maximum number of critique refinement iterations (1-10)
 - `stream`: Enable real-time streaming of model output to console

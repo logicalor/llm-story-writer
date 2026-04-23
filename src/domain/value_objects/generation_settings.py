@@ -27,6 +27,9 @@ class GenerationSettings:
     enable_chapter_revisions: bool = True
     expand_outline: bool = True
     scene_generation_pipeline: bool = True
+    scenes_per_chapter_min: int = 8
+    scenes_per_chapter_max: int = 16
+    scene_expansion_enabled: bool = True
 
     # Critique settings
     enable_outline_critique: bool = True
@@ -128,6 +131,13 @@ class GenerationSettings:
                 f"Outline chunk size cannot exceed 20, got {self.outline_chunk_size}"
             )
 
+        if not (1 <= self.scenes_per_chapter_min <= self.scenes_per_chapter_max <= 30):
+            raise ValidationError(
+                f"scenes_per_chapter_min ({self.scenes_per_chapter_min}) must be >= 1, "
+                f"scenes_per_chapter_max ({self.scenes_per_chapter_max}) must be <= 30, "
+                "and min must be <= max"
+            )
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GenerationSettings":
         """Create GenerationSettings from a dictionary."""
@@ -151,6 +161,9 @@ class GenerationSettings:
             "enable_chapter_revisions": self.enable_chapter_revisions,
             "expand_outline": self.expand_outline,
             "scene_generation_pipeline": self.scene_generation_pipeline,
+            "scenes_per_chapter_min": self.scenes_per_chapter_min,
+            "scenes_per_chapter_max": self.scenes_per_chapter_max,
+            "scene_expansion_enabled": self.scene_expansion_enabled,
             "enable_outline_critique": self.enable_outline_critique,
             "outline_critique_iterations": self.outline_critique_iterations,
             "stream": self.stream,
