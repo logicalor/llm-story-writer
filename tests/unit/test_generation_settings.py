@@ -24,7 +24,7 @@ class TestGenerationSettings:
 
     def test_scenes_per_chapter_max_too_high(self) -> None:
         """Scene maximum above 30 is rejected."""
-        with pytest.raises(ValidationError, match="must be >= 1"):
+        with pytest.raises(ValidationError, match="must be <= 30"):
             GenerationSettings(scenes_per_chapter_max=31)
 
     def test_scenes_min_exceeds_max(self) -> None:

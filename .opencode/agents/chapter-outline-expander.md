@@ -30,6 +30,9 @@ Received from the orchestrator at dispatch time:
 | `story_name` | Name of the story |
 | `wanted_chapters` | Total number of chapters to expand |
 | `expand_outline` | Boolean flag — if false, return immediately without expanding |
+| `scene_expansion_enabled` | Boolean — if true, expand each chapter synopsis into scene definitions (step 3g) |
+| `scenes_per_chapter_min` | Minimum number of scenes per chapter (default 8) |
+| `scenes_per_chapter_max` | Maximum number of scenes per chapter (default 16) |
 | `model` | Optional model override |
 
 ---
@@ -74,13 +77,13 @@ Execute these steps sequentially.
       - `field`: `"chapters.{N}.expanded_outline"`
       - `value`: the expanded outline as a JSON string
    f. Set `continuitySummary = data.continuity_analysis` for the next iteration.
-   g. **3h. (When `scene_expansion_enabled` is true) Expand synopsis to scenes:** Call `outline-generator` with:
+   g. **(When `scene_expansion_enabled` is true) Expand synopsis to scenes:** Call `outline-generator` with:
       - `operation`: `"expand-to-scenes"`
       - `name`: `story_name`
       - `chapterNum`: `N`
       - `chapterSynopsis`: `data.chunk_outline` from step d
-      - `scenesMin`: `generation.scenes_per_chapter_min`
-      - `scenesMax`: `generation.scenes_per_chapter_max`
+      - `scenesMin`: `scenes_per_chapter_min`
+      - `scenesMax`: `scenes_per_chapter_max`
       - `previousRecap`: chapter recap from `story-state chapters.{N-1}.recap` if `N > 1`, else omit
       - `nextChapterSynopsis`: `chapters.{N+1}.expanded_outline` from story state if available, else omit
       - `model`: `model`, if provided

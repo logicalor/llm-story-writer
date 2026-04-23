@@ -511,6 +511,9 @@ def cmd_expand_to_scenes(
             "scenes_max must be <= 30, and scenes_min must be <= scenes_max"
         )
 
+    if not chapter_synopsis or not chapter_synopsis.strip():
+        _error("expand-to-scenes: --chapter-synopsis cannot be empty")
+
     repo = _make_repo(name)
 
     if not _has_savepoint(repo, "story_elements"):
@@ -597,7 +600,7 @@ def cmd_expand_to_scenes(
         )
 
     step = f"chapter_{chapter_num}/scene_definitions"
-    _save_savepoint(repo, step, json.dumps(scenes, indent=2))
+    _save_savepoint(repo, step, scenes)
     _success(
         "expand-to-scenes",
         {

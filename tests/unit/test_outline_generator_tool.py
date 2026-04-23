@@ -710,8 +710,8 @@ def test_expand_to_scenes_success(
     repo = og._make_repo(name)
     assert og._has_savepoint(repo, "chapter_1/scene_definitions")
     saved = og._load_savepoint(repo, "chapter_1/scene_definitions")
-    assert isinstance(saved, str)
-    assert json.loads(saved) == scenes
+    assert isinstance(saved, list)
+    assert saved == scenes
 
 
 def test_expand_to_scenes_rejects_too_few_scenes(

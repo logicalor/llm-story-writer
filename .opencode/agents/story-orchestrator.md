@@ -166,6 +166,9 @@ Dispatch `chapter-outline-expander` with:
 - `story_name`: story name
 - `wanted_chapters`: total chapter count
 - `expand_outline`: the `expand_outline` config value
+- `scene_expansion_enabled`: the `generation.scene_expansion_enabled` config value (default: true)
+- `scenes_per_chapter_min`: the `generation.scenes_per_chapter_min` config value (default: 8)
+- `scenes_per_chapter_max`: the `generation.scenes_per_chapter_max` config value (default: 16)
 - `model`: model config if set
 
 The subagent owns the full `expand-chapter` loop and returns when all outlines are expanded or `expand_outline` is false.
@@ -183,7 +186,7 @@ After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases
 | 1 | 7b | `chapter-writer` subagent **or** `scene-writer generate-chapter` (prose stays on disk; receive only compact reference) |
 | 2 | 7c | `wiki-maintainer` subagent (post-chapter wiki update) |
 | 3 | 7d | `savepoint-mgr load story_start_date` then `recap-manager generate` |
-| 4 | 7e | Write `stories/{name}/chapters/chapter_{N}.md`, then dispatch `consistency-checker` |
+| 4 | 7e | Dispatch `consistency-checker` with `chapter_file_path` pointing to the savepoint |
 | 5 | 7f | `quality-reviewer` (only if `enable_chapter_revisions` true; otherwise skip) — and re-run 7c, 7d, 7e if `requires_post_processing` |
 | 6 | 7g | `story-assembler generate-handoff` then `rag-query index` for `chapter-{N}-raw` |
 | 7 | 7.5 | `prose-scrubber` subagent (only if `enable_scrubbing` true; otherwise skip) |
