@@ -60,6 +60,42 @@ def _slugify(setting_name: str) -> str:
     return slug
 
 
+def _sheet_matches_setting(sheet_text: str, setting_name: str) -> bool:
+    """Return True if the sheet's first heading references the requested setting.
+
+    The model is instructed to use ``# {setting_name}`` as the top-level
+    heading. Reasoning models sometimes anchor on the story's dominant setting
+    instead and emit a heading for the wrong location. We check the first
+    heading line for a loose token overlap with the requested name so minor
+    punctuation or capitalization differences are tolerated.
+    """
+    if not sheet_text or not setting_name:
+        return False
+
+    # Find the first markdown heading (line starting with '# ').
+    first_heading: str | None = None
+    for line in sheet_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            first_heading = stripped[2:].strip()
+            break
+    if first_heading is None:
+        # No heading at all — treat as failure; caller will re-prompt.
+        return False
+
+    def _tokens(text: str) -> set[str]:
+        return {t for t in re.findall(r"[a-z0-9]+", text.lower()) if len(t) > 2}
+
+    requested = _tokens(setting_name)
+    heading = _tokens(first_heading)
+    if not requested:
+        return True  # Nothing meaningful to compare; accept.
+
+    # Require at least one significant token from the requested name to appear
+    # in the heading. Stop-word-ish tokens (<=2 chars) are already filtered.
+    return bool(requested & heading)
+
+
 def _validate_setting_name(name: str, story_name: str) -> Path:
     """Validate setting name does not escape the settings directory."""
     if ".." in name:
@@ -182,6 +218,16 @@ def cmd_generate_sheet(args: argparse.Namespace) -> None:
 
         if not sheet_text.strip():
             print("Error: LLM returned empty sheet content", file=sys.stderr)
+            sys.exit(1)
+
+        if not _sheet_matches_setting(sheet_text, args.setting):
+            print(
+                f"Error: LLM generated a sheet whose top heading does not match "
+                f"the requested setting '{args.setting}'. The model likely "
+                f"described the wrong setting (often the story's primary one). "
+                f"Re-run to retry, or pass --data to bypass generation.",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
         chunks = {}

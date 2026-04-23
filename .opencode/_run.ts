@@ -9,7 +9,9 @@ const TOOL_TIMEOUT_MS = 5 * 60 * 1000;
  *
  * Captures both stdout and stderr. On success, any stderr content
  * (e.g. fuzzy story name warnings) is prepended to the stdout result
- * so the agent can see it. On failure, stderr is returned as an error.
+ * so the agent can see it. On failure, both streams are joined so
+ * structured JSON errors printed to stdout are not silently discarded
+ * when stderr happens to be empty.
  *
  * If the tool times out, returns a message telling the agent to retry
  * (savepoints allow resuming from where the tool left off).
@@ -43,7 +45,16 @@ export function runTool(
   const stderr = (result.stderr || "").trim();
 
   if (result.status !== 0) {
-    return `Error: ${stderr || result.error?.message || "Unknown error"}`;
+    // Surface BOTH streams — Python tools often print structured JSON errors
+    // to stdout (e.g. `{"status":"error","message":"..."}`) while stderr may
+    // be empty, so falling back to stderr alone would silently discard the
+    // real error payload.
+    const parts = [stderr, stdout].filter(Boolean);
+    const detail =
+      parts.length > 0
+        ? parts.join("\n")
+        : result.error?.message || "Unknown error";
+    return `Error: ${detail}`;
   }
 
   // Surface stderr warnings (e.g. fuzzy story name matches) to the agent

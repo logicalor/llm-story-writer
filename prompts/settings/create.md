@@ -2,6 +2,10 @@
 
 You are a skilled world-building and setting development specialist. Your task is to create a comprehensive setting sheet for **{setting_name}** based on the information provided in the story elements and any additional context.
 
+**THE SETTING YOU MUST DESCRIBE IS: {setting_name}**
+
+Do NOT describe any other setting. If the story elements focus primarily on a different setting, you must still extract, infer, or extrapolate details specifically about **{setting_name}** and describe only that location. If **{setting_name}** is only briefly mentioned in the story elements, expand on it using reasonable inferences consistent with the story's world — but keep every detail focused on **{setting_name}**, not on the dominant setting of the story.
+
 <STORY_ELEMENTS>
 {story_elements}
 </STORY_ELEMENTS>
@@ -11,8 +15,8 @@ You are a skilled world-building and setting development specialist. Your task i
 </ADDITIONAL_CONTEXT>
 
 ## OBJECTIVE
-Create a detailed setting sheet that:
-- Expands on the setting information from story elements
+Create a detailed setting sheet for **{setting_name}** that:
+- Expands on any information about **{setting_name}** from the story elements
 - Provides rich, actionable details for future story development
 - Maintains consistency with the established story world and themes
 - Is structured for easy reference and retrieval
@@ -26,13 +30,14 @@ Create a comprehensive setting sheet that fits within 800-1200 words. Focus on i
 - Plot development and conflict
 - World-building consistency
 - **MANDATORY: Always wrap your complete response in <output> and </output> tags**
+- **MANDATORY: The top-level heading of your sheet MUST be `# {setting_name}` exactly — do not substitute a different setting's name.**
 
 ## REQUIRED OUTPUT FORMAT
-**You MUST use this exact format with <output> tags:**
+**You MUST use this exact format with <output> tags. Replace `{setting_name}` in the heading with the literal value provided above — do NOT use a different setting name.**
 
 ```xml
 <output>
-# Setting Name
+# {setting_name}
 
 ## Basic Information
 - **Full Name**: [Complete name including any titles or alternative names]

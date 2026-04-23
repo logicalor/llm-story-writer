@@ -174,9 +174,19 @@ export default tool({
       });
       return stdout.trim();
     } catch (error: unknown) {
-      const execError = error as { stderr?: string; message?: string };
+      const execError = error as {
+        stdout?: string;
+        stderr?: string;
+        message?: string;
+      };
+      const parts = [
+        execError.stderr?.trim(),
+        execError.stdout?.trim(),
+      ].filter(Boolean) as string[];
       const errorMessage =
-        execError.stderr?.trim() || execError.message || "Unknown error";
+        parts.length > 0
+          ? parts.join("\n")
+          : execError.message || "Unknown error";
       return `Error: ${errorMessage}`;
     }
   },

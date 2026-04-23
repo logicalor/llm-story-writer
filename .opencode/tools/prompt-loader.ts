@@ -37,9 +37,20 @@ export default tool({
       });
       return stdout.trim();
     } catch (error: unknown) {
-      const execError = error as { stderr?: string; message?: string };
-      const message = execError.stderr?.trim() || execError.message || "Unknown error";
-      return `Error: ${message}`;
+      const execError = error as {
+        stdout?: string;
+        stderr?: string;
+        message?: string;
+      };
+      const parts = [
+        execError.stderr?.trim(),
+        execError.stdout?.trim(),
+      ].filter(Boolean) as string[];
+      const errorMessage =
+        parts.length > 0
+          ? parts.join("\n")
+          : execError.message || "Unknown error";
+      return `Error: ${errorMessage}`;
     }
   },
 });
