@@ -182,6 +182,7 @@ def cmd_generate(
     next_scene_definition: str | None = None,
     next_chapter_synopsis: str | None = None,
     model: str | None = None,
+    include_content: bool = False,
 ) -> None:
     """Generate content for a single scene."""
     _validate_story_name(name)
@@ -190,8 +191,22 @@ def cmd_generate(
 
     if _has_savepoint(repo, step):
         content = _load_savepoint(repo, step)
-        _success("generate", content)
+        result: dict[str, Any] = {
+            "scene_ref": step,
+            "savepoint_step": step,
+            "char_count": len(content) if isinstance(content, str) else 0,
+        }
+        if include_content:
+            result["content"] = content
+        _success("generate", result)
         return
+
+    if previous_scene is None and scene_num > 1:
+        prev_step = f"chapter_{chapter_num}/scene_{scene_num - 1}"
+        if _has_savepoint(repo, prev_step):
+            prev_loaded = _load_savepoint(repo, prev_step)
+            if isinstance(prev_loaded, str):
+                previous_scene = prev_loaded
 
     prompt_text = _load_prompt(
         "scenes/create_content",
@@ -217,24 +232,44 @@ def cmd_generate(
         _error(f"scene generation failed: {exc}")
 
     _save_savepoint(repo, step, content)
-    _success("generate", content)
+    result = {
+        "scene_ref": step,
+        "savepoint_step": step,
+        "char_count": len(content),
+    }
+    if include_content:
+        result["content"] = content
+    _success("generate", result)
 
 
 def cmd_revise(
     name: str,
     chapter_num: int,
     scene_num: int,
-    scene_content: str,
     feedback: str,
     *,
+    scene_content: str | None = None,
     scene_definition: str | None = None,
     chapter_outline: str | None = None,
     model: str | None = None,
+    include_content: bool = False,
 ) -> None:
     """Revise scene content based on feedback."""
     _validate_story_name(name)
     repo = _make_repo(name)
     step = f"chapter_{chapter_num}/scene_{scene_num}"
+
+    if scene_content is None:
+        if _has_savepoint(repo, step):
+            loaded = _load_savepoint(repo, step)
+            if isinstance(loaded, str):
+                scene_content = loaded
+            else:
+                _error(
+                    f"savepoint {step!r} does not contain a string - pass --scene-content explicitly"
+                )
+        else:
+            _error(f"--scene-content is required: no savepoint found at {step!r}")
 
     prompt_text = _load_prompt(
         "scenes/revise_content",
@@ -252,7 +287,14 @@ def cmd_revise(
         _error(f"scene revision failed: {exc}")
 
     _save_savepoint(repo, step, revised)
-    _success("revise", revised)
+    result: dict[str, Any] = {
+        "scene_ref": step,
+        "savepoint_step": step,
+        "char_count": len(revised),
+    }
+    if include_content:
+        result["content"] = revised
+    _success("revise", result)
 
 
 def cmd_assemble_chapter(
@@ -261,6 +303,7 @@ def cmd_assemble_chapter(
     scene_count: int,
     *,
     chapter_title: str | None = None,
+    include_content: bool = False,
 ) -> None:
     """Assemble all scenes into a single chapter."""
     _validate_story_name(name)
@@ -302,7 +345,17 @@ def cmd_assemble_chapter(
         parts.append(f"## {scene_title}\n\n{content}")
 
     assembled = f"# {title}\n\n" + "\n\n---\n\n".join(parts)
-    _success("assemble-chapter", assembled)
+    chapter_step = f"chapter_{chapter_num}/chapter_content"
+    _save_savepoint(repo, chapter_step, assembled)
+    result: dict[str, Any] = {
+        "chapter_ref": chapter_step,
+        "savepoint_step": chapter_step,
+        "char_count": len(assembled),
+        "scene_count": scene_count,
+    }
+    if include_content:
+        result["content"] = assembled
+    _success("assemble-chapter", result)
 
 
 def cmd_scrub_analyze(
@@ -367,6 +420,7 @@ def cmd_generate_chapter(
     *,
     model: str | None = None,
     additional_context: str | None = None,
+    include_content: bool = False,
 ) -> None:
     """Generate a complete chapter as a single unit (fallback for scene_generation_pipeline: false)."""
     _validate_story_name(name)
@@ -380,7 +434,14 @@ def cmd_generate_chapter(
         state_path = story_dir / "state.json"
         _set_nested(state, f"chapters.{chapter_num}.content", content)
         _write_state_atomic(state_path, state)
-        _success("generate-chapter", content)
+        result: dict[str, Any] = {
+            "chapter_ref": step,
+            "savepoint_step": step,
+            "char_count": len(content) if isinstance(content, str) else 0,
+        }
+        if include_content:
+            result["content"] = content
+        _success("generate-chapter", result)
         return
 
     state = _load_story_state(name)
@@ -442,7 +503,14 @@ def cmd_generate_chapter(
     _set_nested(state, f"chapters.{chapter_num}.content", content)
     _write_state_atomic(state_path, state)
 
-    _success("generate-chapter", content)
+    result = {
+        "chapter_ref": step,
+        "savepoint_step": step,
+        "char_count": len(content),
+    }
+    if include_content:
+        result["content"] = content
+    _success("generate-chapter", result)
 
 
 # ---------------------------------------------------------------------------
@@ -505,6 +573,11 @@ def main() -> None:
         default=None,
         help="Additional context appended to base_context",
     )
+    parser.add_argument(
+        "--include-content",
+        action="store_true",
+        help="Include full scene/chapter content in response (default: return compact reference only)",
+    )
     args = parser.parse_args()
 
     # --- Dispatch ---
@@ -552,6 +625,7 @@ def main() -> None:
             next_scene_definition=args.next_scene_definition,
             next_chapter_synopsis=args.next_chapter_synopsis,
             model=args.model,
+            include_content=args.include_content,
         )
 
     elif op == "revise":
@@ -563,19 +637,18 @@ def main() -> None:
             _error("--scene-num is required for revise")
         if args.scene_num < 1:
             _error("--scene-num must be >= 1")
-        if not args.scene_content:
-            _error("--scene-content is required for revise")
         if not args.feedback:
             _error("--feedback is required for revise")
         cmd_revise(
             args.name,
             args.chapter_num,
             args.scene_num,
-            args.scene_content,
             args.feedback,
+            scene_content=args.scene_content,
             scene_definition=args.scene_definition,
             chapter_outline=args.chapter_outline,
             model=args.model,
+            include_content=args.include_content,
         )
 
     elif op == "assemble-chapter":
@@ -592,6 +665,7 @@ def main() -> None:
             args.chapter_num,
             args.scene_count,
             chapter_title=args.chapter_title,
+            include_content=args.include_content,
         )
 
     elif op == "scrub-analyze":
@@ -633,6 +707,7 @@ def main() -> None:
             args.chapter_num,
             model=args.model,
             additional_context=args.additional_context,
+            include_content=args.include_content,
         )
 
 

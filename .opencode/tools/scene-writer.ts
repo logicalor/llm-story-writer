@@ -105,6 +105,12 @@ export default tool({
       .string()
       .optional()
       .describe("Additional context appended to base_context for generate-chapter"),
+    includeContent: z
+      .boolean()
+      .optional()
+      .describe(
+        "Return full scene/chapter content in the response. Default false - returns compact references (scene_ref, char_count, savepoint_step) without prose. Set true for debugging or when the calling agent needs the prose immediately.",
+      ),
   },
   execute: async ({
     operation,
@@ -129,6 +135,7 @@ export default tool({
     chapterText,
     priorChaptersSummary,
     additionalContext,
+    includeContent,
   }: {
     operation: string;
     name: string;
@@ -152,6 +159,7 @@ export default tool({
     chapterText?: string;
     priorChaptersSummary?: string;
     additionalContext?: string;
+    includeContent?: boolean;
   }) => {
     const projectRoot = resolve(__dirname, "../..");
     const args = [
@@ -221,6 +229,9 @@ export default tool({
     }
     if (additionalContext) {
       args.push("--additional-context", additionalContext);
+    }
+    if (includeContent) {
+      args.push("--include-content");
     }
 
     try {

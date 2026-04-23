@@ -34,8 +34,8 @@ Execute these steps sequentially for the assigned chapter:
 3. **Create scene definitions savepoint.** Call `savepoint-mgr` to save: `chapter_{N}/scene_definitions`.
 4. **Load previous chapter recap.** If this is not the first chapter, call `recap-manager` (operation: `load`) for chapter N-1. This provides continuity context — where the story left off, active tensions, character emotional states.
 5. **Enter the scene generation loop** (see [Scene Generation Loop](#scene-generation-loop) below). Generate each scene sequentially.
-6. **Assemble the chapter.** After all scenes are generated, call `scene-writer` (operation: `assemble-chapter`) to combine all scenes into the final chapter text.
-7. **Create assembly savepoint.** Call `savepoint-mgr` to save: `chapter_{N}/assembled`.
+6. **Assemble the chapter.** After all scenes are generated, call `scene-writer` (operation: `assemble-chapter`) to combine all scenes into the final chapter text. The tool saves the assembled chapter to the `chapter_{N}/chapter_content` savepoint automatically and returns a compact reference `{chapter_ref, char_count, scene_count}`.
+7. **Assembly savepoint is automatic.** The `scene-writer assemble-chapter` operation saves the assembled chapter to `chapter_{N}/chapter_content` automatically. No separate `savepoint-mgr save` call is needed for the assembled chapter.
 8. **Return the assembled chapter** to the orchestrator for post-chapter processing (wiki update, recap, lint, quality evaluation).
 
 ---
@@ -85,15 +85,16 @@ For each scene M in the chapter (M = 1, 2, ..., scene_count):
    - The scene definition (from parsed definitions)
    - The chapter outline (for overall chapter direction)
    - Previous chapter recap (if available, for chapter 2+)
-   - Previous scene content (if M > 1, for direct continuity)
+   - Previous scene content is auto-loaded from the savepoint by the tool (if M > 1). No need to pass it explicitly.
    - For the last scene in the chapter, fetch the next chapter's outline from `story-state` key `chapters.{N+1}.outline` and pass it as `nextChapterSynopsis`
 
 3. **Generate the scene.** Call `scene-writer` (operation: `generate`) with the assembled context. Pass the wiki snapshot string as the `baseContext` parameter.
    Note: scene summaries and titles are held in working context only, not persisted as savepoints.
+   The tool returns `{"scene_ref": "chapter_{N}/scene_{M}", "savepoint_step": "...", "char_count": N}`. The full prose is on disk, not in the response. To receive the prose (e.g., for fallback single-chapter mode), pass `includeContent: true`.
 
 4. **Extract scene events.** Optionally extract key events, character state changes, and new information from the generated scene. These feed into context for subsequent scenes and post-chapter wiki updates.
 
-5. **Proceed to the next scene.** Pass the generated scene content as `previous_scene` context to the next iteration.
+5. **Proceed to the next scene.** Note the `scene_ref` from the `scene-writer generate` response. The tool automatically loads `previous_scene` from the savepoint for subsequent scenes - do not thread the prose content between turns. Advance M and repeat.
 
 ---
 
@@ -107,7 +108,7 @@ Savepoints are created at each significant milestone within a chapter, enabling 
 |-----------|--------------|
 | `chapter_{N}/scene_definitions` | Scene definitions parsed from outline (step 3) |
 | `chapter_{N}/scene_{M}` | Scene M generated successfully (written internally by `scene-writer`) |
-| `chapter_{N}/assembled` | All scenes assembled into chapter (step 7) |
+| `chapter_{N}/chapter_content` | All scenes assembled into chapter (written automatically by `scene-writer assemble-chapter`) |
 
 **Resuming from a savepoint:**
 1. Load the savepoint via `savepoint-mgr` (operation: `load`)
