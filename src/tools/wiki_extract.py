@@ -105,7 +105,7 @@ def _load_extract_cache(story_dir: Path) -> dict[str, Any]:
     cache_path = story_dir / _CACHE_FILE_NAME
     try:
         data = json.loads(cache_path.read_text())
-    except FileNotFoundError:
+    except OSError:
         return {}
     except json.JSONDecodeError:
         return {}
@@ -671,6 +671,9 @@ def cmd_update_from_chapter(args: argparse.Namespace) -> None:
         cache[chapter_cache_key] = extracted
         _save_extract_cache(story_dir, cache)
     if not isinstance(extracted, dict):
+        # Guard against corrupted cache: a manually-edited cache file could store a
+        # non-dict value at the chapter_entities key, which would bypass the inner
+        # check in the else branch.
         raise ValueError("chapter extraction must return a JSON object")
 
     raw_new_entities = extracted.get("new_entities", [])

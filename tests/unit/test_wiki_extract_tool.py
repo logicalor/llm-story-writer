@@ -107,25 +107,6 @@ def _set_fake_llm(monkeypatch: pytest.MonkeyPatch, responses: list[str]) -> None
     monkeypatch.setattr(wiki_extract, "_chat_completion", _fake_chat_completion)
 
 
-def _run_main(args: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, dict]:
-    original_argv = sys.argv[:]
-    try:
-        sys.argv = ["wiki_extract.py", *args]
-        with pytest.raises(SystemExit) as exc_info:
-            wiki_extract.main()
-        code = int(exc_info.value.code)
-    except FailedToRaise:
-        code = 0
-    finally:
-        sys.argv = original_argv
-    output = capsys.readouterr().out.strip()
-    return code, json.loads(output) if output else {}
-
-
-class FailedToRaise(Exception):
-    pass
-
-
 def _invoke_main(
     args: list[str], capsys: pytest.CaptureFixture[str]
 ) -> tuple[int, dict]:
@@ -842,6 +823,57 @@ def test_update_from_chapter_cache_deleted_after_apply(
     assert code == 0
     assert output["applied"] is True
     assert _cache_path(story_env).exists() is False
+
+
+def test_update_from_chapter_cache_retained_on_apply_failure(
+    story_env: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    chapter_dir = story_env / "chapters"
+    chapter_dir.mkdir(parents=True, exist_ok=True)
+    (chapter_dir / "chapter-1.md").write_text("Nova Station opens to the crew.")
+    _write_wiki_index(story_env, [])
+
+    responses = [
+        json.dumps(
+            {
+                "new_entities": [
+                    {
+                        "name": "Nova Station",
+                        "type": "location",
+                        "aliases": [],
+                        "description": "A station on the trade route.",
+                        "confidence": "verified",
+                        "frontmatter": {},
+                    }
+                ],
+                "state_changes": [],
+                "timeline_events": [],
+                "new_aliases": [],
+            }
+        ),
+        json.dumps(
+            {"l1": "Station", "l2": "Trade station", "l3": "Detailed trade station"}
+        ),
+    ]
+    _set_fake_llm(monkeypatch, responses)
+
+    def _failing_run_batch(name: str, payload: dict) -> dict:
+        raise RuntimeError("apply failed")
+
+    monkeypatch.setattr(wiki_extract, "run_batch", _failing_run_batch)
+
+    args = argparse.Namespace(
+        name="test-story",
+        chapter_number=1,
+        chapter_text_path="chapters/chapter-1.md",
+        model=None,
+        apply=True,
+    )
+    with pytest.raises(RuntimeError, match="apply failed"):
+        wiki_extract.cmd_update_from_chapter(args)
+
+    assert _cache_path(story_env).exists()
 
 
 def test_update_from_chapter_dry_run_produces_creates_updates_and_timeline_entries(

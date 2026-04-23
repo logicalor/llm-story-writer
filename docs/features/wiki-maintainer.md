@@ -59,7 +59,7 @@ Called after each chapter is assembled. Updates the wiki with `verified` informa
 
 The extraction rules themselves do not change: the tool still follows the wiki-maintenance skill's schema, confidence taxonomy, alias rules, and detail-level targets. The change is ownership, not output format.
 
-The shared `.opencode/_run.ts` timeout message is now accurate for this tool: savepoints are written after each completed extraction or detail-generation step, so no agent-level recovery flow is required. Retrying the same `wiki-extract` call with the same parameters continues from the last cached step until the apply succeeds.
+The shared `.opencode/_run.ts` timeout message is now accurate for this tool: savepoints are written after each completed extraction or detail-generation step, so no agent-level recovery flow is required. Retrying the same `wiki-extract` call with the same parameters continues from the last cached step until the apply succeeds. If the source inputs (sheets, outline, or chapter text) were edited between the original run and the retry, delete `stories/<story-name>/.wiki-extract-cache.json` first to ensure a fresh extraction.
 
 ## Entity Types
 
