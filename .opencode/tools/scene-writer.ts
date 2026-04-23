@@ -48,7 +48,7 @@ export default tool({
     sceneContent: z
       .string()
       .optional()
-      .describe("Current scene content (required for revise)"),
+      .describe("Current scene content for revise. Optional — auto-loaded from the chapter_N/scene_M savepoint when omitted."),
     feedback: z
       .string()
       .optional()

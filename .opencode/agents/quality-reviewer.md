@@ -98,8 +98,9 @@ Record the `overall_average` field from the response as `current_score`. If `cur
 - `chapter`: `chapter_number`
 - `content`: `current_chapter_text`
 - `feedback`: feedback text from step d
+- `includeContent`: `true`
 
-Update `current_chapter_text` with the revised chapter text returned by this call.
+Update `current_chapter_text` with the `content` field from the returned response.
 
 **f. Increment and save.** Increment `revision_count` by 1. Call `savepoint-mgr` to save:
 - `step`: `chapter_{N}_quality_revision_{revision_count}` (e.g. `chapter_3_quality_revision_1`)

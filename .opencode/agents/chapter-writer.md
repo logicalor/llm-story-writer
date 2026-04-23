@@ -36,7 +36,7 @@ Execute these steps sequentially for the assigned chapter:
 5. **Enter the scene generation loop** (see [Scene Generation Loop](#scene-generation-loop) below). Generate each scene sequentially.
 6. **Assemble the chapter.** After all scenes are generated, call `scene-writer` (operation: `assemble-chapter`) to combine all scenes into the final chapter text. The tool saves the assembled chapter to the `chapter_{N}/chapter_content` savepoint automatically and returns a compact reference `{chapter_ref, char_count, scene_count}`.
 7. **Assembly savepoint is automatic.** The `scene-writer assemble-chapter` operation saves the assembled chapter to `chapter_{N}/chapter_content` automatically. No separate `savepoint-mgr save` call is needed for the assembled chapter.
-8. **Return the assembled chapter** to the orchestrator for post-chapter processing (wiki update, recap, lint, quality evaluation).
+8. **Return the assembled chapter to the orchestrator.** Pass `includeContent: true` when calling `scene-writer assemble-chapter` so the response includes the `content` field containing the full assembled prose. Return this prose (`response.content`) to the orchestrator for post-chapter processing (wiki update, recap, lint, quality evaluation). The compact `chapter_ref` savepoint is still created automatically — `includeContent: true` adds the prose inline without changing savepoint behaviour.
 
 ---
 
