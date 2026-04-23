@@ -49,13 +49,23 @@ Based on your chunk position within the {total_chapters}-chapter story:
 Your chunk ({chunk_start}-{chunk_end}) represents chapters {chunk_start}/{total_chapters} to {chunk_end}/{total_chapters} of the story.
 
 ## SKELETON FORMAT
-For each chapter in your assigned range, provide ONLY:
 
-<CHAPTER_LINE>
+For each chapter in your assigned range, output **exactly** this block — same field order, same labels, same markdown — with no extra prose before or after:
+
+```
 ### Chapter [Number]: [Primary plot point or development]
-</CHAPTER_LINE>
+**Characters**: [Comma-separated list of characters central to this chapter]
+**Setting**: [Primary setting / location — use the canonical name from story elements]
+**Action**: [One sentence describing the concrete events that occur]
+**Purpose**: [One sentence describing what this chapter accomplishes for the overall story]
+**Consequence**: [One sentence describing what changes as a result]
+```
 
-Don't include the CHAPTER_LINE tags, but format the chapter line according to its contents
+Rules:
+- The five bold labels (`**Characters**`, `**Setting**`, `**Action**`, `**Purpose**`, `**Consequence**`) are **mandatory** for every chapter. Do not omit any. Do not rename them. Do not reorder them.
+- Do **not** write prose paragraphs. Do **not** merge fields. Do **not** emit alternate formats (no "Summary:", no JSON, no numbered lists inside the body).
+- Separate chapters with a single blank line.
+- Do not include the chapter heading inside a code fence in the actual output — the fence above is illustrative.
 
 ## CONTINUITY REQUIREMENTS
 - **Maintain consistency** with story elements and previous chapters
@@ -96,13 +106,29 @@ Don't include the CHAPTER_LINE tags, but format the chapter line according to it
 
 ## EXAMPLES OF GOOD VS BAD CHAPTER DESCRIPTIONS
 
-### ❌ BAD (Vague, Repetitive, Ambiguous)
+### ❌ BAD (Vague, Repetitive, Ambiguous, Wrong Format)
+```
 **Chapter 5**: Sarah learns something important about her past
 **Chapter 6**: Sarah discovers more about her background
+```
+Wrong because: headings use bold instead of `###`, fields are missing, body is a single vague clause.
 
-### ✅ GOOD (Specific, Unique, Clear)
-**Chapter 5**: Sarah discovers her father's secret correspondence revealing he was investigating her mother's disappearance
-**Chapter 6**: Sarah confronts her uncle about the lies he told regarding her mother's death
+### ✅ GOOD (Specific, Unique, Clear, Correctly Formatted)
+```
+### Chapter 5: Sarah uncovers her father's secret investigation
+**Characters**: Sarah, Uncle Marcus (mentioned), Father (via journal)
+**Setting**: The attic of the family home
+**Action**: Sarah finds her father's hidden correspondence revealing he was investigating her mother's disappearance.
+**Purpose**: Converts the maternal-death backstory from accepted tragedy to active mystery, redirecting Sarah's arc.
+**Consequence**: Sarah no longer trusts Uncle Marcus and resolves to find the missing case files.
+
+### Chapter 6: Sarah confronts Uncle Marcus
+**Characters**: Sarah, Uncle Marcus
+**Setting**: Marcus's study
+**Action**: Sarah confronts her uncle about the lies he told regarding her mother's death; he refuses to answer and expels her from the house.
+**Purpose**: Closes the "trusted family" safety net and forces Sarah into independent investigation.
+**Consequence**: Sarah loses her home but gains a concrete lead — the name of her mother's last employer.
+```
 
 ## QUALITY CHECKLIST
 Before finalizing your output, verify each chapter meets these criteria:
