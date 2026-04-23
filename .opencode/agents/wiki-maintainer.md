@@ -37,11 +37,11 @@ Called once after outline and character/setting sheets are generated. Populates 
 
 ### Steps
 
-1. **Run extraction tool.** Call `wiki-extract` (operation: `initial-populate`, name: story name). The tool internally reads the outline plus character and setting sheets, extracts entities, generates L1/L2/L3 detail levels, assembles the snake_case batch payload, and applies the batch.
+1. **Read story state context.** Read current story state for context.
 
-2. **Review returned counts.** Confirm created entity counts look plausible before proceeding.
+2. **Run extraction tool.** Call `wiki-extract` (operation: `initial-populate`, name: story name). The tool internally reads the outline plus character and setting sheets, extracts entities, generates L1/L2/L3 detail levels, assembles the snake_case batch payload, and applies the batch.
 
-8. **Establish wikilinks.** Review created pages and ensure cross-references exist:
+3. **Establish wikilinks.** Review created pages and ensure cross-references exist:
    - Characters linked to their primary locations
    - Relationships linked to both participating entities
    - Events linked to involved characters and locations
@@ -56,15 +56,15 @@ Called after each chapter is completed. Updates the wiki with verified informati
 
 ### Steps
 
-1. **Run extraction tool.** Call `wiki-extract` (operation: `update-from-chapter`, name: story name, chapter_number: N, chapter_text_path: path). The tool matches known entities, extracts new and changed information from the completed chapter, generates detail levels for new entities, assembles the snake_case batch payload, and applies the batch.
+1. **Run extraction tool.** Call `wiki-extract` (operation: `update-from-chapter`, name: story name, chapterNumber: N, chapterTextPath: path). The tool matches known entities, extracts new and changed information from the completed chapter, generates detail levels for new entities, assembles the snake_case batch payload, and applies the batch.
 
-2. **Review returned counts.** Confirm creates, updates, and timeline events look plausible before linting.
-
-8. **Chapter boundary check.**
+2. **Chapter boundary check.**
    - Call `wiki-lint` (operation: `check-chapter`, name: story name, chapter_number: current chapter number, chapter_text: path to assembled chapter file)
    - Review results for missing cross-references, orphaned entities, stale `planned` confidence, and contradictions
    - Fix critical issues via targeted `wiki-update` calls
    - Report non-critical issues to the orchestrator
+
+3. **Review returned counts.** Confirm creates, updates, and timeline events look plausible before linting.
 
 ---
 

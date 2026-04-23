@@ -702,7 +702,7 @@ def run_batch(
             "entity_counts": entity_counts,
         }
 
-    except Exception:
+    except Exception as exc:
         rollback = "full"
         for backup_path, backup_content in modified_backups:
             try:
@@ -716,7 +716,9 @@ def run_batch(
             except Exception:
                 rollback = "partial"
 
-        raise RuntimeError(json.dumps({"rollback": rollback})) from None
+        raise RuntimeError(
+            json.dumps({"message": str(exc), "rollback": rollback})
+        ) from exc
 
 
 def cmd_batch(args: argparse.Namespace) -> None:
@@ -758,18 +760,21 @@ def cmd_batch(args: argparse.Namespace) -> None:
         sys.exit(1)
     except RuntimeError as exc:
         rollback = "partial"
-        message = str(exc)
+        message = "batch operation failed"
         try:
-            data = json.loads(message)
-            if isinstance(data, dict) and isinstance(data.get("rollback"), str):
-                rollback = data["rollback"]
+            data = json.loads(str(exc))
+            if isinstance(data, dict):
+                if isinstance(data.get("rollback"), str):
+                    rollback = data["rollback"]
+                if isinstance(data.get("message"), str):
+                    message = data["message"]
         except json.JSONDecodeError:
             pass
         print(
             json.dumps(
                 {
                     "status": "error",
-                    "message": "batch operation failed",
+                    "message": message,
                     "rollback": rollback,
                 }
             )
