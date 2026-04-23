@@ -87,28 +87,36 @@ def generate_text_messages(
     return _unwrap_output_tags(content)
 
 
-_OUTPUT_TAG_RE = re.compile(
-    r"<output>\s*(.*?)\s*</output>", re.DOTALL | re.IGNORECASE
-)
+_OUTPUT_TAG_RE = re.compile(r"<output>\s*(.*?)\s*</output>", re.DOTALL | re.IGNORECASE)
 
 
 def _unwrap_output_tags(text: str) -> str:
-    """Strip surrounding ``<output>...</output>`` tags if present.
+    """Strip ``<output>...</output>`` wrapper, returning the **last** block.
 
     Many prompt templates ask the model to wrap its response in ``<output>``
-    tags. This helper extracts the inner content so savepoints store the
-    actual payload rather than the tag wrapper. Text without the tags is
+    tags. Reasoning / instruction-tuned models frequently emit multiple
+    ``<output>`` blocks per turn: an early planning/scaffolding block (often
+    containing a schema with ``[placeholder]`` markers) followed by the real
+    final answer. The last block is the conventional "final answer" slot, so
+    we extract that rather than the first match. Text without any tags is
     returned unchanged.
     """
     if not isinstance(text, str):
         return text
-    match = _OUTPUT_TAG_RE.search(text)
-    if match is None:
+    matches = _OUTPUT_TAG_RE.findall(text)
+    if not matches:
         # Handle unclosed tag: strip a leading <output> opener
         stripped = re.sub(r"^\s*<output>\s*", "", text, count=1, flags=re.IGNORECASE)
-        stripped = re.sub(r"\s*</output>\s*$", "", stripped, count=1, flags=re.IGNORECASE)
+        stripped = re.sub(
+            r"\s*</output>\s*$", "", stripped, count=1, flags=re.IGNORECASE
+        )
         return stripped.strip() if stripped != text else text
-    return match.group(1).strip()
+    # Prefer the last non-empty block; fall back to the last block if all empty.
+    for candidate in reversed(matches):
+        stripped = candidate.strip()
+        if stripped:
+            return stripped
+    return matches[-1].strip()
 
 
 def count_tokens(text: str) -> int:

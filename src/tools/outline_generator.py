@@ -129,6 +129,25 @@ def _parse_story_start_date(raw: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+_PLACEHOLDER_RE = re.compile(r"\[[A-Z][^\]]{8,}\]")
+
+
+def _is_stub_content(content: str) -> bool:
+    """Return True if content looks like an unfilled template placeholder.
+
+    Detects files that were written with schema/template text instead of real
+    LLM output — e.g. ``**Core Premise:** [Summary of the main idea]``.  Three
+    or more bracket-enclosed title-case phrases is a reliable signal; ordinary
+    prose almost never contains that many.
+    """
+    return len(_PLACEHOLDER_RE.findall(content)) >= 3
+
+
+# ---------------------------------------------------------------------------
 # Operations
 # ---------------------------------------------------------------------------
 
@@ -148,10 +167,16 @@ def cmd_analyze_prompt(
     conversation: list[dict[str, str]] = []
 
     # --- Step 1: Understand prompt ---
+    _cached_understand = None
     if _has_savepoint(repo, "understand_prompt"):
-        understand_response = _load_savepoint(repo, "understand_prompt")
-        if not isinstance(understand_response, str):
-            understand_response = json.dumps(understand_response, default=str)
+        _cached = _load_savepoint(repo, "understand_prompt")
+        if not isinstance(_cached, str):
+            _cached = json.dumps(_cached, default=str)
+        if not _is_stub_content(_cached):
+            _cached_understand = _cached
+
+    if _cached_understand is not None:
+        understand_response = _cached_understand
     else:
         try:
             understand_prompt_text = _load_prompt(
@@ -159,6 +184,12 @@ def cmd_analyze_prompt(
             )
             conversation.append({"role": "user", "content": understand_prompt_text})
             understand_response = _call_llm_messages(conversation, model=model)
+            if _is_stub_content(understand_response):
+                _error(
+                    "understand prompt returned schema-only placeholder content "
+                    "(model echoed template instead of filling it in); "
+                    "not saving. Re-run to retry."
+                )
             _save_savepoint(repo, "understand_prompt", understand_response)
         except Exception as exc:
             _error(f"understand prompt failed: {exc}")
