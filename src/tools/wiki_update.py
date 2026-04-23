@@ -9,6 +9,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _src = str(Path(__file__).resolve().parents[1])
@@ -407,38 +408,27 @@ def cmd_append_timeline(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 
-def cmd_batch(args: argparse.Namespace) -> None:
-    """Execute multiple wiki operations atomically."""
-    story_dir = _validate_story_name(args.name)
+def run_batch(
+    name: str,
+    payload: dict,
+    *,
+    logger: Callable[[Path, str], None] | None = None,
+) -> dict:
+    """Execute multiple wiki operations atomically and return summary counts."""
+    story_dir = _validate_story_name(name)
     wiki_dir = get_wiki_dir(story_dir)
 
     if not wiki_dir.exists():
-        print("Error: wiki not initialised", file=sys.stderr)
-        sys.exit(1)
-
-    if not args.payload:
-        print("Error: --payload is required for batch", file=sys.stderr)
-        sys.exit(2)
-
-    try:
-        payload = json.loads(args.payload)
-        if not isinstance(payload, dict):
-            print("Error: --payload must be a JSON object", file=sys.stderr)
-            sys.exit(2)
-    except json.JSONDecodeError:
-        print("Error: --payload is not valid JSON", file=sys.stderr)
-        sys.exit(2)
+        raise ValueError("wiki not initialised")
 
     creates = payload.get("creates", [])
     updates = payload.get("updates", [])
     timeline_events = payload.get("timeline_events", [])
 
     if not isinstance(creates, list) or not isinstance(updates, list):
-        print("Error: creates and updates must be arrays", file=sys.stderr)
-        sys.exit(2)
+        raise ValueError("creates and updates must be arrays")
     if not isinstance(timeline_events, list):
-        print("Error: timeline_events must be an array", file=sys.stderr)
-        sys.exit(2)
+        raise ValueError("timeline_events must be an array")
 
     # Pre-validate all slugs to prevent sys.exit() during writes
     for create_spec in creates:
@@ -498,10 +488,13 @@ def cmd_batch(args: argparse.Namespace) -> None:
                 "detail_levels": detail_levels,
             }
 
-            # Type-specific fields
             for field in ("role", "status", "region", "chapter", "impact"):
                 if field in item:
                     metadata[field] = item[field]
+
+            frontmatter = item.get("frontmatter")
+            if isinstance(frontmatter, dict):
+                metadata.update(frontmatter)
 
             body = item.get("body", "")
             content = render_frontmatter(metadata, body)
@@ -512,10 +505,8 @@ def cmd_batch(args: argparse.Namespace) -> None:
             created_files.append(page_path)
             created_count += 1
 
-            # ChromaDB upsert
             _upsert_to_chromadb(story_dir.name, slug, body, metadata)
 
-        # Update index with all new creates
         if creates:
             index_path = wiki_dir / "index.md"
             if index_path.exists():
@@ -552,12 +543,21 @@ def cmd_batch(args: argparse.Namespace) -> None:
 
             metadata, body = parse_frontmatter(old_content)
 
-            # Merge frontmatter
             fm_update = item.get("frontmatter", {})
             if isinstance(fm_update, dict):
                 metadata.update(fm_update)
 
-            # Detail levels
+            aliases_update = item.get("aliases")
+            if isinstance(aliases_update, list):
+                existing_aliases = metadata.get("aliases", [])
+                if not isinstance(existing_aliases, list):
+                    existing_aliases = []
+                merged_aliases: list[str] = []
+                for alias in [*existing_aliases, *aliases_update]:
+                    if isinstance(alias, str) and alias not in merged_aliases:
+                        merged_aliases.append(alias)
+                metadata["aliases"] = merged_aliases
+
             dl_update = item.get("detail_levels")
             if isinstance(dl_update, dict):
                 existing_dl = metadata.get("detail_levels", {})
@@ -566,7 +566,6 @@ def cmd_batch(args: argparse.Namespace) -> None:
                 existing_dl.update(dl_update)
                 metadata["detail_levels"] = existing_dl
 
-            # Body
             if "body" in item and item["body"] is not None:
                 body = item["body"]
             elif "merge_body" in item and item["merge_body"] is not None:
@@ -584,36 +583,45 @@ def cmd_batch(args: argparse.Namespace) -> None:
 
             _upsert_to_chromadb(story_dir.name, slug, body, metadata)
 
-        # --- Index sync for name/alias changes in updates ---
         needs_index_sync = False
         for item in updates:
             fm = item.get("frontmatter", {})
             if isinstance(fm, dict) and ("name" in fm or "aliases" in fm):
                 needs_index_sync = True
                 break
+            if isinstance(item.get("aliases"), list):
+                needs_index_sync = True
+                break
         if needs_index_sync:
             idx_path = wiki_dir / "index.md"
             if idx_path.exists() and not any(
-                p == idx_path for p, _ in modified_backups
+                path == idx_path for path, _ in modified_backups
             ):
                 modified_backups.append((idx_path, idx_path.read_text()))
             index_entries = read_index(wiki_dir)
             for item in updates:
                 fm = item.get("frontmatter", {})
-                if not isinstance(fm, dict):
-                    continue
                 item_slug = item.get("slug", "")
-                if "name" in fm or "aliases" in fm:
-                    for entry in index_entries:
-                        if entry["slug"] == item_slug:
-                            if "name" in fm:
-                                entry["name"] = fm["name"]
-                            if "aliases" in fm:
-                                entry["aliases"] = fm["aliases"]
-                            break
+                aliases_update = item.get("aliases")
+                for entry in index_entries:
+                    if entry["slug"] != item_slug:
+                        continue
+                    if isinstance(fm, dict) and "name" in fm:
+                        entry["name"] = fm["name"]
+                    if isinstance(fm, dict) and "aliases" in fm:
+                        entry["aliases"] = fm["aliases"]
+                    elif isinstance(aliases_update, list):
+                        existing_aliases = entry.get("aliases", [])
+                        if not isinstance(existing_aliases, list):
+                            existing_aliases = []
+                        merged_aliases = []
+                        for alias in [*existing_aliases, *aliases_update]:
+                            if isinstance(alias, str) and alias not in merged_aliases:
+                                merged_aliases.append(alias)
+                        entry["aliases"] = merged_aliases
+                    break
             write_index(wiki_dir, index_entries)
 
-        # --- Timeline events ---
         timeline_added = 0
         if timeline_events:
             for ev in timeline_events:
@@ -627,11 +635,9 @@ def cmd_batch(args: argparse.Namespace) -> None:
 
             timeline_path = wiki_dir / "timeline" / "main-timeline.md"
 
-            # Back up existing timeline
             if timeline_path.exists():
                 modified_backups.append((timeline_path, timeline_path.read_text()))
 
-            # Read existing entries
             existing_entries: list[dict] = []
             if timeline_path.exists():
                 tl_content = timeline_path.read_text()
@@ -639,13 +645,13 @@ def cmd_batch(args: argparse.Namespace) -> None:
                     line_s = line.strip()
                     if not line_s.startswith("- **Chapter"):
                         continue
-                    m = re.match(r"- \*\*Chapter (\d+)\*\* — (.+?) — (.+)", line_s)
-                    if m:
+                    match = re.match(r"- \*\*Chapter (\d+)\*\* — (.+?) — (.+)", line_s)
+                    if match:
                         existing_entries.append(
                             {
-                                "chapter": int(m.group(1)),
-                                "time": m.group(2),
-                                "description": m.group(3),
+                                "chapter": int(match.group(1)),
+                                "time": match.group(2),
+                                "description": match.group(3),
                             }
                         )
 
@@ -658,7 +664,7 @@ def cmd_batch(args: argparse.Namespace) -> None:
                     }
                 )
 
-            existing_entries.sort(key=lambda e: e["time"])
+            existing_entries.sort(key=lambda entry: entry["time"])
 
             tl_lines = ["# Main Timeline", ""]
             for entry in existing_entries:
@@ -669,28 +675,34 @@ def cmd_batch(args: argparse.Namespace) -> None:
             _atomic_write(timeline_path, "\n".join(tl_lines))
             timeline_added = len(timeline_events)
 
-        # Log
-        _append_log(
-            wiki_dir,
-            f"[batch] Created {created_count}, updated {updated_count}, "
-            f"timeline +{timeline_added}",
-        )
-
-        print(
-            json.dumps(
-                {
-                    "status": "ok",
-                    "created": created_count,
-                    "updated": updated_count,
-                    "timeline_events": timeline_added,
-                }
+        if logger is None:
+            _append_log(
+                wiki_dir,
+                f"[batch] Created {created_count}, updated {updated_count}, "
+                f"timeline +{timeline_added}",
             )
-        )
+        else:
+            logger(
+                wiki_dir,
+                f"[batch] Created {created_count}, updated {updated_count}, "
+                f"timeline +{timeline_added}",
+            )
 
-    except Exception as exc:
-        # Rollback: restore modified files
-        # NOTE: ChromaDB upserts are intentionally not rolled back.
-        # ChromaDB is a derived index that can be re-derived from wiki Markdown source.
+        entity_counts: dict[str, int] = {}
+        for item in creates:
+            if isinstance(item, dict):
+                page_type = item.get("page_type")
+                if isinstance(page_type, str):
+                    entity_counts[page_type] = entity_counts.get(page_type, 0) + 1
+
+        return {
+            "created": created_count,
+            "updated": updated_count,
+            "timeline_events": timeline_added,
+            "entity_counts": entity_counts,
+        }
+
+    except Exception:
         rollback = "full"
         for backup_path, backup_content in modified_backups:
             try:
@@ -698,18 +710,66 @@ def cmd_batch(args: argparse.Namespace) -> None:
             except Exception:
                 rollback = "partial"
 
-        # Rollback: delete newly created files
         for created_path in created_files:
             try:
                 created_path.unlink(missing_ok=True)
             except Exception:
                 rollback = "partial"
 
+        raise RuntimeError(json.dumps({"rollback": rollback})) from None
+
+
+def cmd_batch(args: argparse.Namespace) -> None:
+    """Execute multiple wiki operations atomically."""
+    if not args.payload:
+        print("Error: --payload is required for batch", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        payload = json.loads(args.payload)
+        if not isinstance(payload, dict):
+            print("Error: --payload must be a JSON object", file=sys.stderr)
+            sys.exit(2)
+    except json.JSONDecodeError:
+        print("Error: --payload is not valid JSON", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        summary = run_batch(args.name, payload)
+        print(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "created": summary["created"],
+                    "updated": summary["updated"],
+                    "timeline_events": summary["timeline_events"],
+                }
+            )
+        )
+    except ValueError as exc:
         print(
             json.dumps(
                 {
                     "status": "error",
                     "message": str(exc),
+                }
+            )
+        )
+        sys.exit(1)
+    except RuntimeError as exc:
+        rollback = "partial"
+        message = str(exc)
+        try:
+            data = json.loads(message)
+            if isinstance(data, dict) and isinstance(data.get("rollback"), str):
+                rollback = data["rollback"]
+        except json.JSONDecodeError:
+            pass
+        print(
+            json.dumps(
+                {
+                    "status": "error",
+                    "message": "batch operation failed",
                     "rollback": rollback,
                 }
             )
