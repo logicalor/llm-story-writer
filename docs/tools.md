@@ -1863,6 +1863,14 @@ Dry-run runs return the exact `wiki-update batch` payload shape, preserving snak
 }
 ```
 
+### Resumability
+
+`wiki-extract` checkpoints each successful LLM call to `stories/<story-name>/.wiki-extract-cache.json`. `initial-populate` and `update-from-chapter` both reuse that per-story cache on retry, so rerunning the same command resumes from the last completed extraction or detail-generation step instead of starting over.
+
+The cache is deleted only after a successful applied run, once `run_batch()` completes. It is retained on timeout, failure, or dry-run because no applied write happened. Missing or corrupt cache data is treated as a cache miss and the tool starts fresh.
+
+**Note:** The cache uses stable identifiers (file paths, entity slugs, chapter numbers) as keys, not content checksums. If you edit a source file (chapter text, character sheet, outline) between a timeout and a retry, the cached extraction from the original content will be replayed. Delete `stories/<story-name>/.wiki-extract-cache.json` before retrying to force a fresh extraction.
+
 ### Integration with `wiki-update`
 
 When `apply` is true, `wiki-extract` calls `run_batch()` from `src/tools/wiki_update.py`. That helper preserves the existing `wiki-update batch` contract and returns created, updated, timeline, and per-type summary counts. This keeps extraction and summary generation tool-owned while leaving page writes, rollback semantics, and ChromaDB upserts in the existing deterministic wiki update layer.

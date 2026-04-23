@@ -35,6 +35,7 @@ When dispatched, you will receive:
 2. Check `.github/notes/patterns.md` and `.github/notes/gotchas.md` for known edge cases.
 3. **Query ChromaDB** for similar test patterns and domain-relevant gotchas:
    See `.github/instructions/chromadb.instructions.md` for standard query patterns and collection schemas.
+4. **Flag broken pre-existing helpers, do not emulate them.** When extending an existing test file, if you encounter a helper function or fixture whose body is clearly broken (references undefined names, contains unreachable branches, is never invoked, or shadows a working canonical helper used elsewhere in the same file), do **not** pattern-match your new tests against it. Use the canonical helper that the file's live tests actually invoke, and note the broken helper in your verification report so the Reviewer can flag it for removal. Do not remove the dead helper yourself — that is out of this PR's scope.
 
 ### 2. Write Tests
 

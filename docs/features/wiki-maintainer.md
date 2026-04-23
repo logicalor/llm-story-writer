@@ -43,7 +43,7 @@ See [Tools Reference](../tools.md) for full documentation of each tool's argumen
 
 Called once after outline and character/setting sheets are generated. The heavy extraction pass is tool-owned so the subagent does not have to carry the full outline, every sheet, every detail level, and the complete batch payload in its own context window.
 
-1. **Run `wiki-extract initial-populate`** — The tool reads `state.json`, character sheets, and setting sheets from disk; extracts entities from each source; deduplicates them by slug; assigns `planned` confidence by default; generates L1/L2/L3 detail levels; assembles the snake_case batch payload; and applies it through `wiki-update`'s internal `run_batch()` helper.
+1. **Run `wiki-extract initial-populate`** — The tool reads `state.json`, character sheets, and setting sheets from disk; extracts entities from each source; deduplicates them by slug; assigns `planned` confidence by default; generates L1/L2/L3 detail levels; assembles the snake_case batch payload; and applies it through `wiki-update`'s internal `run_batch()` helper. Each successful LLM call is checkpointed in `stories/<story-name>/.wiki-extract-cache.json`, so a retry after timeout resumes from the last completed step.
 2. **Review returned counts** — The agent inspects summary counts such as created page totals and `entity_counts` by type. This is the main compaction fix: the agent sees counts instead of the full payload.
 3. **Establish wikilinks** — Review created pages and add missing `[[slug]]` links where relationships, events, locations, or plot threads should cross-reference one another.
 4. **Spot-check for plausibility** — If counts or created pages look wrong, rerun with a model override or follow up with targeted `wiki-update` edits.
@@ -52,12 +52,14 @@ Called once after outline and character/setting sheets are generated. The heavy 
 
 Called after each chapter is assembled. Updates the wiki with `verified` information from the generated text while keeping the full chapter and matched entity snapshots inside the tool boundary.
 
-1. **Run `wiki-extract update-from-chapter`** — The tool reads the completed chapter file from disk, matches existing entities from the wiki index, extracts new entities plus state changes, aliases, and timeline events, generates L1/L2/L3 summaries for newly created entities, assembles the batch payload, and applies it.
+1. **Run `wiki-extract update-from-chapter`** — The tool reads the completed chapter file from disk, matches existing entities from the wiki index, extracts new entities plus state changes, aliases, and timeline events, generates L1/L2/L3 summaries for newly created entities, assembles the batch payload, and applies it. Each successful LLM call is checkpointed in `stories/<story-name>/.wiki-extract-cache.json`, so a retry after timeout resumes from the last completed step.
 2. **Review returned counts** — The agent inspects create, update, and timeline totals and checks whether the counts look plausible for the chapter.
 3. **Add or repair wikilinks** — Use `wiki-update` for short follow-up edits when created or updated pages need explicit cross-links.
 4. **Run chapter boundary lint** — Call `wiki-lint` (operation: `check-chapter`) and fix critical issues. This stays agent-owned because it is a short validation step with chapter-aware judgment.
 
 The extraction rules themselves do not change: the tool still follows the wiki-maintenance skill's schema, confidence taxonomy, alias rules, and detail-level targets. The change is ownership, not output format.
+
+The shared `.opencode/_run.ts` timeout message is now accurate for this tool: savepoints are written after each completed extraction or detail-generation step, so no agent-level recovery flow is required. Retrying the same `wiki-extract` call with the same parameters continues from the last cached step until the apply succeeds. If the source inputs (sheets, outline, or chapter text) were edited between the original run and the retry, delete `stories/<story-name>/.wiki-extract-cache.json` first to ensure a fresh extraction.
 
 ## Entity Types
 
@@ -166,6 +168,7 @@ Beyond the standard alias identification rules, the wiki maintainer handles thre
 | Scenario | Behaviour |
 |----------|-----------|
 | Empty or implausible `wiki-extract` result | Re-run once with narrower focus or a model override. If still sparse, proceed and log the issue for orchestrator review. |
+| `wiki-extract` timeout before apply completes | Retry the same tool call with the same parameters. Per-step checkpoints let `initial-populate` and `update-from-chapter` resume from the last successful LLM call, so no agent-level recovery logic is needed. |
 | Validation or batch failure during apply | `wiki-extract` surfaces the error from `run_batch()`. Report it to the orchestrator and use targeted `wiki-update` repairs if recovery is simple. |
 | Critical `wiki-lint` issues | Report to orchestrator; do not halt the pipeline. |
 | Potential duplicate entity | Always check `wiki-search` before creating. If a match exists, update instead of creating. |

@@ -91,6 +91,7 @@ Based on the changes, determine what documentation needs to be created or update
 > - No hardcoded URLs — reference the project's routing conventions instead.
 > - Scan the entire file for `TODO`, `[placeholder]`, `...` stubs, and trivially short sections (3 lines or fewer where substance is expected). Remove or complete them before committing.
 > - For behavioral descriptions (routing logic, model selection, configuration options, feature flags): read the actual implementation to confirm the described behavior is present in the code. The issue description often contains planned behaviors that were not implemented — do not document them as if they were. Every behavioral claim in the docs must be verifiable in the current codebase by reading the relevant source file.
+> - For caching, resumability, or retry-safety claims: any statement that an operation is "safe to retry", "resumable", or "cached" must be accompanied by (a) the input-stability contract under which the claim holds (e.g., "provided the source files and prompts are unchanged") and (b) the explicit recovery action when that contract is violated (typically deleting the cache file or state artefact to force a fresh run). Unqualified safety claims mislead callers when inputs change between runs.
 
 Follow these conventions:
 
