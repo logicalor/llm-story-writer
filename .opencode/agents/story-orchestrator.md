@@ -81,7 +81,8 @@ Execute these phases sequentially. Each phase completes fully before the next be
    - `story_name`: the story name
    - `prompt`: the full story prompt text read from state
    - All relevant config values: `use_chunked_outline_generation`, `outline_chunk_size`, `enable_outline_critique`, `outline_quality`, `outline_critique_iterations`, `outline_min_revisions`, `wanted_chapters`
-2. The `outline-planner` handles the full pipeline internally — prompt analysis, element synthesis, outline generation (chunked or monolithic), and the critique/refinement loop. Do **not** run critique or revision steps at the orchestrator level.
+
+   > **Note:** The `outline-planner` handles the full pipeline internally — prompt analysis, element synthesis, outline generation (chunked or monolithic), and the critique/refinement loop. Do **not** run critique or revision steps at the orchestrator level.
 3. Receive the finalised outline from `outline-planner`. If the orchestrator's own revision cap (`outline_max_revisions`) has not been reached and the user requests further revisions (Phase 3 feedback), re-invoke `outline-planner` with feedback.
 4. Store the finalised outline via `story-state` (operation: `write`, field: `outline`, value: the outline text returned by `outline-planner` in step 3 above). This step is **mandatory** regardless of whether chunked or non-chunked generation was used — both paths must produce and return the consolidated outline text.
 
