@@ -174,16 +174,35 @@ After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases
 
 **Do not stop when `chapter-outline-expander` returns.** Immediately in the same turn, begin Phase 7b for chapter 1 by dispatching `chapter-writer` (or calling `scene-writer` if `scene_generation_pipeline` is false). Phase 7a→7b is not an approval gate.
 
+#### Per-Chapter Required Sequence (7b → 7h)
+
+**For every chapter N from 1 to `wanted_chapters`, every phase below must execute before the `chapter_{N}_complete` savepoint is created. Skipping any of 7c, 7d, 7e, 7f, 7g, or 7.5 is a workflow defect — even under context pressure.** If you find yourself tempted to write only `savepoint-mgr save chapter_{N}_complete` after 7b, stop and run the missing phases first.
+
+| Step | Phase | Required call(s) |
+|------|-------|------------------|
+| 1 | 7b | `chapter-writer` subagent **or** `scene-writer generate-chapter` (with `includeContent: true`) |
+| 2 | 7c | `wiki-maintainer` subagent (post-chapter wiki update) |
+| 3 | 7d | `savepoint-mgr load story_start_date` then `recap-manager generate` |
+| 4 | 7e | Write `stories/{name}/chapters/chapter_{N}.md`, then dispatch `consistency-checker` |
+| 5 | 7f | `quality-reviewer` (only if `enable_chapter_revisions` true; otherwise skip) — and re-run 7c, 7d, 7e if `requires_post_processing` |
+| 6 | 7g | `story-assembler generate-handoff` then `rag-query index` for `chapter-{N}-raw` |
+| 7 | 7.5 | `prose-scrubber` subagent (only if `enable_scrubbing` true; otherwise skip) |
+| 8 | 7h | `savepoint-mgr save chapter_{N}_complete` |
+
+After step 8, immediately begin chapter N+1 at step 1 in the same turn until N == `wanted_chapters`. Then continue to Phase 8.
+
 #### 7b. Scene Generation
 
+**Branch on `scene_generation_pipeline` (read fresh from `config.yml` — see Resume Protocol). The default is `true`.**
+
 If `scene_generation_pipeline` is true:
-1. Delegate scene generation to the `chapter-writer` subagent
-2. The subagent generates each scene in the chapter sequentially, using `wiki-snapshot` for pre-generation context assembly
-3. Collect all generated scenes and assemble into the chapter
+1. Dispatch the `chapter-writer` subagent with `story_name` and `chapter_number: N`.
+2. The subagent generates each scene sequentially, calls `scene-writer assemble-chapter` with `includeContent: true`, and returns the full assembled prose as `content`.
+3. Use the returned `content` as `chapter_text` for subsequent phases (7c–7h).
 
 If `scene_generation_pipeline` is false:
-1. Call `scene-writer` (operation: `generate-chapter`) with `name` and `chapterNum`. Optionally pass `model` if a model override is configured. The tool reads chapter context from story state and savepoints internally, calls the LLM, and writes the assembled chapter to `chapters.{N}.content` in story state.
-2. The returned `data` field is the full chapter text — use it as `chapter_text` for subsequent phases (7c–7h).
+1. Call `scene-writer` (operation: `generate-chapter`) with `name`, `chapterNum`, and **`includeContent: true`**. Optionally pass `model` if a model override is configured. The tool reads chapter context from story state and savepoints internally, calls the LLM, writes the prose to the `chapter_{N}/chapter_content` savepoint, **and writes it to `chapters.{N}.content` in story state**. Do not call `story-state write` for `chapters.{N}.content` yourself — the tool already did it. Writing a placeholder string will overwrite the real prose.
+2. The response is JSON: `{"chapter_ref", "savepoint_step", "char_count", "content"}`. Extract `content` and use it as `chapter_text` for subsequent phases (7c–7h). If `includeContent` was omitted, `content` will be missing and you must reload it via `savepoint-mgr` (operation: `load`, step: `chapter_{N}/chapter_content`).
 
 #### 7c. Post-Chapter Wiki Update
 
@@ -358,9 +377,9 @@ Savepoints capture the full pipeline state at key milestones, enabling resume af
 | `story_complete` | Phase 8 completes (final assembly done) |
 
 **Resuming from a savepoint:**
-1. Load the savepoint via `savepoint-mgr` (operation: `load`)
-2. Determine the last completed phase from story state
-3. Resume execution from the next phase
+1. Call `savepoint-mgr` (operation: `next-phase`, name: story name) — returns `last_completed`, `next_phase`, `last_chapter_complete`.
+2. **Reload `config.yml`.** Re-read every `generation.*` value listed in Phase 1 (especially `scene_generation_pipeline`, `enable_chapter_revisions`, `enable_scrubbing`, `enable_final_edit`, `wanted_chapters`, `chapter_quality`, `chapter_min_revisions`, `chapter_max_revisions`). The agent context does not persist these across resume — defaults will be wrong.
+3. Resume execution from the next phase. If resuming inside the chapter loop (`last_chapter_complete > 0`), restart at Phase 7b for chapter `last_chapter_complete + 1`.
 
 ---
 
