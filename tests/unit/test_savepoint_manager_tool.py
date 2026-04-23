@@ -333,3 +333,124 @@ def test_clear_nonexistent_story(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "not initialized" in result.stderr or "not found" in result.stderr
+
+
+# --- next-phase operation (issue #148) -----------------------------------
+
+
+def _save(stories_dir: Path, name: str, step: str, data: str = '"x"') -> None:
+    result = _run_tool(
+        "--operation",
+        "save",
+        "--name",
+        name,
+        "--step",
+        step,
+        "--data",
+        data,
+        stories_dir=stories_dir,
+    )
+    assert result.returncode == 0, f"save {step} failed: {result.stderr}"
+
+
+def _next_phase(stories_dir: Path, name: str) -> dict:
+    result = _run_tool(
+        "--operation",
+        "next-phase",
+        "--name",
+        name,
+        stories_dir=stories_dir,
+    )
+    assert result.returncode == 0, f"next-phase failed: {result.stderr}"
+    return json.loads(result.stdout)
+
+
+def test_next_phase_empty_story(story_env: tuple[Path, str]) -> None:
+    stories_dir, name = story_env
+    out = _next_phase(stories_dir, name)
+    assert out["last_completed"] == ""
+    assert out["last_canonical"] == ""
+    assert out["last_chapter_complete"] == 0
+    assert "Phase 1" in out["next_phase"]
+
+
+def test_next_phase_only_init(story_env: tuple[Path, str]) -> None:
+    stories_dir, name = story_env
+    _save(stories_dir, name, "init")
+    out = _next_phase(stories_dir, name)
+    assert out["last_completed"] == "init"
+    assert "Phase 2" in out["next_phase"]
+    assert out["missing_below_top"] == []
+
+
+def test_next_phase_tolerates_gaps(story_env: tuple[Path, str]) -> None:
+    """outline_complete missing but characters_complete present — picks highest."""
+    stories_dir, name = story_env
+    _save(stories_dir, name, "init")
+    _save(stories_dir, name, "arc_analysis_complete")
+    _save(stories_dir, name, "characters_complete")
+    out = _next_phase(stories_dir, name)
+    assert out["last_completed"] == "characters_complete"
+    assert "Phase 5" in out["next_phase"]
+    assert "outline_complete" in out["missing_below_top"]
+
+
+def test_next_phase_settings_complete(story_env: tuple[Path, str]) -> None:
+    """The exact scenario from issue #148: characters + settings present."""
+    stories_dir, name = story_env
+    _save(stories_dir, name, "init")
+    _save(stories_dir, name, "arc_analysis_complete")
+    _save(stories_dir, name, "characters_complete")
+    _save(stories_dir, name, "settings_complete")
+    out = _next_phase(stories_dir, name)
+    assert out["last_completed"] == "settings_complete"
+    assert "Phase 6" in out["next_phase"]
+
+
+def test_next_phase_chapter_loop(story_env: tuple[Path, str]) -> None:
+    """chapter_3_complete + chapter_5_complete → highest is 5."""
+    stories_dir, name = story_env
+    _save(stories_dir, name, "init")
+    _save(stories_dir, name, "wiki_populated")
+    _save(stories_dir, name, "chapter_1_complete")
+    _save(stories_dir, name, "chapter_3_complete")
+    _save(stories_dir, name, "chapter_5_complete")
+    out = _next_phase(stories_dir, name)
+    assert out["last_completed"] == "chapter_5_complete"
+    assert out["last_chapter_complete"] == 5
+    assert "chapter 6" in out["next_phase"]
+
+
+def test_next_phase_story_complete(story_env: tuple[Path, str]) -> None:
+    stories_dir, name = story_env
+    _save(stories_dir, name, "init")
+    _save(stories_dir, name, "wiki_populated")
+    _save(stories_dir, name, "chapter_1_complete")
+    _save(stories_dir, name, "story_complete")
+    out = _next_phase(stories_dir, name)
+    assert out["last_completed"] == "story_complete"
+    assert "Phase 9" in out["next_phase"]
+
+
+def test_next_phase_final_edit_complete(story_env: tuple[Path, str]) -> None:
+    stories_dir, name = story_env
+    _save(stories_dir, name, "init")
+    _save(stories_dir, name, "wiki_populated")
+    _save(stories_dir, name, "story_complete")
+    _save(stories_dir, name, "final_edit_complete")
+    out = _next_phase(stories_dir, name)
+    assert out["last_completed"] == "final_edit_complete"
+    assert "complete" in out["next_phase"].lower()
+
+
+def test_next_phase_nonexistent_story(tmp_path: Path) -> None:
+    stories_dir = tmp_path / "stories"
+    stories_dir.mkdir()
+    result = _run_tool(
+        "--operation",
+        "next-phase",
+        "--name",
+        "no-such-story",
+        stories_dir=stories_dir,
+    )
+    assert result.returncode == 1

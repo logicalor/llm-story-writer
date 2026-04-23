@@ -5,12 +5,20 @@ import { runTool } from "../_run";
 
 export default tool({
   description:
-    "Manage story savepoints: save, load, has, list, list-full, or clear. Use 'list' (names only, fast) for resume/discovery — NOT 'list-full' (dumps all data, wastes tokens). Supports hierarchical step paths like chapter_1/scene_2. Python script: src/tools/savepoint_manager.py.",
+    "Manage story savepoints: save, load, has, list, list-full, clear, or next-phase. Use 'list' (names only, fast) for resume/discovery — NOT 'list-full' (dumps all data, wastes tokens). Use 'next-phase' (preferred for /continue) to get the deterministic resume target. Supports hierarchical step paths like chapter_1/scene_2. Python script: src/tools/savepoint_manager.py.",
   args: {
     operation: z
-      .enum(["save", "load", "has", "list", "list-full", "clear"])
+      .enum([
+        "save",
+        "load",
+        "has",
+        "list",
+        "list-full",
+        "clear",
+        "next-phase",
+      ])
       .describe(
-        "Operation. 'list' returns names only (fast, preferred). 'list-full' returns names + data (large, avoid unless needed)."
+        "Operation. 'list' returns names only (fast, preferred). 'list-full' returns names + data (large, avoid unless needed). 'next-phase' returns the deterministic resume target."
       ),
     name: z.string().describe("Story name"),
     step: z
@@ -30,7 +38,14 @@ export default tool({
     step,
     data,
   }: {
-    operation: "save" | "load" | "has" | "list" | "list-full" | "clear";
+    operation:
+      | "save"
+      | "load"
+      | "has"
+      | "list"
+      | "list-full"
+      | "clear"
+      | "next-phase";
     name: string;
     step?: string;
     data?: string;

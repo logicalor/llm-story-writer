@@ -194,12 +194,22 @@ The pipeline uses ten subagents for specialised creative work. The `story-orches
 
 ## Savepoint Ownership
 
-**The orchestrator owns the savepoint lifecycle. Subagents must never call `savepoint-mgr` directly.**
+**The orchestrator owns the savepoint lifecycle. Subagents must never call `savepoint-mgr` directly, with the documented exceptions below.**
 
 - Savepoints are checkpoints created by `story-orchestrator` at the boundary of each phase — not by subagents during their internal work.
 - When a subagent completes its delegated work, it writes results to `story-state` (or produces handoff artifacts) and returns to the orchestrator. The orchestrator then creates the savepoint after confirming results are stored.
 - **Why this matters:** If a subagent creates its own savepoint and the orchestrator also creates one at the same step name, the orchestrator's write silently overwrites the subagent's richer payload (`savepoint-mgr` overwrites existing entries by default). A pipeline resumed from that savepoint recovers a degraded snapshot.
 - **Correct pattern:** `story-orchestrator` Phase 2.5 creates `arc_analysis_complete` with the full arc payload after `story-planner` returns. `story-planner` writes only to `story-state` — it never calls `savepoint-mgr`.
+
+### Documented exceptions
+
+The following subagents own specific savepoints because they perform per-entity work in a loop and the orchestrator has no equivalent re-entry point:
+
+| Subagent | Owned savepoints | Rationale |
+|----------|-------------------|-----------|
+| `character-sheet-generator` | `characters_complete`, `settings_complete` | Subagent loops over the full character/setting list and is the only context that knows when the loop has finished. The orchestrator must NOT also create these. |
+
+When adding a new exception: document it in this table, ensure the orchestrator does NOT create the same savepoint, and add the savepoint to the canonical phase order in `src/tools/savepoint_manager.py`'s `CANONICAL_PHASES` list.
 
 ---
 
