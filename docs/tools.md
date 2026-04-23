@@ -882,7 +882,7 @@ The same tool also owns the prose-analysis prompts used by the late-stage editin
 | `sceneCount` | integer | For `assemble-chapter` | Total number of scenes in the chapter (must be ≥ 1) |
 | `chapterOutline` | string | For `parse-definitions`, `generate`; optional for `revise` | Chapter outline text |
 | `sceneDefinition` | string | For `generate`; optional for `revise` | Scene definition as JSON string |
-| `sceneContent` | string | For `revise` | Current scene content to revise |
+| `sceneContent` | string | No | Current scene content to revise; when omitted, `revise` loads `chapter_N/scene_M` from savepoints |
 | `feedback` | string | For `revise` | Revision feedback describing what to improve |
 | `chapterTitle` | string | No | Chapter title for `assemble-chapter` (defaults to `"Chapter N"`) |
 | `baseContext` | string | No | Base story context (for `generate`) |
@@ -890,18 +890,19 @@ The same tool also owns the prose-analysis prompts used by the late-stage editin
 | `characterSheets` | string | No | Character sheets (for `generate`) |
 | `settingSheets` | string | No | Setting sheets (for `generate`) |
 | `previousRecap` | string | No | Previous chapter recap (for `generate`) |
-| `previousScene` | string | No | Previous scene content (for `generate`) |
+| `previousScene` | string | No | Previous scene content (for `generate`); when omitted and `sceneNum > 1`, the tool loads `chapter_N/scene_{M-1}` from savepoints if available |
 | `nextSceneDefinition` | string | No | Next scene definition (for `generate`) |
 | `nextChapterSynopsis` | string | No | Next chapter synopsis (for `generate`) |
 | `additionalContext` | string | No | Extra context appended to `base_context` for `generate-chapter` |
 | `chapterText` | string | For `scrub-analyze`, `voice-analyze` | Full chapter text to analyze |
 | `priorChaptersSummary` | string | No | Prior-chapter continuity summary for `voice-analyze` |
+| `includeContent` | boolean | No | Return full scene or chapter prose in the response for `generate`, `revise`, `assemble-chapter`, and `generate-chapter` (default: `false`, which returns compact savepoint references only) |
 | `model` | string | No | Override LLM model identifier |
 
 ### CLI Interface (Python script)
 
 ```bash
-python3 src/tools/scene_writer.py --operation <op> --name <name> [options]
+python3 src/tools/scene_writer.py --operation <op> --name <name> [options] [--include-content]
 ```
 
 **Examples:**
@@ -917,16 +918,45 @@ python3 src/tools/scene_writer.py --operation generate \
   --name my-story --chapter-num 3 --scene-num 1 \
   --scene-definition '{"title": "The Arrival", "description": "Elena enters the gate"}' \
   --chapter-outline "Chapter 3 outline text" \
-  --base-context "Fantasy world context" \
-  --previous-scene "Previous scene text"
+  --base-context "Fantasy world context"
+
+# Returns compact reference data by default
+# {
+#   "status": "success",
+#   "operation": "generate",
+#   "data": {
+#     "scene_ref": "chapter_3/scene_1",
+#     "savepoint_step": "chapter_3/scene_1",
+#     "char_count": 1248
+#   }
+# }
 
 # Revise a scene with feedback
 python3 src/tools/scene_writer.py --operation revise \
   --name my-story --chapter-num 3 --scene-num 1 \
-  --scene-content "The sun set over the city..." \
   --feedback "Add more tension in the dialogue" \
   --scene-definition '{"title": "The Arrival"}' \
   --chapter-outline "Chapter 3 outline"
+
+# Returns compact reference data by default
+# {
+#   "status": "success",
+#   "operation": "revise",
+#   "data": {
+#     "scene_ref": "chapter_3/scene_1",
+#     "savepoint_step": "chapter_3/scene_1",
+#     "char_count": 1312
+#   }
+# }
+
+# Opt in to full prose in the response when needed
+python3 src/tools/scene_writer.py --operation generate \
+  --name my-story --chapter-num 3 --scene-num 2 \
+  --scene-definition '{"title": "The Council Hall", "description": "Elena meets the council"}' \
+  --chapter-outline "Chapter 3 outline text" \
+  --include-content
+
+# Response adds a "content" field alongside compact references
 
 # Assemble all scenes into a chapter
 python3 src/tools/scene_writer.py --operation assemble-chapter \
@@ -955,10 +985,10 @@ python3 src/tools/scene_writer.py --operation voice-analyze \
 | Operation | Effect | Output |
 |-----------|--------|--------|
 | `parse-definitions` | Sends chapter outline through `scenes/parse_definitions` prompt; LLM returns a JSON array of scene objects. Falls back to a single scene if JSON parsing fails. Saves to savepoint. | `{"status": "success", "operation": "parse-definitions", "data": [{"title": "...", "description": "..."}, ...]}` |
-| `generate` | Renders `scenes/create_content` prompt with scene definition and full story context, calls LLM, saves result to savepoint | `{"status": "success", "operation": "generate", "data": "<scene text>"}` |
-| `revise` | Renders `scenes/revise_content` prompt with current content, feedback, and optional context, calls LLM, overwrites the scene savepoint | `{"status": "success", "operation": "revise", "data": "<revised text>"}` |
-| `assemble-chapter` | Loads all scene savepoints for the chapter, retrieves scene titles from definitions savepoint, concatenates with `## <title>` headers and `---` separators | `{"status": "success", "operation": "assemble-chapter", "data": "# <title>\n\n## Scene 1\n\n..."}` |
-| `generate-chapter` | Renders `chapters/create_content` for a full chapter fallback flow. Reads `chapters.N.expanded_outline` and `chapters.N+1.expanded_outline` from story state, loads `base_context`, `initial_outline`, and prior chapter recap savepoints, appends optional `additionalContext`, calls LLM, saves to `chapter_N/chapter_content`, and writes the result to `chapters.N.content` in story state. | `{"status": "success", "operation": "generate-chapter", "data": "<chapter text>"}` |
+| `generate` | Renders `scenes/create_content` prompt with scene definition and story context, auto-loads `previous_scene` from `chapter_N/scene_{M-1}` when omitted and `scene_num > 1`, calls LLM, and saves the result to `chapter_N/scene_M`. | `{"status": "success", "operation": "generate", "data": {"scene_ref": "chapter_N/scene_M", "savepoint_step": "chapter_N/scene_M", "char_count": N}}` plus `"content"` when `includeContent: true` or `--include-content` is set |
+| `revise` | Renders `scenes/revise_content` prompt with current content, feedback, and optional context, auto-loads `scene_content` from `chapter_N/scene_M` when omitted, calls LLM, and overwrites the same scene savepoint. | `{"status": "success", "operation": "revise", "data": {"scene_ref": "chapter_N/scene_M", "savepoint_step": "chapter_N/scene_M", "char_count": N}}` plus `"content"` when `includeContent: true` or `--include-content` is set |
+| `assemble-chapter` | Loads all scene savepoints for the chapter, retrieves scene titles from definitions savepoint, concatenates them with `## <title>` headers and `---` separators, and saves the assembled chapter to `chapter_N/chapter_content`. | `{"status": "success", "operation": "assemble-chapter", "data": {"chapter_ref": "chapter_N/chapter_content", "savepoint_step": "chapter_N/chapter_content", "char_count": N, "scene_count": N}}` plus `"content"` when `includeContent: true` or `--include-content` is set |
+| `generate-chapter` | Renders `chapters/create_content` for a full chapter fallback flow. Reads `chapters.N.expanded_outline` and `chapters.N+1.expanded_outline` from story state, loads `base_context`, `initial_outline`, and prior chapter recap savepoints, appends optional `additionalContext`, calls LLM, saves to `chapter_N/chapter_content`, and writes the result to `chapters.N.content` in story state. | `{"status": "success", "operation": "generate-chapter", "data": {"chapter_ref": "chapter_N/chapter_content", "savepoint_step": "chapter_N/chapter_content", "char_count": N}}` plus `"content"` when `includeContent: true` or `--include-content` is set |
 | `scrub-analyze` | Renders `final_edit/prose_scrub` with accepted chapter text, extracts the JSON block, and returns structured sentence-level issues for adverbs, filter words, repetition, and show-vs-tell drift. No savepoint is written. | `{"status": "success", "operation": "scrub-analyze", "data": {"issues": [{"type": "...", "original_text": "...", "suggested_replacement": "...", "line_context": "..."}], "issues_found": 2}}` |
 | `voice-analyze` | Renders `final_edit/voice_consistency_pass` with chapter text plus an optional prior-chapter summary, extracts the JSON block, and returns structured voice, pacing, and coherence issues. No savepoint is written. | `{"status": "success", "operation": "voice-analyze", "data": {"issues": [{"type": "...", "location": "...", "description": "...", "suggested_fix": "..."}], "issues_found": 1}}` |
 
@@ -1005,9 +1035,9 @@ Savepoint-backed operations persist intermediate results under `stories/<name>/s
 |---------------|-----------|---------|
 | `chapter_N/scene_definitions` | `parse-definitions` | JSON array of scene definition objects |
 | `chapter_N/scene_M` | `generate`, `revise` | Scene prose text |
-| `chapter_N/chapter_content` | `generate-chapter` | Full chapter prose text |
+| `chapter_N/chapter_content` | `generate-chapter`, `assemble-chapter` | Full chapter prose text |
 
-`scrub-analyze`, `voice-analyze`, and `assemble-chapter` are stateless with respect to savepoint storage. `assemble-chapter` reads existing scene savepoints but does not write a new checkpoint.
+`generate` no longer requires callers to thread prior scene prose manually when the previous scene savepoint already exists. `scrub-analyze` and `voice-analyze` remain stateless with respect to savepoint storage.
 
 ### Resumability
 
