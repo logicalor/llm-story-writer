@@ -324,3 +324,36 @@ assert saved == items
 ```
 
 ChromaDB ID: `gotcha-savepoint-str-vs-object-format-012`
+
+---
+
+## Agent Workflows
+
+### 013 — Chunked outline generation: must explicitly concatenate `data.chunk_outline` values — no tool auto-merges
+
+**Source:** issue #156, PR #157
+**Severity:** warning
+
+`outline-generator expand-chapter` writes each chunk to a savepoint (`outline_chunk_{start}_{end}`) and returns JSON for that chunk only. There is **no tool or pipeline step that auto-merges chunks** into a single consolidated string.
+
+After the last `expand-chapter` call, the agent must explicitly:
+1. Collect all `data.chunk_outline` values in chapter order (as extracted during the loop).
+2. Concatenate them with `\n\n` separators.
+3. Store the result as the outline return value (e.g. `merged_outline` / `current_outline`).
+
+Skipping this yields an empty `story-state field outline` after the orchestrator writes the return value. Failure cascades silently:
+- `story-planner` arc analysis fabricates ratings (no outline text to evaluate).
+- `chapter-outline-expander` (Phase 7a) expands chapters without approved synopsis context.
+- Validation guards fire only when the downstream consumer reads the empty field — after at least one subagent dispatch overhead and potentially after an irreversible state write.
+
+The `expand-chapter` tool calls all succeed with no error signal — the failure is invisible until downstream consumers read the empty field.
+
+```text
+# Required consolidation step (conceptual):
+# After ALL expand-chapter calls complete:
+# merged_outline = "\n\n".join(all data.chunk_outline values in chapter order)
+# current_outline = merged_outline
+# Return current_outline to the orchestrator
+```
+
+ChromaDB ID: `gotcha-chunked-outline-consolidation-no-auto-merge-013`

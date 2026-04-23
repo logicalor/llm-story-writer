@@ -44,6 +44,11 @@ Execute these steps sequentially.
 
    Store the returned outline JSON string as `outline_text`.
 
+   > **⚠️ Validate `outline_text` before proceeding.** If `outline_text` is empty, null, `{}`, or a whitespace-only string:
+   > - Halt immediately. Do **not** call `critique-runner` with an empty outline.
+   > - Report to the orchestrator: `"story-planner halted: outline field in story state is empty. The orchestrator must write the merged outline to story-state field 'outline' before dispatching story-planner. If chunked outline generation was used, ensure outline-planner returned the consolidated merged_outline string and the orchestrator stored it before dispatching."`
+   > - An LLM will fabricate arc ratings from ambient metadata if given an empty outline, producing misleading output.
+
 2. Call `story-state` with:
    - `operation`: `"read"`
    - `name`: story name

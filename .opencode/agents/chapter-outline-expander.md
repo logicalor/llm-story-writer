@@ -43,7 +43,11 @@ Execute these steps sequentially.
 
 1. If `expand_outline` is false, return immediately with `{"status": "skipped", "reason": "expand_outline disabled"}`.
 2. Initialise `continuitySummary = null` and `current_chapter = 1`.
-3. Loop for chapter N from 1 to `wanted_chapters`:
+3. Load the approved outline for synopsis grounding:
+   - Call `story-state` with `operation: "read"`, `name: story_name`, `field: "outline"`
+   - Store the returned value as `approved_outline`
+   - If the read fails or returns empty/null, set `approved_outline = null` and log: `"Warning: story-state 'outline' field is empty — chapters will be expanded without approved synopsis context. Run the pipeline from Phase 2 to populate the outline before Phase 7a."`
+4. Loop for chapter N from 1 to `wanted_chapters`:
    a. If `N > 1`, call `story-state` with `operation: "read"`, `name: story_name`, `field: "chapters.{N-1}.handoff"`. If the field exists, treat the returned JSON object as the prior chapter handoff. If the read fails because the field is absent, continue without handoff data.
    b. Build the `continuitySummary` argument for the next `outline-generator` call:
 
@@ -66,8 +70,11 @@ Execute these steps sequentially.
       - `chunkStart`: `N`
       - `chunkEnd`: `N`
       - `totalChapters`: `wanted_chapters`
+      - `previousChunks`: `approved_outline` (the full merged outline from step 3), if non-null — this grounds the expansion in the approved chapter synopsis rather than regenerating blind from `story_elements` alone
       - `continuitySummary`: the combined continuity text from step b, if present
       - `model`: `model`, if provided
+
+      > **Note on `previousChunks` usage:** Passing the fixed `approved_outline` string here is O(n) calls × O(1) content per call — it is NOT quadratic. The prohibition on `previousChunks` in `outline-planner` Phase 3 applies to progressively accumulating all previously generated chunks in the generation loop (which grows with each iteration). Here we pass the same, already-fixed merged outline on every call.
    d. Parse the JSON response string from `outline-generator`:
       - Extract `data.chunk_outline`
       - Extract `data.continuity_analysis`
@@ -94,12 +101,12 @@ Execute these steps sequentially.
       - `step`: `"chapter_outline_expansion/chapter_{N}"`
       - `data`: the expanded outline as a JSON string
    i. Increment `current_chapter` and continue.
-4. After the loop completes, call `savepoint-mgr` one more time to mark the whole phase done:
+5. After the loop completes, call `savepoint-mgr` one more time to mark the whole phase done:
    - `operation`: `"save"`
    - `name`: `story_name`
    - `step`: `"outlines_expanded"`
    - `data`: `{"expanded_chapters": wanted_chapters}` as a JSON string
-5. Return `{"status": "complete", "expanded_chapters": wanted_chapters}`.
+6. Return `{"status": "complete", "expanded_chapters": wanted_chapters}`.
 
 ---
 
