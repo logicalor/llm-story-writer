@@ -6,6 +6,8 @@
 
 The wiki maintainer is a specialised subagent invoked by the `story-orchestrator` to manage the wiki memory system ([ADR 004](../planning/adr/004-progressive-wiki-memory-system.md)). It extracts entities from story content — characters, locations, events, factions, items, plot threads, world rules, and themes — and maintains structured wiki pages with confidence scoring, provenance tracking, and multi-level detail summaries.
 
+Issue #144 refined that workflow to fix context bloat in the subagent. The most content-heavy work — reading full source material, extracting structured entities, generating L1/L2/L3 detail levels, and assembling the batch payload — now runs inside the `wiki-extract` Python tool instead of inside the agent's main LLM context. The agent remains responsible for orchestration, plausibility review, wikilink cleanup, and lint follow-up.
+
 The agent operates in two distinct modes, mapped to pipeline phases:
 
 - **Mode 1: Initial Wiki Population** (Phase 6) — Extracts all known entities from the outline, character sheets, and setting sheets to populate the wiki before chapter generation begins.
@@ -24,10 +26,11 @@ The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) th
 
 ## Tools
 
-The wiki maintainer uses five tools to inspect and update the wiki:
+The wiki maintainer uses six tools to inspect and update the wiki:
 
 | Tool | Purpose |
 |------|---------|
+| `wiki-extract` | Tool-owned extraction pipeline for initial population and post-chapter updates; generates detail levels and batch payloads, then optionally applies them |
 | `wiki-read` | Read wiki pages by slug/type/glob; match entity names in text |
 | `wiki-update` | Create/update pages, append timeline entries, execute batch operations |
 | `wiki-lint` | Run consistency checks at chapter boundaries |
@@ -38,32 +41,23 @@ See [Tools Reference](../tools.md) for full documentation of each tool's argumen
 
 ## Workflow — Mode 1: Initial Wiki Population (Phase 6)
 
-Called once after outline and character/setting sheets are generated. All entities are assigned `planned` confidence (or `verified` if character/setting sheets are treated as authoritative source material).
+Called once after outline and character/setting sheets are generated. The heavy extraction pass is tool-owned so the subagent does not have to carry the full outline, every sheet, every detail level, and the complete batch payload in its own context window.
 
-1. **Read story state** — Load the outline, character sheets, and setting sheets via `story-state`.
-2. **Extract entities from outline** — Parse for characters, locations, plot threads, world rules, events, and themes.
-3. **Extract entities from character sheets** — Create detailed character pages with roles, status, and backgrounds. Extract relationships and identify aliases.
-4. **Extract entities from setting sheets** — Create location pages with regions and descriptions. Extract notable items and factions.
-5. **Assign confidence and generate detail levels** — Set `planned` confidence. Generate L1 (~30 tokens), L2 (~150 tokens), and L3 (~500 tokens) detail summaries for each entity.
-6. **Build and execute batch payload** — Assemble all entities into a single JSON batch payload and submit via `wiki-update` (operation: `batch`).
-7. **Establish wikilinks** — Ensure cross-references exist between related entities (characters to locations, relationships to participants, events to involved entities).
+1. **Run `wiki-extract initial-populate`** — The tool reads `state.json`, character sheets, and setting sheets from disk; extracts entities from each source; deduplicates them by slug; assigns `planned` confidence by default; generates L1/L2/L3 detail levels; assembles the snake_case batch payload; and applies it through `wiki-update`'s internal `run_batch()` helper.
+2. **Review returned counts** — The agent inspects summary counts such as created page totals and `entity_counts` by type. This is the main compaction fix: the agent sees counts instead of the full payload.
+3. **Establish wikilinks** — Review created pages and add missing `[[slug]]` links where relationships, events, locations, or plot threads should cross-reference one another.
+4. **Spot-check for plausibility** — If counts or created pages look wrong, rerun with a model override or follow up with targeted `wiki-update` edits.
 
 ## Workflow — Mode 2: Post-Chapter Incremental Update (Phase 7c)
 
-Called after each chapter is assembled. Updates the wiki with `verified` information from the generated text.
+Called after each chapter is assembled. Updates the wiki with `verified` information from the generated text while keeping the full chapter and matched entity snapshots inside the tool boundary.
 
-1. **Match existing entities** — Call `wiki-read` (operation: `match-entities`) to identify which known entities appear in the chapter.
-2. **Compare against wiki state** — Load current wiki state for matched entities to detect changes.
-3. **Extract new information** — Following the extraction rules from the wiki-maintenance skill, identify:
-   - New entities not yet in the wiki
-   - State changes to existing entities (location, status, relationships)
-   - New events with impact classification (major/moderate/minor)
-   - New aliases discovered in the text
-   - Plot thread progression and status changes
-   - Revealed world rules or themes
-4. **Generate detail levels** — Create L1/L2/L3 summaries for each new entity.
-5. **Build and execute batch payload** — Submit all creates, updates, and timeline entries as a single batch operation.
-6. **Chapter boundary check** — If this is the last scene of the chapter, run `wiki-lint` (operation: `check-chapter`) and fix critical issues.
+1. **Run `wiki-extract update-from-chapter`** — The tool reads the completed chapter file from disk, matches existing entities from the wiki index, extracts new entities plus state changes, aliases, and timeline events, generates L1/L2/L3 summaries for newly created entities, assembles the batch payload, and applies it.
+2. **Review returned counts** — The agent inspects create, update, and timeline totals and checks whether the counts look plausible for the chapter.
+3. **Add or repair wikilinks** — Use `wiki-update` for short follow-up edits when created or updated pages need explicit cross-links.
+4. **Run chapter boundary lint** — Call `wiki-lint` (operation: `check-chapter`) and fix critical issues. This stays agent-owned because it is a short validation step with chapter-aware judgment.
+
+The extraction rules themselves do not change: the tool still follows the wiki-maintenance skill's schema, confidence taxonomy, alias rules, and detail-level targets. The change is ownership, not output format.
 
 ## Entity Types
 
@@ -171,8 +165,8 @@ Beyond the standard alias identification rules, the wiki maintainer handles thre
 
 | Scenario | Behaviour |
 |----------|-----------|
-| Empty extraction results | Retry once with simplified focus (named characters, locations, events only). If still empty, log warning and proceed. |
-| Validation errors from `wiki-update` | Log error, skip invalid operation, continue with remaining operations. |
+| Empty or implausible `wiki-extract` result | Re-run once with narrower focus or a model override. If still sparse, proceed and log the issue for orchestrator review. |
+| Validation or batch failure during apply | `wiki-extract` surfaces the error from `run_batch()`. Report it to the orchestrator and use targeted `wiki-update` repairs if recovery is simple. |
 | Critical `wiki-lint` issues | Report to orchestrator; do not halt the pipeline. |
 | Potential duplicate entity | Always check `wiki-search` before creating. If a match exists, update instead of creating. |
 
@@ -196,10 +190,12 @@ The agent uses two skills:
 - **wiki-maintenance** — entity extraction rules, confidence taxonomy, structured output formats, detail level guidelines, chapter boundary procedures, and ConStory-Bench error taxonomy
 - **wiki-conventions** — page type schemas, YAML frontmatter specifications for all 12 entity types, wikilink conventions, slug naming rules, and detail level format reference
 
+The current workflow keeps the 7b agent within a smaller context envelope by delegating content-heavy extraction and summary generation to `wiki-extract`. The agent now spends its context budget on review and cleanup rather than on carrying every source document and generated batch entry inline.
+
 ## Related
 
 - [Story Orchestrator](./story-orchestrator.md) — Parent agent that invokes the wiki maintainer
-- [Tools Reference](../tools.md) — Full documentation for wiki-read, wiki-update, wiki-lint, wiki-search, story-state
+- [Tools Reference](../tools.md) — Full documentation for wiki-extract, wiki-read, wiki-update, wiki-lint, wiki-search, story-state
 - [ADR 004: Progressive Wiki Memory System](../planning/adr/004-progressive-wiki-memory-system.md) — Wiki page format, YAML frontmatter, wikilinks
 - [ADR 005: Hybrid Wiki Context Retrieval Pipeline](../planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md) — Three-stage retrieval pipeline using wiki detail levels
 - Issue [#22](https://github.com/logicalor/llm-story-writer/issues/22) — Initial implementation

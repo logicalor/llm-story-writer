@@ -1745,6 +1745,145 @@ Cache file: `stories/<name>/wiki/.cache/snapshot_cache.json`. Cache is invalidat
 
 ---
 
+## wiki-extract
+
+Extracts wiki entities from outlines, sheet files, and completed chapters, generates L1/L2/L3 detail levels, assembles snake_case wiki batch payloads, and optionally applies them through `wiki-update`.
+
+**Source files:**
+- `.opencode/tools/wiki-extract.ts` — TypeScript wrapper
+- `src/tools/wiki_extract.py` — Python CLI script
+- `src/tools/wiki_update.py` — Shared `run_batch()` helper used when applying assembled batches
+- `prompts/wiki/extract_from_outline.md` — Outline extraction prompt
+- `prompts/wiki/extract_from_sheet.md` — Character/setting sheet extraction prompt
+- `prompts/wiki/extract_from_chapter.md` — Post-chapter extraction prompt
+- `prompts/wiki/generate_detail_levels.md` — L1/L2/L3 summary generation prompt
+
+### Purpose
+
+This tool moves the wiki maintainer's most context-heavy work out of the agent's main LLM window. Instead of reading the full outline, all sheet files, or an entire completed chapter directly into the subagent and hand-writing every detail level in-context, the agent now makes a single `wiki-extract` call per mode and receives compact summary counts back.
+
+`wiki-extract` owns four tasks:
+
+- Entity extraction from the outline plus character/setting sheets (`initial-populate`)
+- Entity extraction plus change detection from a completed chapter (`update-from-chapter`)
+- L1/L2/L3 detail-level generation for newly created entities
+- Snake_case batch payload assembly for `wiki-update`
+
+### Arguments
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `operation` | `"initial-populate" \| "update-from-chapter"` | Yes | Extraction operation to perform |
+| `name` | string | Yes | Story name (maps to directory under `stories/`) |
+| `chapterNumber` | integer | For `update-from-chapter` | Chapter number being processed |
+| `chapterTextPath` | string | For `update-from-chapter` | Path to the completed chapter file, relative to the story directory or absolute within it |
+| `model` | string | No | Override model name for extraction/detail generation |
+| `apply` | boolean | No | Apply the assembled wiki batch (default: `true`). When `false`, returns a dry-run payload instead |
+
+### CLI Interface (Python script)
+
+```bash
+python3 src/tools/wiki_extract.py initial-populate --name <story> [--model <model>] [--apply | --dry-run]
+
+python3 src/tools/wiki_extract.py update-from-chapter --name <story> \
+  --chapter-number <n> --chapter-text-path <path> \
+  [--model <model>] [--apply | --dry-run]
+```
+
+### Operations
+
+| Operation | Effect | Output |
+|-----------|--------|--------|
+| `initial-populate` | Reads `state.json` for the outline, scans `stories/<name>/characters/*.json` and `stories/<name>/settings/*.json`, extracts entities, deduplicates by slug, generates L1/L2/L3 detail levels, assembles a batch payload, and optionally applies it via `run_batch()` | Applied mode: `{"status":"ok","created":<n>,"updated":0,"timeline_events":0,"entity_counts":{...},"applied":true}`. Dry-run mode: `{"status":"ok","applied":false,"creates":[...],"updates":[],"timeline_events":[]}` |
+| `update-from-chapter` | Reads a completed chapter file from disk, matches existing entities from the wiki index, extracts new entities plus state changes/aliases/timeline events, generates detail levels for new entities, assembles the batch payload, and optionally applies it via `run_batch()` | Applied mode: `{"status":"ok","created":<n>,"updated":<n>,"timeline_events":<n>,"entity_counts":{...},"applied":true}`. Dry-run mode: `{"status":"ok","applied":false,"creates":[...],"updates":[...],"timeline_events":[...]}` |
+
+### Output Shape
+
+Applied runs return compact summary counts so the agent does not need to hold the full batch payload in-context:
+
+```json
+{
+  "status": "ok",
+  "created": 12,
+  "updated": 4,
+  "timeline_events": 3,
+  "entity_counts": {
+    "character": 5,
+    "location": 3,
+    "plot_thread": 2,
+    "event": 2
+  },
+  "applied": true
+}
+```
+
+Dry-run runs return the exact `wiki-update batch` payload shape, preserving snake_case keys:
+
+```json
+{
+  "status": "ok",
+  "applied": false,
+  "creates": [
+    {
+      "page_type": "character",
+      "page_name": "Captain Elara",
+      "slug": "captain-elara",
+      "body": "...",
+      "confidence": "verified",
+      "first_appearance": 3,
+      "aliases": ["the captain"],
+      "detail_levels": {
+        "L1": "...",
+        "L2": "...",
+        "L3": "..."
+      },
+      "frontmatter": {
+        "role": "supporting",
+        "status": "alive"
+      }
+    }
+  ],
+  "updates": [
+    {
+      "slug": "ashenmoor",
+      "frontmatter": {
+        "status": "under_siege"
+      },
+      "merge_body": "...",
+      "aliases": ["the fortress"]
+    }
+  ],
+  "timeline_events": [
+    {
+      "time": "Day 5, evening",
+      "description": "The siege begins",
+      "chapter": 3
+    }
+  ]
+}
+```
+
+### Integration with `wiki-update`
+
+When `apply` is true, `wiki-extract` calls `run_batch()` from `src/tools/wiki_update.py`. That helper preserves the existing `wiki-update batch` contract and returns created, updated, timeline, and per-type summary counts. This keeps extraction and summary generation tool-owned while leaving page writes, rollback semantics, and ChromaDB upserts in the existing deterministic wiki update layer.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — result printed to stdout as JSON |
+| 1 | Domain error — missing outline, missing or invalid chapter file, invalid LLM JSON response, unsupported entity type, batch apply failure |
+| 2 | Argument error — missing required subcommand flags |
+
+### Security
+
+- **Path traversal prevention** — story names are validated with `_validate_story_name()`, and `chapterTextPath` must resolve inside the selected story directory
+- **Shell injection prevention** — the TypeScript wrapper passes arguments to the Python script as an array through the shared `runTool()` helper
+- **Dry-run support** — `--dry-run` returns the payload without mutating wiki files, useful for inspection and tests
+- **Confidence preservation** — duplicate entities are merged with strict confidence precedence: `verified` > `planned` > `speculative`
+
+---
+
 ## wiki-update
 
 Creates, updates, and manages wiki pages — the structured CRUD layer for the wiki memory system.
@@ -1757,9 +1896,9 @@ Creates, updates, and manages wiki pages — the structured CRUD layer for the w
 
 ### Purpose
 
-After a scene is generated, the wiki-maintainer agent extracts entities, events, and state changes from the text and produces structured update payloads. This tool consumes those payloads and applies them to the wiki — creating new pages, updating existing ones, appending timeline events, and re-embedding changed content into ChromaDB.
+After a scene is generated, `wiki-extract` or a smaller agent follow-up step produces structured update payloads. This tool consumes those payloads and applies them to the wiki — creating new pages, updating existing ones, appending timeline events, and re-embedding changed content into ChromaDB.
 
-The tool does NOT perform entity extraction itself — that is the agent's job. This tool is a deterministic CRUD layer that ensures atomic writes, version tracking, index maintenance, and ChromaDB synchronisation.
+The tool does NOT perform entity extraction itself. It is a deterministic CRUD layer that ensures atomic writes, version tracking, index maintenance, and ChromaDB synchronisation. `wiki-extract` now calls the internal `run_batch()` helper here when it applies assembled payloads.
 
 ### Arguments
 

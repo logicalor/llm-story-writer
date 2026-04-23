@@ -34,7 +34,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 
 ## Tools
 
-- [Tools Reference](./tools.md) — Tool architecture pattern, prompt-loader, story-state, savepoint-mgr, character-mgr, setting-mgr, recap-manager, outline-generator, scene-writer, critique-runner, story-assembler, wiki-init, wiki-read, wiki-search, wiki-snapshot, wiki-update, wiki-lint, and rag-query tools, guide for adding new tools
+- [Tools Reference](./tools.md) — Tool architecture pattern, prompt-loader, story-state, savepoint-mgr, character-mgr, setting-mgr, recap-manager, outline-generator, scene-writer, critique-runner, story-assembler, wiki-init, wiki-read, wiki-search, wiki-snapshot, wiki-extract, wiki-update, wiki-lint, and rag-query tools, guide for adding new tools
 - [Comprehensive Manual](./manual.md) — End-to-end system guide covering setup, architecture, usage, tools, troubleshooting, and operational workflows
 
 ## Testing
@@ -48,7 +48,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 - [Story Planner](./features/story-planner.md) — Phase 2.5 narrative arc analysis subagent: critic pass, arc prompt set, advisory verdicts, and approval-gate integration
 - [Chapter Outline Expander](./features/chapter-outline-expander.md) — Phase 7a subagent that expands all chapter outlines and carries structured handoff continuity between chapters
 - [Prose Quality Passes](./features/prose-quality-passes.md) — `prose-scrubber` and `final-editor` pipeline stages, config flags, scope constraints, and tool usage
-- [Wiki Maintainer](./features/wiki-maintainer.md) — Wiki maintenance subagent: entity extraction, confidence scoring, detail levels, alias identification, chapter boundary procedures
+- [Wiki Maintainer](./features/wiki-maintainer.md) — Wiki maintenance subagent: tool-delegated extraction via `wiki-extract`, confidence scoring, detail levels, alias identification, and chapter boundary procedures
 - [Custom Commands](./features/custom-commands.md) — Seven slash commands for the OpenCode TUI: `/new-story`, `/continue`, `/regenerate`, `/savepoint`, `/status`, `/settings`, `/wiki`
 - [Compaction Plugin](./features/compaction-plugin.md) — OpenCode plugin that injects story continuity context into session compaction summaries
 
