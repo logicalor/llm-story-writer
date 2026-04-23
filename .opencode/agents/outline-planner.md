@@ -78,6 +78,7 @@ Execute these phases sequentially. Each phase must complete before the next begi
    **After all chunks are covered,** consolidate the collected chunk outlines into a single merged outline string:
    - Concatenate all `data.chunk_outline` values in chapter order (as collected during the loop above), separated by double newlines
    - Store the result as `merged_outline` — this is the complete, consolidated outline for all `wanted_chapters` chapters
+   - Assign `current_outline = merged_outline`. This variable will be updated by critique refinements if enabled.
 
    > **⚠️ This consolidation step is mandatory for the chunked path.** The orchestrator writes `merged_outline` to story state before dispatching `story-planner`. Skipping it leaves `story-state field outline` empty, which causes arc analysis to fabricate ratings and Phase 7a to expand chapters without approved synopsis context.
 
@@ -87,6 +88,8 @@ Execute these phases sequentially. Each phase must complete before the next begi
    - `operation`: `"generate-outline"`
    - `name`: story name
    - `desiredChapters`: `wanted_chapters`
+
+   Extract `data.outline` from the response and assign `initial_outline = data.outline`. Also assign `current_outline = initial_outline`.
 
 ### Phase 4 — Critique & Refinement (optional)
 
@@ -116,6 +119,7 @@ Execute these phases sequentially. Each phase must complete before the next begi
         - `operation`: `"refine"`
         - `name`: story name
         - `feedback`: the feedback text from the previous step
+         - Extract `data.refined_outline` from the response and update `current_outline = data.refined_outline`.
       - Increment iteration, repeat from step 4a.
 
    d. **Acceptance check:**
@@ -126,7 +130,7 @@ Execute these phases sequentially. Each phase must complete before the next begi
 ### Phase 5 — Return
 
 5. Return the finalised outline to the orchestrator. The return value **must** include:
-   - **Outline text**: the complete outline string — `merged_outline` (chunked path) or the refined outline text from the last critique iteration (non-chunked path with critique enabled), falling back to the `initial_outline` from the `generate-outline` call if critique was disabled or no refinement ran
+   - **Outline text**: `current_outline` — the final outline text as produced by the last completed phase (chunked consolidation -> critique refinements, in order). `current_outline` is set in Phase 3 and updated by each refinement iteration in Phase 4, so it always reflects the most recent version regardless of which path was taken.
    - Total chapters in the outline
    - Whether critique was run
    - Final critique score (if critique was run)
