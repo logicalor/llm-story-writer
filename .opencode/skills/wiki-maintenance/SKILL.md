@@ -8,6 +8,16 @@ version: 1.0.0
 
 Rules and formats for automated wiki maintenance during story generation. Two modes: initial population (from outline and character/setting sheets) and incremental updates (from generated scenes).
 
+## Tool Ownership
+
+`wiki-extract` owns entity extraction, detail-level generation, and snake_case batch payload assembly.
+
+- Initial population: `wiki-extract initial-populate` reads outline plus character and setting sheets, extracts entities, generates L1/L2/L3 summaries, and applies or returns the batch.
+- Incremental updates: `wiki-extract update-from-chapter` reads the completed chapter, matches existing entities, extracts new entities plus state changes, generates L1/L2/L3 summaries for new entities, and applies or returns the batch.
+- The `wiki-maintainer` agent does not generate detail levels itself. Agent role: invoke tool, review counts, add wikilinks, run lint, and handle follow-up corrections.
+
+The schema, confidence taxonomy, and detail-level targets below remain the authoritative output contract for `wiki-extract`.
+
 ---
 
 ## Entity Types
