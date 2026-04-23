@@ -25,6 +25,7 @@ if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
 from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
+from src.tools._llm import _extract_json_block  # noqa: E402
 
 # Chunk types for story analysis
 CHUNK_TYPES = (
@@ -101,9 +102,19 @@ def _success(operation: str, data: Any) -> None:
     )
 
 
-def _error(message: str, exit_code: int = 1) -> NoReturn:
+def _error(message: str, data: Any | None = None, exit_code: int = 1) -> NoReturn:
     """Print error to stderr and exit."""
-    print(f"Error: {message}", file=sys.stderr)
+    if data is None:
+        print(f"Error: {message}", file=sys.stderr)
+    else:
+        print(
+            json.dumps(
+                {"status": "error", "operation": message, "data": data},
+                indent=2,
+                default=str,
+            ),
+            file=sys.stderr,
+        )
     sys.exit(exit_code)
 
 
@@ -479,6 +490,123 @@ def cmd_expand_chapter(
     )
 
 
+def cmd_expand_to_scenes(
+    name: str,
+    chapter_num: int,
+    chapter_synopsis: str,
+    scenes_min: int,
+    scenes_max: int,
+    *,
+    previous_recap: str = "",
+    next_chapter_synopsis: str = "",
+    model: str | None = None,
+    **_kwargs: Any,
+) -> None:
+    """Expand a chapter synopsis into validated scene definitions."""
+    _validate_story_name(name)
+
+    if not (1 <= scenes_min <= scenes_max <= 30):
+        _error(
+            "expand-to-scenes validation failed: scenes_min must be >= 1, "
+            "scenes_max must be <= 30, and scenes_min must be <= scenes_max"
+        )
+
+    repo = _make_repo(name)
+
+    if not _has_savepoint(repo, "story_elements"):
+        _error("story_elements savepoint not found — run generate-elements first")
+    story_elements = _load_savepoint(repo, "story_elements")
+    if not isinstance(story_elements, str):
+        story_elements = json.dumps(story_elements, default=str)
+
+    if not _has_savepoint(repo, "base_context"):
+        _error("base_context savepoint not found — run analyze-prompt first")
+    base_context = _load_savepoint(repo, "base_context")
+    if not isinstance(base_context, str):
+        base_context = json.dumps(base_context, default=str)
+
+    prompt_text = _load_prompt(
+        "chapters/expand_to_scenes",
+        {
+            "chapter_synopsis": chapter_synopsis,
+            "scenes_min": str(scenes_min),
+            "scenes_max": str(scenes_max),
+            "previous_chapter_recap": previous_recap,
+            "next_chapter_synopsis": next_chapter_synopsis,
+            "story_elements": story_elements,
+            "base_context": base_context,
+        },
+    )
+
+    required_keys = {
+        "title",
+        "description",
+        "characters",
+        "setting",
+        "conflict",
+        "tone",
+        "key_events",
+        "dialogue",
+        "ending",
+        "lead_in_to_next_scene",
+        "literary_devices",
+    }
+
+    def _validate_scene_list(response_text: str) -> list[dict[str, Any]]:
+        raw = _extract_json_block(response_text)
+        scenes = json.loads(raw)
+        if not isinstance(scenes, list):
+            raise ValueError("scene output must be a JSON array")
+        if not (scenes_min <= len(scenes) <= scenes_max):
+            raise ValueError(
+                f"scene count {len(scenes)} outside allowed range [{scenes_min}, {scenes_max}]"
+            )
+
+        validated_scenes: list[dict[str, Any]] = []
+        for index, scene in enumerate(scenes, start=1):
+            if not isinstance(scene, dict):
+                raise ValueError(f"scene {index} must be a JSON object")
+
+            missing_keys = required_keys - scene.keys()
+            if missing_keys:
+                missing = ", ".join(sorted(missing_keys))
+                raise ValueError(f"scene {index} missing required keys: {missing}")
+
+            validated_scenes.append(scene)
+
+        return validated_scenes
+
+    last_error: Exception | None = None
+    scenes: list[dict[str, Any]] | None = None
+    for _attempt in range(2):
+        try:
+            response_text = _call_llm(prompt_text, model=model)
+            scenes = _validate_scene_list(response_text)
+            break
+        except (json.JSONDecodeError, RuntimeError, ValueError) as exc:
+            last_error = exc
+
+    if scenes is None:
+        detail = str(last_error) if last_error is not None else "unknown error"
+        _error(
+            "expand-to-scenes",
+            {
+                "error": "LLM failed to produce valid scene JSON after retry",
+                "detail": detail,
+            },
+        )
+
+    step = f"chapter_{chapter_num}/scene_definitions"
+    _save_savepoint(repo, step, json.dumps(scenes, indent=2))
+    _success(
+        "expand-to-scenes",
+        {
+            "scene_count": len(scenes),
+            "savepoint_step": step,
+        },
+    )
+
+
 def cmd_refine(
     name: str,
     feedback: str,
@@ -566,6 +694,7 @@ def main() -> None:
             "generate-elements",
             "generate-outline",
             "expand-chapter",
+            "expand-to-scenes",
             "refine",
         ],
         help="Operation to perform",
@@ -610,6 +739,39 @@ def main() -> None:
         "--feedback",
         default=None,
         help="Critique/feedback text (refine)",
+    )
+    parser.add_argument(
+        "--chapter-num",
+        type=int,
+        default=None,
+        help="Chapter number for expand-to-scenes",
+    )
+    parser.add_argument(
+        "--chapter-synopsis",
+        default="",
+        help="Chapter synopsis to expand into scenes",
+    )
+    parser.add_argument(
+        "--scenes-min",
+        type=int,
+        default=8,
+        help="Minimum scenes per chapter",
+    )
+    parser.add_argument(
+        "--scenes-max",
+        type=int,
+        default=16,
+        help="Maximum scenes per chapter",
+    )
+    parser.add_argument(
+        "--previous-recap",
+        default="",
+        help="Previous chapter recap for continuity",
+    )
+    parser.add_argument(
+        "--next-chapter-synopsis",
+        default="",
+        help="Next chapter synopsis for lead-in",
     )
     parser.add_argument(
         "--model",
@@ -670,6 +832,24 @@ def main() -> None:
             args.total_chapters,
             previous_chunks=args.previous_chunks,
             continuity_summary=args.continuity_summary,
+            model=args.model,
+        )
+
+    elif args.operation == "expand-to-scenes":
+        if args.chapter_num is None:
+            print(
+                "Error: --chapter-num required for expand-to-scenes",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        cmd_expand_to_scenes(
+            args.name,
+            args.chapter_num,
+            args.chapter_synopsis,
+            args.scenes_min,
+            args.scenes_max,
+            previous_recap=args.previous_recap,
+            next_chapter_synopsis=args.next_chapter_synopsis,
             model=args.model,
         )
 

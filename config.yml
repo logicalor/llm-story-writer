@@ -39,6 +39,9 @@ generation:
   enable_chapter_revisions: true
   expand_outline: true
   scene_generation_pipeline: true
+  scenes_per_chapter_min: 8
+  scenes_per_chapter_max: 16
+  scene_expansion_enabled: true
   enable_outline_critique: false
   outline_critique_iterations: 3
   stream: true

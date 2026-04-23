@@ -5,7 +5,7 @@ mode: subagent
 
 # Chapter Outline Expander
 
-You are the **chapter-outline-expander**, a subagent invoked by the story orchestrator to own the full Phase 7a chapter outline expansion loop across all chapters. You manage `continuitySummary` threading internally, supplement it with structured prior-chapter handoff state when available, persist each expanded outline to story state, and create per-chapter savepoints as progress advances.
+You are the **chapter-outline-expander**, a subagent invoked by the story orchestrator to own the full Phase 7a chapter outline expansion loop across all chapters. You manage `continuitySummary` threading internally, supplement it with structured prior-chapter handoff state when available, persist each expanded outline to story state, expand synopses into scene definitions when enabled, and create per-chapter savepoints as progress advances.
 
 You call tools only. Never dispatch subagents.
 
@@ -15,7 +15,7 @@ You call tools only. Never dispatch subagents.
 
 | Tool | Purpose |
 |------|---------|
-| `outline-generator` | Expand chapter outlines via `expand-chapter` operation |
+| `outline-generator` | Expand chapter outlines and, when enabled, write scene definitions |
 | `story-state` | Read previous chapter handoff; write expanded outlines |
 | `savepoint-mgr` | Save expansion progress after each chapter |
 
@@ -74,12 +74,23 @@ Execute these steps sequentially.
       - `field`: `"chapters.{N}.expanded_outline"`
       - `value`: the expanded outline as a JSON string
    f. Set `continuitySummary = data.continuity_analysis` for the next iteration.
-   g. Call `savepoint-mgr` with:
+   g. **3h. (When `scene_expansion_enabled` is true) Expand synopsis to scenes:** Call `outline-generator` with:
+      - `operation`: `"expand-to-scenes"`
+      - `name`: `story_name`
+      - `chapterNum`: `N`
+      - `chapterSynopsis`: `data.chunk_outline` from step d
+      - `scenesMin`: `generation.scenes_per_chapter_min`
+      - `scenesMax`: `generation.scenes_per_chapter_max`
+      - `previousRecap`: chapter recap from `story-state chapters.{N-1}.recap` if `N > 1`, else omit
+      - `nextChapterSynopsis`: `chapters.{N+1}.expanded_outline` from story state if available, else omit
+      - `model`: `model`, if provided
+      Record `data.scene_count` for logging only. The tool writes `chapter_{N}/scene_definitions` automatically in Phase 7a, so Phase 7b `parse-definitions` can short-circuit via existing resume logic.
+   h. Call `savepoint-mgr` with:
       - `operation`: `"save"`
       - `name`: `story_name`
       - `step`: `"chapter_outline_expansion/chapter_{N}"`
       - `data`: the expanded outline as a JSON string
-   h. Increment `current_chapter` and continue.
+   i. Increment `current_chapter` and continue.
 4. After the loop completes, call `savepoint-mgr` one more time to mark the whole phase done:
    - `operation`: `"save"`
    - `name`: `story_name`

@@ -13,6 +13,7 @@ export default tool({
         "generate-elements",
         "generate-outline",
         "expand-chapter",
+        "expand-to-scenes",
         "refine",
       ])
       .describe("Operation to perform"),
@@ -61,6 +62,38 @@ export default tool({
       .string()
       .optional()
       .describe("Critique/feedback text (required for refine)"),
+    chapterNum: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe("Chapter number for expand-to-scenes"),
+    chapterSynopsis: z
+      .string()
+      .optional()
+      .describe("Chapter synopsis to expand into scenes"),
+    scenesMin: z
+      .number()
+      .int()
+      .min(1)
+      .max(30)
+      .optional()
+      .describe("Minimum scenes per chapter (default 8)"),
+    scenesMax: z
+      .number()
+      .int()
+      .min(1)
+      .max(30)
+      .optional()
+      .describe("Maximum scenes per chapter (default 16)"),
+    previousRecap: z
+      .string()
+      .optional()
+      .describe("Previous chapter recap for continuity"),
+    nextChapterSynopsis: z
+      .string()
+      .optional()
+      .describe("Next chapter synopsis for lead-in"),
     model: z
       .string()
       .optional()
@@ -77,6 +110,12 @@ export default tool({
     previousChunks,
     continuitySummary,
     feedback,
+    chapterNum,
+    chapterSynopsis,
+    scenesMin,
+    scenesMax,
+    previousRecap,
+    nextChapterSynopsis,
     model,
   }: {
     operation: string;
@@ -89,6 +128,12 @@ export default tool({
     previousChunks?: string;
     continuitySummary?: string;
     feedback?: string;
+    chapterNum?: number;
+    chapterSynopsis?: string;
+    scenesMin?: number;
+    scenesMax?: number;
+    previousRecap?: string;
+    nextChapterSynopsis?: string;
     model?: string;
   }) => {
     const projectRoot = resolve(__dirname, "../..");
@@ -123,6 +168,24 @@ export default tool({
     }
     if (feedback) {
       args.push("--feedback", feedback);
+    }
+    if (chapterNum !== undefined) {
+      args.push("--chapter-num", String(chapterNum));
+    }
+    if (chapterSynopsis !== undefined) {
+      args.push("--chapter-synopsis", chapterSynopsis);
+    }
+    if (scenesMin !== undefined) {
+      args.push("--scenes-min", String(scenesMin));
+    }
+    if (scenesMax !== undefined) {
+      args.push("--scenes-max", String(scenesMax));
+    }
+    if (previousRecap !== undefined) {
+      args.push("--previous-recap", previousRecap);
+    }
+    if (nextChapterSynopsis !== undefined) {
+      args.push("--next-chapter-synopsis", nextChapterSynopsis);
     }
     if (model) {
       args.push("--model", model);
