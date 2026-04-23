@@ -134,16 +134,126 @@ def cmd_clear(name: str) -> None:
     print(json.dumps({"status": "cleared"}, indent=2, default=str))
 
 
+# Canonical phase order — must match the Savepoint Strategy table in
+# .opencode/agents/story-orchestrator.md. If the pipeline phases change,
+# update both files together.
+CANONICAL_PHASES: list[str] = [
+    "init",
+    "outline_complete",
+    "arc_analysis_complete",
+    "characters_complete",
+    "settings_complete",
+    "wiki_populated",
+    # chapter_{N}_complete handled separately (loop)
+    "story_complete",
+    "final_edit_complete",
+]
+
+PHASE_NEXT_DESCRIPTOR: dict[str, str] = {
+    "": "Phase 1 (init)",
+    "init": "Phase 2 (outline)",
+    "outline_complete": "Phase 2.5 (arc analysis)",
+    "arc_analysis_complete": "Phase 3 (approval) then Phase 4 (wiki init) then Phase 5 (characters & settings)",
+    "characters_complete": "Phase 5 (settings)",
+    "settings_complete": "Phase 6 (wiki population)",
+    "wiki_populated": "Phase 7 (chapter expansion + per-chapter loop, starting at chapter 1)",
+    "story_complete": "Phase 9 (final edit, if enabled)",
+    "final_edit_complete": "complete — no further phases",
+}
+
+
+def cmd_next_phase(name: str) -> None:
+    """Determine the next pipeline phase to run based on existing savepoints.
+
+    Walks the canonical phase order and returns the highest-completed savepoint
+    (gaps tolerated — a missing intermediate savepoint does not block detection
+    of later ones). Detects per-chapter savepoints (`chapter_{N}_complete`)
+    and reports the highest chapter number completed.
+    """
+    story_dir = _validate_story_name(name)
+    if not story_dir.exists():
+        print(f"Error: story not found: {name}", file=sys.stderr)
+        sys.exit(1)
+
+    repo = _make_repo(name)
+    names = asyncio.run(repo.list_savepoint_names())
+    name_set = set(names)
+
+    # Find highest completed canonical phase (gaps tolerated)
+    last_canonical = ""
+    last_canonical_index = -1
+    for idx, phase in enumerate(CANONICAL_PHASES):
+        if phase in name_set:
+            last_canonical = phase
+            last_canonical_index = idx
+
+    # Detect per-chapter savepoints (chapter_{N}_complete)
+    chapter_numbers: list[int] = []
+    for sp_name in names:
+        if sp_name.startswith("chapter_") and sp_name.endswith("_complete"):
+            middle = sp_name[len("chapter_") : -len("_complete")]
+            if middle.isdigit():
+                chapter_numbers.append(int(middle))
+    last_chapter = max(chapter_numbers) if chapter_numbers else 0
+
+    # Determine resume target
+    # Per-chapter savepoints sit between wiki_populated and story_complete.
+    # If any chapter savepoint exists, it is more recent than wiki_populated
+    # but less recent than story_complete.
+    if (
+        "story_complete" in name_set
+        or "final_edit_complete" in name_set
+    ):
+        last_completed = last_canonical
+        next_phase = PHASE_NEXT_DESCRIPTOR.get(last_canonical, "unknown")
+    elif last_chapter > 0:
+        last_completed = f"chapter_{last_chapter}_complete"
+        next_phase = (
+            f"Phase 7 — chapter {last_chapter + 1}"
+            if last_chapter > 0
+            else "Phase 7 — chapter 1"
+        )
+    else:
+        last_completed = last_canonical
+        next_phase = PHASE_NEXT_DESCRIPTOR.get(last_canonical, "unknown")
+
+    # Identify gaps in the canonical sequence below the highest completed phase
+    missing_below_top: list[str] = []
+    if last_canonical_index >= 0:
+        for phase in CANONICAL_PHASES[:last_canonical_index]:
+            if phase not in name_set:
+                missing_below_top.append(phase)
+
+    result = {
+        "last_completed": last_completed,
+        "next_phase": next_phase,
+        "last_canonical": last_canonical,
+        "last_chapter_complete": last_chapter,
+        "missing_below_top": missing_below_top,
+        "all_savepoints": names,
+    }
+    print(json.dumps(result, indent=2))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Manage story savepoints.")
     parser.add_argument(
         "--operation",
         required=True,
-        choices=["save", "load", "has", "list", "list-full", "clear"],
+        choices=[
+            "save",
+            "load",
+            "has",
+            "list",
+            "list-full",
+            "clear",
+            "next-phase",
+        ],
         help=(
             "Operation to perform. "
             "'list' returns names only (fast); "
-            "'list-full' returns names + data (can be large)"
+            "'list-full' returns names + data (can be large); "
+            "'next-phase' returns the deterministic resume target."
         ),
     )
     parser.add_argument("--name", required=True, help="Story name")
@@ -188,6 +298,9 @@ def main() -> None:
 
     elif args.operation == "clear":
         cmd_clear(args.name)
+
+    elif args.operation == "next-phase":
+        cmd_next_phase(args.name)
 
 
 if __name__ == "__main__":

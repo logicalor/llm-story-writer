@@ -11,7 +11,7 @@ Available stories:
 If a story name was provided ("$1"), resume that story. If no story name was provided (empty "$1"), ask the user which story from the list above they want to continue.
 
 Steps:
-1. List savepoints for the chosen story using the savepoint-mgr tool
-2. Identify the most recent savepoint
-3. Load that savepoint and read the story state
-4. Resume the pipeline from where it left off
+1. Call `savepoint-mgr` (operation: `next-phase`, name: chosen story name) — this returns a deterministic resume target. The output JSON contains `last_completed` (the highest-completed savepoint) and `next_phase` (the human-readable description of where to resume). Do NOT use `list` and reason about ordering yourself; the canonical phase walk is owned by the tool.
+2. Read story state via `story-state` (operation: `read`, name: story name) for context (config values, story_name, prompt metadata, chapter counts).
+3. If `missing_below_top` is non-empty in the response, log a warning that intermediate savepoints are missing — but proceed with resume from `next_phase` regardless. Missing intermediate savepoints indicate procedural drift in an earlier run, not a blocker.
+4. Resume the pipeline from `next_phase` as returned by the tool. Follow the `story-pipeline` skill for the phase definition.
