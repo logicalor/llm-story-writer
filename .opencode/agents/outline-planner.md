@@ -75,6 +75,12 @@ Execute these phases sequentially. Each phase must complete before the next begi
 
    Continue until all `wanted_chapters` chapters are covered.
 
+   **After all chunks are covered,** consolidate the collected chunk outlines into a single merged outline string:
+   - Concatenate all `data.chunk_outline` values in chapter order (as collected during the loop above), separated by double newlines
+   - Store the result as `merged_outline` — this is the complete, consolidated outline for all `wanted_chapters` chapters
+
+   > **⚠️ This consolidation step is mandatory for the chunked path.** The orchestrator writes `merged_outline` to story state before dispatching `story-planner`. Skipping it leaves `story-state field outline` empty, which causes arc analysis to fabricate ratings and Phase 7a to expand chapters without approved synopsis context.
+
    **If chunked generation is disabled (`false`):**
 
    Call `outline-generator` with:
@@ -119,11 +125,14 @@ Execute these phases sequentially. Each phase must complete before the next begi
 
 ### Phase 5 — Return
 
-5. Return the finalised outline to the orchestrator. Report:
+5. Return the finalised outline to the orchestrator. The return value **must** include:
+   - **Outline text**: the complete outline string — `merged_outline` (chunked path) or the refined outline text from the last critique iteration (non-chunked path with critique enabled), falling back to the `initial_outline` from the `generate-outline` call if critique was disabled or no refinement ran
    - Total chapters in the outline
    - Whether critique was run
    - Final critique score (if critique was run)
    - Number of refinement iterations performed
+
+   > **⚠️ The outline text must always be returned**, even when critique is disabled. The orchestrator cannot write to story state without it.
 
 ---
 

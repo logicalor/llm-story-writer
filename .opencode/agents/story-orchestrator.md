@@ -83,7 +83,9 @@ Execute these phases sequentially. Each phase completes fully before the next be
    - All relevant config values: `use_chunked_outline_generation`, `outline_chunk_size`, `enable_outline_critique`, `outline_quality`, `outline_critique_iterations`, `outline_min_revisions`, `wanted_chapters`
 2. The `outline-planner` handles the full pipeline internally — prompt analysis, element synthesis, outline generation (chunked or monolithic), and the critique/refinement loop. Do **not** run critique or revision steps at the orchestrator level.
 3. Receive the finalised outline from `outline-planner`. If the orchestrator's own revision cap (`outline_max_revisions`) has not been reached and the user requests further revisions (Phase 3 feedback), re-invoke `outline-planner` with feedback.
-4. Store the finalised outline via `story-state` (operation: `write`, field: `outline`, value: outline JSON string)
+4. Store the finalised outline via `story-state` (operation: `write`, field: `outline`, value: the outline text returned by `outline-planner` in step 3 above). This step is **mandatory** regardless of whether chunked or non-chunked generation was used — both paths must produce and return the consolidated outline text.
+
+   > **⚠️ Validate before writing:** If the outline text returned by `outline-planner` is empty, null, or `{}`, do **not** proceed. Report an error to the user and halt — the planner failed to consolidate and return the outline. Do not call `story-state write` with an empty value, as this will silently break Phase 2.5 and Phase 7a.
 5. Savepoint naming note: `initial_outline` is written by `outline-generator` during initial generation. `outline_complete` is the orchestrator-level Phase 2 checkpoint.
 6. If chunked outline generation is enabled, expect chunk savepoints in this pattern:
 
