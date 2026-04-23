@@ -18,7 +18,7 @@ if _root_path not in sys.path:
 
 from infrastructure.prompts.prompt_loader import PromptLoader  # noqa: E402
 from src.tools import _llm  # noqa: E402
-from src.tools._io import _validate_story_name  # noqa: E402
+from src.tools._io import _atomic_write, _validate_story_name  # noqa: E402
 from src.tools._wiki import (  # noqa: E402
     get_wiki_dir,
     match_entities_in_text,
@@ -53,6 +53,7 @@ _TYPE_NORMALIZATION = {
 }
 
 _CONFIDENCE_ORDER = {"speculative": 0, "planned": 1, "verified": 2}
+_CACHE_FILE_NAME = ".wiki-extract-cache.json"
 
 _PROMPT_LOADER: PromptLoader | None = None
 
@@ -98,6 +99,30 @@ def _read_json_file(path: Path, *, label: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"{label} must contain a JSON object: {path}")
     return data
+
+
+def _load_extract_cache(story_dir: Path) -> dict[str, Any]:
+    cache_path = story_dir / _CACHE_FILE_NAME
+    try:
+        data = json.loads(cache_path.read_text())
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def _save_extract_cache(story_dir: Path, cache: dict[str, Any]) -> None:
+    _atomic_write(
+        story_dir / _CACHE_FILE_NAME,
+        json.dumps(cache, indent=2, ensure_ascii=True),
+    )
+
+
+def _delete_extract_cache(story_dir: Path) -> None:
+    (story_dir / _CACHE_FILE_NAME).unlink(missing_ok=True)
 
 
 def _coerce_text(value: Any) -> str:
@@ -243,7 +268,14 @@ def _extract_outline_entities(
     *,
     story_name: str,
     model: str | None,
+    cache: dict[str, Any] | None = None,
+    story_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
+    if cache is not None and "outline_entities" in cache:
+        cached_result = cache["outline_entities"]
+        if isinstance(cached_result, list):
+            return cached_result
+
     prompt = _load_prompt(
         "wiki/extract_from_outline",
         {"outline": outline, "story_name": story_name},
@@ -253,10 +285,14 @@ def _extract_outline_entities(
     )
     if not isinstance(result, list):
         raise ValueError("outline extraction must return a JSON array")
-    return [
+    normalized = [
         _normalize_entity(item, default_confidence="planned", first_appearance=1)
         for item in result
     ]
+    if cache is not None and story_dir is not None:
+        cache["outline_entities"] = normalized
+        _save_extract_cache(story_dir, cache)
+    return normalized
 
 
 def _extract_sheet_entities(
@@ -265,7 +301,27 @@ def _extract_sheet_entities(
     sheet_type: str,
     entity_name: str,
     model: str | None,
+    sheet_path: Path | None = None,
+    cache: dict[str, Any] | None = None,
+    story_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
+    if story_dir is not None and sheet_path is not None:
+        try:
+            rel = str(sheet_path.relative_to(story_dir))
+        except ValueError:
+            rel = sheet_path.name
+    elif sheet_path is not None:
+        rel = sheet_path.name
+    else:
+        rel = entity_name
+
+    if cache is not None:
+        cached_sheets = cache.get("sheet_entities", {})
+        if isinstance(cached_sheets, dict):
+            cached_result = cached_sheets.get(rel)
+            if isinstance(cached_result, list):
+                return cached_result
+
     prompt = _load_prompt(
         "wiki/extract_from_sheet",
         {
@@ -297,12 +353,29 @@ def _extract_sheet_entities(
         entities.append(
             _normalize_entity(item, default_confidence="planned", first_appearance=1)
         )
+    if cache is not None and story_dir is not None:
+        cache.setdefault("sheet_entities", {})[rel] = entities
+        _save_extract_cache(story_dir, cache)
     return entities
 
 
 def _generate_detail_levels(
-    entity: dict[str, Any], *, model: str | None
+    entity: dict[str, Any],
+    *,
+    model: str | None,
+    cache: dict[str, Any] | None = None,
+    story_dir: Path | None = None,
 ) -> dict[str, str]:
+    slug = entity.get("slug", "")
+    if not isinstance(slug, str):
+        slug = ""
+    if cache is not None and slug:
+        cached_detail_levels = cache.get("detail_levels", {})
+        if isinstance(cached_detail_levels, dict):
+            cached = cached_detail_levels.get(slug)
+            if isinstance(cached, dict):
+                return cached
+
     prompt = _load_prompt(
         "wiki/generate_detail_levels",
         {"entity": json.dumps(entity, indent=2, ensure_ascii=True)},
@@ -320,6 +393,9 @@ def _generate_detail_levels(
     }
     if not all(isinstance(value, str) for value in detail_levels.values()):
         raise ValueError("detail level generation must return string values")
+    if cache is not None and story_dir is not None and slug:
+        cache.setdefault("detail_levels", {})[slug] = detail_levels
+        _save_extract_cache(story_dir, cache)
     return detail_levels
 
 
@@ -453,16 +529,25 @@ def _build_payload_from_entities(
     entities: list[dict[str, Any]],
     *,
     model: str | None,
+    cache: dict[str, Any] | None = None,
+    story_dir: Path | None = None,
 ) -> dict[str, Any]:
     creates = []
     for entity in entities:
-        detail_levels = _generate_detail_levels(entity, model=model)
+        entity_with_slug = {**entity, "slug": slugify(entity["name"])}
+        detail_levels = _generate_detail_levels(
+            entity_with_slug,
+            model=model,
+            cache=cache,
+            story_dir=story_dir,
+        )
         creates.append(_build_create_entry(entity, detail_levels))
     return {"creates": creates, "updates": [], "timeline_events": []}
 
 
 def cmd_initial_populate(args: argparse.Namespace) -> None:
     story_dir = _validate_story_name(args.name)
+    cache = _load_extract_cache(story_dir)
     state = _read_json_file(story_dir / "state.json", label="state.json")
 
     outline_text = _coerce_text(state.get("outline"))
@@ -477,6 +562,8 @@ def cmd_initial_populate(args: argparse.Namespace) -> None:
         outline_text,
         story_name=story_dir.name,
         model=args.model,
+        cache=cache,
+        story_dir=story_dir,
     )
 
     for sheet in _read_sheet_files(story_dir / "characters"):
@@ -486,6 +573,9 @@ def cmd_initial_populate(args: argparse.Namespace) -> None:
                 sheet_type="character",
                 entity_name=sheet["name"],
                 model=args.model,
+                sheet_path=sheet["path"],
+                cache=cache,
+                story_dir=story_dir,
             )
         )
 
@@ -496,11 +586,17 @@ def cmd_initial_populate(args: argparse.Namespace) -> None:
                 sheet_type="setting",
                 entity_name=sheet["name"],
                 model=args.model,
+                sheet_path=sheet["path"],
+                cache=cache,
+                story_dir=story_dir,
             )
         )
 
     payload = _build_payload_from_entities(
-        _deduplicate_entities(entities), model=args.model
+        _deduplicate_entities(entities),
+        model=args.model,
+        cache=cache,
+        story_dir=story_dir,
     )
 
     if not args.apply:
@@ -517,6 +613,7 @@ def cmd_initial_populate(args: argparse.Namespace) -> None:
         return
 
     summary = run_batch(args.name, payload)
+    _delete_extract_cache(story_dir)
     print(
         json.dumps(
             {
@@ -534,6 +631,7 @@ def cmd_initial_populate(args: argparse.Namespace) -> None:
 
 def cmd_update_from_chapter(args: argparse.Namespace) -> None:
     story_dir = _validate_story_name(args.name)
+    cache = _load_extract_cache(story_dir)
     chapter_path = _resolve_chapter_path(story_dir, args.chapter_text_path)
     chapter_text = chapter_path.read_text()
 
@@ -550,19 +648,28 @@ def cmd_update_from_chapter(args: argparse.Namespace) -> None:
         if compact_page is not None:
             existing_entities.append(compact_page)
 
-    prompt = _load_prompt(
-        "wiki/extract_from_chapter",
-        {
-            "chapter_text": chapter_text,
-            "chapter_number": args.chapter_number,
-            "existing_entities": json.dumps(
-                existing_entities, indent=2, ensure_ascii=True
-            ),
-        },
-    )
-    extracted = _parse_json_response(
-        _chat_completion(prompt, model=args.model), "chapter extraction"
-    )
+    chapter_cache_key = f"chapter_entities/{args.chapter_number}"
+    cached_extracted = cache.get(chapter_cache_key)
+    if cached_extracted is not None:
+        extracted = cached_extracted
+    else:
+        prompt = _load_prompt(
+            "wiki/extract_from_chapter",
+            {
+                "chapter_text": chapter_text,
+                "chapter_number": args.chapter_number,
+                "existing_entities": json.dumps(
+                    existing_entities, indent=2, ensure_ascii=True
+                ),
+            },
+        )
+        extracted = _parse_json_response(
+            _chat_completion(prompt, model=args.model), "chapter extraction"
+        )
+        if not isinstance(extracted, dict):
+            raise ValueError("chapter extraction must return a JSON object")
+        cache[chapter_cache_key] = extracted
+        _save_extract_cache(story_dir, cache)
     if not isinstance(extracted, dict):
         raise ValueError("chapter extraction must return a JSON object")
 
@@ -582,7 +689,13 @@ def cmd_update_from_chapter(args: argparse.Namespace) -> None:
 
     creates = []
     for entity in new_entities:
-        detail_levels = _generate_detail_levels(entity, model=args.model)
+        entity_with_slug = {**entity, "slug": slugify(entity["name"])}
+        detail_levels = _generate_detail_levels(
+            entity_with_slug,
+            model=args.model,
+            cache=cache,
+            story_dir=story_dir,
+        )
         creates.append(_build_create_entry(entity, detail_levels))
 
     updates = _merge_update_entries(
@@ -613,6 +726,7 @@ def cmd_update_from_chapter(args: argparse.Namespace) -> None:
         return
 
     summary = run_batch(args.name, payload)
+    _delete_extract_cache(story_dir)
     print(
         json.dumps(
             {

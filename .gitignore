@@ -180,4 +180,7 @@ SavePoints/*
 # Node.js
 node_modules/
 
+# wiki-extract per-run resumability cache
+.wiki-extract-cache*.json
+
 stories/
