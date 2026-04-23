@@ -144,6 +144,7 @@ CANONICAL_PHASES: list[str] = [
     "characters_complete",
     "settings_complete",
     "wiki_populated",
+    "outlines_expanded",
     # chapter_{N}_complete handled separately (loop)
     "story_complete",
     "final_edit_complete",
@@ -156,7 +157,8 @@ PHASE_NEXT_DESCRIPTOR: dict[str, str] = {
     "arc_analysis_complete": "Phase 3 (approval) then Phase 4 (wiki init) then Phase 5 (characters & settings)",
     "characters_complete": "Phase 5 (settings)",
     "settings_complete": "Phase 6 (wiki population)",
-    "wiki_populated": "Phase 7 (chapter expansion + per-chapter loop, starting at chapter 1)",
+    "wiki_populated": "Phase 7a (chapter outline expansion)",
+    "outlines_expanded": "Phase 7b (per-chapter generation loop, starting at chapter 1)",
     "story_complete": "Phase 9 (final edit, if enabled)",
     "final_edit_complete": "complete — no further phases",
 }

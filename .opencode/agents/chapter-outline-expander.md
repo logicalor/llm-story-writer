@@ -80,7 +80,12 @@ Execute these steps sequentially.
       - `step`: `"chapter_outline_expansion/chapter_{N}"`
       - `data`: the expanded outline as a JSON string
    h. Increment `current_chapter` and continue.
-4. Return `{"status": "complete", "expanded_chapters": wanted_chapters}`.
+4. After the loop completes, call `savepoint-mgr` one more time to mark the whole phase done:
+   - `operation`: `"save"`
+   - `name`: `story_name`
+   - `step`: `"outlines_expanded"`
+   - `data`: `{"expanded_chapters": wanted_chapters}` as a JSON string
+5. Return `{"status": "complete", "expanded_chapters": wanted_chapters}`.
 
 ---
 

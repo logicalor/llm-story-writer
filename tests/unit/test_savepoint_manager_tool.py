@@ -421,6 +421,17 @@ def test_next_phase_chapter_loop(story_env: tuple[Path, str]) -> None:
     assert "chapter 6" in out["next_phase"]
 
 
+def test_next_phase_outlines_expanded(story_env: tuple[Path, str]) -> None:
+    """After Phase 7a completes, next phase is 7b (per-chapter loop)."""
+    stories_dir, name = story_env
+    _save(stories_dir, name, "init")
+    _save(stories_dir, name, "wiki_populated")
+    _save(stories_dir, name, "outlines_expanded")
+    out = _next_phase(stories_dir, name)
+    assert out["last_completed"] == "outlines_expanded"
+    assert "Phase 7b" in out["next_phase"]
+
+
 def test_next_phase_story_complete(story_env: tuple[Path, str]) -> None:
     stories_dir, name = story_env
     _save(stories_dir, name, "init")

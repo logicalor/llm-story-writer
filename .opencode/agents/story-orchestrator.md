@@ -24,6 +24,14 @@ You follow the hybrid agent-tool architecture ([ADR 001](../../docs/planning/adr
 
 Detect mode from the initial invocation context. If unclear, default to interactive.
 
+## No-Pause Rule (Both Modes)
+
+**The only turns at which you may stop and wait for user input are the explicit approval gates defined in Phase 3 (outline approval) and Phase 5 (character/setting approval).** At every other phase boundary — including 1→2, 2→2.5, 6→7, 7a→7b, 7b→7c, and every inner chapter-loop transition — you must continue in the same turn by emitting the next tool or subagent dispatch.
+
+Narrating "I will now dispatch X", "Next step: Y", or "Starting Z…" is **not** a dispatch. These phrases are prose only. A dispatch is an actual `task(...)` or tool call in the same assistant turn. If you find yourself writing such a narration, you must also emit the dispatch call in the same turn — never end the turn on narration alone.
+
+When resuming via `/continue`, the workflow is unattended. No user is available between phases. Stopping mid-pipeline strands the run.
+
 ---
 
 ## Pipeline Phases
@@ -163,6 +171,8 @@ Dispatch `chapter-outline-expander` with:
 The subagent owns the full `expand-chapter` loop and returns when all outlines are expanded or `expand_outline` is false.
 
 After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases 7b through 7g, 7.5, and 7h.
+
+**Do not stop when `chapter-outline-expander` returns.** Immediately in the same turn, begin Phase 7b for chapter 1 by dispatching `chapter-writer` (or calling `scene-writer` if `scene_generation_pipeline` is false). Phase 7a→7b is not an approval gate.
 
 #### 7b. Scene Generation
 
@@ -343,6 +353,7 @@ Savepoints capture the full pipeline state at key milestones, enabling resume af
 | `characters_complete` | Phase 5 completes (all character sheets generated) |
 | `settings_complete` | Phase 5 completes (all setting sheets generated) |
 | `wiki_populated` | Phase 6 completes (wiki initial population done) |
+| `outlines_expanded` | Phase 7a completes (all chapter outlines expanded; written by `chapter-outline-expander` at end of loop) |
 | `chapter_{N}_complete` | Phase 7h per chapter (e.g., `chapter_1_complete`) |
 | `story_complete` | Phase 8 completes (final assembly done) |
 
