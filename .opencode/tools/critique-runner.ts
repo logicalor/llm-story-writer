@@ -140,8 +140,7 @@ export default tool({
       ].filter(Boolean) as string[];
       const errorMessage =
         parts.length > 0
-          ? parts.join("
-")
+          ? parts.join("\n")
           : execError.message || "Unknown error";
       return `Error: ${errorMessage}`;
     }
