@@ -31,8 +31,9 @@ Received from the orchestrator at dispatch time:
 |-----------|-------------|
 | `story_name` | Story identifier |
 | `chapter_number` | Current chapter N |
-| `chapter_file_path` | Absolute path to the chapter file on disk (e.g. `stories/my-story/chapters/chapter_3.md`) |
-| `chapter_text` | Full chapter text (for semantic analysis — not the file path) |
+| `chapter_file_path` | Absolute path to the chapter file on disk. Usually the savepoint path `stories/{name}/savepoints/chapter_{N}/chapter_content.md`. |
+
+The chapter prose is **not** passed inline — load it from `chapter_file_path` when you need it (Step 2).
 
 ---
 
@@ -52,14 +53,15 @@ Collect all findings: contradictions, timeline inconsistencies, character trait 
 
 ### Step 2 — Semantic Wiki Analysis
 
-1. Extract key entity mentions from the chapter (characters, locations, objects, dates).
-2. For each significant entity (up to 5 most prominent), call `wiki-search` with a semantic query targeting current state:
+1. Load the chapter text by reading the file at `chapter_file_path` (use the standard file read tool). Hold it in your subagent context only — do **not** return it to the orchestrator.
+2. Extract key entity mentions from the chapter (characters, locations, objects, dates).
+3. For each significant entity (up to 5 most prominent), call `wiki-search` with a semantic query targeting current state:
   - `operation`: `"semantic"`
    - `name`: story name
    - `query`: e.g. `"Elena's current emotional state and relationships"`
   - `nResults`: 3
-3. For any entity where the wiki search suggests a potential drift, call `wiki-read` to get the full entity page for detailed comparison.
-4. Identify semantic inconsistencies not caught by deterministic lint.
+4. For any entity where the wiki search suggests a potential drift, call `wiki-read` to get the full entity page for detailed comparison.
+5. Identify semantic inconsistencies not caught by deterministic lint.
 
 ### Step 3 — Cross-Chapter RAG Analysis
 

@@ -1,5 +1,5 @@
 ---
-description: Runs the Phase 7f critique/revision loop for a single chapter. Invoked by story-orchestrator after chapter assembly to evaluate quality and revise up to chapter_max_revisions times. Returns accepted chapter text, best score, revision count, and requires_post_processing flag.
+description: Runs the Phase 7f critique/revision loop for a single chapter. Invoked by story-orchestrator after chapter assembly to evaluate quality and revise up to chapter_max_revisions times. Loads chapter prose from the savepoint on disk, writes the accepted draft back to the savepoint, and returns a compact reference, best score, revision count, and requires_post_processing flag.
 mode: subagent
 ---
 
@@ -30,11 +30,13 @@ Received from the orchestrator at dispatch time:
 |-----------|-------------|
 | `story_name` | Story identifier |
 | `chapter_number` | Current chapter N |
-| `chapter_text` | Assembled chapter text (full text, not a path) |
+| `chapter_file_path` | Path to the chapter savepoint file, e.g. `stories/{name}/savepoints/chapter_{N}/chapter_content.md`. The subagent loads the text from disk itself. |
 | `chapter_quality` | Quality threshold (from config, default 85) |
 | `chapter_min_revisions` | Minimum revisions before acceptance (from config, default 0) |
 | `chapter_max_revisions` | Maximum revision iterations (from config, default 3) |
 | `consistency_report` | Structured consistency report from Phase 7e (optional) — contains wiki-lint findings, semantic drift, and cross-chapter contradictions |
+
+The chapter prose is **not** passed inline. It enters this subagent's context when loaded from `chapter_file_path` in Step 1 and stays here — it must **never** be returned to the orchestrator.
 
 ---
 
@@ -44,8 +46,8 @@ Execute these steps sequentially. Carry the current chapter text in a variable `
 
 ### Step 1 — Initialise
 
-1. Set `current_chapter_text` = the provided `chapter_text`
-2. Set `best_chapter_text` = the provided `chapter_text`
+1. Load the chapter text by reading the file at `chapter_file_path`. Set `current_chapter_text` = the loaded text.
+2. Set `best_chapter_text` = the loaded text.
 3. Set `revision_count` = 0
 4. Set `best_score` = 0
 5. If `consistency_report` is provided and `has_critical_findings` is true, note the critical findings. These will be injected into the first `generate-feedback` call to ensure revision instructions address consistency issues.
@@ -110,20 +112,33 @@ Update `current_chapter_text` with the `content` field from the returned respons
 
 ### Step 3 — Return
 
-Return a structured result to the orchestrator:
+Before returning, persist the accepted draft back to the canonical savepoint so downstream phases see the final text:
+
+1. Call `savepoint-mgr` with:
+   - `operation`: `"save"`
+   - `name`: story name
+   - `step`: `chapter_{N}/chapter_content`
+   - `data`: `best_chapter_text`
+
+   This overwrites the assembled-chapter savepoint with the best-scoring revision. If `revision_count == 0`, `best_chapter_text` equals the original loaded text and the overwrite is a no-op in practice.
+
+2. Return a structured result to the orchestrator **containing only references — no prose**:
 
 ```json
 {
-  "accepted_chapter_text": "<best-scoring chapter text>",
+  "accepted_chapter_ref": "chapter_{N}/chapter_content",
+  "chapter_file_path": "stories/{name}/savepoints/chapter_{N}/chapter_content.md",
   "best_score": <numeric overall_average>,
   "revision_count": <integer>,
   "requires_post_processing": <true if revision_count > 0, false if chapter was accepted on first pass with no revisions>
 }
 ```
 
-`accepted_chapter_text` is `best_chapter_text` — the chapter draft with the highest `overall_average` score across all iterations. If the revision cap is exhausted and the final iteration scores lower than an earlier draft, the earlier best-scoring draft is returned. If no revisions occurred (first iteration passed), `best_chapter_text` equals the original `chapter_text`.
+`accepted_chapter_ref` points at the savepoint now containing `best_chapter_text` — the chapter draft with the highest `overall_average` score across all iterations. If the revision cap is exhausted and the final iteration scores lower than an earlier draft, the earlier best-scoring draft is the one saved.
 
-`requires_post_processing` is `true` whenever at least one revision was made (the revised text may differ from what was processed in Phase 7c/7d/7e). It is `false` when the chapter passed the acceptance check with zero revisions.
+`requires_post_processing` is `true` whenever at least one revision was made (the savepoint contents now differ from what was processed in Phase 7c/7d/7e). It is `false` when the chapter passed the acceptance check with zero revisions.
+
+**Do not return `chapter_text`, `accepted_chapter_text`, or any prose field.** The orchestrator consumes prose only via the savepoint path.
 
 ---
 
