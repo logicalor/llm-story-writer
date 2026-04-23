@@ -32,6 +32,8 @@ Narrating "I will now dispatch X", "Next step: Y", or "Starting Z…" is **not**
 
 When resuming via `/continue`, the workflow is unattended. No user is available between phases. Stopping mid-pipeline strands the run.
 
+**Dispatch contract completeness:** When a subagent reads config values at runtime, every config key it reads must be (1) listed in the subagent's **Input** table, and (2) passed explicitly in the orchestrator's dispatch parameters for that subagent. A config key referenced in a subagent's body text but absent from its Input table is a silent bug — the orchestrator will omit it.
+
 ---
 
 ## Pipeline Phases

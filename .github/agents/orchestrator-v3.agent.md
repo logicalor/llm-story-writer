@@ -194,7 +194,9 @@ If the plan has no infrastructure changes, skip this step entirely.
     git fetch origin {branch-name} && git checkout {branch-name}
     ```
 
-5. Record the branch name.
+5. **Audit for pre-existing modifications** — immediately after checkout, run `git status --porcelain`. If any files appear that are not related to this issue, stash or revert them before the first commit. Pre-existing local changes travel with you on checkout and will contaminate the feature branch if not removed.
+
+6. Record the branch name.
 
 ### Step 3 — Plan
 

@@ -70,6 +70,30 @@ Scan the output for unexpected changes to **test files**. Specifically:
 
 ---
 
+## ℹ️ FEATURE BRANCH CONTAMINATION CHECK
+
+**Before your first commit on a new feature branch, audit `git status --porcelain`.**
+
+When `git checkout {branch}` is run while staged or unstaged changes exist in the working tree,
+those changes travel with you to the new branch. This is standard Git behaviour — but it means
+pre-existing local modifications (partial experiments, out-of-scope fixes, investigation
+artefacts) can silently become part of your feature branch's first commit.
+
+Run immediately after checkout:
+
+```bash
+git status --porcelain
+```
+
+Review every modified or staged file. For any file unrelated to the current feature:
+
+1. Stash it: `git stash -- path/to/file.ext` — or reset it: `git checkout -- path/to/file.ext`
+2. Record it as an out-of-scope observation in your handoff summary.
+
+**Do not commit until `git status --porcelain` shows only in-scope files.**
+
+---
+
 ## ℹ️ PRE-COMMIT HOOK OUTPUT TRUNCATION
 
 **If commit tool output is truncated, `✓ Pre-commit checks passed` is the definitive success indicator.**

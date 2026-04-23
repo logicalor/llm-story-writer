@@ -290,3 +290,37 @@ such attribute; the patch silently creates a new attribute that `_validate_story
 reads, leaving the tool targeting the real stories directory.
 
 ChromaDB ID: `gotcha-stories-dir-not-module-constant-011`
+
+---
+
+### 012 — `save_savepoint`: pass Python objects directly — `str` saves as `.md`, not `.json`
+
+**Source:** issue #154, PR #155
+**Severity:** warning
+
+`FilesystemSavepointRepository.save_savepoint(repo, step, data)` branches on `isinstance(data, str)`:
+
+- `str` → written verbatim as `{step}.md` (raw text file)
+- non-`str` (list, dict, etc.) → JSON-serialised and written as `{step}.json`
+
+**Wrong:** `_save_savepoint(repo, step, json.dumps(items, indent=2))` — pre-serialising to a
+`str` forces `.md` storage; downstream `_load_savepoint` returns a raw JSON string, not the
+original Python type. Code that then calls `.items()`, iterates, or subscripts the result
+raises a `TypeError` or returns wrong data.
+
+**Right:** `_save_savepoint(repo, step, items)` — pass the Python object directly; the
+repository handles serialisation; downstream load returns the original type.
+
+**Test corollary:** Savepoint round-trip tests must assert the **type** of the loaded value,
+not only the content:
+
+```python
+# Wrong — passes even when loaded value is a JSON string, not a list:
+assert saved == items
+
+# Right — catches format regressions immediately:
+assert isinstance(saved, list)
+assert saved == items
+```
+
+ChromaDB ID: `gotcha-savepoint-str-vs-object-format-012`
