@@ -21,7 +21,8 @@ export function runTool(
   args: string[],
   options?: { cwd?: string; timeoutMs?: number }
 ): string {
-  const cwd = options?.cwd || resolve(__dirname, "../..");
+  // __dirname is .opencode/, so project root is one level up.
+  const cwd = options?.cwd || resolve(__dirname, "..");
   const timeout = options?.timeoutMs || TOOL_TIMEOUT_MS;
 
   const result = spawnSync("python3", [scriptPath, ...args], {
