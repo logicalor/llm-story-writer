@@ -30,7 +30,8 @@ The active runtime is intentionally small and OpenCode-first:
 - **Async provider path**: `src/infrastructure/providers/openai_async_provider.py` adds an `AsyncOpenAI`-backed `ModelProvider` implementation for Python-native streaming flows, while `OpenAICompatibleProvider` remains in place for existing synchronous paths
 - **Tool wiring**: OpenCode loads TypeScript wrappers directly; no legacy `dependency-injector` container remains in the repository
 - **Python-native migration foundation**: agent system prompts now live in `prompts/agents/`, with shared loading logic in `src/infrastructure/prompts/agent_prompt_loader.py` and typed orchestration payloads in `src/application/pipeline/handoffs.py`
-- **Pipeline presentation primitives**: `src/presentation/pipeline_primitives.py` adds transport-agnostic approval gates plus token and wiki context buses so future Python-native orchestrator code can target both Textual UI and headless runners
+- **Pipeline presentation primitives**: `src/presentation/pipeline_primitives.py` adds transport-agnostic approval gates plus token and wiki context buses for both headless runners and future Textual UI integration
+- **Headless orchestrator slice**: `src/presentation/orchestrator.py` now runs the implemented Python-native phase sequence (`init → outline → characters → settings → chapter-loop → final-edit → assembly`) and persists `PipelineState` savepoints for resume support
 - **Repository cleanup**: the temporary `legacy/` archive, duplicate root helper scripts, and obsolete root markdown summaries were removed after migration cleanup, so current documentation should point only to active files under `docs/`, `prompts/`, `src/`, and `tests/`
 
 See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the full before/after summary and maintenance guidance.
@@ -50,7 +51,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 - [Python-Native Foundation](./features/python-native-foundation.md) — Agent prompt relocation, frontmatter-stripping loader, and typed pipeline handoff dataclasses for Issue #158
 - [Pipeline Primitives](./features/pipeline-primitives.md) — Transport-agnostic approval gates plus token and wiki context event buses for the Python-native orchestrator
 - [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) — Current runtime dependency model, removed migration leftovers, and guardrails for keeping the active stack lean
-- [Story Orchestrator](./features/story-orchestrator.md) — Primary pipeline controller agent: 10-phase story generation lifecycle plus conditional prose passes, quality gates, wiki lifecycle, savepoint strategy, subagent delegation
+- [Story Orchestrator](./features/story-orchestrator.md) — Implemented headless Python pipeline runner, approval-gate semantics, agent callable pattern, and `PipelineState` savepoint/status behavior
 - [Story Planner](./features/story-planner.md) — Phase 2.5 narrative arc analysis subagent: critic pass, arc prompt set, advisory verdicts, and approval-gate integration
 - [Chapter Outline Expander](./features/chapter-outline-expander.md) — Phase 7a subagent that expands all chapter outlines and carries structured handoff continuity between chapters
 - [Prose Quality Passes](./features/prose-quality-passes.md) — `prose-scrubber` and `final-editor` pipeline stages, config flags, scope constraints, and tool usage

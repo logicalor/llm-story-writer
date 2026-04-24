@@ -1,6 +1,6 @@
 # Python-Native Foundation
 
-> Agent prompt relocation, Python prompt loading, and typed pipeline handoffs introduced for Issue #158.
+> Agent prompt relocation, Python prompt loading, and typed pipeline handoffs introduced in Issue #158, then extended for orchestrator persistence in Issue #161.
 
 ## Overview
 
@@ -70,6 +70,15 @@ Use `clear_agent_prompt_cache()` in tests or other situations where a fresh on-d
 
 `PipelineState` is the persistence boundary for the new package. It supports `to_dict()` and `from_dict()` so savepoints can store and restore nested dataclass state without custom serializers. `to_json()` emits formatted JSON for debugging or persistence helpers.
 
+Issue #161 extends `PipelineState` with two orchestrator-facing fields used by the headless runner in `src/presentation/orchestrator.py`:
+
+| Field | Type | Purpose |
+|------|------|---------|
+| `savepoints` | `list[str]` | Ordered list of savepoint labels written during the run |
+| `status` | `str` | Lifecycle status for the persisted run; starts as `running`, then becomes `rejected` or `complete` |
+
+Those fields are part of the JSON round-trip contract and are now required for resume behavior.
+
 ## Developer Guide
 
 ### Key Files
@@ -96,4 +105,6 @@ Issue #158 added dedicated unit coverage for both new modules:
 - [PRD: Python-Native Orchestration and TUI](../planning/python-native-migration/prd.md)
 - [Story Orchestrator](./story-orchestrator.md)
 - Issue #158 — Agent prompt loader and typed pipeline handoffs
+- Issue #161 — Python pipeline orchestrator (headless)
 - PR #167 — Python-native migration [1/9]
+- PR #171 — Python-native migration [4/9]

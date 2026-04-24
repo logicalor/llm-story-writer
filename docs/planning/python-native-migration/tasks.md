@@ -128,6 +128,8 @@ All three primitives are transport-agnostic — the TUI and headless runner both
 **Estimated scope:** large
 **Dependencies:** Tasks 1, 2, 3, 4
 
+**Status:** implemented in Issue #161 / PR #171
+
 **Description:**
 
 Create `src/presentation/orchestrator.py`. Model each former OpenCode agent as an async callable in `src/presentation/agents/` (one file per agent). Each agent:
@@ -143,12 +145,14 @@ Leverage the existing `src/application/strategies/outline_chapter/` code where p
 
 **Acceptance Criteria:**
 
-- [ ] `run_pipeline(story_name, gate, bus)` executes all phases and returns a final `PipelineState`
-- [ ] Each phase writes a savepoint on successful completion
-- [ ] An approval gate resolved with `REJECT` halts the pipeline cleanly with a status in `PipelineState`
-- [ ] An approval gate resolved with `REVISE(feedback)` re-runs the current phase with the feedback appended to the prompt
-- [ ] Token streaming is visible via the injected bus during LLM calls
-- [ ] Unit tests with stubbed services cover: happy path, rejection at outline gate, revision at chapter gate, resume from savepoint
+- [x] `run_pipeline(story_name, gate, bus)` executes the implemented headless phases and returns a final `PipelineState`
+- [x] Each implemented phase writes a savepoint on successful completion
+- [x] An approval gate resolved with `REJECT` halts the pipeline cleanly with a status in `PipelineState`
+- [x] An approval gate resolved with `REVISE(feedback)` re-runs the current phase with the feedback appended to the prompt
+- [x] Token streaming is visible via the injected bus during LLM calls
+- [x] Unit tests with stubbed services cover: happy path, rejection at outline gate, revision at chapter gate, resume from savepoint
+
+Current implementation note: the code path does not yet include the PRD's narrative-arc phase or TUI/CLI wiring. `resume_pipeline(savepoint_name=...)` validates the requested savepoint name but resumes from the single persisted `pipeline_state.json` snapshot rather than restoring an older checkpoint file.
 
 **Key Files:**
 

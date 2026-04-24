@@ -57,18 +57,19 @@ A three-model research synthesis confirms the story generation pipeline is seque
 
 ## Proposed Solution
 
-<<<<<<< HEAD
-=======
-## Current Implementation Status
+### Current Implementation Status
 
-Issue #158 / PR #167 implemented the first foundation slice of this migration:
+Completed migration slices so far:
 
 - [x] Task 1 foundation complete: all eleven agent prompts were relocated to `prompts/agents/`
+- [x] Task 2 streaming provider complete: `src/infrastructure/providers/openai_async_provider.py` added async OpenAI-compatible streaming
 - [x] Shared Python loader added at `src/infrastructure/prompts/agent_prompt_loader.py`
 - [x] Typed pipeline handoff package added at `src/application/pipeline/`
-- [x] `PipelineState` now supports JSON-friendly `to_dict()` / `from_dict()` persistence helpers for savepoints
+- [x] Task 4 pipeline primitives complete: `ApprovalGate`, `NullApprovalGate`, `TokenStreamBus`, and `WikiContextBus` added in `src/presentation/pipeline_primitives.py`
+- [x] Task 5 headless orchestrator complete: `src/presentation/orchestrator.py` now implements `run_pipeline()` and `resume_pipeline()` with outline and chapter approval semantics
+- [x] `PipelineState` now supports JSON-friendly `to_dict()` / `from_dict()` persistence helpers plus `savepoints` and `status` fields for persisted orchestration state
 
->>>>>>> 21f953514e144842a7f6e7d73374837fbf15c04b
+Task 5 currently implements the headless slice only. TUI wiring, CLI commands, and the broader long-term phase map remain future tasks.
 ### Architecture Overview
 
 ```
@@ -99,7 +100,7 @@ Issue #158 / PR #167 implemented the first foundation slice of this migration:
 ### Orchestration
 
 - Each OpenCode agent becomes a Python async function or class in `src/presentation/agents/`. Each agent owns: (a) its system prompt (loaded from `prompts/agents/<name>.md`), (b) its dispatch of relevant services, (c) its typed handoff output.
-- Pipeline phases are sequential `await` calls in `src/presentation/orchestrator.py`. Phases: Init → Outline → Narrative Arc Analysis → Character Sheets → Settings → Chapter Loop → Final Edit → Assembly.
+- Pipeline phases are sequential `await` calls in `src/presentation/orchestrator.py`. The long-term target is: Init → Outline → Narrative Arc Analysis → Character Sheets → Settings → Chapter Loop → Final Edit → Assembly. Issue #161 currently implements: Init → Outline → Characters → Settings → Chapter Loop → Final Edit → Assembly.
 - Approval gates are `asyncio.Future` objects. The orchestrator awaits the future; the TUI resolves it when the user submits input. In batch mode, a null-gate implementation resolves futures immediately.
 - Streaming: the LLM provider yields token deltas onto an `asyncio.Queue`. The TUI's worker drains the queue and writes to the `RichLog` via `call_from_thread()`. The orchestrator is agnostic to consumer.
 
@@ -150,7 +151,11 @@ No schema changes. JSON savepoints, JSON story state, and ChromaDB collections a
 - [ ] `python -m src.presentation.cli.main run --story <name> --batch` runs the full pipeline end-to-end without any prompts and exits with code 0 on success.
 - [ ] `python -m src.presentation.cli.main resume --story <name>` resumes from the latest savepoint.
 - [ ] The existing `pytest` test suite passes without modifications to domain or application layer tests (integration tests may be re-pointed at the new CLI).
-- [ ] New tests exist for: agent prompt loader (frontmatter stripping), async OpenAI provider (streaming), orchestrator phase runner (sequential execution + approval gate resolution), TUI bridge (token forwarding to widget).
+- [ ] New tests exist for the full migration surface.
+- [x] Agent prompt loader tests exist for frontmatter stripping.
+- [x] Async provider tests exist for streaming behavior.
+- [x] Orchestrator phase-runner tests exist for sequential execution plus approval-gate resolution.
+- [ ] TUI bridge tests exist for token forwarding to widgets.
 - [ ] A full end-to-end integration test generates a two-chapter story in under 10 minutes against LM Studio.
 - [ ] `AGENTS.md`, `README.md`, and `docs/` contain no references to OpenCode, `opencode.json`, `.opencode/`, or the TypeScript tool layer.
 - [ ] `ruff check .`, `ruff format --check .`, and `mypy src/` all pass cleanly.

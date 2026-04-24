@@ -1,425 +1,123 @@
-# Story Orchestrator Agent
+# Story Orchestrator
 
-> The primary pipeline controller for AI-powered long-form story generation — coordinates ten primary phases plus a conditional prose-scrub pass from initial prompt through final manuscript polish.
+> Headless Python pipeline runner and agent-callable layer implemented for Issue #161 / PR #171.
 
 ## Overview
 
-The story orchestrator is the first agent defined in the OpenCode agentic architecture migration. It encodes the full story generation lifecycle as a ten-phase pipeline, plus a conditional Phase 7.5 prose pass, delegating specialised creative tasks to subagents while using deterministic tools for file I/O, state management, and wiki operations.
+Issue #161 implements the first executable Python-native orchestration slice in `src/presentation/orchestrator.py`. The current implementation is intentionally smaller than the long-term PRD: it runs a headless async pipeline, persists one JSON savepoint file, and coordinates five Python agent callables through injected transport primitives.
 
-The orchestrator operates in two modes:
+Two entry points exist:
 
-- **Interactive mode** (default): Pauses at approval gates for human review and steering. The user can inspect outlines, character sheets, and settings before generation proceeds.
-- **Batch mode** (`--batch`): Auto-proceeds through all approval gates for unattended generation runs.
+- `run_pipeline(story_name, gate, bus, wiki_bus)` starts a new run, writes the initial `init` savepoint, then advances through the implemented phases.
+- `resume_pipeline(story_name, savepoint_name, gate, bus, wiki_bus)` reloads persisted `PipelineState` from `stories/<story>/savepoints/pipeline_state.json` and continues from the stored phase state.
 
-The shared agent prompt for this controller now lives at `prompts/agents/story-orchestrator.md`. Issue #158 also introduced typed Python handoff objects in `src/application/pipeline/handoffs.py` so later migration work can move phase outputs between Python orchestration layers without relying on ad hoc dictionaries.
+This slice does not yet implement the full PRD phase map. The current code path is the authoritative behavior for documentation and testing.
 
-## Pipeline Phases
+## Implemented Phase Sequence
 
-The pipeline executes ten primary phases sequentially, with an additional conditional Phase 7.5 prose scrub inside the per-chapter loop. Phase 2.5 inserts a dedicated dramatic arc analysis pass after the outline is finalized and before the human approval gate. Each phase completes fully before the next begins, and key phases create savepoints for resume capability.
+The current orchestrator runs these phases in order:
 
-```
-┌─────────┐   ┌─────────┐   ┌────────────────┐   ┌──────────┐   ┌───────────┐
-│  Init   │──▶│ Outline │──▶│ Story Planner  │──▶│ Approval │──▶│ Wiki Init │
-│ (1)     │   │ (2)     │   │ (2.5)          │   │ (3)      │   │ (4)       │
-└─────────┘   └─────────┘   └────────────────┘   └──────────┘   └───────────┘
-                                                                     │
-                                                                     ▼
-                                                      ┌───────────────────┐
-                                                      │ Characters +      │
-                                                      │ Settings (5)      │
-                                                      └───────────────────┘
-                                                                         │
-      ┌────────────────────────────────────────────────────────────────┘
-      ▼
-┌─────────────────┐   ┌────────────────────────┐   ┌──────────┐   ┌────────────┐
-│ Wiki Population │──▶│ Per-Chapter Loop (7)   │──▶│ Assembly │──▶│ Final Edit │
-│ (6)             │   │ [1..wanted_chapters]   │   │ (8)      │   │ (9)        │
-└─────────────────┘   └────────────────────────┘   └──────────┘   └────────────┘
+```text
+Init → Outline → [Outline Gate] → Characters → Settings
+→ Chapter Loop → Final Edit → Assembly
 ```
 
-| Phase | Name | Purpose | Savepoint |
-|-------|------|---------|-----------|
-| 1 | Init | Load prompt, read `config.md`, initialise story state | `init` |
-| 2 | Outline | Generate story outline; optionally critique and revise | `outline_complete` |
-| 2.5 | Narrative Arc Analysis | Dispatch `story-planner` to score the finalised outline's dramatic arc and synthesize an advisory assessment | `arc_analysis_complete` |
-| 3 | Approval | Human review gate (interactive) or auto-proceed (batch) | — |
-| 4 | Wiki Init | Create wiki directory structure and schema | — |
-| 5 | Characters & Settings | Generate character and setting sheets via `character-sheet-generator` | `characters_complete`, `settings_complete` |
-| 6 | Wiki Population | Populate wiki with entity pages from outline + sheets via `wiki-maintainer` | `wiki_populated` |
-| 7 | Chapter Expansion + Per-Chapter Loop | Dispatch outline expansion once, then run scene gen → wiki update → recap → lint → quality evaluation → tool-driven handoff generation for each chapter | `chapter_{N}_complete` |
-| 7.5 | Prose Scrub | Run `prose-scrubber` for sentence and paragraph-level cleanup when enabled | `chapter_{N}_scrubbed` |
-| 8 | Assembly | Combine all chapters into the assembled manuscript | `story_complete` |
-| 9 | Final Edit | Run `final-editor` across assembled chapters when enabled | `final_edit_complete` |
-
-### Phase 7 Structure
+The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 
-Phase 7 now has two layers:
+| Phase | Controller behavior | Savepoint written |
+|------|----------------------|-------------------|
+| `init` | Create initial `PipelineState`, detect batch mode from gate type, ensure `stories/<story>/savepoints/` exists | `init` |
+| `outline` | Run `OutlinePlannerAgent`, persist `OutlineResult`, then wait on the outline approval gate | `outline` |
+| `characters` | Emit a wiki-context event for character assembly, mark phase complete | `characters` |
+| `settings` | Emit a wiki-context event for setting assembly, mark phase complete | `settings` |
+| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, wiki maintenance, and per-chapter savepointing | `chapter-{N}`, then `chapter-loop` |
+| `final-edit` | Mark phase complete only; no editing subagent is wired yet | `final-edit` |
+| `assembly` | Mark phase complete, set `status="complete"`, write terminal savepoint | `assembly`, then `complete` |
 
-- **Phase 7a** runs once before chapter drafting starts. The orchestrator dispatches `chapter-outline-expander`, which expands all chapter outlines in one dedicated pass and manages rolling continuity internally.
-- **Per-chapter loop** then runs for each chapter from 1 to `wanted_chapters`.
+Chapter count comes from `OutlineResult.chapter_outlines` when present. If the outline did not produce chapter entries, the fallback is `range(1, min(settings.wanted_chapters, 3) + 1)`.
 
-After the one-time Phase 7a dispatch, each chapter passes through seven core sub-phases, plus the conditional prose scrub:
-
-```
-┌─────────────┐   ┌────────────────┐   ┌───────────┐   ┌─────────────────────┐
-│ Scene Gen   │──▶│ Wiki Update    │──▶│ Recap     │──▶│ Consistency Check   │
-│ (7b)        │   │ (7c)           │   │ (7d)      │   │ (7e)                │
-└─────────────┘   └────────────────┘   └───────────┘   └─────────────────────┘
-                                                              │
-      ┌───────────────────────────────────────────────────────┘
-      ▼
-┌──────────────────────────────┐   ┌──────────────┐   ┌──────────────┐   ┌───────────────────┐
-│ Quality Evaluation (7f)      │──▶│ Handoff      │──▶│ Prose Scrub  │──▶│ Chapter Savepoint │
-│ via quality-reviewer         │   │ Gen (7g)     │   │ (7.5)        │   │ (7h)              │
-└──────────────────────────────┘   └──────────────┘   └──────────────┘   └───────────────────┘
-```
+## Approval Gate Semantics
 
-Chapters are generated sequentially because each chapter's wiki updates inform the next chapter's context.
+The orchestrator is transport-agnostic. It receives an `ApprovalGate` implementation and never reads from stdin or the UI directly.
 
-Phase 7a no longer keeps `continuitySummary` inside the orchestrator's working memory. That state now lives inside `chapter-outline-expander`, which can also read the prior chapter's structured handoff artifact from story state.
+Gate outcomes map to pipeline behavior like this:
 
-Phase 7e dispatches the `consistency-checker` subagent, which runs a three-layer analysis: deterministic `wiki-lint` validation, semantic wiki search for entity state, and RAG-based cross-chapter factual analysis against prior embedded chapter text. The subagent returns a structured consistency report that the orchestrator passes to Phase 7f.
+| Decision shape | Meaning | Result |
+|----------------|---------|--------|
+| `approved=True` | Approve | Continue immediately |
+| `approved=False` and `feedback is None` | Reject | Set `PipelineState.status = "rejected"`, write savepoint, return early |
+| `approved=False` and `feedback` present | Revise | Re-run current phase with `## Revision Feedback` appended to the user prompt, then await another decision |
 
-Phase 7f dispatches the `quality-reviewer` subagent instead of running the critique/revision loop inline. The subagent receives the assembled chapter text and the Phase 7e `consistency_report`, then owns scoring, refinement decisions, feedback generation, and revision for one chapter before returning a structured result to the orchestrator. When `requires_post_processing` is `true`, the orchestrator re-runs Phases 7c, 7d, and 7e so the wiki, recap, and consistency-check outputs reflect the final accepted chapter text.
+The outline gate is handled by `_await_outline_approval()`. The chapter gate is handled by `_generate_chapter_with_gate()`.
 
-Phase 7g runs after the chapter is accepted and any required post-processing is complete. The orchestrator delegates handoff generation to `story-assembler` with `operation: "generate-handoff"`. That tool reads `chapters.{N}.expanded_outline`, chapter title, and story title from `state.json`, renders `prompts/chapters/generate_handoff.md`, calls the LLM, validates the returned JSON, and writes the artifact to `chapters.{N}.handoff`. The resulting handoff captures continuity state for the next chapter expansion pass: resolved beats, obligations, active tensions, timeline movement, and character deltas. After the tool writes the handoff, the orchestrator still calls `rag-query` with `contentType: "raw-chapter"` to embed the accepted chapter text into the story's ChromaDB collection, enabling cross-chapter factual analysis in subsequent `consistency-checker` invocations.
+In batch mode, callers pass `NullApprovalGate`. `run_pipeline()` records `batch_mode=True` when the injected gate class name is `NullApprovalGate`, and every gate resolves immediately with `ApprovalDecision(approved=True, auto_approved=True)`.
 
-Phase 7.5 dispatches `prose-scrubber` only after the chapter has passed the quality gate. The scrubber operates at sentence and paragraph scope, writes the revised chapter text back to story state, and creates a `chapter_{N}_scrubbed` savepoint before the orchestrator records `chapter_{N}_complete`. Because the scrubber is constrained to prose-only edits, the orchestrator does not re-run wiki update, recap generation, or lint after this pass.
+## Savepoints And Resume
 
-## Quality Gates
+Savepoints are persisted as a single JSON snapshot of `PipelineState` at `stories/<story>/savepoints/pipeline_state.json`. The orchestrator updates three related fields together:
 
-The orchestrator enforces outline quality directly and delegates chapter quality evaluation to the `quality-reviewer` subagent, which runs the Phase 7f critique/revision loop with `critique-runner` and `scene-writer`. When a quality gate fails after maximum revision attempts, the best-scoring version is accepted and the pipeline continues. The prose-scrub and final-edit passes are enhancement passes, not blocking gates.
+- `current_phase` tracks the active or most recently completed phase.
+- `savepoint_id` stores the latest savepoint label.
+- `savepoints` accumulates the labels written so far.
 
-| Gate | Config Key | Default Threshold | Max Revisions | Applied In |
-|------|-----------|-------------------|---------------|------------|
-| Outline quality | `generation.outline_quality` | 87 | `outline_max_revisions` (3) | Phase 2 |
-| Chapter quality | `generation.chapter_quality` | 85 | `chapter_max_revisions` (3) | Phase 7f |
+`_mark_phase_complete()` is the standard path for successful phase completion. It appends the phase to `completed_phases`, updates `savepoint_id`, appends to `savepoints`, and writes the snapshot.
 
-Phase 2.5 adds a second review surface before generation starts, but it is advisory rather than blocking. `story-planner` packages critic scores, arc-shape analysis, and a normalized verdict for the Phase 3 approval screen; the user decides whether to proceed or send the outline back through Phase 2.
+`resume_pipeline()` currently behaves as follows:
 
-See [Prose Quality Passes](./prose-quality-passes.md) for the non-gating polish layers that run after the chapter quality gate and after assembly.
+1. Load the latest persisted `PipelineState` snapshot.
+2. If a `savepoint_name` was provided, verify that the name exists in `state.savepoints`.
+3. If `state.status == "complete"`, close both buses and return the saved state unchanged.
+4. Otherwise call `_continue_pipeline()` and skip any phase already listed in `completed_phases`.
 
-## Wiki Lifecycle
+The current implementation validates `savepoint_name`, but it does not rewind to an older savepoint snapshot. Resume always continues from the single persisted `pipeline_state.json` state.
 
-The wiki follows a lifecycle synchronised with the pipeline:
+## Agent Callable Pattern
 
-| Phase | Wiki Interaction |
-|-------|-----------------|
-| Phase 4 | `wiki-init` creates directory structure and `_schema.md` |
-| Phase 6 | `wiki-maintainer` subagent populates pages for all entities from outline + sheets |
-| Phase 7a | `chapter-outline-expander` reads prior handoff state, expands all chapter outlines, and writes `chapters.{N}.expanded_outline` |
-| Phase 7b | `wiki-snapshot` assembles token-budgeted context for each scene generation prompt |
-| Phase 7c | `wiki-maintainer` subagent extracts and records new facts from the generated chapter |
-| Phase 7e | `consistency-checker` subagent runs three-layer consistency analysis: `wiki-lint` deterministic check, semantic wiki search, and RAG cross-chapter analysis |
-| Phase 7g | `story-assembler` writes `chapters.{N}.handoff`; orchestrator then calls `rag-query` to embed accepted chapter text as `raw-chapter` content type |
-| Phase 7.5 | No wiki mutation; `prose-scrubber` is prose-only and must preserve facts |
-| Phase 9 | No wiki mutation; `final-editor` polishes prose after assembly without changing entity state |
+Issue #161 also adds `src/presentation/agents/__init__.py` and five Python callables under `src/presentation/agents/`. Each callable follows the same construction pattern:
 
-After Phase 6, the wiki is the **authoritative source of truth** for world state. Character sheets and setting sheets become historical inputs — the wiki supersedes them.
+1. Accept `provider`, `config`, `bus`, and `wiki_bus` in `__init__`.
+2. Load the corresponding system prompt from `prompts/agents/` through `load_agent_prompt()` on first use.
+3. Build a `ModelConfig` from `config["models"]` for the relevant role.
+4. Emit at least one `WikiContextEvent` before generation or analysis.
+5. Stream model output through `provider.stream_text(...)` and forward every token to `TokenStreamBus.emit()`.
+6. Return a typed handoff object or small structured result.
 
-## Subagents
+| Agent | Prompt file | Return type | Current behavior |
+|------|-------------|-------------|------------------|
+| `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `OutlineResult` | Streams outline text, parses chapter outlines from JSON or `Chapter:` lines, extracts `genre` and `themes` when present |
+| `ChapterWriterAgent` | `prompts/agents/chapter-writer.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback |
+| `WikiMaintainerAgent` | `prompts/agents/wiki-maintainer.md` | `WikiUpdateBatch` | Streams evaluation text, currently returns empty `updated_pages` / `new_pages` placeholders |
+| `ConsistencyCheckerAgent` | `prompts/agents/consistency-checker.md` | `dict[str, Any]` | Streams analysis text, currently returns `{"issues": [], "passed": True}` placeholder result |
+| `StoryOrchestratorAgent` | none loaded | `dict[str, Any]` | Vestigial helper that returns a static phase plan; orchestration logic lives in `orchestrator.py` |
 
-The orchestrator delegates specialised work to ten subagents:
+The prompt load is lazy and instance-local in the current code. Despite the issue text describing import-time loading, the implementation caches the prompt the first time `_get_system_prompt()` runs.
 
-| Subagent | Purpose | Invoked In | Status |
-|----------|---------|------------|--------|
-| `outline-planner` | Generate and refine the story outline | Phase 2 | Implemented (PR #64) |
-| `story-planner` | Evaluate dramatic arc quality for the finalised outline and return an advisory assessment | Phase 2.5 | Implemented (PR #130) |
-| `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 | Implemented |
-| `chapter-outline-expander` | Expand all chapter outlines and manage rolling continuity state | Phase 7a | Implemented (PR #129) |
-| `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b | Implemented (PR #63) |
-| `wiki-maintainer` | Maintain wiki pages — create, update, lint | Phases 6, 7c | Implemented (PR #65) |
-| `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f | Implemented (PR #127) |
-| `consistency-checker` | Run the Phase 7e three-layer consistency analysis (wiki-lint + semantic + RAG) | Phase 7e | Implemented (PR #131) |
-| `prose-scrubber` | Run the Phase 7.5 sentence/paragraph scrub pass for a single chapter | Phase 7.5 | Implemented (PR #128) |
-| `final-editor` | Run the Phase 9 post-assembly voice, pacing, and coherence pass | Phase 9 | Implemented (PR #128) |
+## PipelineState Extensions
 
-### story-planner
+Issue #161 extends `PipelineState` in `src/application/pipeline/handoffs.py` with two orchestration-facing fields:
 
-The `story-planner` subagent handles Phase 2.5 between outline completion and the human approval gate. It receives the story name and outline-quality threshold from the orchestrator, then:
+| Field | Type | Purpose |
+|------|------|---------|
+| `savepoints` | `list[str]` | Ordered record of checkpoint labels written during the run |
+| `status` | `str` | Run lifecycle state: defaults to `"running"`, changes to `"rejected"` or `"complete"` |
 
-1. Reads the finalised outline and `story_elements` from story state
-2. Extracts the working genre label from `story_elements` for arc interpretation
-3. Runs all six `outline_review/` critics through `critique-runner` in `outline` mode
-4. Loads and applies three dedicated arc prompts from `prompts/outline_arc/`:
-      - `arc_distribution` for chapter dramatic-weight analysis
-      - `promise_payoff` for setup/payoff mapping
-      - `arc_synthesis` for the final structured report
-5. Saves the synthesized report at the `arc_analysis_complete` checkpoint
-6. Returns `arc_assessment`, `overall_score`, `critic_scores`, and a normalized `verdict` (`strong`, `minor_concerns`, or `significant_issues`)
+These fields round-trip through `to_dict()`, `from_dict()`, and `to_json()`. The four unit tests in `tests/unit/test_orchestrator.py` assert the main behaviors built around them: happy-path completion, outline rejection, chapter revision, and resume from a persisted savepoint.
 
-The agent is depth-1 by design: it calls tools only and never dispatches nested subagents. Its output is advisory only. The orchestrator surfaces the assessment during Phase 3, but batch mode still proceeds automatically and interactive mode leaves the final decision to the user.
+## Current Scope Boundaries
 
-### character-sheet-generator
+The long-term migration PRD still describes additional phases and UI surfaces that are not yet wired in this implementation. Notably absent from the current code path:
 
-The `character-sheet-generator` subagent handles Phase 5 — generating all character and setting sheets for the story. It receives the story name, character name list, setting name list, and unified story elements text from the orchestrator, then:
+- narrative-arc analysis
+- character-sheet generation and setting-sheet generation subagents
+- wiki initialization and initial population
+- quality-reviewer, prose-scrubber, and final-editor execution
+- CLI wiring and Textual TUI integration
+- resume-from-arbitrary-historical-savepoint behavior
 
-1. Generates a prose/markdown character sheet for each character using `prompt-loader` and `character-mgr`
-2. Generates a prose/markdown setting sheet for each setting using `prompt-loader` and `setting-mgr`
-3. Writes the processed name lists to story state via `story-state`
-4. Creates savepoints (`characters_complete`, `settings_complete`) after each phase
-5. Returns only compact name lists to the orchestrator — sheet bodies are not returned
-
-The agent uses five tools: `prompt-loader`, `character-mgr`, `setting-mgr`, `story-state`, and `savepoint-mgr`. Sheet generation is contained entirely within this subagent; the orchestrator receives only a compact summary to keep context lean.
-
-See the [agent definition](../../prompts/agents/character-sheet-generator.md) for the full workflow, savepoint strategy, and generation prompt references.
-
-### chapter-writer
-
-The `chapter-writer` subagent handles Phase 7b — generating all scenes for a single chapter. It receives a chapter number and story name from the orchestrator, then:
-
-1. Loads the chapter's expanded outline and parses scene definitions via `scene-writer`
-2. Assembles token-budgeted context from the wiki via `wiki-snapshot` for each scene
-3. Generates scenes sequentially (narrative flow depends on prior scene content)
-4. Assembles all scenes into the completed chapter via `scene-writer`
-
-The agent uses three skills:
-- **scene-writing** — narrative structure, pacing, transitions, and scene type conventions
-- **character-voice** — dialogue patterns, internal thought consistency, voice differentiation across characters
-- **context-budgeting** — token budget strategy, three-stage retrieval pipeline reference, composite scoring formula, detail level allocation, and delta caching strategy
-
-Named `chapter-writer` (not `scene-writer`) to avoid collision with the existing `scene-writer` tool. See the [agent definition](../../prompts/agents/chapter-writer.md) for the full workflow, savepoint strategy, and error handling.
-
-### chapter-outline-expander
-
-The `chapter-outline-expander` subagent handles Phase 7a — the one-time outline expansion pass that runs before chapter drafting begins. It receives the story name, total chapter count, `expand_outline` flag, and optional model override, then:
-
-1. Skips cleanly when outline expansion is disabled in config
-2. Loops from chapter 1 to `wanted_chapters`, calling `outline-generator` with `expand-chapter`
-3. Threads `continuitySummary` internally instead of keeping it in orchestrator memory
-4. Reads `chapters.{N-1}.handoff` from story state when available and prepends that structured continuity state to the next expansion request
-5. Writes each expanded outline to `chapters.{N}.expanded_outline` and records expansion progress savepoints
-
-The agent calls tools only and never dispatches subagents, preserving the depth-1 rule. Its main output is a complete set of expanded chapter outlines plus persisted continuity state for downstream chapter generation. See the [feature doc](./chapter-outline-expander.md) and the [agent definition](../../prompts/agents/chapter-outline-expander.md) for the full contract.
-
-### outline-planner
-
-The `outline-planner` subagent handles Phase 2 — transforming the raw story prompt into a structured, critiqued outline. It receives the story name, prompt text, and config values from the orchestrator, then executes a 5-phase pipeline:
-
-1. **Prompt Analysis** — Calls `outline-generator` with `analyze-prompt` to run the multi-step analysis pipeline: understand prompt, generate 8 analysis chunks (`core_story_foundation`, `character_foundation`, `setting_foundation`, `conflict_stakes`, `plot_structure`, `theme_message`, `tone_style`, `world_rules_logic`), extract story start date, and extract base context
-2. **Elements Synthesis** — Calls `outline-generator` with `generate-elements` to combine all 8 chunks into a unified `story_elements` savepoint
-3. **Outline Generation** — Either chunked (`expand-chapter` in loops of `outline_chunk_size`) or monolithic (`generate-outline`), controlled by `use_chunked_outline_generation` config
-4. **Critique & Refinement** (optional) — When `enable_outline_critique` is enabled, runs `critique-runner` critics against the outline and refines via `outline-generator` until the quality threshold (`outline_quality`, default 87) is met or `outline_critique_iterations` is exhausted
-5. **Return** — Reports final outline, critique score, and iteration count to the orchestrator
-
-The agent uses two skills:
-- **story-pipeline** — overall pipeline context, phase definitions, and config settings
-- **outline-structure** — outline JSON schemas, analysis chunk categories, savepoint naming conventions, quality criteria, and critic types
-
-See the [agent definition](../../prompts/agents/outline-planner.md) for the full workflow, savepoint strategy, and error handling.
-
-### wiki-maintainer
-
-The `wiki-maintainer` subagent handles Phase 6 (initial wiki population) and Phase 7c (post-chapter incremental updates). It operates in two modes:
-
-- **Mode 1: Initial Population** (Phase 6) — Extracts all known entities from the outline, character sheets, and setting sheets. Creates wiki pages at `planned` confidence with L1/L2/L3 detail summaries and establishes cross-reference wikilinks between related entities.
-- **Mode 2: Incremental Update** (Phase 7c) — After each assembled chapter, extracts new entities, state changes, events, aliases, and plot thread progression from the text. Creates or updates wiki pages at `verified` confidence, then runs `wiki-lint` consistency checks for that chapter.
-
-The agent uses five tools: `wiki-read`, `wiki-update`, `wiki-lint`, `wiki-search`, and `story-state`. All wiki mutations are submitted as batch payloads for atomic execution with rollback on failure.
-
-The agent uses two skills:
-- **wiki-maintenance** — entity extraction rules, confidence taxonomy, structured output formats, detail level guidelines, and chapter boundary procedures
-- **wiki-conventions** — page type schemas, YAML frontmatter specifications, wikilink conventions, and slug naming rules
-
-Named `wiki-maintainer` to reflect its lifecycle responsibility — maintaining wiki state across the full generation pipeline, not just creating pages. Runs on a 7b model (`deepseek-r1-abliterated:7b`) for low overhead. See the [agent definition](../../prompts/agents/wiki-maintainer.md) and [feature documentation](wiki-maintainer.md) for the full workflow, error handling, and entity type reference.
-
-### quality-reviewer
-
-The `quality-reviewer` subagent handles Phase 7f for one assembled chapter. It receives the story name, chapter number, full chapter text, and the chapter-quality config values from the orchestrator, then:
-
-1. Runs `critique-runner` critics for the current chapter draft and parses the score
-2. Checks acceptance against the configured quality threshold and the minimum/maximum revision rules
-3. Generates revision feedback and calls `scene-writer` with `operation: revise` when another pass is required
-4. Tracks the best score across iterations and saves quality revision checkpoints
-5. Returns `accepted_chapter_text`, `best_score`, `revision_count`, and `requires_post_processing` to the orchestrator
-
-The agent calls tools only and never dispatches subagents, preserving the depth-1 nesting rule introduced after the earlier nested-dispatch freeze. The orchestrator keeps ownership of downstream re-processing: when `requires_post_processing` is true, it re-runs the wiki update, recap generation, and wiki lint phases against the final accepted chapter.
-
-See the [agent definition](../../prompts/agents/quality-reviewer.md) for the full decision matrix, return contract, and savepoint naming.
-
-### consistency-checker
-
-The `consistency-checker` subagent handles Phase 7e for one assembled chapter. It receives the story name, chapter number, chapter file path, and full chapter text from the orchestrator, then runs a three-layer consistency analysis:
-
-1. **Wiki lint** — Calls `wiki-lint` with `operation: "check-chapter"` and the chapter file path (not inline text) to detect contradictions, timeline inconsistencies, and character trait drift against the wiki knowledge base
-2. **Semantic wiki analysis** — Extracts key entity mentions from the chapter (up to 5 most prominent) and calls `wiki-search` for each to retrieve current wiki state and cross-check against the chapter's portrayal
-3. **RAG cross-chapter analysis** — Calls `rag-query` with `contentType: "raw-chapter"` to retrieve prior accepted chapter passages and identify factual inconsistencies that span chapter boundaries
-
-The agent returns a structured consistency report to the orchestrator containing categorised findings, severity levels, affected entities, and an `is_blocking` flag for critical violations. The orchestrator passes this report to the `quality-reviewer` in Phase 7f. When `requires_post_processing` is `true`, the orchestrator re-dispatches `consistency-checker` against the final accepted chapter text before creating the chapter savepoint.
-
-The agent calls tools only and never dispatches subagents (depth-1 rule). See the [agent definition](../../prompts/agents/consistency-checker.md) for the full workflow, layer details, and return contract.
-
-### prose-scrubber
-
-The `prose-scrubber` subagent handles the conditional Phase 7.5 cleanup for one chapter after the quality gate has accepted the chapter text. It receives the story name, chapter number, and full config, then:
-
-1. Loads the shared `final-edit` skill for scope constraints and revision-budget rules
-2. Reads the current chapter object from story state and extracts the active text-bearing field
-3. Calls `scene-writer` `scrub-analyze` to load the `final_edit/prose_scrub` prompt, run sentence/paragraph-level analysis, and return structured issues using the `scrub_model` named model role when configured (aspirational — not yet implemented end-to-end; uses the default agent model until platform support for per-call model overrides is available)
-4. Applies up to five targeted `scene-writer` revision calls for actionable issues such as adverb overuse, filter words, repetitive phrasing, and show-vs-tell drift
-5. Writes the revised chapter object back to story state and records a `chapter_{N}_scrubbed` savepoint
-
-The scrubber is tool-only and explicitly constrained to prose scope: no plot changes, no entity-fact changes, and no wholesale rewrites. See [Prose Quality Passes](./prose-quality-passes.md) and the [agent definition](../../prompts/agents/prose-scrubber.md) for the full workflow.
-
-### final-editor
-
-The `final-editor` subagent handles the conditional Phase 9 manuscript polish after assembly. It receives the story name, the list of assembled chapter numbers, and full config, then:
-
-1. Loads the shared `final-edit` skill for scope constraints, pass types, and revision budgets
-2. Reads each chapter from story state and retrieves prior-chapter context via `rag-query`
-3. Calls `scene-writer` `voice-analyze` to run `final_edit/voice_consistency_pass` and return structured voice, pacing, and cross-chapter coherence issues
-4. Calls `scene-writer` `scrub-analyze` for a second sentence-level cleanup pass on the assembled manuscript text
-5. Applies targeted `scene-writer` revisions, writes each revised chapter back to story state, and creates `chapter_{N}_final_edited` savepoints plus a final `final_edit_complete` checkpoint
-
-This pass runs after assembly, not instead of Phase 7f. It preserves story events and facts while smoothing chapter-to-chapter style and pacing. See [Prose Quality Passes](./prose-quality-passes.md) and the [agent definition](../../prompts/agents/final-editor.md) for details.
-
-## Commands
-
-Users invoke the orchestrator through custom commands defined in `.opencode/commands/`. Four commands route directly to the story orchestrator agent:
-
-| Command | Purpose |
-|---------|---------|
-| `/new-story <prompt-file>` | Initialize a new story and start the full pipeline from Phase 1 |
-| `/continue [story-name]` | Resume generation from the most recent savepoint |
-| `/regenerate chapter N \| scene C S` | Regenerate a chapter or scene with wiki rollback |
-| `/savepoint [name]` | Create a manual savepoint at the current pipeline position |
-
-Three additional informational commands (`/status`, `/settings`, `/wiki`) use the default agent and do not invoke the orchestrator. See [Custom Commands](./custom-commands.md) for full documentation of all seven commands.
-
-## Tools
-
-The orchestrator uses 16 deterministic tools for file I/O, state management, assembly, and wiki operations. See [Tools Reference](../tools.md) for the shared tool architecture and current reference coverage.
-
-| Tool | Purpose |
-|------|---------|
-| `prompt-loader` | Load and render prompt templates |
-| `story-state` | Read/write story state |
-| `savepoint-mgr` | Create/restore/list savepoints |
-| `character-mgr` | Generate and manage character sheets |
-| `setting-mgr` | Generate and manage setting sheets |
-| `recap-manager` | Generate and manage chapter recaps |
-| `outline-generator` | Generate and expand story outlines |
-| `scene-writer` | Generate individual scenes |
-| `critique-runner` | Evaluate content quality and produce scores |
-| `story-assembler` | Assemble completed chapters into final story markdown and generate Phase 7g chapter handoff artifacts |
-| `wiki-init` | Initialise wiki directory structure |
-| `wiki-read` | Read wiki pages by slug or type |
-| `wiki-search` | Semantic search across wiki pages |
-| `wiki-snapshot` | Assemble token-budgeted context for generation |
-| `wiki-update` | Create or update wiki pages |
-| `wiki-lint` | Run consistency checks on wiki vs chapter content |
-
-## Savepoint Strategy
-
-Savepoints capture the full pipeline state at key milestones, enabling resume after interruption. Names use the format `{phase_descriptor}` — lowercase, underscore-separated, no zero-padding on chapter numbers.
-
-A savepoint contains:
-- Full story state JSON (outline, chapter content, metadata)
-- Wiki directory snapshot
-- Character and setting sheets
-- Generated recaps
-- Chapter handoff artifacts stored under `chapters.{N}.handoff`
-- Pipeline position (which phase/step completed)
-
-### Resume Mapping
-
-| Savepoint | Resumes At |
-|-----------|-----------|
-| `init` | Phase 2 (Outline) |
-| `outline_complete` | Phase 3 (Approval) |
-| `characters_complete` | Phase 6 (Wiki Population) |
-| `settings_complete` | Phase 6 (Wiki Population) |
-| `wiki_populated` | Phase 7, Chapter 1 |
-| `chapter_{N}_complete` | Phase 7, Chapter N+1 (or Phase 8 if last chapter) |
-| `story_complete` | Phase 9 (Final Edit) when enabled; otherwise pipeline complete |
-| `final_edit_complete` | Pipeline complete |
-
-## Configuration
-
-All pipeline settings are read from `config.md` YAML frontmatter under the `generation` key. The orchestrator never hardcodes these values.
-
-| Setting | Type | Default | Purpose |
-|---------|------|---------|---------|
-| `outline_quality` | int | 87 | Minimum critique score to accept outline |
-| `chapter_quality` | int | 85 | Minimum critique score to accept chapter |
-| `wanted_chapters` | int | 25 | Number of chapters to generate |
-| `outline_min_revisions` | int | 0 | Minimum outline revision passes before acceptance |
-| `outline_max_revisions` | int | 3 | Maximum outline revision attempts |
-| `chapter_min_revisions` | int | 0 | Minimum chapter revision passes before acceptance |
-| `chapter_max_revisions` | int | 3 | Maximum chapter revision attempts |
-| `enable_outline_critique` | bool | false | Run outline critique loop |
-| `outline_critique_iterations` | int | 3 | Critique passes on outline |
-| `enable_chapter_revisions` | bool | true | Run chapter revision loop |
-| `expand_outline` | bool | true | Expand outline into scene-level detail |
-| `scene_generation_pipeline` | bool | true | Use scene-by-scene generation |
-| `use_chunked_outline_generation` | bool | true | Generate outline in chunks |
-| `outline_chunk_size` | int | 10 | Chapters per outline chunk |
-| `enable_scrubbing` | bool | true | Run `prose-scrubber` after Phase 7f |
-| `enable_final_edit` | bool | false | Run `final-editor` after assembly |
-| `stream` | bool | true | Stream model output during generation |
-| `debug` | bool | true | Emit additional pipeline diagnostics |
-| `strategy` | string | `outline-chapter` | Story generation strategy identifier |
-
-Named model roles live under `config.models`. `prose-scrubber` reads `scrub_model` when configured (aspirational — per-call model routing is not yet implemented; falls back to the default agent model binding until platform support is available).
-
-## Story Pipeline Skill
-
-The `story-pipeline` skill (`.opencode/skills/story-pipeline/SKILL.md`) provides a detailed reference for the pipeline, including:
-
-- ASCII flow diagrams for overall pipeline and per-chapter loop
-- Phase definitions with inputs, outputs, tools, and savepoints
-- Quality gate logic and revision loop pseudocode
-- Wiki update lifecycle details
-- Interactive vs batch decision points
-- Savepoint strategy and resume instructions
-- Config settings reference table
-- Error recovery guidelines
-
-The skill is automatically available to the story-orchestrator agent and can be referenced by other agents that need to understand the pipeline sequence.
-
-## Context Budgeting Skill
-
-The `context-budgeting` skill (`.opencode/skills/context-budgeting/SKILL.md`) provides a detailed reference for managing the 65536-token context window, including:
-
-- Token budget allocation table (system overhead, story context, prompt template, input, generation output)
-- Five concrete context management rules (wiki-snapshot usage, character loading limits, synopsis preferences, outline scoping, stateless subagent design)
-- Three-stage retrieval pipeline reference: hybrid multi-tier retrieval (entity matching → metadata query → semantic search → wikilink traversal), composite scoring formula, detail level selection with priority tiers, and structured context assembly
-- Scene-type adaptation rules (dialogue-heavy, action, first-appearance)
-- Delta caching strategy for consecutive scenes within a chapter
-
-The skill is automatically available to the `story-orchestrator` and `chapter-writer` agents. It encodes the strategies defined in [ADR 002](../planning/adr/002-context-window-budget-strategy.md) and [ADR 005](../planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md).
-
-## Error Handling
-
-| Scenario | Behaviour |
-|----------|-----------|
-| Tool failure | Retry once; on second failure, halt with diagnostic |
-| Subagent failure | Retry delegation once; on second failure, halt |
-| Quality gate exhaustion | Accept best-scoring version, log warning, proceed |
-| Wiki lint findings | Advisory — logged and included in quality evaluation context |
-| Crash recovery | Restore latest savepoint via `savepoint-mgr`; resume from next phase |
-
-## Key Files
-
-- `prompts/agents/story-orchestrator.md` — Agent definition and phase sequencing
-- `prompts/agents/quality-reviewer.md` — Phase 7f chapter quality-review subagent definition
-- `prompts/agents/prose-scrubber.md` — Phase 7.5 prose scrub subagent definition
-- `prompts/agents/final-editor.md` — Phase 9 manuscript polish subagent definition
-- `prompts/agents/chapter-writer.md` — Phase 7b chapter writer subagent definition
-- `.opencode/skills/story-pipeline/SKILL.md` — Pipeline skill reference
-- `.opencode/skills/final-edit/SKILL.md` — Shared prose-editing constraints and revision-budget rules
-- `.opencode/skills/context-budgeting/SKILL.md` — Context budgeting skill reference
-- `prompts/final_edit/prose_scrub.md` — Sentence and paragraph-level scrub analysis prompt
-- `prompts/final_edit/voice_consistency_pass.md` — Voice, pacing, and cross-chapter coherence prompt
-- `opencode.json` — Agent registration with model binding and skill references
+Document those only when the corresponding code lands.
 
 ## Related
 
-- [Tools Reference](../tools.md) — Shared tool architecture and reference coverage
-- [Prose Quality Passes](./prose-quality-passes.md) — Conditional prose-scrub and final-edit layers, config flags, and scope constraints
-- [Architecture Notes](../../.github/notes/architecture.md) — System architecture overview
-- [ADR 001: Hybrid Agent-Tool Architecture](../planning/adr/001-hybrid-agent-tool-architecture.md) — Establishes agent-tool separation
-- [ADR 004: Progressive Wiki Memory System](../planning/adr/004-progressive-wiki-memory-system.md) — Wiki page format and lifecycle
-- [ADR 005: Hybrid Wiki Context Retrieval Pipeline](../planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md) — Three-stage context retrieval used by `wiki-snapshot`
-- [Migration Tasks](../planning/opencode-migration/tasks.md) — Task 17 (this feature), plus Tasks 18–20 for subagents
-- Issue #20 — Initial implementation
+- [Python-Native Foundation](./python-native-foundation.md)
+- [Pipeline Primitives](./pipeline-primitives.md)
+- [PRD: Python-Native Orchestration and TUI](../planning/python-native-migration/prd.md)
