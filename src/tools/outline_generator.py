@@ -450,6 +450,23 @@ def cmd_expand_chapter(
                 )
                 break
 
+    # Auto-load continuity_summary from the previous chapter's continuity savepoint
+    # when caller did not supply it. Keeps multi-KB continuity text out of agent
+    # tool-call args during Phase 7a iteration.
+    if (
+        (not continuity_summary or not continuity_summary.strip())
+        and phase == "chapter"
+        and chunk_start > 1
+    ):
+        prev_continuity_step = (
+            f"expansion_continuity_{chunk_start - 1}_{chunk_start - 1}"
+        )
+        if _has_savepoint(repo, prev_continuity_step):
+            loaded = _load_savepoint(repo, prev_continuity_step)
+            continuity_summary = (
+                loaded if isinstance(loaded, str) else json.dumps(loaded, default=str)
+            )
+
     # --- Generate chunk outline ---
     if _has_savepoint(repo, chunk_step):
         chunk_text = _load_savepoint(repo, chunk_step)

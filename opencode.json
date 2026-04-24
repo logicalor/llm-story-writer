@@ -92,7 +92,7 @@
     },
     "chapter-outline-expander": {
       "mode": "subagent",
-      "description": "Expands all chapter outlines for a story during Phase 7a. Manages continuitySummary threading internally and reads prior chapter handoff artifacts. Calls outline-generator, story-state, and savepoint-mgr only.",
+      "description": "Expands all chapter outlines for a story during Phase 7a. Continuity threading is handled by outline-generator expand-chapter via savepoint auto-load. Calls outline-generator, story-state, and savepoint-mgr only.",
       "model": "lmstudio/gemma-4-26b-a4b-it-heretic-guff",
       "permission": {
         "bash": "deny",
