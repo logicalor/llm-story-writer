@@ -472,3 +472,130 @@ The `expand-chapter` tool calls all succeed with no error signal — the failure
 ```
 
 ChromaDB ID: `gotcha-chunked-outline-consolidation-no-auto-merge-013`
+
+---
+
+## Story Storage
+
+### 016 — Story state file is `state.json` — not `story_state.json`
+
+**Source:** issue #161, PR #171
+**Severity:** warning
+
+All story directories in this repository store state in **`state.json`**, not `story_state.json`.
+Verified storage locations:
+
+- `stories/test_story/state.json`
+- `stories/test-story/state.json`
+- `stories/the-silence-between-stars/state.json`
+
+A new module that constructs the path `story_state.json` will silently receive an empty result
+when the file is missing — the typical file-loading fallback (`return ""` / `return {}`) makes
+the mismatch invisible at runtime. The pipeline then proceeds with an empty story concept and
+produces no error until downstream phases fail.
+
+**Right:** load from `story_dir / "state.json"` — consistent with all existing tools.
+**Wrong:** `story_dir / "story_state.json"` — no such file exists in any story directory.
+
+ChromaDB ID: `gotcha-story-state-filename-convention-016`
+
+---
+
+### 017 — `src/presentation/` modules must define `_STORIES_DIR` as a `__file__`-anchored constant
+
+**Source:** issue #161, PR #171
+**Severity:** warning
+
+`src/tools/_io.py` defines `STORIES_DIR` using an anchor derived from `__file__`:
+
+```python
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
+```
+
+Modules in `src/presentation/` are in a different architectural layer and should **not** import
+directly from `src/tools/_io.py`. Instead, define an equivalent module-level constant using the
+same `__file__`-anchored pattern:
+
+```python
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(_PROJECT_ROOT / "stories")))
+```
+
+**Wrong:** bare `Path("stories") / story_name` — resolves against the process CWD. Silently
+targets the wrong location when invoked from any directory other than the project root (CI,
+systemd, test subdirectory). The real project tree gets written into during test runs because
+pytest runs from the project root and mocks are not always complete.
+
+**Right:** `_STORIES_DIR / story_name` — anchored to the file's own location, independent of
+process CWD. Overridable via `STORIES_DIR` environment variable for tests.
+
+Relation to gotcha #011: #011 covers `src/tools/` modules and `STORIES_DIR` testing patterns;
+this entry extends the convention to `src/presentation/` and other non-tools layers.
+
+ChromaDB ID: `gotcha-stories-dir-presentation-layer-017`
+
+---
+
+### 018 — `_validate_story_name()` is required in all Python entry points accepting user-supplied story names
+
+**Source:** issue #161, PR #171
+**Severity:** warning
+
+`_validate_story_name()` from `src/tools/_io.py` is the canonical story-name security guard. It
+performs two critical operations on every entry: (1) path traversal rejection — any name
+containing `../` or similar sequences raises `SystemExit`; (2) normalisation — converts the name
+to the kebab-case form used as the story directory name.
+
+**Every existing story-facing tool** calls this function immediately upon receiving a `story_name`
+argument (`savepoint_manager.py`, `story_state.py`, `wiki_maintainer.py`, `critique_runner.py`,
+etc.). Omitting the call in a new module creates a path traversal surface (CWE-22) where a
+maliciously crafted story name can escape the `STORIES_DIR` base.
+
+```python
+# Right — canonical story-name guard at entry point:
+from src.tools._io import _validate_story_name
+
+def run_pipeline(story_name: str, ...) -> PipelineState:
+    story_dir = _validate_story_name(story_name)  # raises on traversal; normalises to kebab-case
+    ...
+```
+
+**Test isolation:** use `monkeypatch.setattr(module, "_validate_story_name", lambda n: tmp_path / n)`
+or patch the import; the guard prevents the function from resolving real disk paths in unit tests.
+
+ChromaDB ID: `gotcha-validate-story-name-entry-point-requirement-018`
+
+---
+
+## Python Patterns
+
+### 019 — Use `isinstance()` for type dispatch — never `type(x).__name__` string comparison
+
+**Source:** issue #161, PR #171
+**Severity:** warning
+
+`type(x).__name__ == "ClassName"` is a fragile type-dispatch pattern with two silent failure modes:
+
+1. **Subclass bypass** — a subclass of `ClassName` has a different `__name__` (the subclass name),
+   so the check returns `False` for a valid subclass instance. The caller falls back silently to
+   unexpected behaviour with no error signal.
+2. **Rename breakage** — if `ClassName` is renamed during a refactor, the comparison continues to
+   compile and run but always returns `False`, silently disabling every branch that depended on it.
+
+`isinstance()` is immune to both:
+
+```python
+# Wrong — breaks on subclass or rename:
+batch_mode = type(gate).__name__ == "NullApprovalGate"
+
+# Right — semantically correct, survives subclass and rename:
+from src.presentation.pipeline_primitives import NullApprovalGate
+batch_mode = isinstance(gate, NullApprovalGate)
+```
+
+This applies to any conditional that uses a class as a discriminant: gate/mode detection, dispatch
+tables, factory branches. The pattern generates no lint warning and no type error — it fails only
+in production when the type hierarchy changes.
+
+ChromaDB ID: `gotcha-isinstance-not-type-name-019`
