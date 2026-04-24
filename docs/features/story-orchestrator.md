@@ -11,6 +11,8 @@ The orchestrator operates in two modes:
 - **Interactive mode** (default): Pauses at approval gates for human review and steering. The user can inspect outlines, character sheets, and settings before generation proceeds.
 - **Batch mode** (`--batch`): Auto-proceeds through all approval gates for unattended generation runs.
 
+The shared agent prompt for this controller now lives at `prompts/agents/story-orchestrator.md`. Issue #158 also introduced typed Python handoff objects in `src/application/pipeline/handoffs.py` so later migration work can move phase outputs between Python orchestration layers without relying on ad hoc dictionaries.
+
 ## Pipeline Phases
 
 The pipeline executes ten primary phases sequentially, with an additional conditional Phase 7.5 prose scrub inside the per-chapter loop. Phase 2.5 inserts a dedicated dramatic arc analysis pass after the outline is finalized and before the human approval gate. Each phase completes fully before the next begins, and key phases create savepoints for resume capability.
@@ -160,7 +162,7 @@ The `character-sheet-generator` subagent handles Phase 5 — generating all char
 
 The agent uses five tools: `prompt-loader`, `character-mgr`, `setting-mgr`, `story-state`, and `savepoint-mgr`. Sheet generation is contained entirely within this subagent; the orchestrator receives only a compact summary to keep context lean.
 
-See the [agent definition](../../.opencode/agents/character-sheet-generator.md) for the full workflow, savepoint strategy, and generation prompt references.
+See the [agent definition](../../prompts/agents/character-sheet-generator.md) for the full workflow, savepoint strategy, and generation prompt references.
 
 ### chapter-writer
 
@@ -176,7 +178,7 @@ The agent uses three skills:
 - **character-voice** — dialogue patterns, internal thought consistency, voice differentiation across characters
 - **context-budgeting** — token budget strategy, three-stage retrieval pipeline reference, composite scoring formula, detail level allocation, and delta caching strategy
 
-Named `chapter-writer` (not `scene-writer`) to avoid collision with the existing `scene-writer` tool. See the [agent definition](../../.opencode/agents/chapter-writer.md) for the full workflow, savepoint strategy, and error handling.
+Named `chapter-writer` (not `scene-writer`) to avoid collision with the existing `scene-writer` tool. See the [agent definition](../../prompts/agents/chapter-writer.md) for the full workflow, savepoint strategy, and error handling.
 
 ### chapter-outline-expander
 
@@ -188,7 +190,7 @@ The `chapter-outline-expander` subagent handles Phase 7a — the one-time outlin
 4. Reads `chapters.{N-1}.handoff` from story state when available and prepends that structured continuity state to the next expansion request
 5. Writes each expanded outline to `chapters.{N}.expanded_outline` and records expansion progress savepoints
 
-The agent calls tools only and never dispatches subagents, preserving the depth-1 rule. Its main output is a complete set of expanded chapter outlines plus persisted continuity state for downstream chapter generation. See the [feature doc](./chapter-outline-expander.md) and the [agent definition](../../.opencode/agents/chapter-outline-expander.md) for the full contract.
+The agent calls tools only and never dispatches subagents, preserving the depth-1 rule. Its main output is a complete set of expanded chapter outlines plus persisted continuity state for downstream chapter generation. See the [feature doc](./chapter-outline-expander.md) and the [agent definition](../../prompts/agents/chapter-outline-expander.md) for the full contract.
 
 ### outline-planner
 
@@ -204,7 +206,7 @@ The agent uses two skills:
 - **story-pipeline** — overall pipeline context, phase definitions, and config settings
 - **outline-structure** — outline JSON schemas, analysis chunk categories, savepoint naming conventions, quality criteria, and critic types
 
-See the [agent definition](../../.opencode/agents/outline-planner.md) for the full workflow, savepoint strategy, and error handling.
+See the [agent definition](../../prompts/agents/outline-planner.md) for the full workflow, savepoint strategy, and error handling.
 
 ### wiki-maintainer
 
@@ -219,7 +221,7 @@ The agent uses two skills:
 - **wiki-maintenance** — entity extraction rules, confidence taxonomy, structured output formats, detail level guidelines, and chapter boundary procedures
 - **wiki-conventions** — page type schemas, YAML frontmatter specifications, wikilink conventions, and slug naming rules
 
-Named `wiki-maintainer` to reflect its lifecycle responsibility — maintaining wiki state across the full generation pipeline, not just creating pages. Runs on a 7b model (`deepseek-r1-abliterated:7b`) for low overhead. See the [agent definition](../../.opencode/agents/wiki-maintainer.md) and [feature documentation](wiki-maintainer.md) for the full workflow, error handling, and entity type reference.
+Named `wiki-maintainer` to reflect its lifecycle responsibility — maintaining wiki state across the full generation pipeline, not just creating pages. Runs on a 7b model (`deepseek-r1-abliterated:7b`) for low overhead. See the [agent definition](../../prompts/agents/wiki-maintainer.md) and [feature documentation](wiki-maintainer.md) for the full workflow, error handling, and entity type reference.
 
 ### quality-reviewer
 
@@ -233,7 +235,7 @@ The `quality-reviewer` subagent handles Phase 7f for one assembled chapter. It r
 
 The agent calls tools only and never dispatches subagents, preserving the depth-1 nesting rule introduced after the earlier nested-dispatch freeze. The orchestrator keeps ownership of downstream re-processing: when `requires_post_processing` is true, it re-runs the wiki update, recap generation, and wiki lint phases against the final accepted chapter.
 
-See the [agent definition](../../.opencode/agents/quality-reviewer.md) for the full decision matrix, return contract, and savepoint naming.
+See the [agent definition](../../prompts/agents/quality-reviewer.md) for the full decision matrix, return contract, and savepoint naming.
 
 ### consistency-checker
 
@@ -245,7 +247,7 @@ The `consistency-checker` subagent handles Phase 7e for one assembled chapter. I
 
 The agent returns a structured consistency report to the orchestrator containing categorised findings, severity levels, affected entities, and an `is_blocking` flag for critical violations. The orchestrator passes this report to the `quality-reviewer` in Phase 7f. When `requires_post_processing` is `true`, the orchestrator re-dispatches `consistency-checker` against the final accepted chapter text before creating the chapter savepoint.
 
-The agent calls tools only and never dispatches subagents (depth-1 rule). See the [agent definition](../../.opencode/agents/consistency-checker.md) for the full workflow, layer details, and return contract.
+The agent calls tools only and never dispatches subagents (depth-1 rule). See the [agent definition](../../prompts/agents/consistency-checker.md) for the full workflow, layer details, and return contract.
 
 ### prose-scrubber
 
@@ -257,7 +259,7 @@ The `prose-scrubber` subagent handles the conditional Phase 7.5 cleanup for one 
 4. Applies up to five targeted `scene-writer` revision calls for actionable issues such as adverb overuse, filter words, repetitive phrasing, and show-vs-tell drift
 5. Writes the revised chapter object back to story state and records a `chapter_{N}_scrubbed` savepoint
 
-The scrubber is tool-only and explicitly constrained to prose scope: no plot changes, no entity-fact changes, and no wholesale rewrites. See [Prose Quality Passes](./prose-quality-passes.md) and the [agent definition](../../.opencode/agents/prose-scrubber.md) for the full workflow.
+The scrubber is tool-only and explicitly constrained to prose scope: no plot changes, no entity-fact changes, and no wholesale rewrites. See [Prose Quality Passes](./prose-quality-passes.md) and the [agent definition](../../prompts/agents/prose-scrubber.md) for the full workflow.
 
 ### final-editor
 
@@ -269,7 +271,7 @@ The `final-editor` subagent handles the conditional Phase 9 manuscript polish af
 4. Calls `scene-writer` `scrub-analyze` for a second sentence-level cleanup pass on the assembled manuscript text
 5. Applies targeted `scene-writer` revisions, writes each revised chapter back to story state, and creates `chapter_{N}_final_edited` savepoints plus a final `final_edit_complete` checkpoint
 
-This pass runs after assembly, not instead of Phase 7f. It preserves story events and facts while smoothing chapter-to-chapter style and pacing. See [Prose Quality Passes](./prose-quality-passes.md) and the [agent definition](../../.opencode/agents/final-editor.md) for details.
+This pass runs after assembly, not instead of Phase 7f. It preserves story events and facts while smoothing chapter-to-chapter style and pacing. See [Prose Quality Passes](./prose-quality-passes.md) and the [agent definition](../../prompts/agents/final-editor.md) for details.
 
 ## Commands
 
@@ -399,11 +401,11 @@ The skill is automatically available to the `story-orchestrator` and `chapter-wr
 
 ## Key Files
 
-- `.opencode/agents/story-orchestrator.md` — Agent definition and phase sequencing
-- `.opencode/agents/quality-reviewer.md` — Phase 7f chapter quality-review subagent definition
-- `.opencode/agents/prose-scrubber.md` — Phase 7.5 prose scrub subagent definition
-- `.opencode/agents/final-editor.md` — Phase 9 manuscript polish subagent definition
-- `.opencode/agents/chapter-writer.md` — Phase 7b chapter writer subagent definition
+- `prompts/agents/story-orchestrator.md` — Agent definition and phase sequencing
+- `prompts/agents/quality-reviewer.md` — Phase 7f chapter quality-review subagent definition
+- `prompts/agents/prose-scrubber.md` — Phase 7.5 prose scrub subagent definition
+- `prompts/agents/final-editor.md` — Phase 9 manuscript polish subagent definition
+- `prompts/agents/chapter-writer.md` — Phase 7b chapter writer subagent definition
 - `.opencode/skills/story-pipeline/SKILL.md` — Pipeline skill reference
 - `.opencode/skills/final-edit/SKILL.md` — Shared prose-editing constraints and revision-budget rules
 - `.opencode/skills/context-budgeting/SKILL.md` — Context budgeting skill reference

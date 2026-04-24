@@ -19,10 +19,11 @@ The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) th
 
 | File | Purpose |
 |------|---------|
-| `.opencode/agents/wiki-maintainer.md` | Agent definition — workflows, tools, constraints, error handling |
+| `prompts/agents/wiki-maintainer.md` | Agent definition — workflows, tools, constraints, error handling |
 | `.opencode/skills/wiki-maintenance/SKILL.md` | Skill reference — entity schemas, confidence taxonomy, output formats, error taxonomy |
 | `.opencode/skills/wiki-conventions/SKILL.md` | Skill reference — page type schemas, YAML frontmatter specs, wikilink conventions, naming rules |
-| `opencode.json` | Agent registration with 7b model configuration via the OpenAI-compatible provider adapter |
+| `opencode.json` | Agent registration with model and permission settings |
+| `src/infrastructure/prompts/agent_prompt_loader.py` | Shared Python-native loader for prompt bodies in `prompts/agents/` |
 
 ## Tools
 
@@ -175,19 +176,9 @@ Beyond the standard alias identification rules, the wiki maintainer handles thre
 
 ## Model Configuration
 
-The wiki maintainer is registered in `opencode.json` with a 7b model for efficient operation. The provider key uses the `@ai-sdk/openai-compatible` adapter and targets the generic `/v1` API of whichever local server is configured:
+The agent remains registered in `opencode.json` for current OpenCode execution, while its reusable prompt content now lives in `prompts/agents/wiki-maintainer.md`. Python-native orchestration work reads that file through `src/infrastructure/prompts/agent_prompt_loader.py`, which strips YAML frontmatter before returning the body.
 
-```json
-{
-  "wiki-maintainer": {
-    "model": "lmstudio/huihui_ai/deepseek-r1-abliterated:7b",
-    "instructions": ".opencode/agents/wiki-maintainer.md",
-    "skills": ["wiki-maintenance", "wiki-conventions"]
-  }
-}
-```
-
-The smaller model keeps wiki maintenance lightweight. Instructions are structured as explicit, sequential steps to ensure reliable execution at this model size.
+The wiki maintainer continues to run on a smaller 7b model for lightweight maintenance work. Instructions stay explicit and sequential so the workflow remains reliable at that model size.
 
 The agent uses two skills:
 - **wiki-maintenance** — entity extraction rules, confidence taxonomy, structured output formats, detail level guidelines, chapter boundary procedures, and ConStory-Bench error taxonomy
