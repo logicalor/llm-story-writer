@@ -113,7 +113,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-In the planned TUI, this bus feeds the wiki context panel. In headless mode, the orchestrator can still emit the same events while the runner ignores them or drains them with a no-op consumer.
+In the Textual TUI, this bus feeds the wiki context panel. In headless mode, the orchestrator can still emit the same events while the runner ignores them or drains them with a no-op consumer.
 
 ## Developer Guide
 

@@ -88,7 +88,7 @@ Available subcommands:
 
 | Command | Current behavior |
 |---------|------------------|
-| `story-writer tui --story <name>` | Lazy-imports the future Textual app and exits with a helpful message if that app is unavailable |
+| `story-writer tui --story <name>` | Lazy-imports `StoryWriterApp` and launches the interactive Textual TUI; if `textual` is missing, exits with an install hint |
 | `story-writer run --story <name> [--batch]` | Runs the headless orchestrator via `run_pipeline()` |
 | `story-writer resume --story <name> [--savepoint <name>]` | Resumes via `resume_pipeline()` from the persisted pipeline state |
 
