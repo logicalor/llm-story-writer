@@ -104,12 +104,13 @@ The outline itself remains the authoritative input. Phase 2.5 analyzes the exist
 ### Key Files
 
 - `prompts/agents/story-planner.md` — subagent contract and workflow
-- `.opencode/tools/critique-runner.ts` — wrapper that forwards `run-arc-analysis` and optional `criticSummary`
 - `src/tools/critique_runner.py` — arc-analysis prompt orchestration and savepoint persistence
 - `prompts/outline_arc/arc_distribution.md` — dramatic-weight prompt
 - `prompts/outline_arc/promise_payoff.md` — setup/payoff prompt
 - `prompts/outline_arc/arc_synthesis.md` — synthesis prompt
 - `prompts/agents/story-orchestrator.md` — Phase 2.5 integration and Phase 3 presentation rules
+
+Task 7 of the Python-native migration removed the former `.opencode/tools/critique-runner.ts` wrapper. `story-planner` now depends only on the Python implementation path in `src/tools/critique_runner.py`.
 
 ### Constraints
 

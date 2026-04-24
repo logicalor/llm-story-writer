@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Last Updated:** April 2026
-**Stack:** Python 3.x · TypeScript · OpenCode · ChromaDB · OpenAI-compatible local LLM (LM Studio default)
+**Stack:** Python 3.10+ · OpenCode · ChromaDB · OpenAI-compatible local LLM (LM Studio default)
 
 ---
 
@@ -46,7 +46,7 @@ The system uses a **hybrid agent-tool architecture** (per [ADR 001](planning/adr
 | Component | Technology | Role |
 |-----------|------------|------|
 | **Agents** | OpenCode | Orchestration, creative decisions, human interaction |
-| **Tools** | TypeScript wrappers + Python scripts | Deterministic domain operations |
+| **Tools** | Python modules and scripts | Deterministic domain operations |
 | **Wiki** | Markdown + YAML frontmatter | Structured story knowledge base |
 | **Vector index** | ChromaDB | Semantic search over story content and wiki |
 
@@ -58,8 +58,8 @@ The system uses a **hybrid agent-tool architecture** (per [ADR 001](planning/adr
 src/domain/          → Entities, value objects (core business rules, no dependencies)
 src/application/     → Services, strategies (use cases, depends on domain)
 src/infrastructure/  → Providers, storage (external adapters: OpenAI-compatible LLM, ChromaDB, disk I/O)
-src/presentation/   → CLI interfaces
-src/tools/          → Python tool implementations (called by TypeScript wrappers)
+src/presentation/    → CLI entry points and pipeline orchestration
+src/tools/           → Python tool implementations and ad-hoc CLIs
 ```
 
 Each layer depends only on inner layers. `src/domain/` has zero external dependencies.
@@ -69,12 +69,12 @@ Each layer depends only on inner layers. `src/domain/` has zero external depende
 ```
 User prompt (.txt)
     ↓
-story-orchestrator (OpenCode agent)
+story-writer CLI / orchestrator
     ↓
 ┌─────────────────────────────────────────────┐
-│  Tools (TypeScript wrappers → Python scripts) │
-│  prompt-loader · story-state · wiki-*        │
-│  savepoint-mgr · character-mgr · etc.        │
+│  Python tools and services                    │
+│  prompt_loader · story_state · wiki_*         │
+│  savepoint_manager · character_manager · etc. │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
@@ -96,8 +96,8 @@ stories/<name>/  (chapters, wiki, savepoints)
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| Python | 3.8+ | |
-| OpenCode | latest | CLI tool for agent orchestration |
+| Python | 3.10+ | Required by `pyproject.toml` |
+| OpenCode | latest | Optional for legacy slash-command workflows and plugins |
 | OpenAI-compatible LLM server | any | LM Studio (default), Ollama, llama.cpp, vLLM, etc. |
 
 ### 3.2 Installation Steps
@@ -114,8 +114,9 @@ opencode --version
 #    e.g. LM Studio (default: http://127.0.0.1:1234/v1) — load model via the UI
 #    or:  ollama serve && ollama pull <model-name>
 
-# 4. Install Python dependencies
+# 4. Install Python dependencies and the console script
 pip install -r requirements.txt
+pip install -e .
 
 # 5. Copy and configure
 cp config.example.sh config.sh
@@ -192,31 +193,29 @@ Each phase of the pipeline uses a specific model:
 
 ## 5. Usage
 
-### 5.1 Interactive Mode (OpenCode TUI)
+### 5.1 Python CLI
+
+```bash
+story-writer --help
+```
+
+Available subcommands:
+
+| Command | Description |
+|---------|-------------|
+| `story-writer tui --story <name>` | Attempt to launch the future Textual TUI; currently exits with a helpful message if the app is unavailable |
+| `story-writer run --story <name> [--batch]` | Run the headless Python-native pipeline |
+| `story-writer resume --story <name> [--savepoint <name>]` | Resume from the persisted pipeline state |
+
+`run` currently uses `NullApprovalGate` internally, so it behaves headlessly even when `--batch` is omitted. The flag remains for forward compatibility with later interactive surfaces.
+
+### 5.2 OpenCode Workflow
 
 ```bash
 opencode
 ```
 
-Available slash commands in the TUI:
-
-| Command | Description |
-|---------|-------------|
-| `/new-story prompts/YourPrompt.txt` | Initialize and start a new story |
-| `/continue [story-name]` | Resume from last savepoint |
-| `/status` | Show generation progress |
-| `/savepoint [name]` | Create a named savepoint |
-| `/wiki [query]` | Search the story wiki |
-| `/settings` | Show current configuration |
-| `/regenerate [chapter]` | Regenerate a specific chapter |
-
-### 5.2 Batch Mode
-
-```bash
-opencode --batch
-```
-
-Auto-proceeds through all approval gates without pausing for human review.
+OpenCode remains in the repository for agent prompts, skills, commands, and plugins. Use it when you need the existing slash-command workflow rather than the Python-native CLI.
 
 ### 5.3 Story Generation Pipeline
 
@@ -299,7 +298,7 @@ llm-story-writer/
 │   │   ├── prompts/          # PromptLoader class
 │   │   ├── savepoints/       # SavepointManager
 │   │   └── logging/          # Logging configuration
-│   ├── presentation/         # CLI interfaces
+│   ├── presentation/         # CLI interfaces and orchestrator
 │   ├── config/               # Config management
 │   └── tools/                # Python tool implementations
 │       ├── prompt_loader.py
@@ -317,13 +316,7 @@ llm-story-writer/
 │   │   ├── story-planner.md
 │   │   ├── chapter-writer.md
 │   │   └── wiki-maintainer.md
-│   ├── tools/                # TypeScript tool wrappers
-│   │   ├── prompt-loader.ts
-│   │   ├── story-state.ts
-│   │   ├── wiki-*.ts
-│   │   ├── savepoint-mgr.ts
-│   │   ├── _run.ts           # Shared Python tool runner
-│   │   └── ...
+│   ├── tools/                # Placeholder directory (.gitkeep only after Task 7)
 │   ├── skills/               # Reusable skill definitions
 │   │   ├── story-pipeline/
 │   │   ├── wiki-conventions/
@@ -464,56 +457,56 @@ Agent system prompts now live in `prompts/agents/` as Markdown files. The curren
 
 ### 8.2 Tools
 
-Tools are TypeScript wrappers (`.opencode/tools/*.ts`) that call Python scripts (`src/tools/*.py`) via subprocess. Each tool handles a specific deterministic operation.
+Tools are Python modules under `src/tools/`. The runtime imports them directly or calls the same Python services in-process; there is no TypeScript wrapper layer anymore.
 
 #### Core Tools
 
 | Tool | Purpose |
 |------|---------|
-| `prompt-loader` | Load and render prompt templates with variable substitution |
-| `story-state` | Initialize and update story state JSON |
-| `savepoint-mgr` | Create, inspect, and restore savepoints (`list` = names only, `list-full` = full payloads) |
-| `character-mgr` | Extract and manage character sheets |
-| `setting-mgr` | Extract and manage setting sheets |
-| `recap-manager` | Generate and manage chapter recaps |
+| `prompt_loader.py` | Load and render prompt templates with variable substitution |
+| `story_state.py` | Initialize and update story state JSON |
+| `savepoint_manager.py` | Create, inspect, and restore savepoints (`list` = names only, `list-full` = full payloads) |
+| `character_manager.py` | Extract and manage character sheets |
+| `setting_manager.py` | Extract and manage setting sheets |
+| `recap_manager.py` | Generate and manage chapter recaps |
 
 #### Wiki Tools
 
 | Tool | Purpose |
 |------|---------|
-| `wiki-init` | Initialize wiki directory structure and schema |
-| `wiki-update` | Update wiki pages after scene/chapter |
-| `wiki-read` | Read wiki pages at specified detail levels |
-| `wiki-search` | Semantic search over wiki pages (ChromaDB) |
-| `wiki-snapshot` | Assemble token-budgeted world state snapshot |
-| `wiki-lint` | Consistency check against error taxonomy |
-| `wiki-lint` | Check wiki page format compliance |
+| `wiki_init.py` | Initialize wiki directory structure and schema |
+| `wiki_update.py` | Update wiki pages after scene/chapter |
+| `wiki_read.py` | Read wiki pages at specified detail levels |
+| `wiki_search.py` | Semantic search over wiki pages (ChromaDB) |
+| `wiki_snapshot.py` | Assemble token-budgeted world state snapshot |
+| `wiki_extract.py` | Extract candidate wiki facts from text |
+| `wiki_lint.py` | Check wiki page format and consistency compliance |
 
 #### RAG Tools
 
 | Tool | Purpose |
 |------|---------|
-| `rag-query` | Query ChromaDB for relevant story content chunks |
+| `rag_query.py` | Query ChromaDB for relevant story content chunks |
 
 #### Critique Tools
 
 | Tool | Purpose |
 |------|---------|
-| `critique-runner` | Run quality critique on outline or chapter |
+| `critique_runner.py` | Run quality critique on outline or chapter |
 
 ### 8.3 Tool Architecture
 
 ```
 Agent call
     ↓
-TypeScript wrapper (.opencode/tools/<tool>.ts)
-  — Zod schema for argument validation
-  — execFileSync to invoke Python script
+Python tool or service
+  — argparse for shell usage where needed
+  — direct import for runtime orchestration
     ↓
 Python script (src/tools/<tool_name>.py)
   — argparse for argument parsing
   — Domain logic via src/infrastructure/ classes
-  — stdout for result, stderr for errors
+  — stdout for CLI result, stderr for errors
     ↓
 Result returned to agent
 ```

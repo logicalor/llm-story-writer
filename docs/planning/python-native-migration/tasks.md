@@ -173,6 +173,8 @@ Current implementation note: the code path does not yet include the PRD's narrat
 **Estimated scope:** small
 **Dependencies:** Task 5
 
+**Status:** implemented in Issue #162 / PR #172
+
 **Description:**
 
 Replace the `NotImplementedError` stub in `src/presentation/cli/main.py` with an argparse-based entry point exposing three subcommands: `tui` (launch Textual app — implemented in Task 8), `run --batch` (headless pipeline via `NullApprovalGate`), and `resume` (load latest savepoint and continue). Add a `story-writer` console script entry in `pyproject.toml`.
@@ -181,11 +183,13 @@ The `tui` subcommand should import lazily so that `run` and `resume` work before
 
 **Acceptance Criteria:**
 
-- [ ] `python -m src.presentation.cli.main run --story test_story --batch` executes the full pipeline headlessly and exits with code 0
-- [ ] `python -m src.presentation.cli.main resume --story test_story` loads the latest savepoint and continues
-- [ ] `--help` prints coherent usage for all subcommands
-- [ ] Console script `story-writer` works after `pip install -e .`
-- [ ] Unit test invokes the argparse parser and verifies subcommand dispatch
+- [x] `python -m src.presentation.cli.main run --story test_story --batch` executes the full pipeline headlessly and exits with code 0
+- [x] `python -m src.presentation.cli.main resume --story test_story` loads the latest savepoint and continues
+- [x] `--help` prints coherent usage for all subcommands
+- [x] Console script `story-writer` works after `pip install -e .`
+- [x] Unit test invokes the argparse parser and verifies subcommand dispatch
+
+Current implementation note: `run` accepts `--batch` for CLI compatibility, but `_cmd_run()` currently always uses `NullApprovalGate()`, so runs are headless even when the flag is omitted. The `tui` subcommand is wired with a lazy import and currently exits with a helpful message until the Textual app lands.
 
 **Key Files:**
 
@@ -202,16 +206,20 @@ The `tui` subcommand should import lazily so that `run` and `resume` work before
 **Estimated scope:** small
 **Dependencies:** Task 5
 
+**Status:** implemented in Issue #162 / PR #172
+
 **Description:**
 
 Delete all files under `.opencode/tools/*.ts`. Verify that the orchestrator (Task 5) imports and calls the underlying `src/tools/*.py` and `src/application/services/` modules directly, with no subprocess invocation. Retain the standalone CLI behaviour of `src/tools/*.py` for ad-hoc shell use (argparse entry points stay).
 
 **Acceptance Criteria:**
 
-- [ ] `.opencode/tools/` is empty or deleted
-- [ ] `grep -r "subprocess" src/presentation/` returns no results (orchestrator must not shell out)
-- [ ] Ad-hoc execution `python -m src.tools.wiki_search --story test ...` still works
-- [ ] No test fails because of the deletion
+- [x] `.opencode/tools/` is empty except for `.gitkeep`
+- [x] `grep -r "subprocess" src/presentation/` returns no results (orchestrator must not shell out)
+- [x] Ad-hoc execution `python -m src.tools.wiki_search --story test ...` still works
+- [x] No test fails because of the deletion
+
+Current implementation note: runtime orchestration now imports Python modules directly from `src/presentation/` and `src/tools/`. The standalone `src/tools/*.py` CLIs remain available for shell use.
 
 **Key Files:**
 

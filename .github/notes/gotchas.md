@@ -599,3 +599,93 @@ tables, factory branches. The pattern generates no lint warning and no type erro
 in production when the type hierarchy changes.
 
 ChromaDB ID: `gotcha-isinstance-not-type-name-019`
+
+---
+
+## CLI / Entry Points
+
+### 020 — `pyproject.toml [build-system]`: correct backend string is `setuptools.build_meta`
+
+**Source:** issue #162, PR #172
+**Severity:** critical
+
+The PEP 517 build backend for setuptools is **`setuptools.build_meta`** — not `setuptools.backends.legacy:build` or any other variant. The invalid string does not fail at `pyproject.toml` parse time; it fails at `pip install` / `python -m build` time with a confusing `ModuleNotFoundError` or `BackendUnavailable` error that does not name the pyproject field.
+
+**Wrong:**
+```toml
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.backends.legacy:build"
+```
+
+**Right:**
+```toml
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+```
+
+The correct `build-backend` string matches the Python import path of the backend module (`setuptools.build_meta`). The string `setuptools.backends.legacy:build` is a fabrication — `setuptools.backends` is not a valid module path.
+
+ChromaDB ID: `gotcha-pyproject-build-backend-020`
+
+---
+
+### 021 — Headless CLI pipeline invocation: use `NullApprovalGate` + `TokenStreamBus` + `WikiContextBus`
+
+**Source:** issue #162, PR #172
+**Severity:** info
+
+The canonical pattern for invoking `run_pipeline()` or `resume_pipeline()` from a non-interactive CLI context (batch mode, console script, CI) is:
+
+```python
+import asyncio
+from src.presentation.pipeline_primitives import (
+    NullApprovalGate,
+    TokenStreamBus,
+    WikiContextBus,
+    run_pipeline,
+)
+
+gate = NullApprovalGate()
+bus = TokenStreamBus()
+wiki_bus = WikiContextBus()
+asyncio.run(run_pipeline(story, gate, bus, wiki_bus))
+```
+
+- `NullApprovalGate` auto-approves all quality gates without human interaction.
+- `TokenStreamBus` and `WikiContextBus` are unbounded asyncio queues. Safe to create and discard in headless mode — both are closed in the pipeline's `finally` block.
+- Do not wire `bus` or `wiki_bus` to any downstream consumer in headless mode; the queues drain into the GC on pipeline exit.
+
+For TUI/interactive mode, replace `NullApprovalGate` with an interactive approval gate and wire `bus` / `wiki_bus` to the display layer.
+
+ChromaDB ID: `gotcha-null-approval-gate-headless-pipeline-021`
+
+---
+
+### 022 — `src/presentation/cli/main.py`: requires dual `sys.path` bootstrap for editable installs
+
+**Source:** issue #162, PR #172
+**Severity:** warning
+
+When a package is installed in editable mode (`pip install -e .`) and invoked via a `console_scripts` entry point, Python resolves the entry module through the installed `.pth` file — but deep relative imports inside lazy-loaded functions (`_cmd_run`, `_cmd_tui`, etc.) can fail with `ModuleNotFoundError` if neither the project root nor `src/` is on `sys.path` at import time.
+
+Insert these four lines at the **top of `src/presentation/cli/main.py`**, before any local imports:
+
+```python
+import sys
+from pathlib import Path
+
+_project_root = Path(__file__).resolve().parents[3]
+_src_dir = _project_root / "src"
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+if str(_src_dir) not in sys.path:
+    sys.path.insert(0, str(_src_dir))
+```
+
+Without this, the `story-writer` console script fails when run from any directory other than the project root. The bootstrap is **idempotent** (the `not in sys.path` guards prevent duplicates on repeated imports) and is safe for both editable and installed releases.
+
+Relation to gotcha #007: #007 covers `sys.path.insert` in **test files** for resolving `src/` imports; this entry covers the production CLI entry module bootstrap for editable console scripts.
+
+ChromaDB ID: `gotcha-cli-main-sys-path-bootstrap-022`

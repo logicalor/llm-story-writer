@@ -1,40 +1,36 @@
-"""CLI argument parser."""
+"""Argument parser for the story-writer CLI."""
+
+from __future__ import annotations
 
 import argparse
-from pathlib import Path
-from typing import Optional
 
 
-class CLIArgumentParser:
-    """Command-line argument parser for the story generator."""
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="story-writer",
+        description="AI-powered long-form story generation system.",
+    )
+    sub = parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+    sub.required = True
 
-    def __init__(self):
-        self.parser = self._create_parser()
+    tui_p = sub.add_parser("tui", help="Launch the interactive Textual TUI.")
+    tui_p.add_argument("--story", required=True, metavar="NAME", help="Story name.")
 
-    def _create_parser(self) -> argparse.ArgumentParser:
-        """Create the argument parser."""
-        parser = argparse.ArgumentParser(
-            description="AI Story Generator - Generate full-length novels with AI",
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog="""
-Examples:
-    %(prog)s prompts/your-prompt.md
-    %(prog)s prompts/outline/create.md
-            """,
-        )
+    run_p = sub.add_parser("run", help="Run the full pipeline headlessly.")
+    run_p.add_argument("--story", required=True, metavar="NAME", help="Story name.")
+    run_p.add_argument(
+        "--batch",
+        action="store_true",
+        help="Auto-accept all approval gates (reserved for forward compatibility — currently all headless runs use NullApprovalGate).",
+    )
 
-        # Required arguments
-        parser.add_argument("prompt", help="Path to file containing the prompt")
+    resume_p = sub.add_parser("resume", help="Resume from latest savepoint.")
+    resume_p.add_argument("--story", required=True, metavar="NAME", help="Story name.")
+    resume_p.add_argument(
+        "--savepoint",
+        default=None,
+        metavar="NAME",
+        help="Savepoint name to validate against (currently always resumes from latest state).",
+    )
 
-        return parser
-
-    def parse_args(self, args: Optional[list] = None):
-        """Parse command line arguments."""
-        return self.parser.parse_args(args)
-
-    def validate_args(self, args):
-        """Validate parsed arguments."""
-        # Check if prompt file exists
-        prompt_path = Path(args.prompt)
-        if not prompt_path.exists():
-            raise ValueError(f"Prompt file not found: {args.prompt}")
+    return parser

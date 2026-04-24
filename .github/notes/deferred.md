@@ -32,9 +32,20 @@ Running `pytest tests/` hangs after ~176 tests; `pytest tests/unit/` completes c
 
 ## Fix pre-existing test failures in `test_story_state_tool.py` and `test_wiki_extract_tool.py`
 
-**Date:** 2026-04-24
-**Source:** Reflection — issue #160, PR #170
+**Date:** 2026-04-24 (updated 2026-04-25)
+**Source:** Reflection — issue #160, PR #170; updated issue #162, PR #172
 
-19 pre-existing failures were observed in `tests/unit/test_story_state_tool.py` and `tests/unit/test_wiki_extract_tool.py` on the development branch. These failures pre-date PR #170 and are unrelated to the pipeline primitives implementation. Likely caused by stale mocks, missing fixtures, or API changes not back-propagated to these test files.
+Pre-existing failures observed on the development branch, unrelated to PRs that touched them. Likely caused by stale mocks, missing fixtures, or API changes not back-propagated to these test files.
+
+**Affected files (confirmed pre-existing on `development`):**
+- `tests/unit/test_story_state_tool.py`
+- `tests/unit/test_wiki_extract_tool.py`
+- `tests/unit/test_story_assembler_generate_handoff.py`
+
+**Verification technique:** To confirm a failure is pre-existing before a PR review:
+```bash
+git stash && pytest tests/unit/test_X.py -v && git stash pop
+```
+If the failures reproduce on the stashed (pre-PR) state, they are baseline failures — record as pre-existing and exclude from the PR assessment.
 
 These create noise in PR baselines — reviewers must manually filter them out each time, which is error-prone. Should be resolved in a dedicated cleanup issue. File a GitHub issue and address in the next available sprint slot.

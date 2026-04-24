@@ -28,7 +28,7 @@ The active runtime is intentionally small and OpenCode-first:
 - **Python runtime**: install from `requirements.txt`; it is the only supported dependency manifest for the active project and includes `requests`, `openai`, `chromadb`, `pyyaml`, and `llm-output-parser`
 - **LLM integration**: Supported provider keys are `openai_compatible` and `openai_async`; all runtime traffic goes through OpenAI-compatible `/v1` endpoints rather than LangChain-specific adapters
 - **Async provider path**: `src/infrastructure/providers/openai_async_provider.py` adds an `AsyncOpenAI`-backed `ModelProvider` implementation for Python-native streaming flows, while `OpenAICompatibleProvider` remains in place for existing synchronous paths
-- **Tool wiring**: OpenCode loads TypeScript wrappers directly; no legacy `dependency-injector` container remains in the repository
+- **Tool wiring**: the Python-native orchestrator and tool modules now run in-process; `.opencode/tools/` remains only as a placeholder directory with `.gitkeep`
 - **Python-native migration foundation**: agent system prompts now live in `prompts/agents/`, with shared loading logic in `src/infrastructure/prompts/agent_prompt_loader.py` and typed orchestration payloads in `src/application/pipeline/handoffs.py`
 - **Pipeline presentation primitives**: `src/presentation/pipeline_primitives.py` adds transport-agnostic approval gates plus token and wiki context buses for both headless runners and future Textual UI integration
 - **Headless orchestrator slice**: `src/presentation/orchestrator.py` now runs the implemented Python-native phase sequence (`init → outline → characters → settings → chapter-loop → final-edit → assembly`) and persists `PipelineState` savepoints for resume support
@@ -38,7 +38,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 
 ## Tools
 
-- [Tools Reference](./tools.md) — Tool architecture pattern, prompt-loader, story-state, savepoint-mgr, character-mgr, setting-mgr, recap-manager, outline-generator, scene-writer, critique-runner, story-assembler, wiki-init, wiki-read, wiki-search, wiki-snapshot, wiki-extract, wiki-update, wiki-lint, and rag-query tools, guide for adding new tools
+- [Tools Reference](./tools.md) — Python-native tool architecture, `story-writer` console entry point, retained `src/tools/` CLIs, and current tool inventory
 - [Comprehensive Manual](./manual.md) — End-to-end system guide covering setup, architecture, usage, tools, troubleshooting, and operational workflows
 
 ## Testing
@@ -48,7 +48,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 ## Features
 
 - [OpenAI Async Provider](./features/openai-async-provider.md) — AsyncOpenAI-backed streaming `ModelProvider`, dependency requirements, and migration relationship to the existing sync provider
-- [Python-Native Foundation](./features/python-native-foundation.md) — Agent prompt relocation, frontmatter-stripping loader, and typed pipeline handoff dataclasses for Issue #158
+- [Python-Native Foundation](./features/python-native-foundation.md) — Agent prompt relocation, frontmatter-stripping loader, typed pipeline handoff dataclasses, and the `story-writer` CLI packaging/dispatch path for Issues #158, #161, and #162
 - [Pipeline Primitives](./features/pipeline-primitives.md) — Transport-agnostic approval gates plus token and wiki context event buses for the Python-native orchestrator
 - [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) — Current runtime dependency model, removed migration leftovers, and guardrails for keeping the active stack lean
 - [Story Orchestrator](./features/story-orchestrator.md) — Implemented headless Python pipeline runner, approval-gate semantics, agent callable pattern, and `PipelineState` savepoint/status behavior
