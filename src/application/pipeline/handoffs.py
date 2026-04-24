@@ -90,6 +90,8 @@ class PipelineState:
     wiki_batches: list[WikiUpdateBatch] = field(default_factory=list)
     batch_mode: bool = False
     savepoint_id: str | None = None
+    savepoints: list[str] = field(default_factory=list)
+    status: str = "running"
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a JSON-compatible dict for savepoint persistence."""
@@ -113,6 +115,8 @@ class PipelineState:
             wiki_batches=wiki_batches,
             batch_mode=data.get("batch_mode", False),
             savepoint_id=data.get("savepoint_id"),
+            savepoints=data.get("savepoints", []),
+            status=data.get("status", "running"),
         )
 
     def to_json(self) -> str:
