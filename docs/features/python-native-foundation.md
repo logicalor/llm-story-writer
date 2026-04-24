@@ -92,6 +92,7 @@ Issue #158 added dedicated unit coverage for both new modules:
 
 ## Related
 
+- [Pipeline Primitives](./pipeline-primitives.md)
 - [PRD: Python-Native Orchestration and TUI](../planning/python-native-migration/prd.md)
 - [Story Orchestrator](./story-orchestrator.md)
 - Issue #158 — Agent prompt loader and typed pipeline handoffs
