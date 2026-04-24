@@ -18,11 +18,7 @@ from domain.value_objects.model_config import ModelConfig
 
 _provider_spec = importlib.util.spec_from_file_location(
     "openai_async_provider_module_live",
-    PROJECT_ROOT
-    / "src"
-    / "infrastructure"
-    / "providers"
-    / "openai_async_provider.py",
+    PROJECT_ROOT / "src" / "infrastructure" / "providers" / "openai_async_provider.py",
 )
 assert _provider_spec is not None and _provider_spec.loader is not None
 _provider_module = importlib.util.module_from_spec(_provider_spec)
@@ -32,9 +28,9 @@ OpenAIAsyncProvider = _provider_module.OpenAIAsyncProvider
 
 @pytest.mark.integration
 class TestOpenAIAsyncProviderLive:
-    def test_streams_live_yields_multiple_chunks(self) -> None:
+    def test_streams_live_yields_multiple_chunks(self, llm_available: str) -> None:
         provider = OpenAIAsyncProvider(
-            base_url=os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1"),
+            base_url=llm_available,
             api_key=os.environ.get("LLM_API_KEY"),
         )
         model_config = ModelConfig(

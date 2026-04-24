@@ -7,7 +7,7 @@ import re
 from typing import Any, AsyncGenerator, Dict, List, Optional
 from urllib.parse import urlparse, urlunparse
 
-from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
+from openai import AsyncOpenAI
 
 from application.interfaces.model_provider import ModelProvider
 from domain.exceptions import ModelProviderError
@@ -53,8 +53,6 @@ class OpenAIAsyncProvider(ModelProvider):
             base_url = os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1")
 
         resolved_api_key = api_key or os.environ.get("LLM_API_KEY") or "lm-studio"
-        if not resolved_api_key:
-            resolved_api_key = "lm-studio"
 
         self.base_url = _normalize_base_url(base_url)
         self._api_key = resolved_api_key
@@ -95,7 +93,6 @@ class OpenAIAsyncProvider(ModelProvider):
         filtered = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
         filtered = re.sub(r"<think>.*", "", filtered, flags=re.DOTALL)
         filtered = re.sub(r"</think>.*", "", filtered, flags=re.DOTALL)
-        filtered = re.sub(r"(.*?)</think>.*", r"\1", filtered, flags=re.DOTALL)
         return filtered
 
     def _prepare_options(
@@ -145,6 +142,8 @@ class OpenAIAsyncProvider(ModelProvider):
 
         if format_type == "json":
             options["response_format"] = {"type": "json_object"}
+            if "temperature" not in options:
+                options["temperature"] = 0
 
         options.setdefault("temperature", 0.7)
         options.setdefault("top_p", 0.9)
@@ -218,8 +217,6 @@ class OpenAIAsyncProvider(ModelProvider):
                 )
 
             return response_text
-        except (APIConnectionError, APITimeoutError, APIStatusError) as exc:
-            raise ModelProviderError(f"OpenAI async generation failed: {exc}") from exc
         except Exception as exc:
             raise ModelProviderError(f"OpenAI async generation failed: {exc}") from exc
 
@@ -319,8 +316,6 @@ class OpenAIAsyncProvider(ModelProvider):
                 delta = chunk.choices[0].delta.content if chunk.choices else None
                 if delta:
                     yield delta
-        except (APIConnectionError, APITimeoutError, APIStatusError) as exc:
-            raise ModelProviderError(f"OpenAI async streaming failed: {exc}") from exc
         except Exception as exc:
             raise ModelProviderError(f"OpenAI async streaming failed: {exc}") from exc
 
@@ -329,7 +324,7 @@ class OpenAIAsyncProvider(ModelProvider):
         try:
             await self._get_client(model_config).models.list()
             return True
-        except (APIConnectionError, APITimeoutError, APIStatusError, Exception):
+        except Exception:
             return False
 
     async def download_model(self, model_config: ModelConfig) -> None:

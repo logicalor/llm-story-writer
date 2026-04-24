@@ -26,7 +26,7 @@ See [ADR 003: ChromaDB Replaces pgvector](./planning/adr/003-chromadb-replaces-p
 The active runtime is intentionally small and OpenCode-first:
 
 - **Python runtime**: install from `requirements.txt`; it is the only supported dependency manifest for the active project and includes `requests`, `openai`, `chromadb`, `pyyaml`, and `llm-output-parser`
-- **LLM integration**: Supported provider keys are `openai_compatible`, `ollama`, `lm_studio`, and `llama_cpp`; all runtime traffic goes through OpenAI-compatible `/v1` endpoints rather than LangChain-specific adapters
+- **LLM integration**: Supported provider keys are `openai_compatible` and `openai_async`; all runtime traffic goes through OpenAI-compatible `/v1` endpoints rather than LangChain-specific adapters
 - **Async provider path**: `src/infrastructure/providers/openai_async_provider.py` adds an `AsyncOpenAI`-backed `ModelProvider` implementation for Python-native streaming flows, while `OpenAICompatibleProvider` remains in place for existing synchronous paths
 - **Tool wiring**: OpenCode loads TypeScript wrappers directly; no legacy `dependency-injector` container remains in the repository
 - **Python-native migration foundation**: agent system prompts now live in `prompts/agents/`, with shared loading logic in `src/infrastructure/prompts/agent_prompt_loader.py` and typed orchestration payloads in `src/application/pipeline/handoffs.py`
