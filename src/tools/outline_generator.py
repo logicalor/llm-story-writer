@@ -425,8 +425,13 @@ def cmd_expand_chapter(
             chunk_text = json.dumps(chunk_text, default=str)
     else:
         try:
+            prompt_id = (
+                "outline/expand_chapter_detail"
+                if phase == "chapter"
+                else "outline/create_chunk"
+            )
             chunk_prompt = _load_prompt(
-                "outline/create_chunk",
+                prompt_id,
                 {
                     "story_elements": story_elements,
                     "base_context": base_context,
