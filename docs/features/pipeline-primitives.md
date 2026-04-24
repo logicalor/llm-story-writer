@@ -36,7 +36,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-In interactive mode, a TUI owns the `resolve()` call after the user approves, rejects, or requests revision. In batch or headless mode, use `NullApprovalGate` instead. Its `await_decision()` method returns `ApprovalDecision(approved=True, auto_approved=True)` immediately, so unattended runs never block on human input.
+In interactive mode, a TUI owns gate resolution after the user approves, rejects, or requests revision. The `StoryWriterApp` uses `resolve_from_ui()` (defined in `src/presentation/tui/app.py`) rather than the base `resolve()` method because the TUI runs on a separate event loop from the worker thread, and `resolve_from_ui()` safely bridges the loops via `loop.call_soon_threadsafe()`. In batch or headless mode, use `NullApprovalGate` instead. Its `await_decision()` method returns `ApprovalDecision(approved=True, auto_approved=True)` immediately, so unattended runs never block on human input.
 
 ### Token Streaming
 

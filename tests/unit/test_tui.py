@@ -48,6 +48,15 @@ class TestStoryWriterAppInit:
                 wiki_panel = app.query_one("#wiki-panel")
                 assert wiki_panel.display is False
 
+    @pytest.mark.asyncio
+    async def test_output_log_disables_markup(self) -> None:
+        """Output log treats LLM token text as literal text."""
+        with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
+            app = StoryWriterApp(story_name="test_story")
+            async with app.run_test(size=(120, 40)):
+                output_log = app.query_one("#output-log")
+                assert output_log.markup is False
+
 
 class TestWikiPanelToggle:
     @pytest.mark.asyncio
@@ -123,6 +132,53 @@ class TestApprovalGate:
 
                 assert future.done()
                 assert future.result().approved is True
+
+    @pytest.mark.asyncio
+    async def test_approval_prompt_uses_plain_text(self) -> None:
+        """Approval prompt should not rely on Rich markup."""
+        with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
+            app = StoryWriterApp(story_name="test_story")
+            async with app.run_test(size=(120, 40)):
+                output_log = app.query_one("#output-log")
+
+                app._show_approval_input()
+
+                rendered = output_log.lines[-2].text
+                assert (
+                    "Approval required. Type: approve / reject / revise <feedback>"
+                    in rendered
+                )
+
+
+class TestPipelineCompletion:
+    @pytest.mark.asyncio
+    async def test_error_completion_does_not_mark_all_phases_complete(self) -> None:
+        """Error completion should preserve current phase state and failure subtitle."""
+        with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
+            app = StoryWriterApp(story_name="test_story")
+            async with app.run_test(size=(120, 40)):
+                app._update_phase("wiki")
+                app._on_pipeline_complete("error")
+
+                assert app.sub_title == "Failed - error"
+                assert app.query_one("#phase-assembly").renderable == "- assembly"
+
+
+class TestQuitAction:
+    @pytest.mark.asyncio
+    async def test_request_quit_logs_cancellation_notice(self) -> None:
+        """Quit action should tell the user cancellation is cooperative."""
+        with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
+            app = StoryWriterApp(story_name="test_story")
+            async with app.run_test(size=(120, 40)):
+                output_log = app.query_one("#output-log")
+
+                app.action_request_quit()
+
+                assert (
+                    "Cancellation requested. Finishing current LLM call before exit..."
+                    in output_log.lines[-2].text
+                )
 
 
 class TestTUIApprovalGate:

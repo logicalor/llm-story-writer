@@ -108,7 +108,7 @@ class StoryWriterApp(App[None]):
                 yield Label("Phases", id="phase-title")
                 for phase in PIPELINE_PHASES:
                     yield Label(f"- {phase}", id=f"phase-{phase}", classes="phase-item")
-            yield RichLog(id="output-log", highlight=True, markup=True, wrap=True)
+            yield RichLog(id="output-log", highlight=True, markup=False, wrap=True)
             with Vertical(id="wiki-panel"):
                 yield Label("Wiki Context", id="wiki-title")
                 yield RichLog(id="wiki-log", highlight=False, markup=False, wrap=True)
@@ -139,9 +139,7 @@ class StoryWriterApp(App[None]):
 
     def _append_error(self, message: str) -> None:
         """Append a pipeline error to the output log."""
-        self.query_one("#output-log", RichLog).write(
-            f"\n[bold red]Pipeline error: {message}[/bold red]\n"
-        )
+        self.query_one("#output-log", RichLog).write(f"\nPipeline error: {message}\n")
 
     def _normalize_phase(self, phase: str) -> str:
         """Map internal pipeline phase names onto the simplified TUI phases."""
@@ -176,7 +174,7 @@ class StoryWriterApp(App[None]):
         input_widget.display = True
         input_widget.focus()
         self.query_one("#output-log", RichLog).write(
-            "\n[bold yellow]Approval required. Type: approve / reject / revise <feedback>[/bold yellow]\n"
+            "\nApproval required. Type: approve / reject / revise <feedback>\n"
         )
 
     def _hide_approval_input(self) -> None:
@@ -187,13 +185,18 @@ class StoryWriterApp(App[None]):
 
     def _on_pipeline_complete(self, status: str) -> None:
         """Update the UI when the pipeline finishes."""
+        if status == "error":
+            self.sub_title = f"Failed - {status}"
+            self.query_one("#output-log", RichLog).write(
+                f"\nPipeline failed: {status}\n"
+            )
+            return
+
         self._completed_phases = PIPELINE_PHASES[:]
         for phase in PIPELINE_PHASES:
             self.query_one(f"#phase-{phase}", Label).update(f"* {phase}")
         self.sub_title = f"Complete - {status}"
-        self.query_one("#output-log", RichLog).write(
-            f"\n[bold green]Pipeline complete: {status}[/bold green]\n"
-        )
+        self.query_one("#output-log", RichLog).write(f"\nPipeline complete: {status}\n")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle approval gate submission."""
@@ -217,11 +220,14 @@ class StoryWriterApp(App[None]):
     def action_force_savepoint(self) -> None:
         """Show informational savepoint message."""
         self.query_one("#output-log", RichLog).write(
-            "\n[bold cyan]Savepoint requested (automatic savepoints are written at each phase boundary)[/bold cyan]\n"
+            "\nSavepoint requested (automatic savepoints are written at each phase boundary)\n"
         )
 
     def action_request_quit(self) -> None:
         """Cancel workers and exit."""
+        self.query_one("#output-log", RichLog).write(
+            "\nCancellation requested. Finishing current LLM call before exit...\n"
+        )
         for worker in self.workers:
             worker.cancel()
         self.exit()

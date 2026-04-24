@@ -20,9 +20,8 @@ def _cmd_tui(story: str) -> None:
         from presentation.tui.app import StoryWriterApp  # type: ignore[import-not-found]
     except ImportError:
         print(
-            "The Textual TUI is not yet available.\n"
-            "Install textual with: pip install textual\n"
-            "TUI will be available in a future release.",
+            "textual is not installed. Install it with:\n"
+            "  pip install 'textual>=0.85.0,<1.0.0'\n",
             file=sys.stderr,
         )
         raise SystemExit(1)
