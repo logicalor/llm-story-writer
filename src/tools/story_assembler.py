@@ -211,6 +211,23 @@ def cmd_assemble(story_name: str) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n\n".join(chapter_parts) + "\n", encoding="utf-8")
 
+    try:
+        asyncio.run(
+            repo.save_savepoint(
+                "story_complete",
+                {
+                    "status": "complete",
+                    "chapter_count": len(chapter_parts),
+                    "output_path": f"stories/{story_name}/output/story.md",
+                },
+            )
+        )
+    except Exception as exc:
+        print(
+            f"Warning: story_complete savepoint write failed: {exc}",
+            file=sys.stderr,
+        )
+
     print(
         json.dumps(
             {

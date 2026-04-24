@@ -492,6 +492,23 @@ def cmd_expand_chapter(
                 file=sys.stderr,
             )
 
+    # Auto-write Phase 7a milestone when the last chapter's expansion finishes.
+    # chapter-outline-expander still runs its own per-chapter savepoints, but
+    # this removes reliance on the subagent LLM remembering to call
+    # savepoint-mgr for `outlines_expanded` at the end of the loop.
+    if phase == "chapter" and chunk_end >= total_chapters:
+        try:
+            _save_savepoint(
+                repo,
+                "outlines_expanded",
+                {"status": "complete", "expanded_chapters": total_chapters},
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            print(
+                f"Warning: outlines_expanded savepoint write failed: {exc}",
+                file=sys.stderr,
+            )
+
     _success(
         "expand-chapter",
         {

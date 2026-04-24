@@ -45,8 +45,7 @@ For each character in `character_names`, call `character-mgr`:
 
 After all characters are processed:
 
-1. Call `story-state` with `operation: "write"`, `field: "characters"`, `value`: JSON array string of processed character names.
-2. Call `savepoint-mgr` to create savepoint `characters_complete`.
+1. Call `story-state` with `operation: "write"`, `field: "characters"`, `value`: JSON array string of processed character names. This **auto-writes the `characters_complete` savepoint** when the value is non-empty — do **not** call `savepoint-mgr save characters_complete` manually.
 
 ### Phase 2 — Setting Sheets
 
@@ -59,8 +58,7 @@ For each setting in `setting_names`, call `setting-mgr`:
 
 After all settings are processed:
 
-1. Call `story-state` with `operation: "write"`, `field: "settings"`, `value`: JSON array string of processed setting names.
-2. Call `savepoint-mgr` to create savepoint `settings_complete`.
+1. Call `story-state` with `operation: "write"`, `field: "settings"`, `value`: JSON array string of processed setting names. This **auto-writes the `settings_complete` savepoint** when the value is non-empty — do **not** call `savepoint-mgr save settings_complete` manually.
 
 ### Phase 3 — Return
 

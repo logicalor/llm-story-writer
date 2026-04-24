@@ -87,14 +87,14 @@ Execute these phases sequentially. Each phase completes fully before the next be
 4. Store the finalised outline via `story-state` (operation: `write`, field: `outline`, value: the outline text returned by `outline-planner` in step 3 above). This step is **mandatory** regardless of whether chunked or non-chunked generation was used — both paths must produce and return the consolidated outline text.
 
    > **⚠️ Validate before writing:** If the outline text returned by `outline-planner` is empty, null, `{}`, or a whitespace-only string, do **not** proceed. Report an error to the user and halt — the planner failed to consolidate and return the outline. Do not call `story-state write` with an empty value, as this will silently break Phase 2.5 and Phase 7a.
-5. Savepoint naming note: `initial_outline` is written by `outline-generator` during initial generation. `outline_complete` is the orchestrator-level Phase 2 checkpoint.
+5. Savepoint naming note: `initial_outline` is written by `outline-generator` during initial generation. `outline_complete` is the Phase 2 milestone — it is **auto-written by `story-state write --field outline`** when the value is non-empty. No manual `savepoint-mgr save outline_complete` is required.
 6. If chunked outline generation is enabled, expect chunk savepoints in this pattern:
 
 | Chunk Range | Savepoint |
 |-------------|-----------|
 | Each completed chunk | `outline_chunk_{start}_{end}` |
 
-7. Create savepoint: `outline_complete`
+7. `outline_complete` savepoint: auto-written in step 4 above. Do **not** write it manually.
 
 ### Phase 2.5: Narrative Arc Analysis
 
@@ -112,8 +112,9 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
 3. Store the arc assessment for display at Phase 3:
    - Call `story-state` (operation: `write`, field: `arc_assessment`, value: `arc_assessment` JSON string)
+   - This **auto-writes the `arc_analysis_complete` savepoint** when the value is non-empty.
 
-4. Create savepoint: `arc_analysis_complete`
+4. `arc_analysis_complete` savepoint: auto-written in step 3. Do **not** write it manually.
 
 **Batch mode:** Continue to Phase 3 regardless of verdict. The assessment is logged but does not block generation.
 
@@ -314,7 +315,7 @@ If `enable_scrubbing: false`: skip this phase.
    - `operation`: `"assemble"`
    - `storyName`: the story name
 2. The assembled story will be written to `stories/<name>/output/story.md` in Markdown format
-3. Create savepoint: `story_complete`
+3. `story_complete` savepoint: **auto-written by `story-assembler assemble`** when output is successfully written. Do **not** write it manually.
 4. Report the output path to the user
 
 ### Phase 9 — Final Edit (conditional)
@@ -378,17 +379,22 @@ Savepoints capture the full pipeline state at key milestones, enabling resume af
 
 **Naming convention:** `{phase_descriptor}` — lowercase, underscores, no chapter padding.
 
-| Savepoint | Created After |
-|-----------|--------------|
-| `init` | Phase 1 completes |
-| `outline_complete` | Phase 2 completes (outline finalised) |
-| `arc_analysis_complete` | Phase 2.5 completes (arc assessment saved) |
-| `characters_complete` | Phase 5 completes (all character sheets generated) |
-| `settings_complete` | Phase 5 completes (all setting sheets generated) |
-| `wiki_populated` | Phase 6 completes (wiki initial population done) |
-| `outlines_expanded` | Phase 7a completes (all chapter outlines expanded; written by `chapter-outline-expander` at end of loop) |
-| `chapter_{N}_complete` | Phase 7h per chapter (e.g., `chapter_1_complete`) |
-| `story_complete` | Phase 8 completes (final assembly done) |
+| Savepoint | Created After | Writer |
+|-----------|--------------|--------|
+| `init` | Phase 1 completes | **auto** — `story-state init` |
+| `outline_complete` | Phase 2 completes (outline finalised) | **auto** — `story-state write --field outline` |
+| `arc_analysis_complete` | Phase 2.5 completes (arc assessment saved) | **auto** — `story-state write --field arc_assessment` |
+| `characters_complete` | Phase 5 completes (all character sheets generated) | **auto** — `story-state write --field characters` |
+| `settings_complete` | Phase 5 completes (all setting sheets generated) | **auto** — `story-state write --field settings` |
+| `wiki_populated` | Phase 6 completes (wiki initial population done) | **auto** — `wiki-extract initial-populate --apply` |
+| `outlines_expanded` | Phase 7a completes (all chapter outlines expanded) | **auto** — `outline-generator expand-chapter` on final chapter |
+| `chapter_{N}_complete` | Phase 7h per chapter (composite of 7b–7.5) | **manual** — orchestrator writes at end of chapter loop (composite milestone; no single tool signals completion) |
+| `story_complete` | Phase 8 completes (final assembly done) | **auto** — `story-assembler assemble` |
+| `final_edit_complete` | Phase 9 completes (final editing pass) | **manual** — final-editor subagent writes at end of loop (per-chapter composite; no single tool signals completion) |
+
+**Auto-written savepoints** must **not** be written manually — the underlying tools emit them as part of their normal success path. Manual `savepoint-mgr save` calls for these names are redundant and indicate drift.
+
+**Manual savepoints** (`chapter_{N}_complete`, `final_edit_complete`) remain LLM-owned because they mark the completion of composite milestones spanning multiple subagent dispatches and tool calls — no single tool invocation corresponds to their completion. Treat every manual savepoint write as a checklist obligation: it must be the final action of its phase.
 
 **Resuming from a savepoint:**
 1. Call `savepoint-mgr` (operation: `next-phase`, name: story name) — returns `last_completed`, `next_phase`, `last_chapter_complete`.

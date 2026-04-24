@@ -102,11 +102,7 @@ Execute these steps sequentially.
       - `step`: `"chapter_outline_expansion/chapter_{N}"`
       - `data`: the expanded outline as a JSON string
    i. Increment `current_chapter` and continue.
-5. After the loop completes, call `savepoint-mgr` one more time to mark the whole phase done:
-   - `operation`: `"save"`
-   - `name`: `story_name`
-   - `step`: `"outlines_expanded"`
-   - `data`: `{"expanded_chapters": wanted_chapters}` as a JSON string
+5. `outlines_expanded` savepoint is **auto-written** by `outline-generator expand-chapter` when `phase == "chapter"` and the final chapter's expansion completes. Do **not** call `savepoint-mgr save outlines_expanded` manually.
 6. Return `{"status": "complete", "expanded_chapters": wanted_chapters}`.
 
 ---

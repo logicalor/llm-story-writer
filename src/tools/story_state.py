@@ -7,12 +7,62 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
+
+
+# --- Milestone savepoint auto-write ---
+# Map a story-state field write to a canonical milestone savepoint so resume
+# logic (savepoint-mgr next-phase) reflects actual pipeline progress without
+# relying on the orchestrator LLM to remember a separate savepoint-mgr call.
+#
+# Keys are dot-notation field paths; values are the savepoint step name.
+FIELD_TO_MILESTONE_SAVEPOINT: dict[str, str] = {
+    "outline": "outline_complete",
+    "arc_assessment": "arc_analysis_complete",
+    "characters": "characters_complete",
+    "settings": "settings_complete",
+}
+
+
+def _write_milestone_savepoint(story_dir: Path, step: str, data: Any) -> None:
+    """Write a milestone savepoint for the given story.
+
+    Best-effort: logs to stderr on failure but does not raise, so a broken
+    savepoint write never blocks a successful state mutation.
+    """
+    try:
+        import asyncio as _asyncio  # noqa: PLC0415
+
+        from infrastructure.storage.savepoint_repository import (  # noqa: PLC0415
+            FilesystemSavepointRepository,
+        )
+
+        repo = FilesystemSavepointRepository(base_path=story_dir)
+        repo.set_story_directory("savepoints")
+        _asyncio.run(repo.save_savepoint(step, data))
+    except Exception as exc:  # pragma: no cover — defensive
+        print(
+            f"Warning: milestone savepoint '{step}' write failed: {exc}",
+            file=sys.stderr,
+        )
+
+
+def _value_is_non_empty(value: Any) -> bool:
+    """True when a written field value represents real progress."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, dict)):
+        return bool(value)
+    return True
+
 
 INITIAL_STATE = {
     "story_context": {
@@ -139,6 +189,9 @@ def cmd_init(name: str) -> None:
 
     state_path = story_dir / "state.json"
     _write_state_atomic(state_path, INITIAL_STATE)
+    _write_milestone_savepoint(
+        story_dir, "init", {"status": "initialized", "story": normalized_name}
+    )
     print(json.dumps({"status": "created", "story": normalized_name}))
 
 
@@ -208,6 +261,14 @@ def cmd_write(name: str, field: str, value_str: str) -> None:
         if fd is not None:
             fcntl.flock(fd, fcntl.LOCK_UN)
             os.close(fd)
+
+    milestone_step = FIELD_TO_MILESTONE_SAVEPOINT.get(field)
+    if milestone_step and _value_is_non_empty(value):
+        _write_milestone_savepoint(
+            story_dir,
+            milestone_step,
+            {"status": "complete", "source_field": field},
+        )
 
     print(json.dumps({"status": "updated", "field": field}))
 
