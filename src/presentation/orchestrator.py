@@ -22,15 +22,17 @@ from presentation.agents.outline_planner import OutlinePlannerAgent
 from presentation.agents.wiki_maintainer import WikiMaintainerAgent
 from presentation.pipeline_primitives import (
     ApprovalGate,
+    NullApprovalGate,
     TokenStreamBus,
     WikiContextBus,
     WikiContextEvent,
 )
+from tools._io import STORIES_DIR, _validate_story_name
 
 
 def _savepoint_path(story_name: str) -> Path:
     """Return path to the pipeline state savepoint file."""
-    return Path("stories") / story_name / "savepoints" / "pipeline_state.json"
+    return STORIES_DIR / story_name / "savepoints" / "pipeline_state.json"
 
 
 async def _write_savepoint(state: PipelineState) -> None:
@@ -60,7 +62,7 @@ def _create_provider(config: dict[str, Any]) -> ModelProvider:
 
 
 def _load_story_prompt(story_name: str) -> str:
-    story_state_path = Path("stories") / story_name / "story_state.json"
+    story_state_path = STORIES_DIR / story_name / "state.json"
     if not story_state_path.exists():
         return ""
 
@@ -172,7 +174,7 @@ async def _continue_pipeline(
     resolved_provider = provider or _create_provider(resolved_config)
     settings = _load_settings(resolved_config)
 
-    story_dir = Path("stories") / state.story_name
+    story_dir = STORIES_DIR / state.story_name
     (story_dir / "savepoints").mkdir(parents=True, exist_ok=True)
     story_prompt = _load_story_prompt(state.story_name)
 
@@ -314,14 +316,15 @@ async def run_pipeline(
     Each phase writes a savepoint on successful completion.
     """
     resolved_config = config if config is not None else ConfigLoader().load_config()
+    _validate_story_name(story_name, STORIES_DIR)
     state = PipelineState(
         story_name=story_name,
         current_phase="init",
-        batch_mode=type(gate).__name__ == "NullApprovalGate",
+        batch_mode=isinstance(gate, NullApprovalGate),
         status="running",
     )
 
-    story_dir = Path("stories") / story_name / "savepoints"
+    story_dir = STORIES_DIR / story_name / "savepoints"
     story_dir.mkdir(parents=True, exist_ok=True)
     await _mark_phase_complete(state, "init", "init")
 
@@ -340,6 +343,7 @@ async def resume_pipeline(
     provider: ModelProvider | None = None,
 ) -> PipelineState:
     """Resume a pipeline from a named savepoint or the latest savepoint."""
+    _validate_story_name(story_name, STORIES_DIR)
     state = await _load_savepoint(story_name)
     if state is None:
         raise StoryGenerationError(
