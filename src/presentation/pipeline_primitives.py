@@ -24,9 +24,14 @@ class ApprovalGate:
 
     def __init__(self) -> None:
         self._future: asyncio.Future[ApprovalDecision] | None = None
+        self._pending_decision: ApprovalDecision | None = None
 
     async def await_decision(self) -> ApprovalDecision:
         """Block until .resolve() is called and return the decision."""
+        if self._pending_decision is not None:
+            result = self._pending_decision
+            self._pending_decision = None
+            return result
         loop = asyncio.get_running_loop()
         self._future = loop.create_future()
         return await self._future
@@ -35,6 +40,8 @@ class ApprovalGate:
         """Resolve the pending gate with the given decision."""
         if self._future is not None and not self._future.done():
             self._future.set_result(decision)
+        else:
+            self._pending_decision = decision
 
 
 class NullApprovalGate(ApprovalGate):
@@ -57,6 +64,9 @@ class TokenStreamBus:
 
     Producer: .emit(delta) for each token, .close() when done.
     Consumer: async iteration yields token strings.
+
+    Supports a single consumer only. Concurrent iteration over the same bus
+    instance will cause one consumer to block indefinitely.
     """
 
     def __init__(self) -> None:
@@ -65,10 +75,14 @@ class TokenStreamBus:
 
     async def emit(self, delta: str) -> None:
         """Emit a token delta to the stream."""
+        if self._closed:
+            raise RuntimeError("emit() called after close()")
         await self._queue.put(delta)
 
     def close(self) -> None:
         """Signal end-of-stream to consumers."""
+        if self._closed:
+            return
         self._closed = True
         self._queue.put_nowait(_SENTINEL)
 
@@ -76,6 +90,8 @@ class TokenStreamBus:
         return self._iterate()
 
     async def _iterate(self) -> AsyncIterator[str]:
+        if self._closed and self._queue.empty():
+            return
         while True:
             item = await self._queue.get()
             if item is _SENTINEL:
@@ -103,6 +119,9 @@ class WikiContextBus:
 
     Producer: .emit(event) for each context event, .close() when done.
     Consumer: async iteration yields WikiContextEvent objects.
+
+    Supports a single consumer only. Concurrent iteration over the same bus
+    instance will cause one consumer to block indefinitely.
     """
 
     def __init__(self) -> None:
@@ -111,10 +130,14 @@ class WikiContextBus:
 
     async def emit(self, event: WikiContextEvent) -> None:
         """Emit a wiki context event."""
+        if self._closed:
+            raise RuntimeError("emit() called after close()")
         await self._queue.put(event)
 
     def close(self) -> None:
         """Signal end-of-stream to consumers."""
+        if self._closed:
+            return
         self._closed = True
         self._queue.put_nowait(_SENTINEL)
 
@@ -122,6 +145,8 @@ class WikiContextBus:
         return self._iterate()
 
     async def _iterate(self) -> AsyncIterator[WikiContextEvent]:
+        if self._closed and self._queue.empty():
+            return
         while True:
             item = await self._queue.get()
             if item is _SENTINEL:

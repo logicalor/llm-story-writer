@@ -2,6 +2,8 @@ import asyncio
 import sys
 from pathlib import Path
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _src_dir = str(PROJECT_ROOT / "src")
 if _src_dir not in sys.path:
@@ -126,3 +128,51 @@ def test_close_mid_consume() -> None:
     assert received[0].phase == emitted.phase
     assert received[0].event_type == emitted.event_type
     assert received[0].content == emitted.content
+
+
+def test_emit_after_close_raises() -> None:
+    token_bus = TokenStreamBus()
+    token_bus.close()
+
+    with pytest.raises(RuntimeError, match=r"emit\(\) called after close\(\)"):
+        asyncio.run(token_bus.emit("x"))
+
+    wiki_bus = WikiContextBus()
+    wiki_bus.close()
+
+    with pytest.raises(RuntimeError, match=r"emit\(\) called after close\(\)"):
+        asyncio.run(
+            wiki_bus.emit(
+                WikiContextEvent(
+                    phase="detail-level",
+                    event_type="detail_level",
+                    content="closed",
+                )
+            )
+        )
+
+
+def test_resolve_before_await_decision_returns_decision() -> None:
+    gate = ApprovalGate()
+    expected = ApprovalDecision(approved=True, feedback="pre-resolved")
+
+    gate.resolve(expected)
+
+    decision = asyncio.run(gate.await_decision())
+
+    assert decision == expected
+    assert decision.approved is True
+    assert decision.feedback == "pre-resolved"
+
+
+def test_close_idempotent() -> None:
+    bus = TokenStreamBus()
+
+    async def main() -> list[str]:
+        await bus.emit("x")
+        bus.close()
+        bus.close()
+
+        return [delta async for delta in bus]
+
+    assert asyncio.run(main()) == ["x"]
