@@ -106,14 +106,14 @@ Both agents load `.opencode/skills/final-edit/SKILL.md` and inherit the same har
 
 ### Key Files
 
-- `.opencode/agents/prose-scrubber.md` — Phase 7.5 chapter scrub workflow
-- `.opencode/agents/final-editor.md` — Phase 9 manuscript polish workflow
+- `prompts/agents/prose-scrubber.md` — Phase 7.5 chapter scrub workflow
+- `prompts/agents/final-editor.md` — Phase 9 manuscript polish workflow
 - `.opencode/tools/scene-writer.ts` — OpenCode wrapper exposing `scrub-analyze` and `voice-analyze`
 - `src/tools/scene_writer.py` — Prompt-loading, LLM-calling, JSON-parsing implementation for prose analysis and scene generation
 - `.opencode/skills/final-edit/SKILL.md` — shared constraints, pass types, revision budget, status tokens
 - `prompts/final_edit/prose_scrub.md` — sentence and paragraph-level issue extraction prompt
 - `prompts/final_edit/voice_consistency_pass.md` — voice, pacing, and cross-chapter coherence prompt
-- `.opencode/agents/story-orchestrator.md` — orchestrator integration points and feature flags
+- `prompts/agents/story-orchestrator.md` — orchestrator integration points and feature flags
 
 ### Data
 
@@ -129,8 +129,8 @@ The passes mutate chapter text in story state and add savepoints. They do not ad
 
 PR #141 added `scene-writer` tests covering both analysis operations, including success, empty-result, JSON-parse failure, and CLI validation cases. For documentation changes, verify the feature descriptions against the source agent files, tool contracts, and prompt templates:
 
-- `.opencode/agents/prose-scrubber.md`
-- `.opencode/agents/final-editor.md`
+- `prompts/agents/prose-scrubber.md`
+- `prompts/agents/final-editor.md`
 - `.opencode/tools/scene-writer.ts`
 - `src/tools/scene_writer.py`
 - `.opencode/skills/final-edit/SKILL.md`

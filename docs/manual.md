@@ -451,7 +451,7 @@ Wiki pages cross-reference each other using `[[wikilink]]` syntax:
 
 ### 8.1 Agents
 
-Agents are defined in `.opencode/agents/` as markdown files with OpenCode skill syntax.
+Agent system prompts now live in `prompts/agents/` as Markdown files. The current OpenCode registry still lives in `opencode.json`, and the Python-native migration uses `src/infrastructure/prompts/agent_prompt_loader.py` to read the same prompt bodies without YAML frontmatter.
 
 | Agent | Role |
 |-------|------|

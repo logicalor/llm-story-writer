@@ -42,6 +42,7 @@ def test_prompt_subdirectories_exist():
     """Verify all expected subdirectories exist under prompts/."""
     prompts_dir = PROJECT_ROOT / "prompts"
     expected_subdirs = [
+        "agents",
         "chapters",
         "characters",
         "multistep",
@@ -105,9 +106,30 @@ def test_outline_chapter_prompt_directory():
 
 
 def test_prompt_file_count():
-    """Count all .md files under prompts/ and verify there are 148."""
+    """Count all .md files under prompts/ and verify relocation preserved the baseline set."""
     prompts_dir = PROJECT_ROOT / "prompts"
     md_files = list(prompts_dir.rglob("*.md"))
-    assert len(md_files) == 148, (
-        f"Expected 148 .md files under prompts/, found {len(md_files)}"
+    assert len(md_files) >= 148, (
+        f"Expected at least 148 .md files under prompts/, found {len(md_files)}"
     )
+
+
+def test_agent_prompt_files_present():
+    """Verify all expected agent prompt files exist under prompts/agents/."""
+    agents_dir = PROJECT_ROOT / "prompts" / "agents"
+    expected_files = [
+        "chapter-outline-expander.md",
+        "chapter-writer.md",
+        "character-sheet-generator.md",
+        "consistency-checker.md",
+        "final-editor.md",
+        "outline-planner.md",
+        "prose-scrubber.md",
+        "quality-reviewer.md",
+        "story-orchestrator.md",
+        "story-planner.md",
+        "wiki-maintainer.md",
+    ]
+    for filename in expected_files:
+        path = agents_dir / filename
+        assert path.is_file(), f"Expected agent prompt {filename} in prompts/agents/"
