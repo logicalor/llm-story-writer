@@ -6,7 +6,9 @@
 
 The integration suite verifies the full OpenCode-compatible story pipeline against a real LLM endpoint. It exercises story state initialisation, wiki setup, outline generation, character and setting sheet generation, wiki population, scene writing, recap generation, wiki linting, savepoint creation, and final story assembly.
 
-These tests are intentionally heavier than unit tests. They make live model calls, create temporary story and ChromaDB directories, and validate that the pipeline works end to end instead of mocking tool boundaries.
+The integration area also includes a focused live smoke test for `OpenAIAsyncProvider`. Together, these tests cover both the end-to-end story pipeline and the new async streaming provider against a real OpenAI-compatible endpoint.
+
+These tests are intentionally heavier than unit tests. They make live model calls, create temporary story and ChromaDB directories, and validate real runtime behaviour instead of mocking tool boundaries.
 
 ## Scope
 
@@ -14,8 +16,11 @@ The suite currently lives in `tests/integration/` and includes:
 
 - `tests/integration/conftest.py` — registers the `integration` pytest marker and provides the session-scoped `llm_available` fixture.
 - `tests/integration/test_e2e_opencode.py` — a 12-test class that runs the full wiki-enabled generation pipeline and asserts the expected outputs at each stage.
+- `tests/integration/test_openai_async_provider_live.py` — a live streaming smoke test for `OpenAIAsyncProvider` that asserts multiple streamed chunks are received from a real endpoint.
 
-The `llm_available` fixture checks `GET {LLM_API_BASE}/models` before the suite starts. If the endpoint is unreachable or returns a non-200 status, pytest skips the integration tests instead of failing them.
+The `llm_available` fixture checks `GET {LLM_API_BASE}/models` before the end-to-end pipeline suite starts. If the endpoint is unreachable or returns a non-200 status, pytest skips that suite instead of failing it.
+
+`test_openai_async_provider_live.py` does not use `llm_available`. It is a direct live probe of streaming behaviour and will fail if the endpoint is down or the selected model is unavailable.
 
 ## Running The Suite
 
@@ -29,6 +34,14 @@ Run the integration suite explicitly:
 
 ```bash
 pytest tests/integration/ -v -m integration
+```
+
+Run only the async provider live test:
+
+```bash
+LLM_API_BASE=http://127.0.0.1:1234/v1 \
+TEST_OPENAI_ASYNC_MODEL=local-model \
+pytest tests/integration/test_openai_async_provider_live.py -v -m integration
 ```
 
 Run the single end-to-end file with a longer timeout:
@@ -53,6 +66,8 @@ The integration suite requires a live OpenAI-compatible LLM API.
 - Health check used by the fixture: `GET {LLM_API_BASE}/models`
 - Expected shape: an OpenAI-compatible `/models` route and compatible text-generation responses used by the tool layer
 
+`TEST_OPENAI_ASYNC_MODEL` optionally selects the model used by `test_openai_async_provider_live.py`. If unset, that test falls back to `LLM_MODEL`, then `local-model`.
+
 Examples:
 
 ```bash
@@ -64,6 +79,10 @@ LLM_API_BASE=http://192.168.1.50:1234/v1 pytest tests/integration/ -v -m integra
 
 # Ollama or another OpenAI-compatible server
 LLM_API_BASE=http://127.0.0.1:11434/v1 pytest tests/integration/test_e2e_opencode.py -v -m integration --timeout=7200
+
+# Async provider smoke test against a loaded model
+LLM_API_BASE=http://127.0.0.1:1234/v1 TEST_OPENAI_ASYNC_MODEL=local-model \
+	pytest tests/integration/test_openai_async_provider_live.py -v -m integration
 ```
 
 If `LLM_API_BASE` is unset, the suite falls back to the local default. If the endpoint is down, pytest reports the suite as skipped.
