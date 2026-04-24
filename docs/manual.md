@@ -128,9 +128,9 @@ Models are configured in `config.md` under the `models:` YAML block. The system 
 
 ```yaml
 models:
-  initial_outline_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  chapter_stage1_writer: "openai-compat://huihui_ai/magistral-abliterated:24b"
-  info_model: "openai-compat://huihui_ai/magistral-abliterated:24b"
+  initial_outline_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  chapter_stage1_writer: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+  info_model: "openai-compat://gemma-4-26b-a4b-it-heretic-guff"
   embedding_model: "openai-compat://nomic-embed-text"
 ```
 

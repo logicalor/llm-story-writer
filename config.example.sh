@@ -13,18 +13,18 @@ OUTPUT_NAME=""
 # =============================================================================
 
 # Outline Generation Models
-INITIAL_OUTLINE_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"
-CHAPTER_OUTLINE_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"
+INITIAL_OUTLINE_MODEL="openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+CHAPTER_OUTLINE_MODEL="openai-compat://gemma-4-26b-a4b-it-heretic-guff"
 
 # Chapter Generation Models
-CHAPTER_S1_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"  # Plot
-CHAPTER_S2_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"  # Character development
-CHAPTER_S3_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"  # Dialogue
-CHAPTER_S4_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"  # Final correction
+CHAPTER_S1_MODEL="openai-compat://gemma-4-26b-a4b-it-heretic-guff"  # Plot
+CHAPTER_S2_MODEL="openai-compat://gemma-4-26b-a4b-it-heretic-guff"  # Character development
+CHAPTER_S3_MODEL="openai-compat://gemma-4-26b-a4b-it-heretic-guff"  # Dialogue
+CHAPTER_S4_MODEL="openai-compat://gemma-4-26b-a4b-it-heretic-guff"  # Final correction
 
 # Revision and Quality Models
-CHAPTER_REVISION_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"
-REVISION_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"
+CHAPTER_REVISION_MODEL="openai-compat://gemma-4-26b-a4b-it-heretic-guff"
+REVISION_MODEL="openai-compat://gemma-4-26b-a4b-it-heretic-guff"
 EVAL_MODEL="openai-compat://huihui_ai/qwen2.5-coder-abliterate:7b"
 
 # Information and Processing Models
@@ -33,7 +33,7 @@ SCRUB_MODEL="openai-compat://huihui_ai/qwen2.5-coder-abliterate:7b"
 CHECKER_MODEL="openai-compat://huihui_ai/deepseek-r1-abliterated:8b"
 
 # Translation Models
-TRANSLATOR_MODEL="openai-compat://huihui_ai/magistral-abliterated:24b"
+TRANSLATOR_MODEL="openai-compat://gemma-4-26b-a4b-it-heretic-guff"
 
 # =============================================================================
 # GENERATION SETTINGS

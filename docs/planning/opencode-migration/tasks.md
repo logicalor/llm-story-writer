@@ -41,7 +41,7 @@ Create the OpenCode project scaffolding: `opencode.json` configuration file, `.o
 
 **Acceptance Criteria:**
 
-- [x] `opencode.json` exists with the OpenAI-compatible provider configured, default model set to `huihui_ai/magistral-abliterated:24b`
+- [x] `opencode.json` exists with the OpenAI-compatible provider configured, default model set to `gemma-4-26b-a4b-it-heretic-guff`
 - [x] `.opencode/agents/`, `.opencode/tools/`, `.opencode/skills/`, `.opencode/commands/`, `.opencode/plugins/` directories exist
 - [x] `AGENTS.md` exists with project-level instructions for all agents
 - [x] OpenCode can start and present the TUI with the configured model

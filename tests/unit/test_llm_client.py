@@ -100,4 +100,4 @@ def test_default_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LLM_API_BASE", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
     assert _get_api_base() == "http://127.0.0.1:1234/v1"
-    assert _get_model() == "huihui_ai/magistral-abliterated:24b"
+    assert _get_model() == "gemma-4-26b-a4b-it-heretic-guff"

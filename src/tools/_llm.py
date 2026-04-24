@@ -15,7 +15,7 @@ def _get_api_base() -> str:
 
 def _get_model() -> str:
     """Return the default model identifier."""
-    return os.environ.get("LLM_MODEL", "huihui_ai/magistral-abliterated:24b")
+    return os.environ.get("LLM_MODEL", "gemma-4-26b-a4b-it-heretic-guff")
 
 
 def generate_text(

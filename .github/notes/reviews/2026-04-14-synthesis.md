@@ -76,7 +76,7 @@ Suggestion: Refactor to use monkeypatch:
       monkeypatch.delenv("LLM_API_BASE", raising=False)
       monkeypatch.delenv("LLM_MODEL", raising=False)
       assert _get_api_base() == "http://localhost:11434/v1"
-      assert _get_model() == "huihui_ai/magistral-abliterated:24b"
+      assert _get_model() == "gemma-4-26b-a4b-it-heretic-guff"
 ```
 
 ```
