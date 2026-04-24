@@ -7,7 +7,7 @@
 
 ## Architecture
 
-This project uses a **hybrid agent-tool architecture**. OpenCode agents handle orchestration and human interaction; Python scripts (wrapped as OpenCode tools) handle deterministic domain logic.
+This project uses a **Python-native architecture**. Python scripts handle orchestration, tool execution, and domain logic. Prompt templates in `prompts/agents/` define agent behaviour.
 
 ### Clean Architecture Layers
 
@@ -21,7 +21,7 @@ Each layer depends only on inner layers: infrastructure → application → doma
 
 ### Tools
 
-Tools are **TypeScript wrappers** in `.opencode/tools/` that call **Python scripts** in `src/tools/` via subprocess. The TypeScript layer handles argument parsing and OpenCode integration; the Python layer contains the actual logic.
+Tools are **Python scripts** in `src/tools/` that implement deterministic domain logic (story state, wiki management, savepoints, generation). No TypeScript or subprocess wrappers exist.
 
 ### Agents
 
@@ -29,7 +29,7 @@ Story generation agent prompt files are defined in `prompts/agents/` and loaded 
 
 ### Skills
 
-Story generation skills are defined in `.opencode/skills/`. The `story-pipeline` skill provides the pipeline reference (phases, quality gates, savepoints, config settings).
+Story generation skills are defined in `prompts/skills/`. The `story-pipeline` skill provides the pipeline reference (phases, quality gates, savepoints, config settings).
 
 ### Storage
 
@@ -44,7 +44,6 @@ Local LLM inference via any OpenAI-compatible endpoint — **LM Studio** (defaul
 ## Conventions
 
 - **Python:** `snake_case` naming, `ruff` for linting/formatting, `pytest` for testing
-- **TypeScript:** `camelCase` naming, ESLint for `.opencode/tools/` wrappers
 - **Import order:** stdlib → third-party → local, alphabetised within groups
 - **Testing:** `tests/unit/`, `tests/integration/`; name files `test_<module>.py`, methods `test_<behaviour>()`
 

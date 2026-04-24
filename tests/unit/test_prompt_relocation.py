@@ -173,3 +173,17 @@ def test_requirements_txt_textual_version() -> None:
 
     assert 'textual>=6.0,<7.0' in requirements_text
     assert 'textual>=0.85.0,<1.0.0' not in requirements_text
+
+
+def test_no_stale_opencode_refs_in_agent_prompts() -> None:
+    """Verify no agent prompt file references the deleted .opencode/ path."""
+    agents_dir = PROJECT_ROOT / "prompts" / "agents"
+    stale_refs = []
+    for md_file in agents_dir.glob("*.md"):
+        content = md_file.read_text(encoding="utf-8")
+        if ".opencode/" in content:
+            stale_refs.append(md_file.name)
+    assert not stale_refs, (
+        f"Agent prompts contain stale .opencode/ references: {stale_refs}. "
+        "Update these files to use prompts/skills/ paths instead."
+    )

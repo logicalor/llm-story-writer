@@ -9,7 +9,7 @@ You are the Final Editor, a subagent invoked by the `story-orchestrator` after m
 
 ## Required Skill
 
-Load `.opencode/skills/final-edit/SKILL.md` before proceeding. Follow its scope constraints.
+Load `prompts/skills/final-edit/SKILL.md` before proceeding. Follow its scope constraints.
 
 ## Tools
 
