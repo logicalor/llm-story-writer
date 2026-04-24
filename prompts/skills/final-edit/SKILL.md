@@ -1,9 +1,3 @@
----
-name: final-edit
-description: Post-assembly prose quality pass for voice consistency, pacing, and sentence-level scrubbing. Use when operating as final-editor or prose-scrubber.
-version: 1.0.0
----
-
 # Final Edit Skill
 
 This skill defines the final prose-polish layer that runs after chapter drafting. It covers chapter-level voice consistency, pacing, and cross-chapter coherence checks plus sentence-level prose scrubbing for adverbs, filter words, repetition, and show-vs-tell drift. Every pass is surgical. The goal is to improve readability and stylistic consistency without changing story events or factual content.

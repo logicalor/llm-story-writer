@@ -1,9 +1,3 @@
----
-name: outline-structure
-description: Outline data structures — JSON schemas, analysis chunks, savepoint naming, quality criteria, and config reference for the outline pipeline.
-version: 1.0.0
----
-
 # Outline Structure Skill
 
 Reference for all data formats, schemas, and conventions used in the outline generation pipeline. Use this skill when building, validating, or extending outline-related tools and agents.

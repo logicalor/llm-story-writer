@@ -1,9 +1,3 @@
----
-name: wiki-conventions
-description: Wiki page type schemas, YAML frontmatter specifications, naming conventions, and cross-reference patterns
-version: 1.0.0
----
-
 # Wiki Conventions Skill
 
 Authoritative reference for wiki page structure, naming conventions, frontmatter schemas, and cross-reference patterns. Use this skill when creating, reading, or validating wiki pages.

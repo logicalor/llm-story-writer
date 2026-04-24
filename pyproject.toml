@@ -6,6 +6,10 @@ build-backend = "setuptools.build_meta"
 name = "llm-story-writer"
 version = "0.1.0"
 requires-python = ">=3.10"
+dependencies = [
+	"textual>=6.0,<7.0",
+	"openai>=1.0",
+]
 
 [project.scripts]
 story-writer = "src.presentation.cli.main:main"

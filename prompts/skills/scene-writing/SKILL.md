@@ -1,9 +1,3 @@
----
-name: scene-writing
-description: Scene writing conventions — narrative structure, pacing, transitions, and generation best practices.
-version: 1.0.0
----
-
 # Scene Writing Skill
 
 Guide for generating high-quality individual scenes within a chapter. This skill covers narrative structure, pacing, transitions, and best practices for AI-driven scene generation using wiki-based context.

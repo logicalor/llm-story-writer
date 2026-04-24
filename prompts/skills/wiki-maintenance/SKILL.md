@@ -1,9 +1,3 @@
----
-name: wiki-maintenance
-description: Entity extraction rules, confidence taxonomy, and structured output formats for wiki memory maintenance
-version: 1.0.0
----
-
 # Wiki Maintenance Skill
 
 Rules and formats for automated wiki maintenance during story generation. Two modes: initial population (from outline and character/setting sheets) and incremental updates (from generated scenes).

@@ -1,9 +1,3 @@
----
-name: narrative-arc
-description: Narrative arc analysis data structures - assessment output schema, critic score format, verdict codes, and workflow reference for story-planner.
-version: 1.0.0
----
-
 # Narrative Arc Skill
 
 Reference for the post-outline dramatic arc analysis flow used by `story-planner`.
@@ -99,4 +93,4 @@ Arc analysis prompts live here:
 
 ## Related Reference
 
-For the outline JSON structure consumed by this workflow, see `.opencode/skills/outline-structure/SKILL.md`.
+For the outline JSON structure consumed by this workflow, see `prompts/skills/outline-structure/SKILL.md`.

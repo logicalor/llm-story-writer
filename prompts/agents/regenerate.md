@@ -1,8 +1,3 @@
----
-description: Regenerate a specific chapter or scene
-agent: story-orchestrator
----
-
 Regenerate part of the story based on: $ARGUMENTS
 
 Parse the arguments to determine what to regenerate:

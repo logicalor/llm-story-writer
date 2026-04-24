@@ -1,9 +1,3 @@
----
-name: story-pipeline
-description: Story generation pipeline — phases, quality gates, savepoints, wiki lifecycle, and config reference.
-version: 1.0.0
----
-
 # Story Pipeline Skill
 
 Reference guide for the full story generation pipeline orchestrated by the `story-orchestrator` agent. Use this skill when implementing, debugging, or extending any part of the pipeline.

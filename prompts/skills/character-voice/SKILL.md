@@ -1,9 +1,3 @@
----
-name: character-voice
-description: Character voice consistency — dialogue patterns, internal thought, behavioral coherence across scenes.
-version: 1.0.0
----
-
 # Character Voice Skill
 
 Guide for maintaining consistent, distinct character voices across a long-form narrative. In AI-generated fiction, voice drift — where all characters begin sounding like the narrator or each other — is the most common quality failure. This skill provides concrete techniques to prevent it.

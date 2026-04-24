@@ -1,9 +1,3 @@
----
-name: context-budgeting
-description: Token budget strategy and context assembly rules for the 65536-token context window
-version: 1.0.0
----
-
 # Context Budgeting Skill
 
 Token budget strategy, context assembly rules, and retrieval pipeline reference for working within the 65536-token context window. Use this skill when assembling pre-generation context, loading story state, or deciding what to include in a generation prompt.

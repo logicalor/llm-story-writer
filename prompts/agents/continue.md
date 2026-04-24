@@ -1,8 +1,3 @@
----
-description: Resume story generation from the last savepoint
-agent: story-orchestrator
----
-
 Resume story generation from the most recent savepoint.
 
 Available stories:
