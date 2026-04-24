@@ -60,7 +60,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     # Create empty index.md
     _atomic_write(
         wiki_dir / "index.md",
-        "# Wiki Index\n\n<!-- slug | type | name | aliases -->\n",
+        "# Wiki Index\n\n<!-- slug | type | name | aliases | path -->\n",
     )
 
     # Create empty log.md

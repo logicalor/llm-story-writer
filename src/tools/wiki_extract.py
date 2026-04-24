@@ -614,6 +614,35 @@ def cmd_initial_populate(args: argparse.Namespace) -> None:
 
     summary = run_batch(args.name, payload)
     _delete_extract_cache(story_dir)
+
+    # Write the Phase 6 milestone savepoint so the orchestrator's resume path
+    # (savepoint-mgr next-phase) recognises Phase 6 as complete. Previously
+    # the orchestrator had to create this savepoint manually after delegating
+    # to wiki-maintainer, which was easy to skip on retry/resume.
+    try:
+        from infrastructure.storage.savepoint_repository import (  # noqa: PLC0415
+            FilesystemSavepointRepository,
+        )
+        import asyncio as _asyncio  # noqa: PLC0415
+
+        repo = FilesystemSavepointRepository(base_path=story_dir)
+        _asyncio.run(
+            repo.save_savepoint(
+                "wiki_populated",
+                {
+                    "status": "complete",
+                    "created": summary["created"],
+                    "updated": summary["updated"],
+                    "entity_counts": summary["entity_counts"],
+                },
+            )
+        )
+    except Exception as exc:  # pragma: no cover — defensive
+        print(
+            f"Warning: wiki_populated savepoint write failed: {exc}",
+            file=sys.stderr,
+        )
+
     print(
         json.dumps(
             {

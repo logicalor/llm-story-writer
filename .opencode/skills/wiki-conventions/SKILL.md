@@ -69,6 +69,40 @@ The wiki supports 12 entity types. Each type has specific frontmatter fields bey
 
 ---
 
+## Index Format
+
+`index.md` is the flat registry of all wiki entities. Format per entry:
+
+```
+- slug | type | name | aliases | path
+```
+
+- `slug` — kebab-case identifier (no `/` characters)
+- `type` — entity type (character, location, event, etc.)
+- `name` — display name
+- `aliases` — comma-separated alternative names (may be blank)
+- `path` — wiki-relative file path, e.g. `characters/emre.md`
+
+**Type → subdirectory mapping:**
+
+| Type | Subdirectory |
+|------|-------------|
+| `character` | `characters/` |
+| `location` | `locations/` |
+| `event` | `events/` |
+| `faction` | `factions/` |
+| `item` | `items/` |
+| `plot_thread` | `plot-threads/` |
+| `world_rule` | `world-rules/` |
+| `theme` | `themes/` |
+| `relationship` | `relationships/` |
+| `timeline_entry` | `timeline/` |
+| `chapter_synopsis` | `chapters/` |
+
+**Never construct a wiki file path from a bare slug.** Wiki pages live in subdirectories — `wiki/emre.md` does not exist; `wiki/characters/emre.md` does. Always use the `path` column from `index.md` or call `wiki-read` to access page content.
+
+---
+
 ## Wikilink Conventions
 
 - **Format:** `[[entity-slug]]` — always reference by slug, not display name

@@ -71,7 +71,7 @@ def slugify(name: str) -> str:
 def read_index(wiki_dir: Path) -> list[dict]:
     """Read index.md and return list of entity entries.
 
-    Each entry: {name, slug, type, aliases}
+    Each entry: {name, slug, type, aliases, path}
     """
     index_path = wiki_dir / "index.md"
     if not index_path.exists():
@@ -85,7 +85,7 @@ def read_index(wiki_dir: Path) -> list[dict]:
         if not line or line.startswith("#"):
             continue
 
-        # Format: - slug | type | name | alias1, alias2
+        # Format: - slug | type | name | aliases | path
         if not line.startswith("- "):
             continue
 
@@ -102,8 +102,21 @@ def read_index(wiki_dir: Path) -> list[dict]:
             if raw_aliases:
                 aliases = [a.strip() for a in raw_aliases.split(",") if a.strip()]
 
+        path = ""
+        if len(parts) >= 5:
+            path = parts[4].strip()
+        if not path:
+            subdir = _TYPE_TO_DIR.get(page_type, "")
+            path = f"{subdir}/{slug}.md" if subdir else f"{slug}.md"
+
         entries.append(
-            {"name": name, "slug": slug, "type": page_type, "aliases": aliases}
+            {
+                "name": name,
+                "slug": slug,
+                "type": page_type,
+                "aliases": aliases,
+                "path": path,
+            }
         )
 
     return entries
@@ -113,11 +126,15 @@ def write_index(wiki_dir: Path, entries: list[dict]) -> None:
     """Write entity entries to index.md in structured format."""
     from tools._io import _atomic_write
 
-    lines = ["# Wiki Index", "", "<!-- slug | type | name | aliases -->", ""]
+    lines = ["# Wiki Index", "", "<!-- slug | type | name | aliases | path -->", ""]
     for entry in sorted(entries, key=lambda e: e.get("slug", "")):
         aliases_str = ", ".join(entry.get("aliases", []))
+        slug = entry["slug"]
+        page_type = entry["type"]
+        subdir = _TYPE_TO_DIR.get(page_type, "")
+        path = entry.get("path") or (f"{subdir}/{slug}.md" if subdir else f"{slug}.md")
         lines.append(
-            f"- {entry['slug']} | {entry['type']} | {entry['name']} | {aliases_str}"
+            f"- {slug} | {page_type} | {entry['name']} | {aliases_str} | {path}"
         )
     lines.append("")
 

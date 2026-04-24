@@ -387,9 +387,15 @@ def cmd_expand_chapter(
     previous_chunks: str = "",
     continuity_summary: str = "",
     model: str | None = None,
+    phase: str = "chunk",
     **_kwargs: Any,
 ) -> None:
-    """Generate an outline chunk for a range of chapters, then analyze continuity."""
+    """Generate an outline chunk for a range of chapters, then analyze continuity.
+
+    The ``phase`` argument scopes the savepoint keys so Phase 3 (outline-planner)
+    chunk outlines and Phase 7a (chapter-outline-expander) per-chapter expansions
+    do not collide. Use ``"chunk"`` for Phase 3 and ``"chapter"`` for Phase 7a.
+    """
     _validate_story_name(name)
     repo = _make_repo(name)
 
@@ -405,8 +411,14 @@ def cmd_expand_chapter(
     if not isinstance(base_context, str):
         base_context = json.dumps(base_context, default=str)
 
+    if phase == "chapter":
+        chunk_step = f"expanded_chapter_{chunk_start}_{chunk_end}"
+        continuity_step = f"expansion_continuity_{chunk_start}_{chunk_end}"
+    else:
+        chunk_step = f"outline_chunk_{chunk_start}_{chunk_end}"
+        continuity_step = f"continuity_{chunk_start}_{chunk_end}"
+
     # --- Generate chunk outline ---
-    chunk_step = f"outline_chunk_{chunk_start}_{chunk_end}"
     if _has_savepoint(repo, chunk_step):
         chunk_text = _load_savepoint(repo, chunk_step)
         if not isinstance(chunk_text, str):
@@ -431,7 +443,6 @@ def cmd_expand_chapter(
             _error(f"chunk expansion failed: {exc}")
 
     # --- Analyze continuity ---
-    continuity_step = f"continuity_{chunk_start}_{chunk_end}"
     if _has_savepoint(repo, continuity_step):
         continuity_analysis = _load_savepoint(repo, continuity_step)
         if not isinstance(continuity_analysis, str):
@@ -739,6 +750,12 @@ def main() -> None:
         help="Continuity summary text (expand-chapter)",
     )
     parser.add_argument(
+        "--phase",
+        default="chunk",
+        choices=["chunk", "chapter"],
+        help="Savepoint namespace for expand-chapter: 'chunk' (Phase 3 outline planning) or 'chapter' (Phase 7a per-chapter expansion)",
+    )
+    parser.add_argument(
         "--feedback",
         default=None,
         help="Critique/feedback text (refine)",
@@ -836,6 +853,7 @@ def main() -> None:
             previous_chunks=args.previous_chunks,
             continuity_summary=args.continuity_summary,
             model=args.model,
+            phase=args.phase,
         )
 
     elif args.operation == "expand-to-scenes":

@@ -159,7 +159,7 @@ Execute these phases sequentially. Each phase completes fully before the next be
    - Create wiki pages for plot threads, world rules, and timeline entries (from outline)
    - Establish wikilinks between related entities
    - Generate L1/L2/L3 detail levels for each page ([ADR 005](../../docs/planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md))
-2. Create savepoint: `wiki_populated`
+2. The `wiki_populated` savepoint is written automatically by `wiki-extract initial-populate` when the batch applies successfully. Do not write it yourself.
 
 ### Phase 7: Chapter Expansion + Per-Chapter Loop
 

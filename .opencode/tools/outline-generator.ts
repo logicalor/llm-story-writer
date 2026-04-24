@@ -58,6 +58,12 @@ export default tool({
       .string()
       .optional()
       .describe("Continuity summary text (expand-chapter)"),
+    phase: z
+      .enum(["chunk", "chapter"])
+      .optional()
+      .describe(
+        "Savepoint namespace for expand-chapter: 'chunk' (Phase 3 outline planning, default) or 'chapter' (Phase 7a per-chapter expansion)"
+      ),
     feedback: z
       .string()
       .optional()
@@ -109,6 +115,7 @@ export default tool({
     totalChapters,
     previousChunks,
     continuitySummary,
+    phase,
     feedback,
     chapterNum,
     chapterSynopsis,
@@ -127,6 +134,7 @@ export default tool({
     totalChapters?: number;
     previousChunks?: string;
     continuitySummary?: string;
+    phase?: "chunk" | "chapter";
     feedback?: string;
     chapterNum?: number;
     chapterSynopsis?: string;
@@ -165,6 +173,9 @@ export default tool({
     }
     if (continuitySummary) {
       args.push("--continuity-summary", continuitySummary);
+    }
+    if (phase) {
+      args.push("--phase", phase);
     }
     if (feedback) {
       args.push("--feedback", feedback);

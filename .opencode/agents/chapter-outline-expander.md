@@ -72,6 +72,7 @@ Execute these steps sequentially.
       - `totalChapters`: `wanted_chapters`
       - `previousChunks`: `approved_outline` (the full merged outline from step 3), if non-null — this grounds the expansion in the approved chapter synopsis rather than regenerating blind from `story_elements` alone
       - `continuitySummary`: the combined continuity text from step b, if present
+      - `phase`: `"chapter"` — required so Phase 7a writes to the `expanded_chapter_{N}_{N}` savepoint namespace and does not collide with Phase 3 `outline_chunk_{s}_{e}` savepoints
       - `model`: `model`, if provided
 
       > **Note on `previousChunks` usage:** Passing the fixed `approved_outline` string here is O(n) calls × O(1) content per call — it is NOT quadratic. The prohibition on `previousChunks` in `outline-planner` Phase 3 applies to progressively accumulating all previously generated chunks in the generation loop (which grows with each iteration). Here we pass the same, already-fixed merged outline on every call.
