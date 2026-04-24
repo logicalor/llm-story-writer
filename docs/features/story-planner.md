@@ -103,13 +103,13 @@ The outline itself remains the authoritative input. Phase 2.5 analyzes the exist
 
 ### Key Files
 
-- `.opencode/agents/story-planner.md` — subagent contract and workflow
+- `prompts/agents/story-planner.md` — subagent contract and workflow
 - `.opencode/tools/critique-runner.ts` — wrapper that forwards `run-arc-analysis` and optional `criticSummary`
 - `src/tools/critique_runner.py` — arc-analysis prompt orchestration and savepoint persistence
 - `prompts/outline_arc/arc_distribution.md` — dramatic-weight prompt
 - `prompts/outline_arc/promise_payoff.md` — setup/payoff prompt
 - `prompts/outline_arc/arc_synthesis.md` — synthesis prompt
-- `.opencode/agents/story-orchestrator.md` — Phase 2.5 integration and Phase 3 presentation rules
+- `prompts/agents/story-orchestrator.md` — Phase 2.5 integration and Phase 3 presentation rules
 
 ### Constraints
 

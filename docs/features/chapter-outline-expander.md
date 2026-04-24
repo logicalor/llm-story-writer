@@ -102,8 +102,8 @@ On the next expansion iteration, `chapter-outline-expander` reads that structure
 
 | File | Purpose |
 |------|---------|
-| `.opencode/agents/chapter-outline-expander.md` | Subagent workflow, tool contract, continuity threading rules |
-| `.opencode/agents/story-orchestrator.md` | Parent orchestration logic for Phase 7a dispatch and Phase 7g handoff delegation |
+| `prompts/agents/chapter-outline-expander.md` | Subagent workflow, tool contract, continuity threading rules |
+| `prompts/agents/story-orchestrator.md` | Parent orchestration logic for Phase 7a dispatch and Phase 7g handoff delegation |
 | `prompts/chapters/expand_to_scenes.md` | Prompt template for synopsis-to-scene decomposition |
 | `prompts/chapters/generate_handoff.md` | Prompt template for the structured handoff JSON artifact |
 | `src/domain/value_objects/generation_settings.py` | Phase 7a scene-expansion flags and scene-count band validation |

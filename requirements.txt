@@ -1,5 +1,6 @@
 # Core dependencies
 requests>=2.25.0
+openai>=1.0.0
 
 chromadb>=0.5.0
 

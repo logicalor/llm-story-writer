@@ -57,6 +57,18 @@ A three-model research synthesis confirms the story generation pipeline is seque
 
 ## Proposed Solution
 
+<<<<<<< HEAD
+=======
+## Current Implementation Status
+
+Issue #158 / PR #167 implemented the first foundation slice of this migration:
+
+- [x] Task 1 foundation complete: all eleven agent prompts were relocated to `prompts/agents/`
+- [x] Shared Python loader added at `src/infrastructure/prompts/agent_prompt_loader.py`
+- [x] Typed pipeline handoff package added at `src/application/pipeline/`
+- [x] `PipelineState` now supports JSON-friendly `to_dict()` / `from_dict()` persistence helpers for savepoints
+
+>>>>>>> 21f953514e144842a7f6e7d73374837fbf15c04b
 ### Architecture Overview
 
 ```
@@ -130,7 +142,8 @@ No schema changes. JSON savepoints, JSON story state, and ChromaDB collections a
 ## Acceptance Criteria
 
 - [ ] All files under `.opencode/`, all `.ts` files under the project root, `opencode.json`, `package.json`, `tsconfig.json`, and `vitest.config.ts` are removed from the repository.
-- [ ] All `.opencode/agents/*.md` files are relocated to `prompts/agents/` with unchanged content.
+- [x] All `.opencode/agents/*.md` files are relocated to `prompts/agents/` with unchanged content.
+- [x] Typed handoff dataclasses exist under `src/application/pipeline/handoffs.py` with JSON round-trip support for pipeline savepoints.
 - [ ] `python -m src.presentation.cli.main tui --story <name>` launches a Textual app with status panel, streaming output panel, and approval input widget.
 - [ ] Launching a story run in the TUI streams LLM token output into the output panel in real time (visibly token-by-token, not all-at-once).
 - [ ] The TUI pauses at outline and chapter approval gates. Typing `approve` / `reject` / `revise <feedback>` resumes or adjusts the pipeline.
