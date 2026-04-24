@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Last Updated:** April 2026
-**Stack:** Python 3.10+ · OpenCode · ChromaDB · OpenAI-compatible local LLM (LM Studio default)
+**Stack:** Python 3.10+ · Textual · ChromaDB · OpenAI-compatible local LLM (LM Studio default)
 
 ---
 
@@ -39,18 +39,18 @@ AI Story Writer is an AI-powered long-form story generation system. It produces 
 
 ## 2. Architecture
 
-### 2.1 Hybrid Agent-Tool Architecture
+### 2.1 Python-Native Pipeline Architecture
 
-The system uses a **hybrid agent-tool architecture** (per [ADR 001](planning/adr/001-hybrid-agent-tool-architecture.md)):
+The system uses a **Python-native prompt-and-tool architecture** during active runtime. Prompt-defined pipeline phases live under `prompts/agents/`, and Python orchestration code loads those prompts directly (see [ADR 007](planning/adr/007-python-native-orchestration.md)):
 
 | Component | Technology | Role |
 |-----------|------------|------|
-| **Agents** | OpenCode | Orchestration, creative decisions, human interaction |
+| **Pipeline phases** | Python presentation layer + `prompts/agents/` | Orchestration, creative decisions, human interaction |
 | **Tools** | Python modules and scripts | Deterministic domain operations |
 | **Wiki** | Markdown + YAML frontmatter | Structured story knowledge base |
 | **Vector index** | ChromaDB | Semantic search over story content and wiki |
 
-**Key principle:** Agents make decisions; tools execute operations. Agents never directly manipulate story files, wiki pages, or savepoints — they delegate to tools.
+**Key principle:** Prompt-defined phases make decisions; tools execute operations. Runtime orchestration never directly manipulates story files, wiki pages, or savepoints without going through the relevant Python tool or service boundary.
 
 ### 2.2 Clean Architecture Layers (Python Domain)
 
@@ -97,7 +97,6 @@ stories/<name>/  (chapters, wiki, savepoints)
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Python | 3.10+ | Required by `pyproject.toml` |
-| OpenCode | latest | Optional for legacy slash-command workflows and plugins |
 | OpenAI-compatible LLM server | any | LM Studio (default), Ollama, llama.cpp, vLLM, etc. |
 
 ### 3.2 Installation Steps
@@ -107,18 +106,15 @@ stories/<name>/  (chapters, wiki, savepoints)
 git clone https://github.com/datacrystals/AIStoryWriter.git
 cd AIStoryWriter
 
-# 2. Install OpenCode (follow platform-specific instructions)
-opencode --version
-
-# 3. Start your local LLM server and load models
+# 2. Start your local LLM server and load models
 #    e.g. LM Studio (default: http://127.0.0.1:1234/v1) — load model via the UI
 #    or:  ollama serve && ollama pull <model-name>
 
-# 4. Install Python dependencies and the console script
+# 3. Install Python dependencies and the console script
 pip install -r requirements.txt
 pip install -e .
 
-# 5. Copy and configure
+# 4. Copy and configure
 cp config.example.sh config.sh
 # Edit config.sh with your model paths and API endpoints
 ```
@@ -227,13 +223,13 @@ Keybindings:
 
 See [Textual TUI](./features/textual-tui.md) for the thread model, approval-gate bridge, and test coverage.
 
-### 5.2 OpenCode Workflow
+### 5.2 Prompt Assets
 
-```bash
-opencode
-```
+Issue #164 removed the remaining OpenCode runtime artefacts from the repository. Reusable prompt content that still matters to the Python-native pipeline now lives in these locations:
 
-OpenCode remains in the repository for agent prompts, skills, commands, and plugins. Use it when you need the existing slash-command workflow rather than the Python-native CLI.
+- `prompts/agents/continue.md`
+- `prompts/agents/regenerate.md`
+- `prompts/skills/` — relocated skill reference material used by prompt-defined phases
 
 ### 5.3 Story Generation Pipeline
 
@@ -327,26 +323,18 @@ llm-story-writer/
 │       ├── scene_writer.py
 │       └── ...
 │
-├── .opencode/                # OpenCode agentic system
-│   ├── agents/
+├── prompts/                  # 132+ prompt templates
+│   ├── agents/               # Prompt-defined pipeline phase instructions
 │   │   ├── story-orchestrator.md
 │   │   ├── outline-planner.md
-│   │   ├── story-planner.md
-│   │   ├── chapter-writer.md
-│   │   └── wiki-maintainer.md
-│   ├── tools/                # Placeholder directory (.gitkeep only after Task 7)
-│   ├── skills/               # Reusable skill definitions
+│   │   ├── continue.md
+│   │   ├── regenerate.md
+│   │   └── ...
+│   ├── skills/               # Reusable skill reference material
 │   │   ├── story-pipeline/
 │   │   ├── wiki-conventions/
-│   │   ├── context-budgeting/
+│   │   ├── wiki-maintenance/
 │   │   └── ...
-│   └── commands/             # TUI slash commands
-│       ├── new-story.md
-│       ├── continue.md
-│       ├── status.md
-│       └── ...
-│
-├── prompts/                  # 132+ prompt templates
 │   ├── chapters/             # Chapter generation prompts
 │   ├── characters/          # Character sheet prompts
 │   ├── outline/              # Outline generation prompts
@@ -462,7 +450,7 @@ Wiki pages cross-reference each other using `[[wikilink]]` syntax:
 
 ### 8.1 Agents
 
-Agent system prompts now live in `prompts/agents/` as Markdown files. The current OpenCode registry still lives in `opencode.json`, and the Python-native migration uses `src/infrastructure/prompts/agent_prompt_loader.py` to read the same prompt bodies without YAML frontmatter.
+Agent system prompts now live in `prompts/agents/` as Markdown files. `src/infrastructure/prompts/agent_prompt_loader.py` reads those prompt bodies directly and strips YAML frontmatter before returning the reusable instruction text.
 
 | Agent | Role |
 |-------|------|
@@ -609,11 +597,10 @@ See [docs/testing/integration-tests.md](testing/integration-tests.md) for detail
 | Language | Tool | Config |
 |----------|------|--------|
 | Python | ruff | `pyproject.toml` |
-| TypeScript | ESLint | `tsconfig.json` |
 
 **Import ordering:** stdlib → third-party → local, alphabetised within groups.
 
-**Naming:** `snake_case` for Python, `camelCase` for TypeScript.
+**Naming:** `snake_case` for Python.
 
 ### 11.2 Commands
 
@@ -676,8 +663,8 @@ curl http://127.0.0.1:1234/v1/models
 ### Story generation producing inconsistent output
 
 - Enable `enable_chapter_revisions: true` in `config.md`
-- Run `/wiki` command to inspect wiki state
-- Use `/continue` from the last savepoint rather than restarting
+- Use the wiki tool CLIs or the Textual wiki panel to inspect wiki state
+- Use `story-writer resume --story <name>` from the last savepoint rather than restarting
 
 ### Savepoint restore failing
 
@@ -699,8 +686,8 @@ curl http://127.0.0.1:1234/v1/models
 ```bash
 # Start your local LLM server (e.g. LM Studio, or `ollama serve`)
 
-# Run OpenCode TUI
-opencode
+# Run Textual TUI
+story-writer tui --story test_story
 
 # Lint + format + type check
 ruff check --fix . && ruff format . && mypy src/
@@ -708,14 +695,11 @@ ruff check --fix . && ruff format . && mypy src/
 # Run tests
 pytest tests/unit/ -v
 
-# Create a new story
-/new-story prompts/YourPrompt.txt
+# Run headless pipeline
+story-writer run --story test_story --batch
 
 # Continue from savepoint
-/continue story-name
-
-# Check status
-/status
+story-writer resume --story story-name
 ```
 
 ---

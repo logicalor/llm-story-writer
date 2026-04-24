@@ -4,7 +4,7 @@
 
 ## Overview
 
-The repository no longer uses TypeScript wrappers in `.opencode/tools/`. Task 7 from the Python-native migration deleted all `.ts` wrapper files; the directory is retained only with `.gitkeep` so the migration can remove the final OpenCode artefacts incrementally.
+The repository no longer uses TypeScript wrappers in `.opencode/tools/`. Task 7 removed the wrapper files, and Issue #164 removed the remaining `.opencode/` tree entirely.
 
 Deterministic operations now live in Python only. They are used in two ways:
 
@@ -112,7 +112,7 @@ When you add a new deterministic operation:
 1. Put the implementation in `src/tools/` or, if it is orchestration-only, in `src/application/services/`.
 2. Keep the shell interface in Python with argparse if ad-hoc execution is useful.
 3. Wire the runtime path by importing the Python module or service directly from the orchestrator or presentation agent.
-4. Update this document and any affected feature docs. Do not add a new `.opencode/tools/*.ts` wrapper.
+4. Update this document and any affected feature docs. Do not reintroduce a wrapper layer outside Python.
 
 ## Related
 

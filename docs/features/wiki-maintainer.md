@@ -20,9 +20,8 @@ The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) th
 | File | Purpose |
 |------|---------|
 | `prompts/agents/wiki-maintainer.md` | Agent definition — workflows, tools, constraints, error handling |
-| `.opencode/skills/wiki-maintenance/SKILL.md` | Skill reference — entity schemas, confidence taxonomy, output formats, error taxonomy |
-| `.opencode/skills/wiki-conventions/SKILL.md` | Skill reference — page type schemas, YAML frontmatter specs, wikilink conventions, naming rules |
-| `opencode.json` | Agent registration with model and permission settings |
+| `prompts/skills/wiki-maintenance/SKILL.md` | Skill reference — entity schemas, confidence taxonomy, output formats, error taxonomy |
+| `prompts/skills/wiki-conventions/SKILL.md` | Skill reference — page type schemas, YAML frontmatter specs, wikilink conventions, naming rules |
 | `src/infrastructure/prompts/agent_prompt_loader.py` | Shared Python-native loader for prompt bodies in `prompts/agents/` |
 
 ## Tools
@@ -60,7 +59,7 @@ Called after each chapter is assembled. Updates the wiki with `verified` informa
 
 The extraction rules themselves do not change: the tool still follows the wiki-maintenance skill's schema, confidence taxonomy, alias rules, and detail-level targets. The change is ownership, not output format.
 
-The shared `.opencode/_run.ts` timeout message is now accurate for this tool: savepoints are written after each completed extraction or detail-generation step, so no agent-level recovery flow is required. Retrying the same `wiki-extract` call with the same parameters continues from the last cached step until the apply succeeds. If the source inputs (sheets, outline, or chapter text) were edited between the original run and the retry, delete `stories/<story-name>/.wiki-extract-cache.json` first to ensure a fresh extraction.
+The tool retry contract is explicit for this workflow: savepoints are written after each completed extraction or detail-generation step, so no agent-level recovery flow is required. Retrying the same `wiki-extract` call with the same parameters continues from the last cached step until the apply succeeds. If the source inputs (sheets, outline, or chapter text) were edited between the original run and the retry, delete `stories/<story-name>/.wiki-extract-cache.json` first to ensure a fresh extraction.
 
 ## Entity Types
 
@@ -176,11 +175,11 @@ Beyond the standard alias identification rules, the wiki maintainer handles thre
 
 ## Model Configuration
 
-The agent remains registered in `opencode.json` for current OpenCode execution, while its reusable prompt content now lives in `prompts/agents/wiki-maintainer.md`. Python-native orchestration work reads that file through `src/infrastructure/prompts/agent_prompt_loader.py`, which strips YAML frontmatter before returning the body.
+The reusable prompt content for this workflow lives in `prompts/agents/wiki-maintainer.md`. Python-native orchestration reads that file through `src/infrastructure/prompts/agent_prompt_loader.py`, which strips YAML frontmatter before returning the body.
 
 The wiki maintainer continues to run on a smaller 7b model for lightweight maintenance work. Instructions stay explicit and sequential so the workflow remains reliable at that model size.
 
-The agent uses two skills:
+The agent uses two skill-reference documents:
 - **wiki-maintenance** — entity extraction rules, confidence taxonomy, structured output formats, detail level guidelines, chapter boundary procedures, and ConStory-Bench error taxonomy
 - **wiki-conventions** — page type schemas, YAML frontmatter specifications for all 12 entity types, wikilink conventions, slug naming rules, and detail level format reference
 

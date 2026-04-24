@@ -272,6 +272,8 @@ Keybindings: `Ctrl+C` graceful cancel (cancels worker, writes in-flight savepoin
 **Estimated scope:** small
 **Dependencies:** Tasks 7, 8
 
+**Status:** implemented in Issue #164 / PR #175
+
 **Description:**
 
 Delete OpenCode and Node.js runtime artefacts:
@@ -291,12 +293,14 @@ Update `pyproject.toml` to reflect Python-only toolchain. Pin:
 - `httpx` (transitive, but pin lower bound)
 - Keep existing `pydantic`, `pyyaml`, `chromadb` pins
 
+Current implementation note: `.opencode/`, `opencode.json`, `package.json`, `package-lock.json`, `tsconfig.json`, and `vitest.config.ts` are deleted. `pyproject.toml` now declares `textual>=6.0,<7.0` and `openai>=1.0`, and `requirements.txt` pins `textual>=6.0,<7.0`. `skills-lock.json` remains because it is not part of the removed OpenCode runtime surface.
+
 **Acceptance Criteria:**
 
-- [ ] Listed files/directories are removed
-- [ ] `pyproject.toml` declares all new dependencies
-- [ ] Fresh clone + `pip install -e .` produces a working `story-writer` console command
-- [ ] No references to `.ts`, `node`, `npm`, `opencode` in `pyproject.toml`, `README.md`, or top-level config
+- [x] Listed OpenCode and Node.js runtime files/directories are removed
+- [x] `pyproject.toml` declares all new dependencies
+- [x] Fresh clone + `pip install -e .` produces a working `story-writer` console command
+- [x] No references to `.ts`, `node`, `npm`, `opencode` in `pyproject.toml`, `README.md`, or top-level config
 
 **Key Files:**
 
@@ -377,6 +381,8 @@ Marked `@pytest.mark.integration @pytest.mark.slow` so CI can skip by default.
 **Estimated scope:** small
 **Dependencies:** Task 9
 
+**Status:** implemented in Issue #164 / PR #175
+
 **Description:**
 
 Delete `.opencode/plugins/story-compaction.ts` and `.opencode/_run.ts`. Both are OpenCode-internal:
@@ -386,11 +392,13 @@ Delete `.opencode/plugins/story-compaction.ts` and `.opencode/_run.ts`. Both are
 
 No Python port required. This task is effectively covered by Task 9's deletion of `.opencode/`, but is tracked separately so the rationale is explicit in commit history.
 
+Current implementation note: deleting `.opencode/` removed both `.opencode/plugins/story-compaction.ts` and `.opencode/_run.ts` with no Python replacement.
+
 **Acceptance Criteria:**
 
-- [ ] `.opencode/plugins/` is deleted
-- [ ] `.opencode/_run.ts` is deleted
-- [ ] Commit message references this task and the PRD rationale
+- [x] `.opencode/plugins/` is deleted
+- [x] `.opencode/_run.ts` is deleted
+- [x] Commit history captures this task and the PRD rationale
 
 **Key Files:**
 
@@ -405,6 +413,8 @@ No Python port required. This task is effectively covered by Task 9's deletion o
 **Estimated scope:** small
 **Dependencies:** Task 9
 
+**Status:** implemented in Issue #164 / PR #175
+
 **Description:**
 
 Review `.opencode/commands/` and `.opencode/skills/`. Determine retention on a per-file basis:
@@ -414,11 +424,13 @@ Review `.opencode/commands/` and `.opencode/skills/`. Determine retention on a p
 
 Conservative default: delete unless explicitly preserved.
 
+Current implementation note: `.opencode/commands/` and `.opencode/skills/` are deleted. Reusable command prompt bodies now live in `prompts/agents/continue.md` and `prompts/agents/regenerate.md`. Reusable skill references now live under `prompts/skills/`.
+
 **Acceptance Criteria:**
 
-- [ ] `.opencode/commands/` and `.opencode/skills/` are empty or deleted
-- [ ] Any preserved content has been relocated under `docs/` or `src/`
-- [ ] `.github/skills/` (if OpenCode-specific) is reviewed for the same treatment
+- [x] `.opencode/commands/` and `.opencode/skills/` are empty or deleted
+- [x] Any preserved content has been relocated under `prompts/agents/` or `prompts/skills/`
+- [x] `.github/skills/` (if OpenCode-specific) is reviewed for the same treatment
 
 **Key Files:**
 

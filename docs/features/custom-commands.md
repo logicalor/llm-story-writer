@@ -1,14 +1,16 @@
 # Custom Commands
 
-> Seven OpenCode custom commands that provide the user interface for story generation — starting, resuming, monitoring, and managing stories from the OpenCode TUI.
+> Historical note on the retired OpenCode slash-command interface that preceded the Python-native CLI.
 
 ## Overview
 
-Custom commands are the primary way users interact with the story generation pipeline. Defined as Markdown files in `.opencode/commands/`, each command maps to a slash command in the OpenCode TUI (e.g., `/new-story`, `/continue`). Commands use YAML frontmatter to declare metadata and optionally route to a specific agent.
+Issue #164 / PR #175 removed `.opencode/commands/` and the OpenCode slash-command interface from the repository. This document is retained as a historical record of that surface.
+
+Custom commands were formerly defined as Markdown files in `.opencode/commands/`, with each file mapping to a slash command in the OpenCode TUI (for example `/new-story` or `/continue`). Commands used YAML frontmatter to declare metadata and optionally route to a specific agent.
 
 Four commands route to the `story-orchestrator` agent for pipeline operations. Three informational commands use the default agent and rely on shell output injection (`!command`) and file inclusion (`@file`) to assemble read-only summaries without invoking Python tools directly.
 
-No new Python tools were required — the commands compose existing tools (`story-state`, `savepoint-mgr`, `wiki-lint`, `scene-writer`, etc.) through agent orchestration.
+No new Python tools were required — the commands composed existing tools (`story-state`, `savepoint-mgr`, `wiki-lint`, `scene-writer`, and others) through agent orchestration. The supported operator entry point is now the Python-native `story-writer` CLI.
 
 ## Command Reference
 
@@ -195,7 +197,7 @@ The agent assembles a wiki health report including:
 
 ## Command File Format
 
-Each command is a Markdown file in `.opencode/commands/` with YAML frontmatter:
+Each command was a Markdown file in `.opencode/commands/` with YAML frontmatter. That directory is now deleted; only the reusable prompt bodies for `continue` and `regenerate` were preserved under `prompts/agents/continue.md` and `prompts/agents/regenerate.md`.
 
 ```yaml
 ---
@@ -240,9 +242,9 @@ Files are included with @filepath syntax.
 
 ## Testing
 
-12 verification tests in `tests/unit/test_commands.py` confirm:
+Before Issue #164 removed the command surface, 12 verification tests in `tests/unit/test_commands.py` confirmed:
 
-- All 7 command files exist in `.opencode/commands/`
+- All 7 command files existed in `.opencode/commands/`
 - All commands have valid YAML frontmatter with non-empty `description` fields
 - Orchestrator commands (`new-story`, `continue`, `regenerate`, `savepoint`) have `agent: story-orchestrator`
 - Informational commands (`status`, `settings`, `wiki`) do not have an `agent` field
@@ -252,13 +254,9 @@ Files are included with @filepath syntax.
 - `status` uses shell injection for data gathering and the names-only savepoint list
 - `settings` includes `@config.md` for file context
 - `wiki` references `wiki_lint.py` for health checks
-- The `.gitkeep` placeholder has been removed
+- The `.gitkeep` placeholder had been removed
 
-Run the tests:
-
-```bash
-pytest tests/unit/test_commands.py -v
-```
+Those tests were deleted with the command surface and are no longer runnable in the current repository.
 
 ## Related
 

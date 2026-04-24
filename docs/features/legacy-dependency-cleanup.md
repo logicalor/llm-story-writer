@@ -22,7 +22,7 @@ The current dependency split is deliberate.
 |---------|------------------------|-------|
 | Core runtime | `requirements.txt` | Single dependency manifest for the active project; runtime depends on `requests`, `chromadb`, `pyyaml`, and `llm-output-parser`, with test packages grouped in the same file |
 | LLM access | OpenAI-compatible `/v1` APIs | Ollama, LM Studio, llama.cpp server, vLLM, and similar servers work through the same provider contract |
-| Tool orchestration | Python-native orchestrator + Python tool modules | Runtime calls stay in-process; `.opencode/tools/` no longer contains executable wrappers |
+| Tool orchestration | Python-native orchestrator + Python tool modules | Runtime calls stay in-process; the former `.opencode/` wrapper layer is gone |
 | Retrieval path | `rag-query` tool + ChromaDB collections | Active code no longer exposes a reusable application-layer `RAGService`; configuration is ChromaDB-only with no PostgreSQL or pgvector settings |
 
 ## Removed Components
@@ -65,13 +65,13 @@ Task 26 validation on PR 98 confirmed:
 
 - active `src/` no longer contains `container.py`, `langchain_provider.py`, or `rag_service.py`
 - the feature branch test run completed with `308 passed, 14 skipped, 0 failed`
-- root documentation now describes the OpenCode-first workflow and archived legacy code accurately
+- root documentation now describes the Python-native workflow and archived legacy code accurately
 
 Follow-on validation on PR 102 confirmed that active runtime setup no longer accepts or forwards an unused `rag_service` dependency.
 
 Cleanup validation on PR 108 confirmed that the temporary migration archive, obsolete root scripts, duplicate markdown summaries, and `requirements-rag.txt` are gone, and documentation now points only at active project locations.
 
-Follow-on validation on PR 172 confirmed that the TypeScript wrapper layer under `.opencode/tools/` has also been removed, leaving direct Python orchestration as the active tool path.
+Follow-on validation on PR 172 confirmed that the TypeScript wrapper layer under `.opencode/tools/` had been removed. Issue #164 then deleted the remaining `.opencode/` tree, leaving direct Python orchestration as the only active tool path.
 
 ## Related
 
