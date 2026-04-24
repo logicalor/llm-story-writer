@@ -108,12 +108,13 @@ Both agents load `.opencode/skills/final-edit/SKILL.md` and inherit the same har
 
 - `prompts/agents/prose-scrubber.md` — Phase 7.5 chapter scrub workflow
 - `prompts/agents/final-editor.md` — Phase 9 manuscript polish workflow
-- `.opencode/tools/scene-writer.ts` — OpenCode wrapper exposing `scrub-analyze` and `voice-analyze`
 - `src/tools/scene_writer.py` — Prompt-loading, LLM-calling, JSON-parsing implementation for prose analysis and scene generation
 - `.opencode/skills/final-edit/SKILL.md` — shared constraints, pass types, revision budget, status tokens
 - `prompts/final_edit/prose_scrub.md` — sentence and paragraph-level issue extraction prompt
 - `prompts/final_edit/voice_consistency_pass.md` — voice, pacing, and cross-chapter coherence prompt
 - `prompts/agents/story-orchestrator.md` — orchestrator integration points and feature flags
+
+The former `.opencode/tools/scene-writer.ts` wrapper was deleted in Python-native migration Task 7. Runtime calls now use the Python implementation directly.
 
 ### Data
 
@@ -131,7 +132,6 @@ PR #141 added `scene-writer` tests covering both analysis operations, including 
 
 - `prompts/agents/prose-scrubber.md`
 - `prompts/agents/final-editor.md`
-- `.opencode/tools/scene-writer.ts`
 - `src/tools/scene_writer.py`
 - `.opencode/skills/final-edit/SKILL.md`
 - `prompts/final_edit/prose_scrub.md`

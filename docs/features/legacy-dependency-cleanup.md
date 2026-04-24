@@ -22,7 +22,7 @@ The current dependency split is deliberate.
 |---------|------------------------|-------|
 | Core runtime | `requirements.txt` | Single dependency manifest for the active project; runtime depends on `requests`, `chromadb`, `pyyaml`, and `llm-output-parser`, with test packages grouped in the same file |
 | LLM access | OpenAI-compatible `/v1` APIs | Ollama, LM Studio, llama.cpp server, vLLM, and similar servers work through the same provider contract |
-| Tool orchestration | OpenCode agent + tool system | TypeScript wrappers in `.opencode/tools/` call Python scripts in `src/tools/` directly |
+| Tool orchestration | Python-native orchestrator + Python tool modules | Runtime calls stay in-process; `.opencode/tools/` no longer contains executable wrappers |
 | Retrieval path | `rag-query` tool + ChromaDB collections | Active code no longer exposes a reusable application-layer `RAGService`; configuration is ChromaDB-only with no PostgreSQL or pgvector settings |
 
 ## Removed Components
@@ -57,7 +57,7 @@ Use these guardrails:
 - Keep setup and config documentation ChromaDB-only; do not document PostgreSQL or pgvector keys that no longer exist in active configuration loaders
 - Do not thread unused placeholder dependencies through constructors or factories after a service has been retired from the active runtime
 - Wire runtime objects explicitly inside tools or entry points; do not reintroduce a global DI container
-- Keep ad-hoc helper scripts out of the repository root; add durable automation under `src/tools/`, `.opencode/tools/`, or documented project scripts instead
+- Keep ad-hoc helper scripts out of the repository root; add durable automation under `src/tools/` or documented project scripts instead
 
 ### Verification Expectations
 
@@ -70,6 +70,8 @@ Task 26 validation on PR 98 confirmed:
 Follow-on validation on PR 102 confirmed that active runtime setup no longer accepts or forwards an unused `rag_service` dependency.
 
 Cleanup validation on PR 108 confirmed that the temporary migration archive, obsolete root scripts, duplicate markdown summaries, and `requirements-rag.txt` are gone, and documentation now points only at active project locations.
+
+Follow-on validation on PR 172 confirmed that the TypeScript wrapper layer under `.opencode/tools/` has also been removed, leaving direct Python orchestration as the active tool path.
 
 ## Related
 

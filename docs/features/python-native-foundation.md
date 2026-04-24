@@ -1,12 +1,14 @@
 # Python-Native Foundation
 
-> Agent prompt relocation, Python prompt loading, and typed pipeline handoffs introduced in Issue #158, then extended for orchestrator persistence in Issue #161.
+> Agent prompt relocation, Python prompt loading, typed pipeline handoffs, and Python-native CLI packaging introduced across Issues #158, #161, and #162.
 
 ## Overview
 
 Issue #158 implements the first shared infrastructure needed for the Python-native orchestration migration. The change does not alter prompt content or story-generation behaviour. Instead, it moves the existing agent prompts into the main `prompts/` tree, adds a Python loader that returns prompt bodies without YAML frontmatter, and introduces typed dataclasses for phase-to-phase payloads and persisted pipeline state.
 
-This foundation reduces path sprawl, gives later Python orchestration work a stable prompt-loading entry point, and replaces ad hoc phase payloads with explicit Python types that can round-trip through JSON savepoints.
+Issue #161 builds on that base with a headless Python orchestrator and persisted `PipelineState` savepoints. Issue #162 then wires a packaged CLI entry point onto that orchestrator and removes the last TypeScript wrapper layer under `.opencode/tools/`.
+
+This foundation reduces path sprawl, gives later Python orchestration work a stable prompt-loading entry point, replaces ad hoc phase payloads with explicit Python types that can round-trip through JSON savepoints, and exposes the resulting pipeline through a normal Python console script.
 
 ## Agent Prompt Relocation
 
@@ -79,6 +81,38 @@ Issue #161 extends `PipelineState` with two orchestrator-facing fields used by t
 
 Those fields are part of the JSON round-trip contract and are now required for resume behavior.
 
+## CLI Entry Points
+
+Issue #162 adds the first packaged Python-native entry point in `pyproject.toml`:
+
+```toml
+[project.scripts]
+story-writer = "src.presentation.cli.main:main"
+```
+
+`src/presentation/cli/argument_parser.py` now builds a parser with three subcommands:
+
+| Subcommand | Handler | Current behavior |
+|------------|---------|------------------|
+| `tui --story <name>` | `_cmd_tui()` | Lazy-imports the future Textual app and exits with a helpful stderr message if unavailable |
+| `run --story <name> [--batch]` | `_cmd_run()` | Calls `run_pipeline()` with `NullApprovalGate`, `TokenStreamBus`, and `WikiContextBus` |
+| `resume --story <name> [--savepoint <name>]` | `_cmd_resume()` | Calls `resume_pipeline()` with the same Python-native primitives |
+
+Two behavior details matter for follow-on work:
+
+- `run` is currently headless regardless of `--batch`, because `_cmd_run()` always constructs `NullApprovalGate()`.
+- `resume --savepoint <name>` passes the name through to the orchestrator, but current resume logic still restores the persisted `pipeline_state.json` snapshot rather than replaying an older savepoint file.
+
+## TypeScript Wrapper Deletion
+
+Issue #162 also removes all `.ts` files from `.opencode/tools/`. The repository keeps only `.opencode/tools/.gitkeep`.
+
+The practical effect is simple:
+
+- runtime orchestration no longer shells out through wrapper code
+- `src/presentation/orchestrator.py` and related presentation agents call Python services and tool modules directly
+- standalone `src/tools/*.py` CLIs remain available for shell use
+
 ## Developer Guide
 
 ### Key Files
@@ -87,9 +121,13 @@ Those fields are part of the JSON round-trip contract and are now required for r
 - `src/infrastructure/prompts/agent_prompt_loader.py` — frontmatter-stripping prompt loader with in-memory cache
 - `src/application/pipeline/__init__.py` — pipeline package marker
 - `src/application/pipeline/handoffs.py` — typed phase payload dataclasses and `PipelineState` persistence helpers
+- `src/presentation/cli/argument_parser.py` — packaged `story-writer` argparse surface
+- `src/presentation/cli/main.py` — CLI dispatch into the Python-native orchestrator
+- `pyproject.toml` — `story-writer` console script definition
 - `tests/unit/test_agent_prompt_loader.py` — loader behaviour and cache coverage
 - `tests/unit/test_pipeline_handoffs.py` — dataclass round-trip and JSON serialisation coverage
 - `tests/unit/test_prompt_relocation.py` — prompt-tree relocation baseline check updated for `prompts/agents/`
+- `tests/unit/test_cli_main.py` — parser and dispatch coverage for the new console entry point
 
 ## Testing
 
@@ -98,6 +136,7 @@ Issue #158 added dedicated unit coverage for both new modules:
 - `test_agent_prompt_loader.py` verifies frontmatter stripping, verbatim loads, missing-file handling, malformed frontmatter handling, cache hits, and cache clearing
 - `test_pipeline_handoffs.py` verifies nested `PipelineState` round-trips, `ApprovalDecision` defaults, JSON serialisation, and package importability
 - `test_prompt_relocation.py` now treats the prompt tree as a growing set and asserts a minimum Markdown file count so the additional agent prompts do not break the relocation baseline
+- `test_cli_main.py` verifies subcommand parsing for `tui`, `run`, and `resume`, plus dispatch coverage for the packaged CLI entry point
 
 ## Related
 
@@ -106,5 +145,7 @@ Issue #158 added dedicated unit coverage for both new modules:
 - [Story Orchestrator](./story-orchestrator.md)
 - Issue #158 — Agent prompt loader and typed pipeline handoffs
 - Issue #161 — Python pipeline orchestrator (headless)
+- Issue #162 — CLI entry points and TypeScript wrapper deletion
 - PR #167 — Python-native migration [1/9]
 - PR #171 — Python-native migration [4/9]
+- PR #172 — Python-native migration [5/9]
