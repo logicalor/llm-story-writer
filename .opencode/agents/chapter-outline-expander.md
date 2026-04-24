@@ -43,11 +43,7 @@ Execute these steps sequentially.
 
 1. If `expand_outline` is false, return immediately with `{"status": "skipped", "reason": "expand_outline disabled"}`.
 2. Initialise `continuitySummary = null` and `current_chapter = 1`.
-3. Load the approved outline for synopsis grounding:
-   - Call `savepoint-mgr` with `operation: "load"`, `name: story_name`, `step: "outline"` (fall back to `step: "refined_outline"` then `step: "initial_outline"` if missing).
-   - Store the returned content as `approved_outline`.
-   - If all three savepoints are missing or empty, set `approved_outline = null` and log: `"Warning: outline savepoint is missing — chapters will be expanded without approved synopsis context. Run the pipeline from Phase 2 to populate the outline savepoint before Phase 7a."`
-   - **Do not** call `story-state read --field outline`; that field no longer exists — the outline is stored only in savepoints.
+3. **Do not manually load the approved outline.** The `outline-generator expand-chapter` call (step 4c) loads the `outline` savepoint internally when `phase == "chapter"`. Skipping the manual load keeps multi-KB outline content off the orchestrator LLM's context. If the `outline` / `refined_outline` / `initial_outline` savepoints are all missing, `expand-chapter` will still run against `story_elements` alone and emit a warning in its response — inspect and abort if that happens.
 4. Loop for chapter N from 1 to `wanted_chapters`:
    a. If `N > 1`, call `story-state` with `operation: "read"`, `name: story_name`, `field: "chapters.{N-1}.handoff"`. If the field exists, treat the returned JSON object as the prior chapter handoff. If the read fails because the field is absent, continue without handoff data.
    b. Build the `continuitySummary` argument for the next `outline-generator` call:
@@ -71,12 +67,11 @@ Execute these steps sequentially.
       - `chunkStart`: `N`
       - `chunkEnd`: `N`
       - `totalChapters`: `wanted_chapters`
-      - `previousChunks`: `approved_outline` (the full merged outline from step 3), if non-null — this grounds the expansion in the approved chapter synopsis rather than regenerating blind from `story_elements` alone
       - `continuitySummary`: the combined continuity text from step b, if present
       - `phase`: `"chapter"` — required so Phase 7a writes to the `expanded_chapter_{N}_{N}` savepoint namespace and does not collide with Phase 3 `outline_chunk_{s}_{e}` savepoints
       - `model`: `model`, if provided
 
-      > **Note on `previousChunks` usage:** Passing the fixed `approved_outline` string here is O(n) calls × O(1) content per call — it is NOT quadratic. The prohibition on `previousChunks` in `outline-planner` Phase 3 applies to progressively accumulating all previously generated chunks in the generation loop (which grows with each iteration). Here we pass the same, already-fixed merged outline on every call.
+      > **Do not pass `previousChunks`.** When `phase == "chapter"` and `previousChunks` is omitted, the tool auto-loads the approved outline from the `outline` savepoint (falling back to `refined_outline` then `initial_outline`) internally. Keeping outline content off the tool-call payload prevents bloating the orchestrator LLM's context window on every expand call.
    d. Parse the JSON response string from `outline-generator`:
       - Extract `data.chunk_outline`
       - Extract `data.continuity_analysis`
@@ -86,12 +81,13 @@ Execute these steps sequentially.
       - `operation`: `"expand-to-scenes"`
       - `name`: `story_name`
       - `chapterNum`: `N`
-      - `chapterSynopsis`: `data.chunk_outline` from step d
       - `scenesMin`: `scenes_per_chapter_min`
       - `scenesMax`: `scenes_per_chapter_max`
       - `previousRecap`: chapter recap from `story-state chapters.{N-1}.recap` if `N > 1`, else omit
-      - `nextChapterSynopsis`: contents of `expanded_chapter_{N+1}_{N+1}` savepoint via `savepoint-mgr load` if that savepoint exists, else omit
       - `model`: `model`, if provided
+
+      > **Do not pass `chapterSynopsis` or `nextChapterSynopsis`.** The tool auto-loads both from the `expanded_chapter_{N}_{N}` and `expanded_chapter_{N+1}_{N+1}` savepoints. This keeps multi-KB outline text off the orchestrator's tool-call context.
+
       Record `data.scene_count` for logging only. The tool writes `chapter_{N}/scene_definitions` automatically in Phase 7a, so Phase 7b `parse-definitions` can short-circuit via existing resume logic.
    h. Call `savepoint-mgr` with:
       - `operation`: `"save"`

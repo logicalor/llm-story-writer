@@ -426,6 +426,19 @@ def cmd_expand_chapter(
         chunk_step = f"outline_chunk_{chunk_start}_{chunk_end}"
         continuity_step = f"continuity_{chunk_start}_{chunk_end}"
 
+    # Auto-load approved outline as previous_chunks when caller did not supply it.
+    # For phase="chapter", this is the merged outline savepoint produced in Phase 2.
+    if (not previous_chunks or not previous_chunks.strip()) and phase == "chapter":
+        for fallback_step in ("outline", "refined_outline", "initial_outline"):
+            if _has_savepoint(repo, fallback_step):
+                loaded = _load_savepoint(repo, fallback_step)
+                previous_chunks = (
+                    loaded
+                    if isinstance(loaded, str)
+                    else json.dumps(loaded, default=str)
+                )
+                break
+
     # --- Generate chunk outline ---
     if _has_savepoint(repo, chunk_step):
         chunk_text = _load_savepoint(repo, chunk_step)
@@ -552,10 +565,31 @@ def cmd_expand_to_scenes(
             "scenes_max must be <= 30, and scenes_min must be <= scenes_max"
         )
 
-    if not chapter_synopsis or not chapter_synopsis.strip():
-        _error("expand-to-scenes: --chapter-synopsis cannot be empty")
-
     repo = _make_repo(name)
+
+    # Auto-load synopsis from savepoint when caller did not supply it.
+    # Keeps large outline content off the LLM's tool-call context.
+    if not chapter_synopsis or not chapter_synopsis.strip():
+        synopsis_step = f"expanded_chapter_{chapter_num}_{chapter_num}"
+        if _has_savepoint(repo, synopsis_step):
+            loaded = _load_savepoint(repo, synopsis_step)
+            chapter_synopsis = (
+                loaded if isinstance(loaded, str) else json.dumps(loaded, default=str)
+            )
+        else:
+            _error(
+                f"expand-to-scenes: chapter_synopsis not provided and savepoint "
+                f"'{synopsis_step}' is missing. Run expand-chapter for chapter "
+                f"{chapter_num} first."
+            )
+
+    if not next_chapter_synopsis or not next_chapter_synopsis.strip():
+        next_step = f"expanded_chapter_{chapter_num + 1}_{chapter_num + 1}"
+        if _has_savepoint(repo, next_step):
+            loaded = _load_savepoint(repo, next_step)
+            next_chapter_synopsis = (
+                loaded if isinstance(loaded, str) else json.dumps(loaded, default=str)
+            )
 
     if not _has_savepoint(repo, "story_elements"):
         _error("story_elements savepoint not found — run generate-elements first")
