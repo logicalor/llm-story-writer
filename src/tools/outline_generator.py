@@ -407,6 +407,17 @@ def cmd_expand_chapter(
     _validate_story_name(name)
     repo = _make_repo(name)
 
+    # Phase 7a (chapter-outline-expander) expands exactly one chapter per call.
+    # Reject multi-chapter ranges to prevent a single call from producing one
+    # "compressed" expansion spanning the entire book.
+    if phase == "chapter" and chunk_start != chunk_end:
+        _error(
+            f"expand-chapter: phase='chapter' requires chunkStart == chunkEnd "
+            f"(got {chunk_start}..{chunk_end}). Phase 7a must expand one chapter "
+            f"at a time. If you are invoking this tool directly, loop externally; "
+            f"otherwise dispatch the chapter-outline-expander subagent instead."
+        )
+
     if not _has_savepoint(repo, "story_elements"):
         _error("story_elements savepoint not found — run generate-elements first")
     story_elements = _load_savepoint(repo, "story_elements")

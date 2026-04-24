@@ -166,6 +166,8 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
 #### 7a. Dispatch chapter-outline-expander
 
+**Dispatch the `chapter-outline-expander` subagent — do not call `outline-generator expand-chapter` yourself.** The subagent owns the per-chapter loop, `continuitySummary` threading, and savepoint resume logic. Calling `outline-generator` directly from the orchestrator will either (a) fail immediately if you pass a multi-chapter range (`chunkStart != chunkEnd` is rejected when `phase="chapter"`) or (b) silently skip the remaining chapters if you only call it once.
+
 Dispatch `chapter-outline-expander` with:
 - `story_name`: story name
 - `wanted_chapters`: total chapter count
@@ -176,6 +178,8 @@ Dispatch `chapter-outline-expander` with:
 - `model`: model config if set
 
 The subagent owns the full `expand-chapter` loop and returns when all outlines are expanded or `expand_outline` is false.
+
+**Verify before trusting the subagent's return value.** When the subagent reports `{"status": "complete"}`, call `savepoint-mgr list-full` and confirm that `expanded_chapter_{N}_{N}` savepoints exist for every `N` from 1 to `wanted_chapters`. If any are missing — or if you see a single multi-chapter savepoint like `expanded_chapter_1_{wanted_chapters}` — the run is invalid: delete the bogus savepoints and re-dispatch the subagent. Do **not** fabricate a completion summary. Do **not** accept `outlines_expanded` as proof on its own.
 
 After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases 7b through 7g, 7.5, and 7h.
 
