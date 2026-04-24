@@ -7,7 +7,7 @@ targets:
   - ".github/notes/gotchas.md"
   - ".github/agents/_shared/review-checklist.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Use `isinstance()` for type dispatch — never `type(x).__name__` string comparison

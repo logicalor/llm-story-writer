@@ -6,7 +6,7 @@ category: instruction
 targets:
   - ".github/notes/gotchas.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Story state file is `state.json` — not `story_state.json`

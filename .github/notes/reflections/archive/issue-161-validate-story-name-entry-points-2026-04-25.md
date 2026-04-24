@@ -8,7 +8,7 @@ targets:
   - ".github/agents/_shared/review-checklist.md"
   - ".github/agents/coder.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## `_validate_story_name()` required at all Python entry points accepting user-supplied story names

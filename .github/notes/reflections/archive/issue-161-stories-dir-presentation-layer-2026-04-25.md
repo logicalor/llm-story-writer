@@ -6,7 +6,7 @@ category: instruction
 targets:
   - ".github/notes/gotchas.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## `src/presentation/` modules must define `_STORIES_DIR` with `__file__`-anchored path
