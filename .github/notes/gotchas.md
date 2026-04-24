@@ -218,6 +218,121 @@ ChromaDB ID: `gotcha-asyncio-to-thread-lazy-iterator-008`
 
 ---
 
+### 014 — asyncio `_closed` flag: set in `close()` but never read in `emit()` or generator entry
+
+**Source:** issue #160, PR #170
+**Severity:** warning
+
+Async stream classes that maintain a `_closed` flag commonly set `self._closed = True` inside
+`close()` but skip the guard in producer and consumer entry points. This causes two distinct
+silent failures:
+
+**Producer entry (`emit()`):**
+
+```python
+# Wrong — data silently discarded after close(), no exception raised:
+def close(self): self._closed = True
+async def emit(self, item): await self._queue.put(item)  # _closed never checked
+
+# Right:
+async def emit(self, item):
+    if self._closed:
+        raise RuntimeError("emit() on closed stream")
+    await self._queue.put(item)
+```
+
+**Consumer entry (async generator backed by sentinel-terminated queue):**
+
+The `_SENTINEL = object()` approach cleanly terminates the *current* iteration pass, but does
+not prevent a second `async for` loop from re-entering the generator and blocking forever
+waiting for a second sentinel that will never arrive. Add a closed+empty guard at generator
+entry:
+
+```python
+# Wrong — re-iterating an exhausted stream blocks forever:
+async def __aiter__(self):
+    while True:
+        item = await self._queue.get()
+        if item is _SENTINEL:
+            return
+        yield item
+
+# Right — guard at generator entry:
+async def __aiter__(self):
+    if self._closed and self._queue.empty():
+        return
+    while True:
+        item = await self._queue.get()
+        if item is _SENTINEL:
+            return
+        yield item
+```
+
+Setting `_closed = True` is necessary but insufficient. Every write-side entry (`emit()`,
+`put_nowait()`) and every read-side entry (generator start, consumer loop) must actively read
+the flag — not just inherit it.
+
+ChromaDB ID: `gotcha-asyncio-closed-flag-discipline-014`
+
+---
+
+### 015 — asyncio `Future` lazy-init: `resolve()` before `await_decision()` is a no-op → deadlock
+
+**Source:** issue #160, PR #170
+**Severity:** critical
+
+Approval gate / one-shot latch patterns that create `asyncio.Future` lazily inside
+`await_decision()` fail silently when `resolve()` is called before `await_decision()`:
+
+```python
+# Wrong — Future created lazily in await_decision():
+class ApprovalGate:
+    async def await_decision(self):
+        self._future = asyncio.get_event_loop().create_future()
+        return await self._future  # waits on a Future nobody else holds
+
+    def resolve(self, result):
+        if hasattr(self, "_future"):
+            self._future.set_result(result)  # no-op if called before await_decision()
+```
+
+When `resolve()` is called before `await_decision()`, `self._future` does not exist yet.
+The result is silently dropped. `await_decision()` then creates a new Future and waits
+forever — a deadlock with no error signal.
+
+**Fix:** buffer the pending result; return it immediately if already set:
+
+```python
+# Right — buffer pending result in __init__:
+class ApprovalGate:
+    def __init__(self):
+        self._pending = None
+        self._future: asyncio.Future | None = None
+
+    def resolve(self, result):
+        if self._future is not None:
+            self._future.set_result(result)
+        else:
+            self._pending = result  # buffer for pre-await resolution
+
+    async def await_decision(self):
+        if self._pending is not None:
+            result, self._pending = self._pending, None
+            return result
+        self._future = asyncio.get_event_loop().create_future()
+        try:
+            return await self._future
+        finally:
+            self._future = None
+```
+
+This pattern applies to any two-party coordination primitive (gate, latch, promise-style
+object) where settle/resolve can occur before the waiter registers.
+
+ChromaDB ID: `gotcha-asyncio-future-lazy-init-deadlock-015`
+
+---
+
 ## Savepoints
 
 ### 009 — Stale sibling extension after savepoint format change (.json ↔ .md)
