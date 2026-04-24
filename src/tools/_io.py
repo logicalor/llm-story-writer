@@ -15,9 +15,9 @@ STORIES_DIR = Path(os.environ.get("STORIES_DIR", str(PROJECT_ROOT / "stories")))
 def _slugify_story_name(name: str) -> str:
     """Normalize a story name to kebab-case for use as a directory name."""
     slug = name.lower()
-    slug = re.sub(r"[^\w\s-]", "", slug)   # strip special chars except spaces/hyphens
-    slug = re.sub(r"[\s_]+", "-", slug)    # spaces/underscores → hyphens
-    slug = re.sub(r"-+", "-", slug)         # collapse consecutive hyphens
+    slug = re.sub(r"[^\w\s-]", "", slug)  # strip special chars except spaces/hyphens
+    slug = re.sub(r"[\s_]+", "-", slug)  # spaces/underscores → hyphens
+    slug = re.sub(r"-+", "-", slug)  # collapse consecutive hyphens
     slug = slug.strip("-")
     return slug
 

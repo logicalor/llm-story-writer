@@ -16,7 +16,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
 from src.tools._wiki import (  # noqa: E402
-
     WIKI_SUBDIRS,
     _TYPE_TO_DIR,
     _validate_slug,

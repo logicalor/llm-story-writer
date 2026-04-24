@@ -69,7 +69,36 @@ def cmd_save(name: str, step: str, data_str: str) -> None:
 
     repo = _make_repo(name)
     asyncio.run(repo.save_savepoint(step, data))
+
+    # Auto-write milestone savepoints tied to terminal content savepoints.
+    # Tool-owned savepoint writes drive milestone progress so the orchestrator
+    # LLM cannot skip a `savepoint-mgr save <milestone>` step.
+    milestone = _STEP_TO_MILESTONE.get(step)
+    if milestone:
+        try:
+            asyncio.run(
+                repo.save_savepoint(
+                    milestone,
+                    {"status": "complete", "source_step": step},
+                )
+            )
+        except Exception as exc:
+            print(
+                f"Warning: milestone savepoint '{milestone}' auto-write failed: {exc}",
+                file=sys.stderr,
+            )
+
     print(json.dumps({"status": "saved", "step": step}, indent=2, default=str))
+
+
+# Map a terminal content savepoint to the canonical milestone savepoint that
+# records its completion. Writing any key on the left auto-writes the value on
+# the right, so the LLM never needs a separate savepoint-mgr call for it.
+_STEP_TO_MILESTONE: dict[str, str] = {
+    "outline": "outline_complete",
+    "refined_outline": "outline_complete",
+    "arc_assessment": "arc_analysis_complete",
+}
 
 
 def cmd_load(name: str, step: str) -> None:
@@ -202,10 +231,7 @@ def cmd_next_phase(name: str) -> None:
     # Per-chapter savepoints sit between wiki_populated and story_complete.
     # If any chapter savepoint exists, it is more recent than wiki_populated
     # but less recent than story_complete.
-    if (
-        "story_complete" in name_set
-        or "final_edit_complete" in name_set
-    ):
+    if "story_complete" in name_set or "final_edit_complete" in name_set:
         last_completed = last_canonical
         next_phase = PHASE_NEXT_DESCRIPTOR.get(last_canonical, "unknown")
     elif last_chapter > 0:

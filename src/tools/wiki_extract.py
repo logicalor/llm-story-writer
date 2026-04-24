@@ -28,6 +28,35 @@ from src.tools._wiki import (  # noqa: E402
 )
 from src.tools.wiki_update import run_batch  # noqa: E402
 
+
+def _load_outline_savepoint(story_dir: Path) -> str:
+    """Load the canonical outline text from savepoints.
+
+    Prefers the `outline` step (the post-refinement canonical savepoint), then
+    `refined_outline` (latest refinement), then `initial_outline`. Returns ""
+    if none exist.
+    """
+    import asyncio as _asyncio  # noqa: PLC0415
+
+    from infrastructure.storage.savepoint_repository import (  # noqa: PLC0415
+        FilesystemSavepointRepository,
+    )
+
+    repo = FilesystemSavepointRepository(base_path=story_dir)
+    repo.set_story_directory("savepoints")
+    for step in ("outline", "refined_outline", "initial_outline"):
+        try:
+            if _asyncio.run(repo.has_savepoint(step)):
+                data = _asyncio.run(repo.load_savepoint(step))
+                if isinstance(data, str):
+                    return data
+                if data is not None:
+                    return json.dumps(data, default=str)
+        except Exception:
+            continue
+    return ""
+
+
 _VALID_ENTITY_TYPES = {
     "character",
     "location",
@@ -550,9 +579,13 @@ def cmd_initial_populate(args: argparse.Namespace) -> None:
     cache = _load_extract_cache(story_dir)
     state = _read_json_file(story_dir / "state.json", label="state.json")
 
-    outline_text = _coerce_text(state.get("outline"))
+    # Outline content lives in the `outline` savepoint; state.json no longer
+    # stores it. Fall back to `refined_outline` when the canonical step is absent.
+    outline_text = _load_outline_savepoint(story_dir)
     if not outline_text.strip():
-        raise ValueError("state.json missing outline")
+        raise ValueError(
+            "outline savepoint missing — run Phase 2 (outline-planner) before wiki population"
+        )
 
     # Tolerate both list and object-map state shapes.
     _extract_names(state.get("characters"))

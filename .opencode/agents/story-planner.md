@@ -37,16 +37,16 @@ Execute these steps sequentially.
 
 ### Step 1 - Load Context
 
-1. Call `story-state` with:
-   - `operation`: `"read"`
+1. Call `savepoint-mgr` with:
+   - `operation`: `"load"`
    - `name`: story name
-   - `field`: `"outline"`
+   - `step`: `"outline"`
 
-   Store the returned outline JSON string as `outline_text`.
+   Store the returned savepoint content as `outline_text`. (Outline is owned by the `outline` savepoint — **do not read `story-state` field `outline`**; that field is no longer stored in state.json.)
 
    > **⚠️ Validate `outline_text` before proceeding.** If `outline_text` is empty, null, `{}`, or a whitespace-only string:
    > - Halt immediately. Do **not** call `critique-runner` with an empty outline.
-   > - Report to the orchestrator: `"story-planner halted: outline field in story state is empty. The orchestrator must write the merged outline to story-state field 'outline' before dispatching story-planner. If chunked outline generation was used, ensure outline-planner returned the consolidated merged_outline string and the orchestrator stored it before dispatching."`
+   > - Report to the orchestrator: `"story-planner halted: outline savepoint is empty or missing. The orchestrator must ensure outline-planner has saved the merged outline via 'savepoint-mgr save --step outline' before dispatching story-planner."`
    > - An LLM will fabricate arc ratings from ambient metadata if given an empty outline, producing misleading output.
 
 2. Call `story-state` with:

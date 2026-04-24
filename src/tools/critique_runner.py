@@ -426,6 +426,17 @@ def cmd_run_arc_analysis(
     ]
     arc_assessment = _call_llm_messages(messages, model=model)
     _save_savepoint(repo, "arc_assessment", arc_assessment)
+    try:
+        _save_savepoint(
+            repo,
+            "arc_analysis_complete",
+            {"status": "complete", "source_step": "arc_assessment"},
+        )
+    except Exception as exc:
+        print(
+            f"Warning: arc_analysis_complete savepoint write failed: {exc}",
+            file=sys.stderr,
+        )
 
     verdict_code = "significant_issues"
     if "✅" in arc_assessment or "Strong arc" in arc_assessment:

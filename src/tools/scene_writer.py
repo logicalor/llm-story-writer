@@ -93,6 +93,25 @@ def _get_state_field(state: dict[str, Any], field: str) -> Any:
     return current
 
 
+def _load_expanded_chapter_outline(
+    repo: FilesystemSavepointRepository, chapter_num: int
+) -> str:
+    """Load the Phase 7a expanded outline for a chapter from its savepoint.
+
+    Returns "" if the savepoint is missing. state.json no longer stores this
+    content — the `expanded_chapter_{N}_{N}` savepoint is the only source.
+    """
+    step = f"expanded_chapter_{chapter_num}_{chapter_num}"
+    if not _has_savepoint(repo, step):
+        return ""
+    data = _load_savepoint(repo, step)
+    if isinstance(data, str):
+        return data
+    if data is None:
+        return ""
+    return json.dumps(data, default=str)
+
+
 def _success(operation: str, data: Any) -> None:
     """Print success response and exit."""
     print(
@@ -448,9 +467,9 @@ def cmd_generate_chapter(
     chapters_state = state.get("chapters", {})
     total_chapters = len(chapters_state) if chapters_state else chapter_num
 
-    chapter_outline = (
-        _get_state_field(state, f"chapters.{chapter_num}.expanded_outline") or ""
-    )
+    # Expanded chapter outlines live in the `expanded_chapter_{N}_{N}` savepoint
+    # only. state.json no longer stores `chapters.{N}.expanded_outline`.
+    chapter_outline = _load_expanded_chapter_outline(repo, chapter_num)
 
     base_context: str = (
         _load_savepoint(repo, "base_context")
@@ -467,9 +486,7 @@ def cmd_generate_chapter(
     if chapter_num > 1 and _has_savepoint(repo, f"chapter_{chapter_num - 1}/recap"):
         previous_recap = _load_savepoint(repo, f"chapter_{chapter_num - 1}/recap") or ""
 
-    next_chapter_synopsis = (
-        _get_state_field(state, f"chapters.{chapter_num + 1}.expanded_outline") or ""
-    )
+    next_chapter_synopsis = _load_expanded_chapter_outline(repo, chapter_num + 1)
 
     if additional_context:
         base_context = (

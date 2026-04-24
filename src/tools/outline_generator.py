@@ -177,6 +177,14 @@ def cmd_analyze_prompt(
     repo = _make_repo(name)
     conversation: list[dict[str, str]] = []
 
+    # Persist the raw prompt as the canonical source of truth. Replaces the
+    # former state.json `prompt_metadata.prompt_text` bulk field.
+    if prompt and not _has_savepoint(repo, "raw_prompt"):
+        try:
+            _save_savepoint(repo, "raw_prompt", prompt)
+        except Exception as exc:
+            print(f"Warning: raw_prompt savepoint write failed: {exc}", file=sys.stderr)
+
     # --- Step 1: Understand prompt ---
     _cached_understand = None
     if _has_savepoint(repo, "understand_prompt"):

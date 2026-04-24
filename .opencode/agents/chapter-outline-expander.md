@@ -79,11 +79,7 @@ Execute these steps sequentially.
    d. Parse the JSON response string from `outline-generator`:
       - Extract `data.chunk_outline`
       - Extract `data.continuity_analysis`
-   e. Write the expanded outline to `story-state` with:
-      - `operation`: `"write"`
-      - `name`: `story_name`
-      - `field`: `"chapters.{N}.expanded_outline"`
-      - `value`: the expanded outline as a JSON string
+   e. **Do not write `chapters.{N}.expanded_outline` to `story-state`.** The `outline-generator expand-chapter` call in step c already saves the expanded outline to the `expanded_chapter_{N}_{N}` savepoint (when `phase == "chapter"`), which is the single source of truth. The `story-state` field is forbidden — writes will be rejected.
    f. Set `continuitySummary = data.continuity_analysis` for the next iteration.
    g. **(When `scene_expansion_enabled` is true) Expand synopsis to scenes:** Call `outline-generator` with:
       - `operation`: `"expand-to-scenes"`
@@ -93,7 +89,7 @@ Execute these steps sequentially.
       - `scenesMin`: `scenes_per_chapter_min`
       - `scenesMax`: `scenes_per_chapter_max`
       - `previousRecap`: chapter recap from `story-state chapters.{N-1}.recap` if `N > 1`, else omit
-      - `nextChapterSynopsis`: `chapters.{N+1}.expanded_outline` from story state if available, else omit
+      - `nextChapterSynopsis`: contents of `expanded_chapter_{N+1}_{N+1}` savepoint via `savepoint-mgr load` if that savepoint exists, else omit
       - `model`: `model`, if provided
       Record `data.scene_count` for logging only. The tool writes `chapter_{N}/scene_definitions` automatically in Phase 7a, so Phase 7b `parse-definitions` can short-circuit via existing resume logic.
    h. Call `savepoint-mgr` with:

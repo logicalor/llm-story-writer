@@ -252,6 +252,7 @@ def cmd_generate_handoff(
         _error(f"story path escapes stories dir: {story_name}")
 
     story_state = _load_story_state(story_dir)
+    repo = _make_repo(story_name)
 
     chapters = story_state.get("chapters", {})
     chapter_data: dict[str, Any] = {}
@@ -260,10 +261,23 @@ def cmd_generate_handoff(
         if isinstance(candidate, dict):
             chapter_data = candidate
 
-    expanded_outline = chapter_data.get("expanded_outline", "")
-    if not expanded_outline:
+    # Expanded outlines live in the `expanded_chapter_{N}_{N}` savepoint only.
+    # state.json no longer stores `chapters.{N}.expanded_outline`.
+    expanded_step = f"expanded_chapter_{chapter_num}_{chapter_num}"
+    if not _has_savepoint(repo, expanded_step):
         _error(
-            f"expanded_outline not found for chapter {chapter_num} — run outline expansion first"
+            f"expanded_chapter savepoint '{expanded_step}' not found for chapter "
+            f"{chapter_num} — run outline expansion (Phase 7a) first"
+        )
+    expanded_outline_raw = _load_savepoint(repo, expanded_step)
+    expanded_outline = (
+        expanded_outline_raw
+        if isinstance(expanded_outline_raw, str)
+        else json.dumps(expanded_outline_raw, default=str)
+    )
+    if not expanded_outline.strip():
+        _error(
+            f"expanded_chapter savepoint '{expanded_step}' is empty — re-run Phase 7a"
         )
 
     chapter_title = chapter_data.get("title", f"Chapter {chapter_num}")

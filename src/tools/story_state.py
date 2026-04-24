@@ -23,11 +23,42 @@ from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
 #
 # Keys are dot-notation field paths; values are the savepoint step name.
 FIELD_TO_MILESTONE_SAVEPOINT: dict[str, str] = {
-    "outline": "outline_complete",
-    "arc_assessment": "arc_analysis_complete",
     "characters": "characters_complete",
     "settings": "settings_complete",
 }
+
+# Bulk content fields no longer stored in state.json. Writes to these fields
+# must go through savepoint-mgr (or the tool that owns them). This prevents
+# large content from bloating state.json and being pulled into agent context
+# on every `story-state read`.
+#
+# Each entry maps the rejected field -> the canonical savepoint step that
+# holds the same content. The error message directs callers to the savepoint.
+FORBIDDEN_BULK_FIELDS: dict[str, str] = {
+    "outline": "outline",
+    "arc_assessment": "arc_assessment",
+    "prompt_metadata.prompt_text": "raw_prompt",
+}
+
+
+def _is_forbidden_bulk_field(field: str) -> tuple[bool, str | None]:
+    """Check whether a field is a bulk-content field that must live in savepoints.
+
+    Returns (is_forbidden, suggested_savepoint_step).
+    """
+    if field in FORBIDDEN_BULK_FIELDS:
+        return True, FORBIDDEN_BULK_FIELDS[field]
+    # chapters.{N}.expanded_outline -> expanded_chapter_{N}_{N}
+    parts = field.split(".")
+    if (
+        len(parts) == 3
+        and parts[0] == "chapters"
+        and parts[2] == "expanded_outline"
+        and parts[1].isdigit()
+    ):
+        n = parts[1]
+        return True, f"expanded_chapter_{n}_{n}"
+    return False, None
 
 
 def _write_milestone_savepoint(story_dir: Path, step: str, data: Any) -> None:
@@ -213,6 +244,15 @@ def cmd_write(name: str, field: str, value_str: str) -> None:
     """Write a value to a nested field in story state. value_str is a JSON string."""
     story_dir = _validate_story_name(name)
     state_path = story_dir / "state.json"
+
+    forbidden, suggested_step = _is_forbidden_bulk_field(field)
+    if forbidden:
+        print(
+            f"Error: field '{field}' is a bulk-content field and must not be written to state.json. "
+            f"Use: savepoint-mgr save --name {name} --step {suggested_step} --data <value>",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     try:
         if not value_str.startswith('"') or not value_str.endswith('"'):

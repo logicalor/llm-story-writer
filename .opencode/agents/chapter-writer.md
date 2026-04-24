@@ -29,7 +29,7 @@ You receive a chapter number and story name from the orchestrator. You generate 
 
 Execute these steps sequentially for the assigned chapter:
 
-1. **Load chapter outline.** Read the chapter's expanded outline from `story-state` key `chapters.{N}.expanded_outline`, including the scene breakdown produced in Phase 7a.
+1. **Load chapter outline.** Read the chapter's expanded outline from the `expanded_chapter_{N}_{N}` savepoint (`savepoint-mgr load --step expanded_chapter_{N}_{N}`), including the scene breakdown produced in Phase 7a. The outline is owned by the savepoint — **do not read `chapters.{N}.expanded_outline` from story-state** (field no longer exists).
 2. **Parse scene definitions.** Call `scene-writer` (operation: `parse-definitions`) to extract structured scene definitions from the chapter outline. Each scene definition includes: title, description, characters, setting, conflict, tone, key_events, dialogue, ending, lead_in_to_next_scene, and literary_devices.
 3. **Create scene definitions savepoint.** Call `savepoint-mgr` to save: `chapter_{N}/scene_definitions`.
 4. **Load previous chapter recap.** If this is not the first chapter, call `recap-manager` (operation: `load`) for chapter N-1. This provides continuity context — where the story left off, active tensions, character emotional states.

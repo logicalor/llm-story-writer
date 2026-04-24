@@ -84,10 +84,10 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
    > **Note:** The `outline-planner` handles the full pipeline internally — prompt analysis, element synthesis, outline generation (chunked or monolithic), and the critique/refinement loop. Do **not** run critique or revision steps at the orchestrator level.
 3. Receive the finalised outline from `outline-planner`. If the orchestrator's own revision cap (`outline_max_revisions`) has not been reached and the user requests further revisions (Phase 3 feedback), re-invoke `outline-planner` with feedback.
-4. Store the finalised outline via `story-state` (operation: `write`, field: `outline`, value: the outline text returned by `outline-planner` in step 3 above). This step is **mandatory** regardless of whether chunked or non-chunked generation was used — both paths must produce and return the consolidated outline text.
+4. Persist the finalised outline by calling `savepoint-mgr save --name {story_name} --step outline --data <outline_text>` with the outline text returned by `outline-planner` in step 3 above. This step is **mandatory** regardless of whether chunked or non-chunked generation was used — both paths must produce and return the consolidated outline text. (The outline is stored only in the `outline` savepoint — **do not** write it to `story-state`; that field is forbidden and the write will be rejected.)
 
-   > **⚠️ Validate before writing:** If the outline text returned by `outline-planner` is empty, null, `{}`, or a whitespace-only string, do **not** proceed. Report an error to the user and halt — the planner failed to consolidate and return the outline. Do not call `story-state write` with an empty value, as this will silently break Phase 2.5 and Phase 7a.
-5. Savepoint naming note: `initial_outline` is written by `outline-generator` during initial generation. `outline_complete` is the Phase 2 milestone — it is **auto-written by `story-state write --field outline`** when the value is non-empty. No manual `savepoint-mgr save outline_complete` is required.
+   > **⚠️ Validate before writing:** If the outline text returned by `outline-planner` is empty, null, `{}`, or a whitespace-only string, do **not** proceed. Report an error to the user and halt — the planner failed to consolidate and return the outline. Do not call `savepoint-mgr save` with an empty value, as this will silently break Phase 2.5 and Phase 7a.
+5. Savepoint naming note: `initial_outline` is written by `outline-generator` during initial generation. `outline_complete` is the Phase 2 milestone — it is **auto-written by `savepoint-mgr save --step outline`** (and `--step refined_outline`). No manual `savepoint-mgr save outline_complete` is required.
 6. If chunked outline generation is enabled, expect chunk savepoints in this pattern:
 
 | Chunk Range | Savepoint |
@@ -110,11 +110,9 @@ Execute these phases sequentially. Each phase completes fully before the next be
    - `critic_scores`: individual critic scores
    - `verdict`: one of `"strong"` / `"minor_concerns"` / `"significant_issues"`
 
-3. Store the arc assessment for display at Phase 3:
-   - Call `story-state` (operation: `write`, field: `arc_assessment`, value: `arc_assessment` JSON string)
-   - This **auto-writes the `arc_analysis_complete` savepoint** when the value is non-empty.
+3. The `arc_assessment` savepoint and the `arc_analysis_complete` milestone savepoint are both **auto-written by `critique-runner`** during step 1. Do **not** call `story-state write --field arc_assessment` (the field is forbidden) and do **not** call `savepoint-mgr save arc_analysis_complete` manually. To display the arc assessment at Phase 3, load it via `savepoint-mgr load --step arc_assessment`.
 
-4. `arc_analysis_complete` savepoint: auto-written in step 3. Do **not** write it manually.
+4. `arc_analysis_complete` savepoint: auto-written by `critique-runner`. Do **not** write it manually.
 
 **Batch mode:** Continue to Phase 3 regardless of verdict. The assessment is logged but does not block generation.
 
@@ -382,8 +380,8 @@ Savepoints capture the full pipeline state at key milestones, enabling resume af
 | Savepoint | Created After | Writer |
 |-----------|--------------|--------|
 | `init` | Phase 1 completes | **auto** — `story-state init` |
-| `outline_complete` | Phase 2 completes (outline finalised) | **auto** — `story-state write --field outline` |
-| `arc_analysis_complete` | Phase 2.5 completes (arc assessment saved) | **auto** — `story-state write --field arc_assessment` |
+| `outline_complete` | Phase 2 completes (outline finalised) | **auto** — `savepoint-mgr save --step outline` (also `--step refined_outline`) |
+| `arc_analysis_complete` | Phase 2.5 completes (arc assessment saved) | **auto** — `critique-runner` after `arc_assessment` savepoint write |
 | `characters_complete` | Phase 5 completes (all character sheets generated) | **auto** — `story-state write --field characters` |
 | `settings_complete` | Phase 5 completes (all setting sheets generated) | **auto** — `story-state write --field settings` |
 | `wiki_populated` | Phase 6 completes (wiki initial population done) | **auto** — `wiki-extract initial-populate --apply` |
