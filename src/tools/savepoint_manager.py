@@ -135,7 +135,7 @@ def cmd_clear(name: str) -> None:
 
 
 # Canonical phase order — must match the Savepoint Strategy table in
-# .opencode/agents/story-orchestrator.md. If the pipeline phases change,
+# prompts/agents/story-orchestrator.md. If the pipeline phases change,
 # update both files together.
 CANONICAL_PHASES: list[str] = [
     "init",

@@ -24,6 +24,9 @@ def load_agent_prompt(name: str) -> str:
         ConfigurationError: If the file does not exist.
         ValueError: If the frontmatter is malformed (opening --- with no closing ---).
     """
+    if "/" in name or "\\" in name or name.startswith("."):
+        raise ValueError(f"Invalid agent name: {name!r}")
+
     if name in _cache:
         return _cache[name]
 

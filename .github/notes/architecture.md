@@ -109,13 +109,13 @@ See [Tools Reference](docs/tools.md) for full documentation.
 
 ## Agents
 
-Three agents defined in `.opencode/agents/`, registered in `opencode.json`:
+Three agent prompt files defined in `prompts/agents/`, registered in `opencode.json`:
 
 | Agent | Definition | Skills | Purpose |
 |-------|-----------|--------|--------|
-| `story-orchestrator` | `.opencode/agents/story-orchestrator.md` | `story-pipeline` | Primary pipeline controller — coordinates 10-phase story generation lifecycle, delegates to subagents |
-| `chapter-writer` | `.opencode/agents/chapter-writer.md` | `scene-writing`, `character-voice` | Per-chapter scene generation — invoked by orchestrator during Phase 8b, generates scenes sequentially using wiki-snapshot context |
-| `outline-planner` | `.opencode/agents/outline-planner.md` | `story-pipeline`, `outline-structure` | Outline generation — invoked by orchestrator during Phase 2, runs 5-phase pipeline: prompt analysis, element synthesis, outline generation (chunked/monolithic), optional critique & refinement |
+| `story-orchestrator` | `prompts/agents/story-orchestrator.md` | `story-pipeline` | Primary pipeline controller — coordinates 10-phase story generation lifecycle, delegates to subagents |
+| `chapter-writer` | `prompts/agents/chapter-writer.md` | `scene-writing`, `character-voice` | Per-chapter scene generation — invoked by orchestrator during Phase 8b, generates scenes sequentially using wiki-snapshot context |
+| `outline-planner` | `prompts/agents/outline-planner.md` | `story-pipeline`, `outline-structure` | Outline generation — invoked by orchestrator during Phase 2, runs 5-phase pipeline: prompt analysis, element synthesis, outline generation (chunked/monolithic), optional critique & refinement |
 
 The `chapter-writer` is named to avoid collision with the existing `scene-writer` tool. The orchestrator delegates to `chapter-writer` for the per-chapter scene generation loop; the agent in turn calls the `scene-writer` tool for individual scene generation.
 

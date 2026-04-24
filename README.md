@@ -186,7 +186,7 @@ llm-story-writer/
 This project uses a **hybrid agent-tool architecture** where OpenCode agents handle orchestration and human interaction, while Python scripts (wrapped as OpenCode tools) handle deterministic domain logic. The architecture preserves clean architecture principles in the Python domain layer while leveraging OpenCode's agentic capabilities for creative tasks.
 
 Key components:
-- **Agents** (`.opencode/agents/`): story-orchestrator, outline-planner, chapter-writer
+- **Agents** (`prompts/agents/`): story-orchestrator, outline-planner, chapter-writer
 - **Tools** (`.opencode/tools/`): TypeScript wrappers that call Python scripts in `src/tools/`
 - **Skills** (`.opencode/skills/`): Reusable instructions for pipeline phases, wiki maintenance, etc.
 - **Commands** (`.opencode/commands/`): TUI slash commands like `/new-story`, `/continue`, `/status`

@@ -5,7 +5,7 @@
 **Date:** 2026-04-24
 **Author:** Planner agent
 **Status:** Draft
-**Related:** [ADR 007](./adr/007-python-native-orchestration.md) supersedes [ADR 001](./adr/001-hybrid-agent-tool-architecture.md); research synthesis at `.github/research/python-native-migration-2026-04-24.md`.
+**Related:** ADR 007 (to be written) supersedes [ADR 001](./adr/001-hybrid-agent-tool-architecture.md); research synthesis at `.github/research/python-native-migration-2026-04-24.md`.
 
 ## Problem Statement
 
@@ -162,6 +162,6 @@ No schema changes. JSON savepoints, JSON story state, and ChromaDB collections a
 ## Related
 
 - Research synthesis: `.github/research/python-native-migration-2026-04-24.md`
-- ADR 007 (this proposal): `docs/planning/adr/007-python-native-orchestration.md`
+- ADR 007 (to be written)
 - ADR 001 (superseded): `docs/planning/adr/001-hybrid-agent-tool-architecture.md`
 - Prior migration PRD (superseded direction): `docs/planning/opencode-migration/prd.md`
