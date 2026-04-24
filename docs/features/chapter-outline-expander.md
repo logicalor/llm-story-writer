@@ -23,10 +23,8 @@ Operationally, the orchestrator dispatches one bounded Phase 7a subagent, waits 
 
 For each chapter, the subagent performs these steps in order:
 
-1. Call `outline-generator` with `operation: "expand-chapter"` to create the chapter synopsis and next-step continuity analysis.
-2. Write that synopsis to `chapters.{N}.expanded_outline` in story state.
-3. When `generation.scene_expansion_enabled` is `true`, call `outline-generator` again with `operation: "expand-to-scenes"` to convert the synopsis into a JSON array of scene objects.
-4. Save Phase 7a progress under `chapter_outline_expansion/chapter_{N}`.
+1. Call `outline-generator` with `operation: "expand-chapter"` to create the chapter synopsis and next-step continuity analysis. The tool writes the result to the `expanded_chapter_{N}_{N}` savepoint.
+2. When `generation.scene_expansion_enabled` is `true`, call `outline-generator` again with `operation: "expand-to-scenes"` to convert the synopsis into a JSON array of scene objects. The tool writes `chapter_{N}/scene_definitions`.
 
 The second call is the feature added in PR #155. It uses `prompts/chapters/expand_to_scenes.md`, enforces the requested scene count band, and writes `chapter_{N}/scene_definitions` directly during Phase 7a.
 
@@ -60,17 +58,16 @@ During the loop, the subagent also reads:
 - `chapters.{N-1}.handoff` from story state when a prior chapter handoff exists
 - The previous `continuitySummary` returned by `outline-generator`
 - `chapters.{N-1}.recap` when scene expansion is enabled and prior recap context exists
-- `chapters.{N+1}.expanded_outline` when a next-chapter synopsis is already available for lead-in context
 
 ### Outputs
 
-For each chapter, the subagent writes:
+For each chapter, the tool writes (no agent-side savepoint calls required):
 
-- `chapters.{N}.expanded_outline` — expanded chapter outline used by later drafting phases
-- `chapter_{N}/scene_definitions` — structured scene objects written by `expand-to-scenes` when scene expansion is enabled
-- `chapter_outline_expansion/chapter_{N}` savepoint data — progress marker for the expansion pass
+- `expanded_chapter_{N}_{N}` savepoint — expanded chapter outline used by later drafting phases (single source of truth)
+- `chapter_{N}/scene_definitions` savepoint — structured scene objects written by `expand-to-scenes` when scene expansion is enabled
+- `expansion_continuity_{N}_{N}` savepoint — per-chapter continuity analysis
 
-At completion it returns a small status object to the orchestrator, such as `complete` or `skipped`.
+At completion the tool auto-writes the `outlines_expanded` milestone savepoint, and the subagent returns a small status object to the orchestrator, such as `complete` or `skipped`.
 
 ## Backwards Compatibility And Resume Behavior
 

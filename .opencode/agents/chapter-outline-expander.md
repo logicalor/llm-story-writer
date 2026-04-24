@@ -89,12 +89,7 @@ Execute these steps sequentially.
       > **Do not pass `chapterSynopsis` or `nextChapterSynopsis`.** The tool auto-loads both from the `expanded_chapter_{N}_{N}` and `expanded_chapter_{N+1}_{N+1}` savepoints. This keeps multi-KB outline text off the orchestrator's tool-call context.
 
       Record `data.scene_count` for logging only. The tool writes `chapter_{N}/scene_definitions` automatically in Phase 7a, so Phase 7b `parse-definitions` can short-circuit via existing resume logic.
-   h. Call `savepoint-mgr` with:
-      - `operation`: `"save"`
-      - `name`: `story_name`
-      - `step`: `"chapter_outline_expansion/chapter_{N}"`
-      - `data`: the expanded outline as a JSON string
-   i. Increment `current_chapter` and continue.
+   h. Increment `current_chapter` and continue. **Do not** call `savepoint-mgr save` for the expanded outline — the `expand-chapter` call in step c already wrote `expanded_chapter_{N}_{N}`, which is the single source of truth. A second savepoint write here would duplicate multi-KB outline content through the orchestrator's tool-call context.
 5. `outlines_expanded` savepoint is **auto-written** by `outline-generator expand-chapter` when `phase == "chapter"` and the final chapter's expansion completes. Do **not** call `savepoint-mgr save outlines_expanded` manually.
 6. Return `{"status": "complete", "expanded_chapters": wanted_chapters}`.
 

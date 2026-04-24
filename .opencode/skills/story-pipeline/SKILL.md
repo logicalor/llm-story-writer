@@ -208,7 +208,7 @@ The following subagents own specific savepoints because they perform per-entity 
 | Subagent | Owned savepoints | Rationale |
 |----------|-------------------|-----------|
 | `character-sheet-generator` | `characters_complete`, `settings_complete` | Subagent loops over the full character/setting list and is the only context that knows when the loop has finished. The orchestrator must NOT also create these. |
-| `chapter-outline-expander` | `outlines_expanded` (plus per-chapter `chapter_outline_expansion/chapter_{N}`) | Subagent owns the full Phase 7a per-chapter expand loop and is the only context that knows when every chapter has been expanded. The orchestrator must NOT also create `outlines_expanded`. |
+| `chapter-outline-expander` | `outlines_expanded` (auto-written by `outline-generator expand-chapter` on the final chapter) | Subagent owns the full Phase 7a per-chapter expand loop and is the only context that knows when every chapter has been expanded. The orchestrator must NOT also create `outlines_expanded`. |
 
 When adding a new exception: document it in this table, ensure the orchestrator does NOT create the same savepoint, and add the savepoint to the canonical phase order in `src/tools/savepoint_manager.py`'s `CANONICAL_PHASES` list.
 
