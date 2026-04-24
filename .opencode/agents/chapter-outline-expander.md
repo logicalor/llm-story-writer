@@ -44,9 +44,10 @@ Execute these steps sequentially.
 1. If `expand_outline` is false, return immediately with `{"status": "skipped", "reason": "expand_outline disabled"}`.
 2. Initialise `continuitySummary = null` and `current_chapter = 1`.
 3. Load the approved outline for synopsis grounding:
-   - Call `story-state` with `operation: "read"`, `name: story_name`, `field: "outline"`
-   - Store the returned value as `approved_outline`
-   - If the read fails or returns empty/null, set `approved_outline = null` and log: `"Warning: story-state 'outline' field is empty — chapters will be expanded without approved synopsis context. Run the pipeline from Phase 2 to populate the outline before Phase 7a."`
+   - Call `savepoint-mgr` with `operation: "load"`, `name: story_name`, `step: "outline"` (fall back to `step: "refined_outline"` then `step: "initial_outline"` if missing).
+   - Store the returned content as `approved_outline`.
+   - If all three savepoints are missing or empty, set `approved_outline = null` and log: `"Warning: outline savepoint is missing — chapters will be expanded without approved synopsis context. Run the pipeline from Phase 2 to populate the outline savepoint before Phase 7a."`
+   - **Do not** call `story-state read --field outline`; that field no longer exists — the outline is stored only in savepoints.
 4. Loop for chapter N from 1 to `wanted_chapters`:
    a. If `N > 1`, call `story-state` with `operation: "read"`, `name: story_name`, `field: "chapters.{N-1}.handoff"`. If the field exists, treat the returned JSON object as the prior chapter handoff. If the read fails because the field is absent, continue without handoff data.
    b. Build the `continuitySummary` argument for the next `outline-generator` call:

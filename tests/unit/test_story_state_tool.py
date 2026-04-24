@@ -117,8 +117,8 @@ class TestRead:
             "story_context.nonexistent",
             stories_dir=story_dir,
         )
-        assert result.returncode == 1
-        assert "field not found" in result.stderr
+        assert result.returncode == 0
+        assert json.loads(result.stdout) is None
 
     def test_read_missing_name(self) -> None:
         result = _run_tool("--operation", "read")

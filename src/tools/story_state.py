@@ -125,13 +125,12 @@ def _ensure_state_defaults(data: dict) -> dict:
 
 
 def _get_nested(data: dict, field: str) -> object:
-    """Get a nested value from a dict using dot-notation."""
+    """Get a nested value from a dict using dot-notation. Returns None if any segment is missing."""
     keys = field.split(".")
     current: object = data
     for key in keys:
         if not isinstance(current, dict) or key not in current:
-            print(f"Error: field not found: {field}", file=sys.stderr)
-            sys.exit(1)
+            return None
         current = current[key]
     return current
 
@@ -227,12 +226,20 @@ def cmd_init(name: str) -> None:
 
 
 def cmd_read(name: str, field: str | None) -> None:
-    """Read story state, optionally extracting a nested field."""
+    """Read story state, optionally extracting a nested field. Missing fields return JSON null."""
     story_dir = _validate_story_name(name)
     state_path = story_dir / "state.json"
     data = _read_state(state_path)
 
     if field:
+        forbidden, suggested_step = _is_forbidden_bulk_field(field)
+        if forbidden:
+            print(
+                f"Error: field '{field}' is no longer stored in state.json. "
+                f"Load it via: savepoint-mgr load --name {name} --step {suggested_step}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         result = _get_nested(data, field)
     else:
         result = data
