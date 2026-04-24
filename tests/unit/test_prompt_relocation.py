@@ -1,8 +1,131 @@
-"""Verification tests for Issue #164 — Python-native migration cleanup."""
+"""Verification tests for issue #5 (Prompt Template Relocation) and issue #164 (OpenCode artefact removal)."""
 
+import inspect
+import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+_src_dir = str(PROJECT_ROOT / "src")
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
+
+# --- Issue #5: Prompt Template Relocation ---
+
+
+def test_prompts_directory_exists():
+    """Verify prompts/ directory exists at project root."""
+    prompts_dir = PROJECT_ROOT / "prompts"
+    assert prompts_dir.is_dir(), f"Expected prompts/ directory at {prompts_dir}"
+
+
+def test_no_prompts_in_old_location():
+    """Verify src/application/strategies/outline_chapter/prompts/ does NOT exist."""
+    old_dir = (
+        PROJECT_ROOT
+        / "src"
+        / "application"
+        / "strategies"
+        / "outline_chapter"
+        / "prompts"
+    )
+    assert not old_dir.exists(), f"Old prompts directory still exists at {old_dir}"
+
+
+def test_prompt_subdirectories_exist():
+    """Verify all expected subdirectories exist under prompts/."""
+    prompts_dir = PROJECT_ROOT / "prompts"
+    expected_subdirs = [
+        "agents",
+        "chapters",
+        "characters",
+        "multistep",
+        "outline",
+        "outline_review",
+        "recap",
+        "scenes",
+        "settings",
+        "story_state",
+        "_unused",
+    ]
+    for subdir in expected_subdirs:
+        path = prompts_dir / subdir
+        assert path.is_dir(), f"Expected subdirectory {subdir}/ under prompts/"
+
+
+def test_root_level_prompts_exist():
+    """Verify the 3 root-level prompt files exist."""
+    prompts_dir = PROJECT_ROOT / "prompts"
+    expected_files = [
+        "extract_base_context.md",
+        "extract_chapter_events.md",
+        "extract_story_start_date.md",
+    ]
+    for filename in expected_files:
+        path = prompts_dir / filename
+        assert path.is_file(), f"Expected root-level prompt {filename} in prompts/"
+
+
+def test_prompt_loader_default_path():
+    """Import PromptLoader and verify its default __init__ parameter is 'prompts'."""
+    from infrastructure.prompts.prompt_loader import PromptLoader
+
+    sig = inspect.signature(PromptLoader.__init__)
+    default = sig.parameters["prompts_dir"].default
+    assert default == "prompts", (
+        f"PromptLoader default prompts_dir should be 'prompts', got '{default}'"
+    )
+
+
+def test_outline_chapter_prompt_directory():
+    """Verify OutlineChapterStrategy.get_prompt_directory() returns 'prompts'."""
+    strategy_file = (
+        PROJECT_ROOT
+        / "src"
+        / "application"
+        / "strategies"
+        / "outline_chapter"
+        / "strategy.py"
+    )
+    assert strategy_file.is_file(), f"Strategy file not found: {strategy_file}"
+    source = strategy_file.read_text(encoding="utf-8")
+    assert 'return "prompts"' in source, (
+        'get_prompt_directory() should return "prompts" but pattern not found in source'
+    )
+
+
+def test_prompt_file_count():
+    """Count all .md files under prompts/ and verify relocation preserved the baseline set."""
+    prompts_dir = PROJECT_ROOT / "prompts"
+    md_files = list(prompts_dir.rglob("*.md"))
+    assert len(md_files) >= 148, (
+        f"Expected at least 148 .md files under prompts/, found {len(md_files)}"
+    )
+
+
+def test_agent_prompt_files_present():
+    """Verify all expected agent prompt files exist under prompts/agents/."""
+    agents_dir = PROJECT_ROOT / "prompts" / "agents"
+    expected_files = [
+        "chapter-outline-expander.md",
+        "chapter-writer.md",
+        "character-sheet-generator.md",
+        "consistency-checker.md",
+        "final-editor.md",
+        "outline-planner.md",
+        "prose-scrubber.md",
+        "quality-reviewer.md",
+        "story-orchestrator.md",
+        "story-planner.md",
+        "wiki-maintainer.md",
+    ]
+    for filename in expected_files:
+        path = agents_dir / filename
+        assert path.is_file(), f"Expected agent prompt {filename} in prompts/agents/"
+
+
+# --- Issue #164: OpenCode artefact removal ---
 
 
 def test_opencode_artefacts_deleted() -> None:
