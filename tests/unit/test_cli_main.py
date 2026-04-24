@@ -59,9 +59,7 @@ class TestBuildParser:
 
         assert args.savepoint == "chapter-3"
 
-    def test_missing_story_arg_exits(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_missing_story_arg_exits(self, capsys: pytest.CaptureFixture[str]) -> None:
         parser = build_parser()
 
         with pytest.raises(SystemExit) as exc_info:
@@ -83,6 +81,18 @@ class TestMainDispatch:
             sys.argv = original_argv
 
         mock_cmd_run.assert_called_once_with("my_story", batch=False)
+
+    def test_tui_dispatches_cmd_tui(self) -> None:
+        original_argv = sys.argv[:]
+
+        try:
+            sys.argv = ["story-writer", "tui", "--story", "my_story"]
+            with patch("src.presentation.cli.main._cmd_tui") as mock_cmd_tui:
+                main()
+        finally:
+            sys.argv = original_argv
+
+        mock_cmd_tui.assert_called_once_with("my_story")
 
     def test_resume_dispatches_cmd_resume(self) -> None:
         original_argv = sys.argv[:]

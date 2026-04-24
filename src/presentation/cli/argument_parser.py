@@ -21,7 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument(
         "--batch",
         action="store_true",
-        help="Auto-accept all approval gates (non-interactive).",
+        help="Auto-accept all approval gates (reserved for forward compatibility — currently all headless runs use NullApprovalGate).",
     )
 
     resume_p = sub.add_parser("resume", help="Resume from latest savepoint.")
@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--savepoint",
         default=None,
         metavar="NAME",
-        help="Savepoint name to resume from (defaults to latest).",
+        help="Savepoint name to validate against (currently always resumes from latest state).",
     )
 
     return parser
