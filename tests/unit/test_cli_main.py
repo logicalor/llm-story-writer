@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.presentation.cli.argument_parser import build_parser  # noqa: E402
+from src.presentation.cli.main import _cmd_tui  # noqa: E402
 from src.presentation.cli.main import main  # noqa: E402
 
 
@@ -105,3 +106,25 @@ class TestMainDispatch:
             sys.argv = original_argv
 
         mock_cmd_resume.assert_called_once_with("my_story", None)
+
+
+class TestCmdTui:
+    def test_missing_textual_reports_install_instruction(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        real_import = __import__
+
+        def fake_import(name: str, *args: object, **kwargs: object) -> object:
+            if name == "presentation.tui.app":
+                raise ImportError("textual missing")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=fake_import):
+            with pytest.raises(SystemExit) as exc_info:
+                _cmd_tui("my_story")
+
+        assert exc_info.value.code == 1
+        assert capsys.readouterr().err == (
+            "textual is not installed. Install it with:\n"
+            "  pip install 'textual>=0.85.0,<1.0.0'\n\n"
+        )

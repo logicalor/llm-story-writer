@@ -94,7 +94,7 @@ story-writer = "src.presentation.cli.main:main"
 
 | Subcommand | Handler | Current behavior |
 |------------|---------|------------------|
-| `tui --story <name>` | `_cmd_tui()` | Lazy-imports the future Textual app and exits with a helpful stderr message if unavailable |
+| `tui --story <name>` | `_cmd_tui()` | Lazy-imports `StoryWriterApp` and runs the Textual TUI; if `textual` is missing, exits with a helpful stderr install hint |
 | `run --story <name> [--batch]` | `_cmd_run()` | Calls `run_pipeline()` with `NullApprovalGate`, `TokenStreamBus`, and `WikiContextBus` |
 | `resume --story <name> [--savepoint <name>]` | `_cmd_resume()` | Calls `resume_pipeline()` with the same Python-native primitives |
 

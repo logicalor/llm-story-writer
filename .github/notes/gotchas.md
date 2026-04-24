@@ -689,3 +689,194 @@ Without this, the `story-writer` console script fails when run from any director
 Relation to gotcha #007: #007 covers `sys.path.insert` in **test files** for resolving `src/` imports; this entry covers the production CLI entry module bootstrap for editable console scripts.
 
 ChromaDB ID: `gotcha-cli-main-sys-path-bootstrap-022`
+
+---
+
+## UI / Textual
+
+### 023 — Cross-thread asyncio bridge: use `loop.call_soon_threadsafe()` to resolve Futures from TUI thread
+
+**Source:** issue #163, PR #174
+**Severity:** warning
+
+When a Textual app runs a pipeline in a `@work(thread=True)` worker and needs to send a UI
+decision (e.g. approval gate) back to the worker's `asyncio.run()` event loop, calling
+`future.set_result()` directly from the Textual event-loop thread is **thread-unsafe** and
+raises `RuntimeError: Future is attached to a different loop` or causes undefined behaviour.
+
+The correct pattern uses `loop.call_soon_threadsafe()`:
+
+```python
+class TUIApprovalGate:
+    def __init__(self):
+        # Capture the worker's event loop BEFORE asyncio.run() replaces it:
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._future: asyncio.Future | None = None
+
+    def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Called from the worker thread after asyncio.get_event_loop()."""
+        self._loop = loop
+
+    def resolve_from_ui(self, decision: bool) -> None:
+        """Called from the Textual (UI) thread — must NOT touch the future directly."""
+        if self._future is not None and self._loop is not None:
+            self._loop.call_soon_threadsafe(self._future.set_result, decision)
+
+    async def await_decision(self) -> bool:
+        self._future = asyncio.get_event_loop().create_future()
+        try:
+            return await self._future
+        finally:
+            self._future = None
+```
+
+`bind_loop()` captures the pipeline's event loop from the worker thread before `asyncio.run()`
+is entered. `call_soon_threadsafe` enqueues the `set_result` callback onto the correct loop
+from any external thread.
+
+**Anti-patterns:**
+- `future.set_result(v)` from the UI thread — thread-unsafe, `RuntimeError` on CPython ≥ 3.10
+- `loop.run_until_complete(...)` from the UI thread — deadlock (loop already running)
+- Calling `asyncio.get_event_loop()` inside `resolve_from_ui` — may return Textual's loop, not the worker's loop
+
+**Generalises to:** any architecture where a TUI (Textual, curses, tkinter) must inject results
+into a separately-running `asyncio.run()` worker loop.
+
+ChromaDB ID: `gotcha-asyncio-cross-thread-bridge-023`
+
+---
+
+### 024 — `RichLog` defaults to `markup=True`; use `markup=False` for LLM/user-generated content
+
+**Source:** issue #163, PR #174
+**Severity:** warning
+
+Textual's `RichLog` widget defaults to `markup=True`, which interprets Rich markup syntax
+(`[bold]`, `[red]`, `[link=…]`) in every string written with `.write()`. LLM-generated content
+routinely contains square brackets — citation numbers `[1]`, Markdown footnotes `[^1]`,
+enumeration prefixes `[a]`, partial HTML/tags — that Rich parses as markup. When Rich encounters
+an unrecognised or unclosed tag it raises `MarkupError` or silently drops text, corrupting the
+streaming display.
+
+```python
+# Wrong — default markup=True corrupts any LLM token containing []:
+log = RichLog()
+
+# Right — markup=False passes all content as plain text:
+log = RichLog(markup=False)
+```
+
+The bug is invisible in unit tests that use short mock token strings. It only manifests in
+integration or end-to-end runs with real LLM output — first encountered when a story run
+containing citation brackets `[1]` silently dropped the surrounding sentence.
+
+**Wider principle:** never enable `markup=True` on any display widget that renders content
+outside the application's control (user input, LLM tokens, file content, web data).
+
+ChromaDB ID: `gotcha-richlog-markup-false-user-content-024`
+
+---
+
+### 025 — Three-drain `asyncio.gather()` pattern: close buses in `finally`, drain concurrently
+
+**Source:** issue #163, PR #174
+**Severity:** info
+
+When a pipeline coroutine produces output on two async buses (`TokenStreamBus`, `WikiContextBus`)
+and a TUI worker must consume both while the pipeline runs, a naïve sequential approach
+(`await pipeline(); async for token in bus: ...`) leaves one bus unconsumed if the pipeline raises.
+The three-drain `asyncio.gather()` pattern solves this with a single invariant: **close all buses
+in a `finally` block** so all drain coroutines receive their termination signal regardless of
+outcome.
+
+```python
+async def _pipeline_with_close(self) -> None:
+    """Run pipeline; always close both buses on exit."""
+    try:
+        await run_pipeline(self._story_name, self._gate, self._bus, self._wiki_bus)
+    finally:
+        self._bus.close()
+        self._wiki_bus.close()
+
+async def _drain_tokens(self) -> None:
+    async for token in self._bus:
+        self._log.write(token)
+
+async def _drain_wiki(self) -> None:
+    async for item in self._wiki_bus:
+        self._wiki_panel.update(item)
+
+async def _run_all(self) -> None:
+    await asyncio.gather(
+        self._pipeline_with_close(),
+        self._drain_tokens(),
+        self._drain_wiki(),
+    )
+```
+
+`asyncio.gather()` runs all three coroutines concurrently. When the pipeline exits (success or
+exception), `finally` closes both buses. The drain coroutines see the sentinel and exit their
+`async for` loops. `asyncio.gather()` waits for all three to complete before returning.
+
+**Key invariant:** call `bus.close()` in `finally`, **not** after `await run_pipeline()`. If
+the close is only on the success path, an exception leaves all drain coroutines blocked forever.
+
+**Scales to N buses / M producers:** wrap each producer in a `_produce_with_close()` coroutine
+that closes its own output channels in `finally`; gather all producers and consumers together.
+
+ChromaDB ID: `gotcha-asyncio-three-drain-gather-pattern-025`
+
+---
+
+### 026 — Testing Textual apps with `@work(thread=True)` workers: mock worker, use `pilot.pause()`
+
+**Source:** issue #163, PR #174
+**Severity:** info
+
+Textual apps that run blocking work in `@work(thread=True)` workers require three specific
+test practices:
+
+**1. Mock `_run_pipeline` (or equivalent) to prevent real execution:**
+
+```python
+async def fake_run(*args, **kwargs):
+    pass  # do nothing — worker exits immediately
+
+monkeypatch.setattr(
+    "src.presentation.tui.app.StoryWriterApp._run_pipeline", fake_run
+)
+```
+
+Without this, the test either hangs (waiting for LLM) or raises configuration errors.
+
+**2. Use `app.run_test()` as an async context manager — never `app.run()`:**
+
+```python
+app = StoryWriterApp(story_name="test-story")
+async with app.run_test() as pilot:
+    ...
+```
+
+`app.run()` blocks the calling thread; `run_test()` returns a `Pilot` that drives the app
+through the test event loop without blocking.
+
+**3. Use `await pilot.pause()` after any worker-triggering action:**
+
+```python
+async with app.run_test() as pilot:
+    await pilot.pause()          # allow mount/compose lifecycle
+    await pilot.click("#start")  # triggers @work(thread=True) worker
+    await pilot.pause()          # yield for worker to start and post results
+    assert app.query_one("#status").renderable == "Running"
+    await pilot.pause()          # yield for worker to complete
+    assert app.query_one("#status").renderable == "Complete"
+```
+
+`pilot.pause()` yields control back to the event loop, allowing pending callbacks, reactive
+updates, and worker-posted messages to process. Multiple `pause()` calls may be needed for
+multi-step interactions. Missing a `pause()` produces flaky tests: the assertion fires before
+the worker has posted its result to the DOM.
+
+**Note:** `@pytest.mark.asyncio` is required; Textual's `run_test()` is an async context manager.
+
+ChromaDB ID: `gotcha-textual-work-thread-testing-026`

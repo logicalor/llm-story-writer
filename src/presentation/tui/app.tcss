@@ -1,0 +1,55 @@
+Screen {
+    layout: grid;
+    grid-size: 1;
+}
+
+#main-grid {
+    layout: horizontal;
+    height: 1fr;
+}
+
+#phase-panel {
+    width: 20;
+    border: solid $primary;
+    padding: 1;
+}
+
+#phase-title {
+    text-style: bold;
+    color: $primary;
+    margin-bottom: 1;
+}
+
+.phase-item {
+    color: $text-muted;
+}
+
+#output-log {
+    width: 1fr;
+    border: solid $accent;
+    padding: 0 1;
+}
+
+#wiki-panel {
+    width: 30;
+    border: solid $success;
+    padding: 1;
+    display: none;
+}
+
+#wiki-title {
+    text-style: bold;
+    color: $success;
+    margin-bottom: 1;
+}
+
+#wiki-log {
+    height: 1fr;
+}
+
+#approval-input {
+    dock: bottom;
+    height: 3;
+    border: solid $warning;
+    margin: 0 1;
+}
