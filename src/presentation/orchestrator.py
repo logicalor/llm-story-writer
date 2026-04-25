@@ -450,9 +450,17 @@ async def _continue_pipeline(
                 if draft is None:
                     return state
 
-                await consistency_agent.run(
+                consistency_result = await consistency_agent.run(
                     state.story_name, chapter_number, draft.content
                 )
+                if not consistency_result["passed"]:
+                    await bus.emit(
+                        f"\n[Consistency] Chapter {chapter_number} — issues found:\n"
+                    )
+                    for issue in consistency_result["issues"]:
+                        await bus.emit(
+                            f"  [{issue['severity'].upper()}] {issue['description']}\n"
+                        )
                 state.approved_chapters.append(draft)
                 _write_chapter_file(story_dir, chapter_number, draft.content)
                 wiki_batch = await wiki_agent.run(

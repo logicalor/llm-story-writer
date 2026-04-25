@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
@@ -18,6 +19,75 @@ def _build_model_config(config: dict[str, Any], role: str, default: str) -> Mode
     models = config.get("models", {})
     model_name = models.get(role, default)
     return ModelConfig.from_string(model_name)
+
+
+def _extract_consistency_result(text: str) -> dict[str, Any]:
+    """Parse LLM response text into a structured consistency result."""
+    stripped = text.strip()
+    if "```json" in stripped:
+        parts = stripped.split("```json", 1)
+        if len(parts) > 1:
+            stripped = parts[1].split("```", 1)[0].strip()
+    elif "```" in stripped:
+        parts = stripped.split("```", 1)
+        if len(parts) > 1:
+            inner = parts[1].split("```", 1)[0].strip()
+            if inner.startswith("{"):
+                stripped = inner
+
+    try:
+        data = json.loads(stripped)
+    except (json.JSONDecodeError, ValueError):
+        return {"issues": [], "passed": True}
+
+    issues: list[dict[str, Any]] = []
+
+    lint = data.get("wiki_lint_findings", {})
+    for contradiction in lint.get("contradictions", []):
+        issues.append(
+            {
+                "type": "contradiction",
+                "description": contradiction,
+                "severity": "critical",
+            }
+        )
+    for timeline_issue in lint.get("timeline_issues", []):
+        issues.append(
+            {
+                "type": "timeline",
+                "description": timeline_issue,
+                "severity": "warning",
+            }
+        )
+    for trait in lint.get("trait_drift", []):
+        issues.append(
+            {
+                "type": "trait_drift",
+                "description": trait,
+                "severity": "warning",
+            }
+        )
+
+    for finding in data.get("semantic_findings", []):
+        issues.append(
+            {
+                "type": "semantic",
+                "description": finding.get("finding", ""),
+                "severity": finding.get("severity", "info"),
+            }
+        )
+
+    for finding in data.get("cross_chapter_findings", []):
+        issues.append(
+            {
+                "type": "cross_chapter",
+                "description": finding.get("contradiction", ""),
+                "severity": "warning",
+            }
+        )
+
+    passed = not data.get("has_critical_findings", False)
+    return {"issues": issues, "passed": passed}
 
 
 class ConsistencyCheckerAgent:
@@ -73,11 +143,13 @@ class ConsistencyCheckerAgent:
             },
         ]
 
+        full_text = ""
         stream = cast(
             AsyncIterator[str],
             self.provider.stream_text(messages, model_config),
         )
         async for token in stream:
             await self.bus.emit(token)
+            full_text += token
 
-        return {"issues": [], "passed": True}
+        return _extract_consistency_result(full_text)
