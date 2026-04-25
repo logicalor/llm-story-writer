@@ -30,11 +30,20 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 | `outline` | Run `OutlinePlannerAgent`, persist `OutlineResult`, then wait on the outline approval gate | `outline` |
 | `characters` | Emit a wiki-context event for character assembly, mark phase complete | `characters` |
 | `settings` | Emit a wiki-context event for setting assembly, mark phase complete | `settings` |
-| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, wiki maintenance, and per-chapter savepointing | `chapter-{N}`, then `chapter-loop` |
+| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, then run wiki maintenance and per-chapter savepointing | `chapter-{N}`, then `chapter-loop` |
 | `final-edit` | Mark phase complete only; no editing subagent is wired yet | `final-edit` |
-| `assembly` | Mark phase complete, set `status="complete"`, write terminal savepoint | `assembly`, then `complete` |
+| `assembly` | Read non-empty content from `state.approved_chapters`, write `stories/<story>/output/story.md`, and fail with `StoryGenerationError` if no approved chapter content exists | `assembly`, then `complete` |
 
 Chapter count comes from `OutlineResult.chapter_outlines` when present. If the outline did not produce chapter entries, the fallback is `range(1, min(settings.wanted_chapters, 3) + 1)`.
+
+## Runtime Outputs
+
+The current orchestrator writes two manuscript-facing artifacts during a successful run:
+
+- `stories/<story>/chapters/chapter_{N}.md` — written immediately after chapter `N` passes the approval gate and consistency check
+- `stories/<story>/output/story.md` — written during `assembly` by joining the non-empty content of `state.approved_chapters` with blank lines
+
+Assembly is guarded. If `state.approved_chapters` contains no non-empty content, `_continue_pipeline()` raises `StoryGenerationError` instead of writing an empty manuscript file.
 
 ## Approval Gate Semantics
 
