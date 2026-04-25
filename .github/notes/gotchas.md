@@ -992,3 +992,137 @@ propagates redundant state and widens the test fixture surface. The parent relat
 invariant of `_validate_story_name()`'s contract — exploit it at call sites.
 
 ChromaDB ID: `gotcha-story-dir-parent-stories-dir-028`
+
+---
+
+## Infrastructure / LLM
+
+### 029 — `ModelConfig.host` must be threaded as `base_url` — model name alone is insufficient
+
+**Source:** issue #183, PR #195
+**Severity:** critical
+
+When passing a `ModelConfig` into a tool-layer function that calls an LLM, always derive
+`base_url` from `model_config.host` and forward it explicitly:
+
+```python
+base_url = f"http://{model_config.host}/v1" if model_config.host else None
+```
+
+Passing only `model_config.name` causes the LLM call to silently resolve against the default
+endpoint (typically `localhost:1234`) — regardless of which model server the story is configured
+to use.
+
+**Wrong:**
+```python
+# Only model name forwarded — base_url silently dropped:
+result = await asyncio.to_thread(
+    update_wiki_from_chapter,
+    story_name, chapter_num, chapter_text,
+    model=model_config.name,          # host dropped here
+)
+```
+
+**Right:**
+```python
+base_url = f"http://{model_config.host}/v1" if model_config.host else None
+result = await asyncio.to_thread(
+    update_wiki_from_chapter,
+    story_name, chapter_num, chapter_text,
+    model=model_config.name,
+    base_url=base_url,                # endpoint explicit
+)
+```
+
+**Why this is hard to catch:** The LLM call succeeds when the default server exists (local dev
+with a single LM Studio instance). The bug only manifests in multi-endpoint deployments or
+when the default endpoint is offline — producing a silent wrong-endpoint call with no error.
+
+The `base_url` parameter must thread through every intermediate function that forwards the model
+argument: `update_wiki_from_chapter` → `_prepare_chapter_update` → `_chat_completion`.
+
+ChromaDB ID: `gotcha-model-config-host-base-url-threading-029`
+
+---
+
+## Async / Threading
+
+### 030 — `asyncio.to_thread` with sync tool scripts: always wrap in `try/except Exception`
+
+**Source:** issue #183, PR #195
+**Severity:** warning
+
+`asyncio.to_thread` faithfully re-raises any exception raised in the worker thread. Sync tool
+scripts in `src/tools/` are designed for CLI use: they raise `ValueError`, `RuntimeError`, and
+`SystemExit` directly on failure. When called via `asyncio.to_thread` inside an async pipeline
+loop, these raw exceptions escape into the awaiting coroutine and can abort the entire
+multi-chapter run.
+
+**Wrong:**
+```python
+# Raw exception from sync script escapes — kills chapter loop on first wiki error:
+await asyncio.to_thread(update_wiki_from_chapter, story_name, chapter_num, ...)
+```
+
+**Right:**
+```python
+try:
+    await asyncio.to_thread(
+        update_wiki_from_chapter, story_name, chapter_num, ...
+    )
+except Exception as exc:
+    logger.error(
+        "Wiki update failed for story '%s' chapter %d: %s",
+        story_name, chapter_num, exc,
+    )
+    raise WikiUpdateError(
+        f"Wiki update failed for chapter {chapter_num}: {exc}"
+    ) from exc
+```
+
+Re-raise as a domain error with story/chapter context so the outer pipeline loop can handle it
+deliberately (log and continue, or abort with a meaningful message) rather than receiving an
+undifferentiated `ValueError` or `RuntimeError`.
+
+ChromaDB ID: `gotcha-asyncio-to-thread-sync-exception-wrapping-030`
+
+---
+
+## Testing
+
+### 031 — `_chat_completion` test stubs must declare `base_url: str | None = None`
+
+**Source:** issue #183, PR #195
+**Severity:** warning
+
+`_chat_completion` now accepts `base_url: str | None = None` to support multi-endpoint
+deployments. Any test stub that patches this function must include `base_url` in its signature,
+or production call sites that pass `base_url=some_url` will raise:
+
+```
+TypeError: _fake_chat_completion() got an unexpected keyword argument 'base_url'
+```
+
+**Wrong:**
+```python
+def _fake_chat_completion(prompt: str, model: str) -> str:
+    return "mocked response"
+```
+
+**Right:**
+```python
+def _fake_chat_completion(
+    prompt: str,
+    model: str,
+    base_url: str | None = None,
+) -> str:
+    return "mocked response"
+```
+
+**Generalisation:** Whenever a shared infrastructure function (`_chat_completion`,
+`_generate_text`, `_call_llm`, etc.) gains a new keyword argument, update **every** test stub
+that patches that function across the entire test suite. A stub with a fixed signature will
+only fail for test paths that actually pass the new kwarg — other tests continue to pass, making
+the coverage gap easy to miss in PR review.
+
+ChromaDB ID: `gotcha-chat-completion-stub-base-url-signature-031`
