@@ -1,14 +1,16 @@
 # Compaction Plugin
 
-> OpenCode plugin that injects story continuity context into the session compaction summary.
+> Historical note on the removed OpenCode plugin that used to inject story continuity context into session compaction summaries.
 
 ## Overview
 
-When working on long story sessions, OpenCode periodically compacts the conversation context to stay within token limits. Without intervention, this compaction discards narrative state — the agent loses track of characters, plot threads, and where it is in the story.
+Issue #164 / PR #175 removed `.opencode/plugins/story-compaction.ts` and the rest of the OpenCode runtime artefacts from the repository. This document is retained as a historical record of how the former plugin worked.
 
-The compaction plugin hooks into OpenCode's `experimental.session.compacting` event to inject a structured context block into the compacted summary. This ensures agents retain narrative continuity across compaction boundaries without manual re-prompting.
+When working on long story sessions, OpenCode periodically compacted the conversation context to stay within token limits. Without intervention, that compaction discarded narrative state — the agent lost track of characters, plot threads, and where it was in the story.
 
-The plugin is implemented as a single TypeScript file with zero npm dependencies — it uses only Node.js builtins (`fs`, `path`).
+The compaction plugin hooked into OpenCode's `experimental.session.compacting` event to inject a structured context block into the compacted summary. That ensured agents retained narrative continuity across compaction boundaries without manual re-prompting.
+
+The plugin was implemented as a single TypeScript file with zero npm dependencies — it used only Node.js builtins (`fs`, `path`).
 
 ## When It Activates
 
@@ -163,12 +165,12 @@ If the assembled context contains only the header and no substantive sections, t
 
 ## Key Files
 
-- `.opencode/plugins/story-compaction.ts` — the plugin implementation
-- `tests/unit/test_compaction_plugin.py` — structural verification tests
+- Former `.opencode/plugins/story-compaction.ts` — deleted in Issue #164
+- Former `tests/unit/test_compaction_plugin.py` — deleted in Issue #164
 
 ## Testing
 
-The plugin includes structural verification tests in `tests/unit/test_compaction_plugin.py` that verify:
+Before Issue #164 removed the plugin, structural verification tests in `tests/unit/test_compaction_plugin.py` verified:
 
 - Plugin file exists at the expected path
 - Contains the `experimental.session.compacting` hook registration
@@ -179,25 +181,16 @@ The plugin includes structural verification tests in `tests/unit/test_compaction
 - References the 4000-token budget
 - Uses no external dependencies (only `fs` and `path` imports)
 
-Run structural tests:
-
-```bash
-pytest tests/unit/test_compaction_plugin.py -v
-```
+Those structural tests were deleted with the plugin and are no longer runnable in the current repository.
 
 ### Behavioral Tests (Vitest)
 
-Behavioral tests live in `.opencode/plugins/__tests__/` and exercise the plugin's pure functions and integration with filesystem fixtures. They cover `assembleContext()` directly — happy path, graceful degradation (missing wiki, missing state, invalid JSON), and token budget enforcement.
+Behavioral tests formerly lived in `.opencode/plugins/__tests__/` and exercised the plugin's pure functions and integration with filesystem fixtures. They covered `assembleContext()` directly — happy path, graceful degradation (missing wiki, missing state, invalid JSON), and token budget enforcement.
 
-Run behavioral tests:
-
-```bash
-npx vitest run
-```
+Those tests were deleted with the `.opencode/` tree and are no longer runnable in the current repository.
 
 ## Related
 
-- [Tools Reference](../tools.md#story-compaction) — Plugin entry in the tools/plugins reference
 - [ADR 004: Progressive Wiki Memory System](../planning/adr/004-progressive-wiki-memory-system.md) — Wiki page format and detail levels used by the plugin
 - [Story Orchestrator](./story-orchestrator.md) — Pipeline controller that generates the state and wiki data consumed by this plugin
 - Issue #23 — Initial implementation

@@ -4,10 +4,10 @@
 
 | Layer        | Technology |
 | ------------ | ---------- |
-| **Backend**  | Python 3.x (domain logic in `src/`), TypeScript (OpenCode tool wrappers in `.opencode/tools/`) |
-| **Frontend** | CLI-only — OpenCode TUI (interactive) and SDK (batch/headless) |
+| **Backend**  | Python 3.x (domain logic in `src/`) |
+| **Frontend** | CLI-only — Python CLI (`src/presentation/cli/main.py`) |
 | **Database** | ChromaDB (vector search, per-story collections), JSON files on disk (story state, savepoints) |
-| **Testing**  | pytest (`tests/`), OpenCode SDK (E2E integration) |
+| **Testing**  | pytest (`tests/`) |
 | **Styling**  | N/A |
 | **HTTP**     | OpenAI-compatible REST API (local LLM inference), httpx |
 
@@ -16,15 +16,14 @@
 ### Code Style
 
 - Python: ruff for linting and formatting
-- TypeScript: ESLint for `.opencode/tools/` wrappers
 - Import ordering: stdlib → third-party → local, alphabetised within groups
-- Naming: snake_case for Python, camelCase for TypeScript
+- Naming: snake_case for Python
 
 ### Architecture
 
-- **Hybrid agent-tool architecture** ([ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md)): OpenCode agents handle orchestration and human interaction; Python scripts (wrapped as OpenCode tools) handle deterministic domain logic
+- **Python-native architecture**: Agent prompts in `prompts/agents/` define orchestration; Python scripts in `src/tools/` handle deterministic domain logic
 - **Clean architecture** preserved in Python domain layer: `src/domain/` (entities, value objects) → `src/application/` (services, strategies) → `src/infrastructure/` (providers, storage)
-- Tools are TypeScript wrappers in `.opencode/tools/` that call Python scripts in `src/tools/` via subprocess
+- Tools are Python scripts in `src/tools/` — no TypeScript or subprocess wrappers
 - **Progressive wiki memory system** ([ADR 004](docs/planning/adr/004-progressive-wiki-memory-system.md)): structured markdown pages with YAML frontmatter in `stories/<name>/wiki/`
 - **Three-stage context retrieval pipeline** ([ADR 005](docs/planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md)): entity matching → metadata query → semantic search → wikilink traversal → detail level selection → structured assembly
 
@@ -71,7 +70,7 @@ Do not HTML-escape shell operators. The terminal expects raw shell syntax.
 
 ```bash
 # 1. Implement the feature
-# Edit source files in src/tools/, .opencode/tools/, etc.
+# Edit source files in src/tools/, prompts/agents/, etc.
 
 # 2. Lint and type check
 ruff check --fix . && ruff format . && mypy src/

@@ -60,6 +60,8 @@ Follow the test conventions and patterns established in the project (see `copilo
 
 **LLM-response parse-error paths:** When writing tests for CLI tool operations that send a prompt to an LLM and parse the response as JSON (`json.loads()`), always include a test for the JSON decode failure path. Mock the LLM call to return a non-JSON string (e.g., `"not valid json"` or `""`), and assert the process exits with a non-zero return code (typically 1). Name these tests `test_<operation>_json_parse_error_exits`. This exit path is as mandatory as the happy path — reviewers will flag its absence unanimously. A tool that lacks this test has unverified error handling on a failure mode that LLMs produce regularly.
 
+**Textual `@work(thread=True)` apps:** When writing tests for Textual apps that run blocking work in `@work(thread=True)` workers, follow three rules: (1) Mock the worker's `_run_pipeline` (or equivalent) to prevent real LLM/pipeline execution — without this the test hangs or raises config errors; (2) Use `async with app.run_test() as pilot` — not `app.run()`, which blocks the test thread; (3) Use `await pilot.pause()` after any action that triggers a worker or reactive update — this yields control to the event loop so pending callbacks and worker-posted messages process before assertions. Multiple `pause()` calls may be needed. Missing a `pause()` causes flaky assertions that fire before the worker posts its result. Decorate the test function with `@pytest.mark.asyncio`. (Source: issue #163, PR #174 — gotcha #026.)
+
 After writing each test, run the project's test command (see `copilot-instructions.md`).
 
 ### 3. Classify Results

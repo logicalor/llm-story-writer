@@ -59,6 +59,7 @@ Review each changed frontend file systematically:
 - [ ] No hardcoded URLs — use routing helpers
 - [ ] Error states handled in forms and async operations
 - [ ] Loading/processing states shown during async operations
+- [ ] **Status/state enum completeness** — for any widget, component, or UI element that renders a finite set of states (status, mode, phase, result), verify a distinct and correct visual representation exists for *every* value in the enum or set — including error, failure, and cancelled states. Trace each non-success exit path through the rendering code and confirm the correct label, colour, and icon are applied. A missing branch typically falls through to the default (often the success branch), producing a misleading "complete" or "ok" indicator on failure. (Source: issue #163, PR #174 — error-state rendered as green "Complete"; caught by GPT reviewer only; Claude and Gemini missed it.)
 
 ---
 

@@ -4,7 +4,7 @@
 
 ## Overview
 
-The repository no longer uses TypeScript wrappers in `.opencode/tools/`. Task 7 from the Python-native migration deleted all `.ts` wrapper files; the directory is retained only with `.gitkeep` so the migration can remove the final OpenCode artefacts incrementally.
+The repository no longer uses TypeScript wrappers in `.opencode/tools/`. Task 7 removed the wrapper files, and Issue #164 removed the remaining `.opencode/` tree entirely.
 
 Deterministic operations now live in Python only. They are used in two ways:
 
@@ -88,7 +88,7 @@ Available subcommands:
 
 | Command | Current behavior |
 |---------|------------------|
-| `story-writer tui --story <name>` | Lazy-imports the future Textual app and exits with a helpful message if that app is unavailable |
+| `story-writer tui --story <name>` | Lazy-imports `StoryWriterApp` and launches the interactive Textual TUI; if `textual` is missing, exits with an install hint |
 | `story-writer run --story <name> [--batch]` | Runs the headless orchestrator via `run_pipeline()` |
 | `story-writer resume --story <name> [--savepoint <name>]` | Resumes via `resume_pipeline()` from the persisted pipeline state |
 
@@ -112,7 +112,7 @@ When you add a new deterministic operation:
 1. Put the implementation in `src/tools/` or, if it is orchestration-only, in `src/application/services/`.
 2. Keep the shell interface in Python with argparse if ad-hoc execution is useful.
 3. Wire the runtime path by importing the Python module or service directly from the orchestrator or presentation agent.
-4. Update this document and any affected feature docs. Do not add a new `.opencode/tools/*.ts` wrapper.
+4. Update this document and any affected feature docs. Do not reintroduce a wrapper layer outside Python.
 
 ## Related
 

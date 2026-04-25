@@ -1,12 +1,12 @@
 # Python-Native Foundation
 
-> Agent prompt relocation, Python prompt loading, typed pipeline handoffs, and Python-native CLI packaging introduced across Issues #158, #161, and #162.
+> Agent prompt relocation, Python prompt loading, typed pipeline handoffs, CLI packaging, and final OpenCode artefact cleanup across Issues #158, #161, #162, and #164.
 
 ## Overview
 
 Issue #158 implements the first shared infrastructure needed for the Python-native orchestration migration. The change does not alter prompt content or story-generation behaviour. Instead, it moves the existing agent prompts into the main `prompts/` tree, adds a Python loader that returns prompt bodies without YAML frontmatter, and introduces typed dataclasses for phase-to-phase payloads and persisted pipeline state.
 
-Issue #161 builds on that base with a headless Python orchestrator and persisted `PipelineState` savepoints. Issue #162 then wires a packaged CLI entry point onto that orchestrator and removes the last TypeScript wrapper layer under `.opencode/tools/`.
+Issue #161 builds on that base with a headless Python orchestrator and persisted `PipelineState` savepoints. Issue #162 then wires a packaged CLI entry point onto that orchestrator and removes the TypeScript wrapper layer under `.opencode/tools/`. Issue #164 completes that cleanup by deleting the remaining `.opencode/` tree and root Node.js artefacts, while preserving reusable prompt assets under `prompts/agents/` and `prompts/skills/`.
 
 This foundation reduces path sprawl, gives later Python orchestration work a stable prompt-loading entry point, replaces ad hoc phase payloads with explicit Python types that can round-trip through JSON savepoints, and exposes the resulting pipeline through a normal Python console script.
 
@@ -58,6 +58,13 @@ prompt_text = load_agent_prompt("story-orchestrator")
 
 Use `clear_agent_prompt_cache()` in tests or other situations where a fresh on-disk read is required.
 
+Issue #164 extends the prompt relocation surface with two reusable prompt bodies that previously lived under `.opencode/commands/`:
+
+- `prompts/agents/continue.md`
+- `prompts/agents/regenerate.md`
+
+The same cleanup also relocates reusable skill reference material from `.opencode/skills/` to `prompts/skills/`.
+
 ## Typed Pipeline Handoffs
 
 `src/application/pipeline/` is now a dedicated package for Python-native pipeline coordination primitives. Its first module, `src/application/pipeline/handoffs.py`, defines five stdlib `@dataclass` payload types.
@@ -94,7 +101,7 @@ story-writer = "src.presentation.cli.main:main"
 
 | Subcommand | Handler | Current behavior |
 |------------|---------|------------------|
-| `tui --story <name>` | `_cmd_tui()` | Lazy-imports the future Textual app and exits with a helpful stderr message if unavailable |
+| `tui --story <name>` | `_cmd_tui()` | Lazy-imports `StoryWriterApp` and runs the Textual TUI; if `textual` is missing, exits with a helpful stderr install hint |
 | `run --story <name> [--batch]` | `_cmd_run()` | Calls `run_pipeline()` with `NullApprovalGate`, `TokenStreamBus`, and `WikiContextBus` |
 | `resume --story <name> [--savepoint <name>]` | `_cmd_resume()` | Calls `resume_pipeline()` with the same Python-native primitives |
 
@@ -103,15 +110,16 @@ Two behavior details matter for follow-on work:
 - `run` is currently headless regardless of `--batch`, because `_cmd_run()` always constructs `NullApprovalGate()`.
 - `resume --savepoint <name>` passes the name through to the orchestrator, but current resume logic still restores the persisted `pipeline_state.json` snapshot rather than replaying an older savepoint file.
 
-## TypeScript Wrapper Deletion
+## OpenCode Artefact Removal
 
-Issue #162 also removes all `.ts` files from `.opencode/tools/`. The repository keeps only `.opencode/tools/.gitkeep`.
+Issue #162 removes all `.ts` files from `.opencode/tools/`. Issue #164 removes the remaining `.opencode/` tree plus the root Node.js/OpenCode manifests (`opencode.json`, `package.json`, `package-lock.json`, `tsconfig.json`, and `vitest.config.ts`).
 
 The practical effect is simple:
 
 - runtime orchestration no longer shells out through wrapper code
 - `src/presentation/orchestrator.py` and related presentation agents call Python services and tool modules directly
 - standalone `src/tools/*.py` CLIs remain available for shell use
+- reusable prompt content from deleted OpenCode commands and skills now lives under `prompts/agents/` and `prompts/skills/`
 
 ## Developer Guide
 
