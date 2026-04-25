@@ -174,7 +174,8 @@ After a successful run, inspect the temporary story path printed at the start of
 - `stories/<temp>/e2e-test-story/wiki/log.md` — wiki operation log
 - `stories/<temp>/e2e-test-story/wiki/characters/*.md` — generated character pages
 - `stories/<temp>/e2e-test-story/wiki/locations/*.md` — generated location pages
-- `stories/<temp>/e2e-test-story/chapters/chapter_*.md` — assembled chapter content
+- `stories/<temp>/e2e-test-story/chapters/chapter_*.md` — approved chapter files written during the per-chapter loop
+- `stories/<temp>/e2e-test-story/output/story.md` — final manuscript assembled from approved chapters
 - `stories/<temp>/e2e-test-story/savepoints/` — intermediate savepoints across the pipeline
 
 Manual checks worth doing:
@@ -182,6 +183,7 @@ Manual checks worth doing:
 - confirm all expected wiki page types were created
 - confirm character and location pages have valid frontmatter and non-empty bodies
 - confirm chapter files exist for all 3 chapters and contain scene content
+- confirm `output/story.md` exists and contains the assembled manuscript text
 - confirm savepoints exist for outline, chapter, and recap-related steps
 - confirm no obvious continuity break appears between generated chapters and wiki state
 

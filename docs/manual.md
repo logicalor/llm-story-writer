@@ -271,6 +271,7 @@ Phase 6: Wiki Population
 Phase 7: Chapter Expansion + Generation
   → Phase 7a: chapter-outline-expander expands all chapter outlines once
   → Per chapter: chapter-writer generates scenes and assembles chapter
+  → After chapter approval, orchestrator writes stories/<name>/chapters/chapter_{N}.md
   → wiki-maintainer updates wiki, recap-manager writes recap, wiki-lint checks consistency
   → quality-reviewer runs chapter critique/revision loop (if enabled)
   → Orchestrator delegates chapter handoff generation to story-assembler for downstream continuity
@@ -279,7 +280,8 @@ Phase 7.5: Prose Scrub (conditional)
   → prose-scrubber performs sentence/paragraph cleanup after chapter acceptance
 
 Phase 8: Assembly
-  → Assemble final manuscript from accepted chapter outputs
+  → Assemble final manuscript from approved chapter content
+  → Write stories/<name>/output/story.md
 
 Phase 9: Final Edit (conditional)
   → final-editor performs post-assembly voice, pacing, and coherence polish
@@ -348,6 +350,7 @@ llm-story-writer/
 │       ├── state.json        # Story state
 │       ├── outline.json      # Story outline
 │       ├── chapters/         # Generated chapter files
+│       ├── output/           # Final assembled manuscript output
 │       ├── characters/       # Character JSON sheets
 │       ├── settings/         # Setting JSON sheets
 │       ├── savepoints/       # Savepoint files
