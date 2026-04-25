@@ -1,12 +1,12 @@
 # Integration Tests
 
-> How to run the live end-to-end integration suite for the full story generation pipeline with wiki support.
+> How to run the live integration suite for the story pipeline, including the headless batch E2E test and slow-test marker workflow.
 
 ## Overview
 
-The integration suite verifies the full OpenCode-compatible story pipeline against a real LLM endpoint. It exercises story state initialisation, wiki setup, outline generation, character and setting sheet generation, wiki population, scene writing, recap generation, wiki linting, savepoint creation, and final story assembly.
+The integration suite verifies the story pipeline against a real OpenAI-compatible LLM endpoint. It exercises story state initialisation, wiki setup, outline generation, character and setting sheet generation, wiki population, scene writing, recap generation, wiki linting, savepoint creation, and final story assembly.
 
-The integration area also includes a focused live smoke test for `OpenAIAsyncProvider`. Together, these tests cover both the end-to-end story pipeline and the new async streaming provider against a real OpenAI-compatible endpoint.
+The integration area includes two end-to-end paths and a focused live smoke test for `OpenAIAsyncProvider`. `test_e2e_opencode.py` covers the wiki-heavy orchestration path. `test_end_to_end_headless.py` covers the headless Python CLI batch runner by invoking `python -m src.presentation.cli.main run --story e2e_test_ --batch` in a subprocess and asserting that savepoints and approved chapter outputs are created. `test_openai_async_provider_live.py` covers streaming behaviour against a live endpoint.
 
 These tests are intentionally heavier than unit tests. They make live model calls, create temporary story and ChromaDB directories, and validate real runtime behaviour instead of mocking tool boundaries.
 
@@ -16,9 +16,12 @@ The suite currently lives in `tests/integration/` and includes:
 
 - `tests/integration/conftest.py` — registers the `integration` pytest marker and provides the session-scoped `llm_available` fixture.
 - `tests/integration/test_e2e_opencode.py` — a 12-test class that runs the full wiki-enabled generation pipeline and asserts the expected outputs at each stage.
+- `tests/integration/test_end_to_end_headless.py` — a slow headless E2E test that creates `stories/e2e-test/state.json`, runs the Python CLI in batch mode, auto-skips when LM Studio is unavailable, and checks savepoints, `pipeline_state.json`, approved chapter count, chapter titles, chapter content, and a 600-second wall-clock budget.
 - `tests/integration/test_openai_async_provider_live.py` — a live streaming smoke test for `OpenAIAsyncProvider` that asserts multiple streamed chunks are received from a real endpoint.
 
 The `llm_available` fixture checks `GET {LLM_API_BASE}/models` before the end-to-end pipeline suite starts. If the endpoint is unreachable or returns a non-200 status, pytest skips that suite instead of failing it.
+
+`test_end_to_end_headless.py` does not use `llm_available`. Its `require_lm_studio` fixture probes `http://127.0.0.1:1234/v1/models` directly with `httpx` and skips the test when LM Studio is not reachable there.
 
 `test_openai_async_provider_live.py` does not use `llm_available`. It is a direct live probe of streaming behaviour and will fail if the endpoint is down or the selected model is unavailable.
 
@@ -36,6 +39,18 @@ Run the integration suite explicitly:
 pytest tests/integration/ -v -m integration
 ```
 
+Run only slow integration coverage:
+
+```bash
+pytest tests/integration/ -v -m slow
+```
+
+Run the headless batch E2E test:
+
+```bash
+pytest tests/integration/test_end_to_end_headless.py -v -m "integration and slow"
+```
+
 Run only the async provider live test:
 
 ```bash
@@ -50,11 +65,30 @@ Run the single end-to-end file with a longer timeout:
 pytest tests/integration/test_e2e_opencode.py -v -m integration --timeout=7200
 ```
 
+Run only the non-slow integration tests:
+
+```bash
+pytest tests/integration/ -v -m "integration and not slow"
+```
+
 Run both unit and integration tests together:
 
 ```bash
 pytest tests/unit tests/integration -v
 ```
+
+## Pytest Markers
+
+Pytest uses two markers for live integration coverage:
+
+- `@pytest.mark.integration` — marks tests that require a live LLM service and should not be treated like fast unit coverage.
+- `@pytest.mark.slow` — marks tests that may take multiple minutes. This marker is registered in `pyproject.toml` under `[tool.pytest.ini_options]`.
+
+Use marker expressions to control runtime:
+
+- `pytest tests/integration/ -m integration` — all live integration tests
+- `pytest tests/integration/ -m slow` — only slow tests
+- `pytest tests/integration/ -m "integration and not slow"` — live tests except slow coverage
 
 ## LLM Endpoint Configuration
 
@@ -65,6 +99,12 @@ The integration suite requires a live OpenAI-compatible LLM API.
 - Default: `http://127.0.0.1:1234/v1`
 - Health check used by the fixture: `GET {LLM_API_BASE}/models`
 - Expected shape: an OpenAI-compatible `/models` route and compatible text-generation responses used by the tool layer
+
+The headless E2E file has one extra constraint:
+
+- `tests/integration/test_end_to_end_headless.py` currently probes `http://127.0.0.1:1234/v1/models` directly through `LM_STUDIO_URL`
+- Because of that hardcoded probe, run LM Studio there or expose a compatible endpoint on that exact address before invoking the test
+- If the endpoint is absent, pytest skips the test instead of failing it
 
 `TEST_OPENAI_ASYNC_MODEL` optionally selects the model used by `test_openai_async_provider_live.py`. If unset, that test falls back to `LLM_MODEL`, then `local-model`.
 
@@ -77,6 +117,9 @@ pytest tests/integration/ -v -m integration
 # Custom host or port
 LLM_API_BASE=http://192.168.1.50:1234/v1 pytest tests/integration/ -v -m integration
 
+# Headless batch E2E test against local LM Studio
+pytest tests/integration/test_end_to_end_headless.py -v -m "integration and slow"
+
 # Ollama or another OpenAI-compatible server
 LLM_API_BASE=http://127.0.0.1:11434/v1 pytest tests/integration/test_e2e_opencode.py -v -m integration --timeout=7200
 
@@ -85,11 +128,13 @@ LLM_API_BASE=http://127.0.0.1:1234/v1 TEST_OPENAI_ASYNC_MODEL=local-model \
 	pytest tests/integration/test_openai_async_provider_live.py -v -m integration
 ```
 
-If `LLM_API_BASE` is unset, the suite falls back to the local default. If the endpoint is down, pytest reports the suite as skipped.
+If `LLM_API_BASE` is unset, the `llm_available`-based tests fall back to the local default. If the endpoint is down, pytest reports those tests as skipped. The headless LM Studio test also skips when its direct health probe fails.
 
 ## Duration And Runtime Expectations
 
-Expect a full run to take roughly 30 to 90 minutes, depending on model speed, hardware, and endpoint latency.
+Expect a full integration run to take roughly 30 to 90 minutes, depending on model speed, hardware, and endpoint latency.
+
+The headless batch test sets a stricter budget: the subprocess run must finish within 600 seconds.
 
 Factors that most affect runtime:
 
@@ -102,7 +147,7 @@ Use the longer timeout command when running the complete file or in CI-like envi
 
 ## What The Suite Verifies
 
-The 12 assertions cover these pipeline checkpoints:
+Across the current integration files, coverage includes these checkpoints:
 
 1. Story state initialises correctly.
 2. Wiki directory structure and index files are created.
@@ -116,6 +161,10 @@ The 12 assertions cover these pipeline checkpoints:
 10. Savepoints exist for key pipeline stages.
 11. Final story assembly output exists.
 12. Wiki snapshot token budgets stay within limits.
+13. Headless CLI batch mode exits with code 0.
+14. `savepoints/pipeline_state.json` is written during the headless run.
+15. At least two approved chapters are present with `Chapter` in the title and non-empty content.
+16. Headless runtime stays within the 600-second budget.
 
 ## Manual Verification
 
@@ -138,6 +187,6 @@ Manual checks worth doing:
 
 ## Notes
 
-The pytest configuration keeps default discovery focused on `tests/unit`. That keeps `pytest` fast for normal development, while integration runs stay explicit and opt-in.
+The pytest configuration keeps default discovery focused on `tests/unit`. That keeps `pytest` fast for normal development, while integration runs stay explicit and opt-in through `tests/integration/` and marker selection.
 
 Related: [Documentation Index](../README.md), [Tools Reference](../tools.md), [Story Orchestrator](../features/story-orchestrator.md)

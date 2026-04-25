@@ -563,17 +563,25 @@ tests/
 ├── unit/                    # Unit tests (fast, no LLM required)
 │   └── test_<module>.py
 └── integration/             # Integration tests (live LLM required)
-    └── test_e2e_*.py
+  ├── test_e2e_opencode.py
+  ├── test_end_to_end_headless.py
+  └── test_openai_async_provider_live.py
 ```
 
 ### 10.2 Running Tests
 
 ```bash
-# Unit tests only (default, fast)
-pytest tests/unit/ -v
+# Unit tests only (default discovery target)
+pytest
 
-# All tests including integration (requires live LLM)
-pytest tests/ -v
+# Integration tests (requires live LLM endpoint)
+pytest tests/integration/ -v -m integration
+
+# Slow integration tests only
+pytest tests/integration/ -v -m slow
+
+# Headless batch E2E test
+pytest tests/integration/test_end_to_end_headless.py -v -m "integration and slow"
 
 # Single test file
 pytest tests/unit/test_prompt_loader.py -v
@@ -584,7 +592,7 @@ pytest --cov=src tests/unit tests/integration
 
 ### 10.3 Integration Test Setup
 
-Integration tests exercise the full pipeline against a live OpenAI-compatible LLM endpoint. Set `LLM_API_BASE` to override the default (`http://127.0.0.1:1234/v1`). A full integration run typically takes 30–90 minutes.
+Integration tests exercise the full pipeline against a live OpenAI-compatible LLM endpoint. Most integration files use `LLM_API_BASE` and default to `http://127.0.0.1:1234/v1`. The headless batch E2E test currently probes LM Studio directly at that same local address and skips when it is unavailable. The `slow` marker identifies integration coverage that may take multiple minutes.
 
 See [docs/testing/integration-tests.md](testing/integration-tests.md) for detailed setup instructions.
 
