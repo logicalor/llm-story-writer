@@ -18,6 +18,15 @@ class TestModelConfig:
         assert config.host is None
         assert config.parameters == {}
 
+    def test_create_from_string_openai_async_scheme(self):
+        """Test creating ModelConfig from OpenAI async string."""
+        model_string = "openai-async://llama3:70b"
+        config = ModelConfig.from_string(model_string)
+
+        assert config.name == "llama3:70b"
+        assert config.provider == "openai_async"
+        assert config.original_scheme == "openai-async"
+
     def test_create_from_string_with_host(self):
         """Test creating ModelConfig with host."""
         model_string = "openai-compat://llama3:70b@192.168.1.100:11434"
@@ -86,6 +95,22 @@ class TestModelConfig:
         config = ModelConfig(name="test-model", provider="openai_async")
 
         assert config.provider == "openai_async"
+
+    def test_to_string_openai_async_uses_async_scheme(self):
+        """Test converting openai_async ModelConfig back to string."""
+        config = ModelConfig(name="llama3:70b", provider="openai_async")
+
+        assert str(config).startswith("openai-async://")
+        assert str(config) == "openai-async://llama3:70b"
+
+    def test_openai_async_round_trip(self):
+        """Test openai_async provider survives string round-trip."""
+        config = ModelConfig(name="llama3:70b", provider="openai_async")
+
+        round_tripped = ModelConfig.from_string(str(config))
+
+        assert round_tripped.name == "llama3:70b"
+        assert round_tripped.provider == "openai_async"
 
     def test_to_string(self):
         """Test converting ModelConfig back to string."""

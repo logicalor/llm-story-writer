@@ -56,6 +56,9 @@ class ModelConfig:
             if scheme == "openai-compat":
                 provider = "openai_compatible"
                 original_scheme = "openai-compat"
+            elif scheme == "openai-async":
+                provider = "openai_async"
+                original_scheme = "openai-async"
 
             parsed = urlparse(f"x://{remainder}")
 
@@ -99,7 +102,12 @@ class ModelConfig:
 
     def to_string(self) -> str:
         """Convert ModelConfig back to string representation."""
-        scheme = "openai-compat"
+        if self.original_scheme:
+            scheme = self.original_scheme
+        elif self.provider == "openai_async":
+            scheme = "openai-async"
+        else:
+            scheme = "openai-compat"
 
         result = f"{scheme}://{self.name}"
 
