@@ -21,12 +21,10 @@ The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) th
 
 | File | Purpose |
 |------|---------|
-| `prompts/agents/wiki-maintainer.md` | Agent definition — workflows, tools, constraints, error handling |
 | `prompts/skills/wiki-maintenance/SKILL.md` | Skill reference — entity schemas, confidence taxonomy, output formats, error taxonomy |
 | `prompts/skills/wiki-conventions/SKILL.md` | Skill reference — page type schemas, YAML frontmatter specs, wikilink conventions, naming rules |
 | `src/tools/wiki_extract.py` | Extraction pipeline and programmatic `update_wiki_from_chapter()` API used after each chapter |
 | `src/presentation/agents/wiki_maintainer.py` | Agent wrapper that invokes the extraction pipeline on a worker thread and emits wiki context events |
-| `src/infrastructure/prompts/agent_prompt_loader.py` | Shared Python-native loader for prompt bodies in `prompts/agents/` |
 | `tests/unit/test_wiki_maintainer.py` | Unit coverage for populated slug lists, emitted wiki events, and non-streaming execution |
 
 ## Tools
@@ -61,7 +59,6 @@ Called after each approved chapter is assembled. Updates the wiki with `verified
 2. **Run `wiki/extract_from_chapter` and build the batch** — `wiki-extract` matches existing wiki entities, asks the extraction prompt for `new_entities`, `state_changes`, `new_aliases`, and `timeline_events`, generates L1/L2/L3 detail levels for new pages, and assembles the batch payload. Each successful LLM call is checkpointed in `stories/<story-name>/.wiki-extract-cache.json`, so a retry after timeout resumes from the last completed step.
 3. **Persist changes through `run_batch()`** — The tool writes created and updated markdown pages under `stories/<story-name>/wiki/`, records timeline entries, and returns a summary with create/update counts plus concrete `new_slugs` and `updated_slugs` values.
 4. **Emit wiki context events per page** — The agent publishes one `WikiContextEvent` for each created or updated slug so the surrounding pipeline and TUI surfaces can show concrete wiki mutations instead of placeholder status text.
-5. **Run chapter boundary lint** — Call `wiki-lint` (operation: `check-chapter`) and fix critical issues. This stays agent-owned because it is a short validation step with chapter-aware judgment.
 
 The extraction rules themselves do not change: the tool still follows the wiki-maintenance skill's schema, confidence taxonomy, alias rules, and detail-level targets. The change is ownership, not output format.
 
@@ -181,7 +178,7 @@ Beyond the standard alias identification rules, the wiki maintainer handles thre
 
 ## Model Configuration
 
-The reusable prompt content for this workflow lives in `prompts/agents/wiki-maintainer.md`. Python-native orchestration reads that file through `src/infrastructure/prompts/agent_prompt_loader.py`, which strips YAML frontmatter before returning the body.
+`WikiMaintainerAgent` does not load a dedicated agent prompt at runtime. It calls `tools.wiki_extract.update_wiki_from_chapter()` on a worker thread via `asyncio.to_thread`, and the extraction tool owns the prompt-driven work internally.
 
 The wiki maintainer continues to run on a smaller 7b model for lightweight maintenance work. Instructions stay explicit and sequential so the workflow remains reliable at that model size.
 

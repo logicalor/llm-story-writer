@@ -187,3 +187,41 @@ async def test_run_uses_model_config_from_eval_model() -> None:
         model="my-model",
         base_url=None,
     )
+
+
+@pytest.mark.asyncio
+async def test_run_passes_base_url_when_host_is_configured() -> None:
+    agent, _ = _build_agent(
+        config={"models": {"eval_model": "openai-compat://my-model@192.168.1.50:8080"}}
+    )
+
+    with patch(
+        "presentation.agents.wiki_maintainer.update_wiki_from_chapter",
+        return_value=_FAKE_SUMMARY,
+    ) as mock_update:
+        await agent.run("test-story", 5, "Chapter text")
+
+    mock_update.assert_called_once_with(
+        "test-story",
+        5,
+        "Chapter text",
+        model="my-model",
+        base_url="http://192.168.1.50:8080/v1",
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_raises_runtime_error_with_context_on_failure() -> None:
+    agent, _ = _build_agent()
+
+    with patch(
+        "presentation.agents.wiki_maintainer.update_wiki_from_chapter",
+        side_effect=ValueError("wiki not initialised"),
+    ):
+        with pytest.raises(RuntimeError) as exc_info:
+            await agent.run("test-story", 5, "Chapter text")
+
+    message = str(exc_info.value)
+    assert "test-story" in message
+    assert "5" in message
+    assert "wiki not initialised" in message
