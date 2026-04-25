@@ -28,6 +28,7 @@ class ModelConfig:
         # Validate provider
         valid_providers = {
             "openai_compatible",
+            "openai_async",
         }
         if self.provider.lower() not in valid_providers:
             raise ValidationError(

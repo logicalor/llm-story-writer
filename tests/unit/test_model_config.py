@@ -81,6 +81,12 @@ class TestModelConfig:
         with pytest.raises(ValidationError, match="Model provider cannot be empty"):
             ModelConfig(name="model", provider="")
 
+    def test_openai_async_is_valid_provider(self):
+        """Test openai_async provider is accepted."""
+        config = ModelConfig(name="test-model", provider="openai_async")
+
+        assert config.provider == "openai_async"
+
     def test_to_string(self):
         """Test converting ModelConfig back to string."""
         config = ModelConfig(
