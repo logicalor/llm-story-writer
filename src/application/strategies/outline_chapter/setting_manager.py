@@ -276,7 +276,7 @@ class SettingManager:
                 {"role": "user", "content": physical_description_prompt}
             )
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/physical_description_chunk",
@@ -361,7 +361,7 @@ class SettingManager:
 
             conversation.append({"role": "user", "content": history_background_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/history_background_chunk",
@@ -412,7 +412,7 @@ class SettingManager:
 
             conversation.append({"role": "user", "content": function_purpose_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/function_purpose_chunk",
@@ -463,7 +463,7 @@ class SettingManager:
 
             conversation.append({"role": "user", "content": atmosphere_mood_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/atmosphere_mood_chunk",
@@ -514,7 +514,7 @@ class SettingManager:
 
             conversation.append({"role": "user", "content": rules_constraints_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/rules_constraints_chunk",
@@ -569,7 +569,7 @@ class SettingManager:
                 {"role": "user", "content": connections_relationships_prompt}
             )
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"settings/{setting_name}/connections_relationships_chunk",
@@ -772,7 +772,7 @@ class SettingManager:
                 sheet_key = f"settings/{setting_name}/sheet"
                 sheet_content = await self.savepoint_manager.load_step(sheet_key)
                 setting_sheets.append(f"=== {setting_name} ===\n{sheet_content}")
-            except:
+            except Exception:
                 if settings.debug:
                     print(f"[SETTING SHEETS] Could not load sheet for {setting_name}")
 
@@ -795,8 +795,11 @@ class SettingManager:
                 sheet_key = f"settings/{setting_name}/sheet"
                 existing_sheet = ""
                 try:
-                    existing_sheet = await self.savepoint_manager.load_step(sheet_key)
-                except:
+                    loaded_sheet = await self.savepoint_manager.load_step(sheet_key)
+                    existing_sheet = (
+                        loaded_sheet if isinstance(loaded_sheet, str) else ""
+                    )
+                except Exception:
                     if settings.debug:
                         print(
                             f"[SETTING UPDATE] No existing sheet for {setting_name}, trying physical description chunk"
@@ -806,14 +809,17 @@ class SettingManager:
                             physical_key = (
                                 f"settings/{setting_name}/physical_description_chunk"
                             )
-                            existing_sheet = await self.savepoint_manager.load_step(
+                            loaded_sheet = await self.savepoint_manager.load_step(
                                 physical_key
+                            )
+                            existing_sheet = (
+                                loaded_sheet if isinstance(loaded_sheet, str) else ""
                             )
                             if settings.debug:
                                 print(
                                     f"[SETTING UPDATE] Using physical description chunk for {setting_name}"
                                 )
-                        except:
+                        except Exception:
                             if settings.debug:
                                 print(
                                     f"[SETTING UPDATE] No physical description chunk either for {setting_name}"
@@ -825,7 +831,7 @@ class SettingManager:
                     self.config["models"]["initial_outline_writer"]
                 )
 
-                response = await execute_prompt_with_savepoint(
+                await execute_prompt_with_savepoint(
                     handler=self.prompt_handler,
                     prompt_id="settings/update",
                     variables={

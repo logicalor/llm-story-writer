@@ -25,7 +25,10 @@ class TestSlugifyStoryName:
         assert _slugify_story_name("my-story") == "my-story"
 
     def test_spaces_to_hyphens(self) -> None:
-        assert _slugify_story_name("The Silence Between Stars") == "the-silence-between-stars"
+        assert (
+            _slugify_story_name("The Silence Between Stars")
+            == "the-silence-between-stars"
+        )
 
     def test_underscores_to_hyphens(self) -> None:
         assert _slugify_story_name("my_story_name") == "my-story-name"

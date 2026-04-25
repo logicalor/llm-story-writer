@@ -11,7 +11,10 @@ from domain.exceptions import StoryGenerationError
 
 from application.interfaces.model_provider import ModelProvider
 from infrastructure.prompts.prompt_handler import PromptHandler
-from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
+from infrastructure.prompts.prompt_wrapper import (
+    execute_messages_with_savepoint,
+    execute_prompt_with_savepoint,
+)
 from infrastructure.savepoints import SavepointManager
 from .character_manager import CharacterManager
 from .setting_manager import SettingManager
@@ -96,7 +99,9 @@ class ChapterGenerator:
             # Unified workflow: generate outlines, content, and recaps in sequence
             # First, find existing chapter directories in the savepoint directory
             chapter_count = 0
-            story_dir = self.savepoint_manager.savepoint_repo._current_story_dir
+            story_dir = getattr(
+                self.savepoint_manager.savepoint_repo, "_current_story_dir", None
+            )
 
             if story_dir and os.path.exists(story_dir):
                 for item in os.listdir(story_dir):
@@ -122,7 +127,7 @@ class ChapterGenerator:
 
                     # Step 1: Generate/load chapter outline
                     print(f"  Step 1: Checking outline for Chapter {chapter_num}...")
-                    chapter_outline = None
+                    chapter_outline = ""
                     try:
                         if await self.savepoint_manager.has_step(
                             f"chapter_{chapter_num}/outline"
@@ -130,8 +135,15 @@ class ChapterGenerator:
                             print(
                                 f"  Chapter {chapter_num} outline already exists, loading..."
                             )
-                            chapter_outline = await self.savepoint_manager.load_step(
-                                f"chapter_{chapter_num}/outline"
+                            chapter_outline_raw = (
+                                await self.savepoint_manager.load_step(
+                                    f"chapter_{chapter_num}/outline"
+                                )
+                            )
+                            chapter_outline = (
+                                chapter_outline_raw
+                                if isinstance(chapter_outline_raw, str)
+                                else ""
                             )
                         else:
                             # Verify that this chapter has a synopsis
@@ -190,6 +202,8 @@ class ChapterGenerator:
                                 try:
                                     scene_definitions = json.loads(
                                         scene_definitions_raw
+                                        if isinstance(scene_definitions_raw, str)
+                                        else "[]"
                                     )
 
                                     # Validate that we got a list of scene objects
@@ -248,8 +262,12 @@ class ChapterGenerator:
 
                                     scene = Scene(
                                         number=scene_num,
-                                        title=scene_title,
-                                        content=scene_content,
+                                        title=scene_title
+                                        if isinstance(scene_title, str)
+                                        else "",
+                                        content=scene_content
+                                        if isinstance(scene_content, str)
+                                        else "",
                                         outline="",
                                     )
                                     chapter_scenes.append(scene)
@@ -311,7 +329,9 @@ class ChapterGenerator:
                             chapter_scenes = await self.scene_generator.generate_scenes(
                                 chapter_num=chapter_num,
                                 chapter_count=chapter_count,
-                                chapter_outline=chapter_outline_for_scene,
+                                chapter_outline=chapter_outline_for_scene
+                                if isinstance(chapter_outline_for_scene, str)
+                                else "",
                                 base_context=outline.base_context,
                                 story_elements=outline.story_elements,
                                 previous_recap=previous_recap,
@@ -407,10 +427,15 @@ class ChapterGenerator:
                             previous_recap = ""
                             if chapter_num > 1:
                                 try:
-                                    previous_recap = (
+                                    previous_recap_raw = (
                                         await self.savepoint_manager.load_step(
                                             f"chapter_{chapter_num - 1}/recap"
                                         )
+                                    )
+                                    previous_recap = (
+                                        previous_recap_raw
+                                        if isinstance(previous_recap_raw, str)
+                                        else ""
                                     )
                                 except Exception:
                                     if settings.debug:
@@ -421,12 +446,17 @@ class ChapterGenerator:
                             # Get story start date from savepoint or use a default
                             story_start_date = "2024-01-01"  # Default fallback
                             try:
-                                story_start_date = (
+                                story_start_date_raw = (
                                     await self.savepoint_manager.load_step(
                                         "story_start_date"
                                     )
                                 )
-                            except:
+                                story_start_date = (
+                                    story_start_date_raw
+                                    if isinstance(story_start_date_raw, str)
+                                    else "2024-01-01"
+                                )
+                            except Exception:
                                 if settings.debug:
                                     print(
                                         f"    Using default story start date for chapter {chapter_num}"
@@ -534,12 +564,15 @@ class ChapterGenerator:
 
         # Get previous chapter recap if available
         previous_recap = ""
-        if chapter_num > 1:
+        if chapter_num > 1 and self.savepoint_manager:
             try:
-                previous_recap = await self.savepoint_manager.load_step(
+                previous_recap_raw = await self.savepoint_manager.load_step(
                     f"chapter_{chapter_num - 1}/recap"
                 )
-            except:
+                previous_recap = (
+                    previous_recap_raw if isinstance(previous_recap_raw, str) else ""
+                )
+            except Exception:
                 previous_recap = ""
 
         # Generate the detailed chapter outline
@@ -564,10 +597,6 @@ class ChapterGenerator:
         settings: GenerationSettings,
     ) -> str:
         """Implementation of chapter outline generation."""
-        model_config = ModelConfig.from_string(
-            self.config["models"]["chapter_outline_writer"]
-        )
-
         # First, generate the core outline
         core_outline = await self._generate_core_outline(
             chapter_num,
@@ -643,10 +672,15 @@ class ChapterGenerator:
         next_chapter_synopsis = ""
         if self.savepoint_manager:
             try:
-                next_chapter_synopsis = await self.savepoint_manager.load_step(
+                next_chapter_synopsis_raw = await self.savepoint_manager.load_step(
                     f"chapter_{chapter_num + 1}/synopsis"
                 )
-            except:
+                next_chapter_synopsis = (
+                    next_chapter_synopsis_raw
+                    if isinstance(next_chapter_synopsis_raw, str)
+                    else ""
+                )
+            except Exception:
                 if settings.debug:
                     print(
                         f"[OUTLINE GENERATION] Could not load next chapter synopsis for chapter {chapter_num}"
@@ -656,10 +690,15 @@ class ChapterGenerator:
         previous_chapter_outline = ""
         if chapter_num > 1 and self.savepoint_manager:
             try:
-                previous_chapter_outline = await self.savepoint_manager.load_step(
+                previous_chapter_outline_raw = await self.savepoint_manager.load_step(
                     f"chapter_{chapter_num - 1}/outline"
                 )
-            except:
+                previous_chapter_outline = (
+                    previous_chapter_outline_raw
+                    if isinstance(previous_chapter_outline_raw, str)
+                    else ""
+                )
+            except Exception:
                 if settings.debug:
                     print(
                         f"[OUTLINE GENERATION] Could not load previous chapter outline for chapter {chapter_num}"
@@ -670,10 +709,15 @@ class ChapterGenerator:
         setting_context = ""
         if self.savepoint_manager:
             try:
-                character_context = await self.savepoint_manager.load_step(
+                character_context_raw = await self.savepoint_manager.load_step(
                     f"chapter_{chapter_num}/characters_abridged"
                 )
-            except:
+                character_context = (
+                    character_context_raw
+                    if isinstance(character_context_raw, str)
+                    else ""
+                )
+            except Exception:
                 if settings.debug:
                     print(
                         f"[OUTLINE GENERATION] Could not load abridged character summary for chapter {chapter_num}"
@@ -682,10 +726,13 @@ class ChapterGenerator:
 
         if self.savepoint_manager:
             try:
-                setting_context = await self.savepoint_manager.load_step(
+                setting_context_raw = await self.savepoint_manager.load_step(
                     f"chapter_{chapter_num}/settings_abridged"
                 )
-            except:
+                setting_context = (
+                    setting_context_raw if isinstance(setting_context_raw, str) else ""
+                )
+            except Exception:
                 if settings.debug:
                     print(
                         f"[OUTLINE GENERATION] Could not load abridged setting summary for chapter {chapter_num}"
@@ -919,11 +966,15 @@ class ChapterGenerator:
         if chapter_num >= total_chapters:
             return ""
 
+        if self.savepoint_manager is None:
+            return ""
+
         try:
-            return await self.savepoint_manager.load_step(
+            synopsis = await self.savepoint_manager.load_step(
                 f"chapter_{chapter_num + 1}/synopsis"
             )
-        except:
+            return synopsis if isinstance(synopsis, str) else ""
+        except Exception:
             return ""
 
     async def _generate_chapter_content(
@@ -1010,7 +1061,7 @@ class ChapterGenerator:
         )
 
         # Step 2: Generate synopsis for each chapter
-        synopses = []
+        synopses: List[str] = []
         for chapter_data in chapter_list:
             chapter_num = chapter_data.get("number", len(synopses) + 1)
             chapter_title = chapter_data.get("title", f"Chapter {chapter_num}")
@@ -1152,10 +1203,15 @@ class ChapterGenerator:
         previous_chapter = ""
         if chapter_num > 1 and self.savepoint_manager:
             try:
-                previous_chapter = await self.savepoint_manager.load_step(
+                previous_chapter_raw = await self.savepoint_manager.load_step(
                     f"chapter_{chapter_num - 1}/synopsis"
                 )
-            except:
+                previous_chapter = (
+                    previous_chapter_raw
+                    if isinstance(previous_chapter_raw, str)
+                    else ""
+                )
+            except Exception:
                 if settings.debug:
                     print(
                         f"[CHAPTER SYNOPSES] Could not load previous chapter synopsis for chapter {chapter_num}"
@@ -1172,7 +1228,7 @@ class ChapterGenerator:
         )
         conversation_history.append({"role": "user", "content": storyline_prompt})
 
-        response = await execute_prompt_with_savepoint(
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
             conversation_history=conversation_history,
             savepoint_id=f"chapter_{chapter_num}_step1_storyline",
@@ -1191,7 +1247,7 @@ class ChapterGenerator:
         )
         conversation_history.append({"role": "user", "content": base_context_prompt})
 
-        response = await execute_prompt_with_savepoint(
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
             conversation_history=conversation_history,
             model_config=model_config,
@@ -1209,7 +1265,7 @@ class ChapterGenerator:
         )
         conversation_history.append({"role": "user", "content": outline_prompt})
 
-        response = await execute_prompt_with_savepoint(
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
             conversation_history=conversation_history,
             model_config=model_config,
@@ -1233,7 +1289,7 @@ class ChapterGenerator:
         )
         conversation_history.append({"role": "user", "content": character_prompt})
 
-        response = await execute_prompt_with_savepoint(
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
             conversation_history=conversation_history,
             model_config=model_config,
@@ -1257,7 +1313,7 @@ class ChapterGenerator:
         )
         conversation_history.append({"role": "user", "content": setting_prompt})
 
-        response = await execute_prompt_with_savepoint(
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
             conversation_history=conversation_history,
             model_config=model_config,
@@ -1278,7 +1334,7 @@ class ChapterGenerator:
                 {"role": "user", "content": previous_chapter_prompt}
             )
 
-            response = await execute_prompt_with_savepoint(
+            response = await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation_history,
                 model_config=model_config,
@@ -1300,7 +1356,7 @@ class ChapterGenerator:
         )
         conversation_history.append({"role": "user", "content": synopsis_prompt})
 
-        response = await execute_prompt_with_savepoint(
+        response = await execute_messages_with_savepoint(
             handler=self.prompt_handler,
             conversation_history=conversation_history,
             savepoint_id=f"chapter_{chapter_num}/synopsis",
@@ -1315,9 +1371,9 @@ class ChapterGenerator:
         self, combined_outline: str
     ) -> List[Dict[str, Any]]:
         """Fallback method to extract chapters when JSON parsing fails."""
-        chapters = []
+        chapters: List[Dict[str, Any]] = []
         lines = combined_outline.split("\n")
-        current_chapter = None
+        current_chapter: Optional[Dict[str, Any]] = None
 
         for line in lines:
             line = line.strip()

@@ -48,7 +48,7 @@ class ModelProvider(ABC):
         pass
 
     @abstractmethod
-    async def stream_text(
+    def stream_text(
         self,
         messages: List[Dict[str, str]],
         model_config: ModelConfig,

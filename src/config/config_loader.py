@@ -81,7 +81,9 @@ class ConfigLoader:
                         "logs_dir": infrastructure.get("logs_dir", "Logs"),
                         "model_api_base": _normalize_model_api_base(
                             model_api_base
-                            or os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1")
+                            or os.environ.get(
+                                "LLM_API_BASE", "http://127.0.0.1:1234/v1"
+                            )
                         ),
                         "context_length": infrastructure.get("context_length", 4096),
                         "randomize_seed": infrastructure.get("randomize_seed", True),

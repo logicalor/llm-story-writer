@@ -1,7 +1,7 @@
 """Abstract story writing strategy interface."""
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 from domain.entities.story import Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
 from ..interfaces.model_provider import ModelProvider
@@ -15,7 +15,10 @@ class StoryStrategy(ABC):
 
     @abstractmethod
     async def generate_outline(
-        self, prompt: str, settings: GenerationSettings
+        self,
+        prompt: str,
+        settings: GenerationSettings,
+        prompt_filename: Optional[str] = None,
     ) -> Outline:
         """Generate story outline from prompt."""
         pass

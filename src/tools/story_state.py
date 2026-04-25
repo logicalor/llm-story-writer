@@ -262,11 +262,7 @@ def cmd_write(name: str, field: str, value_str: str) -> None:
         sys.exit(1)
 
     try:
-        if not value_str.startswith('"') or not value_str.endswith('"'):
-            # Fallback for plain text that isn't explicitly quoted as a JSON string
-            value = value_str
-        else:
-            value = json.loads(value_str)
+        value = json.loads(value_str)
     except json.JSONDecodeError as e:
         print(f"Error: invalid JSON in --value: {e}", file=sys.stderr)
         sys.exit(1)

@@ -272,7 +272,7 @@ class CharacterManager:
 
             conversation.append({"role": "user", "content": personality_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/personality_chunk",
@@ -352,7 +352,7 @@ class CharacterManager:
 
             conversation.append({"role": "user", "content": background_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/background_chunk",
@@ -398,7 +398,7 @@ class CharacterManager:
 
             conversation.append({"role": "user", "content": motivations_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/motivations_chunk",
@@ -444,7 +444,7 @@ class CharacterManager:
 
             conversation.append({"role": "user", "content": relationships_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/relationships_chunk",
@@ -490,7 +490,7 @@ class CharacterManager:
 
             conversation.append({"role": "user", "content": skills_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/skills_chunk",
@@ -532,7 +532,7 @@ class CharacterManager:
 
             conversation.append({"role": "user", "content": current_state_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/current_state_chunk",
@@ -578,7 +578,7 @@ class CharacterManager:
 
             conversation.append({"role": "user", "content": growth_arc_prompt})
 
-            response = await execute_messages_with_savepoint(
+            await execute_messages_with_savepoint(
                 handler=self.prompt_handler,
                 conversation_history=conversation,
                 savepoint_id=f"characters/{character_name}/growth_arc_chunk",
@@ -781,7 +781,7 @@ class CharacterManager:
                 sheet_key = f"characters/{character_name}/sheet"
                 sheet_content = await self.savepoint_manager.load_step(sheet_key)
                 character_sheets.append(f"=== {character_name} ===\n{sheet_content}")
-            except:
+            except Exception:
                 if settings.debug:
                     print(
                         f"[CHARACTER SHEETS] Could not load sheet for {character_name}"
@@ -806,8 +806,11 @@ class CharacterManager:
                 sheet_key = f"characters/{character_name}/sheet"
                 existing_sheet = ""
                 try:
-                    existing_sheet = await self.savepoint_manager.load_step(sheet_key)
-                except:
+                    loaded_sheet = await self.savepoint_manager.load_step(sheet_key)
+                    existing_sheet = (
+                        loaded_sheet if isinstance(loaded_sheet, str) else ""
+                    )
+                except Exception:
                     if settings.debug:
                         print(
                             f"[CHARACTER UPDATE] No existing sheet for {character_name}, trying personality chunk as fallback"
@@ -817,14 +820,17 @@ class CharacterManager:
                             personality_key = (
                                 f"characters/{character_name}/personality_chunk"
                             )
-                            existing_sheet = await self.savepoint_manager.load_step(
+                            loaded_sheet = await self.savepoint_manager.load_step(
                                 personality_key
+                            )
+                            existing_sheet = (
+                                loaded_sheet if isinstance(loaded_sheet, str) else ""
                             )
                             if settings.debug:
                                 print(
                                     f"[CHARACTER UPDATE] Using personality chunk for {character_name}"
                                 )
-                        except:
+                        except Exception:
                             if settings.debug:
                                 print(
                                     f"[CHARACTER UPDATE] No personality chunk either for {character_name}"
@@ -836,7 +842,7 @@ class CharacterManager:
                     self.config["models"]["initial_outline_writer"]
                 )
 
-                response = await execute_prompt_with_savepoint(
+                await execute_prompt_with_savepoint(
                     handler=self.prompt_handler,
                     prompt_id="characters/update",
                     variables={

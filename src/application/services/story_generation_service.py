@@ -1,5 +1,6 @@
 """Main story generation service."""
 
+from pathlib import Path
 from typing import Optional
 from domain.entities.story import Story
 from domain.value_objects.generation_settings import GenerationSettings
@@ -72,11 +73,11 @@ class StoryGenerationService:
 
             # Save markdown version
             markdown_content = self._format_story_markdown(story)
-            markdown_path = f"{output_path}.md"
+            markdown_path = Path(f"{output_path}.md")
             await self.storage.save_file(markdown_path, markdown_content)
 
             # Save JSON version
-            json_path = f"{output_path}.json"
+            json_path = Path(f"{output_path}.json")
             await self.storage.save_json(json_path, story.to_dict())
 
             return output_path
