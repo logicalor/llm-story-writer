@@ -41,7 +41,7 @@ Classify) or the existing false-positive filter block:
 > library module must call a CLI tool as an external script or subprocess rather than importing its
 > functions directly, verify whether (a) the project does use subprocess delegation for that class
 > of tool, and (b) the CLI entry point uses `sys.exit()`. In this project, `src/tools/*.py`
-> modules expose `cmd_*()` entry points that call `sys.exit()` — calling them from
+> modules expose `cmd_*()` entry points that call `sys.exit()` on error — calling them from
 > `src/presentation/` or `src/application/` code is a known anti-pattern. A finding that demands
 > subprocess invocation of an internal `src/tools/*.py` module is likely a false positive.
 > Downgrade to Suggestion with the note "inline function call is the correct integration surface."

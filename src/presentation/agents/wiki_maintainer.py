@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, cast
+import asyncio
+
+from typing import Any
 
 from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import WikiUpdateBatch
 from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.agent_prompt_loader import load_agent_prompt
 from presentation.pipeline_primitives import (
     TokenStreamBus,
     WikiContextBus,
     WikiContextEvent,
 )
+from tools.wiki_extract import update_wiki_from_chapter
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -29,16 +31,12 @@ class WikiMaintainerAgent:
         bus: TokenStreamBus,
         wiki_bus: WikiContextBus,
     ) -> None:
+        # Retained for constructor interface compatibility with orchestrator; not active in run().
         self.provider = provider
         self.config = config
+        # Retained for constructor interface compatibility with orchestrator; not active in run().
         self.bus = bus
         self.wiki_bus = wiki_bus
-        self._system_prompt: str | None = None
-
-    def _get_system_prompt(self) -> str:
-        if self._system_prompt is None:
-            self._system_prompt = load_agent_prompt("wiki-maintainer")
-        return self._system_prompt
 
     async def run(
         self,
@@ -59,28 +57,51 @@ class WikiMaintainerAgent:
             "eval_model",
             "openai-compat://default",
         )
-        messages = [
-            {"role": "system", "content": self._get_system_prompt()},
-            {
-                "role": "user",
-                "content": (
-                    f"Story: {story_name}\nChapter: {chapter_number}\n"
-                    f"Chapter Content:\n{chapter_content[:4000]}"
-                ),
-            },
-        ]
-
-        stream = cast(
-            AsyncIterator[str],
-            self.provider.stream_text(messages, model_config),
+        base_url: str | None = (
+            f"http://{model_config.host}/v1" if model_config.host else None
         )
-        async for token in stream:
-            await self.bus.emit(token)
+
+        try:
+            summary = await asyncio.to_thread(
+                update_wiki_from_chapter,
+                story_name,
+                chapter_number,
+                chapter_content,
+                model=model_config.name,
+                base_url=base_url,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"Wiki update failed for story={story_name!r} chapter={chapter_number}: {exc}"
+            ) from exc
+
+        new_slugs: list[str] = summary.get("new_slugs", [])
+        updated_slugs: list[str] = summary.get("updated_slugs", [])
+
+        for slug in new_slugs:
+            await self.wiki_bus.emit(
+                WikiContextEvent(
+                    phase="wiki",
+                    event_type="entity_match",
+                    content=f"Created wiki page: {slug}",
+                    metadata={"slug": slug, "action": "create"},
+                )
+            )
+
+        for slug in updated_slugs:
+            await self.wiki_bus.emit(
+                WikiContextEvent(
+                    phase="wiki",
+                    event_type="entity_match",
+                    content=f"Updated wiki page: {slug}",
+                    metadata={"slug": slug, "action": "update"},
+                )
+            )
 
         return WikiUpdateBatch(
             story_name=story_name,
             chapter_number=chapter_number,
-            updated_pages=[],
-            new_pages=[],
+            updated_pages=updated_slugs,
+            new_pages=new_slugs,
             savepoint_id=None,
         )

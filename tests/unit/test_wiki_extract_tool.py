@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -99,7 +100,9 @@ def _set_stories_dir(monkeypatch: pytest.MonkeyPatch, stories_dir: Path) -> None
 def _set_fake_llm(monkeypatch: pytest.MonkeyPatch, responses: list[str]) -> None:
     remaining = list(responses)
 
-    def _fake_chat_completion(prompt: str, *, model: str | None = None) -> str:
+    def _fake_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
         assert model in {None, "test-model"}
         assert remaining, f"Unexpected LLM prompt: {prompt[:200]}"
         return remaining.pop(0)
@@ -348,7 +351,9 @@ def test_initial_populate_cache_miss_calls_llm_and_writes_cache(
 
     llm_calls: list[str] = []
 
-    def _fake_chat_completion(prompt: str, *, model: str | None = None) -> str:
+    def _fake_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
         llm_calls.append(prompt)
         if len(llm_calls) == 1:
             return json.dumps(
@@ -464,7 +469,9 @@ def test_initial_populate_cache_hit_skips_llm(
     llm_calls: list[str] = []
     captured: dict[str, object] = {}
 
-    def _fake_chat_completion(prompt: str, *, model: str | None = None) -> str:
+    def _fake_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
         llm_calls.append(prompt)
         raise AssertionError(f"LLM should not be called: {prompt[:200]}")
 
@@ -672,7 +679,9 @@ def test_update_from_chapter_reads_chapter_file_path(
         ),
     )
 
-    def _fake_chat_completion(prompt: str, *, model: str | None = None) -> str:
+    def _fake_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
         if "Captain Vale docks at Ember Port" in prompt:
             return json.dumps(
                 {
@@ -744,7 +753,9 @@ def test_update_from_chapter_cache_hit_skips_llm(
     llm_calls: list[str] = []
     captured: dict[str, object] = {}
 
-    def _fake_chat_completion(prompt: str, *, model: str | None = None) -> str:
+    def _fake_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
         llm_calls.append(prompt)
         raise AssertionError(f"LLM should not be called: {prompt[:200]}")
 
@@ -843,6 +854,132 @@ def test_update_from_chapter_cache_deleted_after_apply(
     assert code == 0
     assert output["applied"] is True
     assert _cache_path(story_env).exists() is False
+
+
+def test_update_wiki_from_chapter_returns_summary_with_slugs(
+    story_env: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_entry = {
+        "slug": "priya",
+        "name": "Priya",
+        "page_type": "character",
+    }
+    update_entry = {"slug": "vale", "body": "Updated body"}
+    payload = {
+        "creates": [create_entry],
+        "updates": [update_entry],
+        "timeline_events": [],
+    }
+    run_batch = MagicMock(
+        return_value={
+            "created": 1,
+            "updated": 1,
+            "timeline_events": 0,
+            "entity_counts": {},
+        }
+    )
+    delete_cache = MagicMock()
+
+    monkeypatch.setattr(
+        wiki_extract,
+        "_prepare_chapter_update",
+        MagicMock(return_value=(story_env, payload, [create_entry], [update_entry])),
+    )
+    monkeypatch.setattr(wiki_extract, "run_batch", run_batch)
+    monkeypatch.setattr(wiki_extract, "_delete_extract_cache", delete_cache)
+
+    summary = wiki_extract.update_wiki_from_chapter("test-story", 3, "Chapter text")
+
+    assert summary == {
+        "created": 1,
+        "updated": 1,
+        "timeline_events": 0,
+        "entity_counts": {},
+        "new_slugs": ["priya"],
+        "updated_slugs": ["vale"],
+    }
+    run_batch.assert_called_once_with("test-story", payload)
+
+
+def test_update_wiki_from_chapter_passes_base_url_to_prepare(
+    story_env: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepare = MagicMock(
+        return_value=(
+            story_env,
+            {"creates": [], "updates": [], "timeline_events": []},
+            [],
+            [],
+        )
+    )
+    monkeypatch.setattr(wiki_extract, "_prepare_chapter_update", prepare)
+    monkeypatch.setattr(
+        wiki_extract,
+        "run_batch",
+        MagicMock(
+            return_value={
+                "created": 0,
+                "updated": 0,
+                "timeline_events": 0,
+                "entity_counts": {},
+            }
+        ),
+    )
+    monkeypatch.setattr(wiki_extract, "_delete_extract_cache", MagicMock())
+
+    wiki_extract.update_wiki_from_chapter(
+        "test-story",
+        3,
+        "Chapter text",
+        model="llm",
+        base_url="http://192.168.1.50:8080/v1",
+    )
+
+    prepare.assert_called_once_with(
+        "test-story",
+        3,
+        "Chapter text",
+        model="llm",
+        base_url="http://192.168.1.50:8080/v1",
+    )
+
+
+def test_update_wiki_from_chapter_cache_deleted_after_run_batch(
+    story_env: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        wiki_extract,
+        "_prepare_chapter_update",
+        MagicMock(
+            return_value=(
+                story_env,
+                {"creates": [], "updates": [], "timeline_events": []},
+                [],
+                [],
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        wiki_extract,
+        "run_batch",
+        MagicMock(
+            return_value={
+                "created": 0,
+                "updated": 0,
+                "timeline_events": 0,
+                "entity_counts": {},
+            }
+        ),
+    )
+    delete_cache = MagicMock()
+    monkeypatch.setattr(wiki_extract, "_delete_extract_cache", delete_cache)
+
+    wiki_extract.update_wiki_from_chapter("test-story", 3, "Chapter text")
+
+    delete_cache.assert_called_once_with(story_env)
 
 
 def test_update_from_chapter_cache_retained_on_apply_failure(

@@ -267,13 +267,14 @@ Phase 5: Characters & Settings
 
 Phase 6: Wiki Population
   → Delegate to wiki-maintainer subagent
-  → Populate wiki entity pages from outline + sheets
+  → `wiki-extract` initial-populate path creates wiki entity pages from outline + sheets and writes detail levels into stories/<name>/wiki/
 
 Phase 7: Chapter Expansion + Generation
   → Phase 7a: chapter-outline-expander expands all chapter outlines once
   → Per chapter: chapter-writer loads abridged character/setting sheet context, then generates scenes and assembles chapter
   → After chapter approval, orchestrator writes stories/<name>/chapters/chapter_{N}.md
-  → wiki-maintainer updates wiki, recap-manager writes recap, wiki-lint checks consistency
+  → wiki-maintainer calls `update_wiki_from_chapter()` to extract structured JSON, persist wiki pages through `run_batch()`, and emit created/updated page events
+  → recap-manager writes recap, wiki-lint checks consistency
   → quality-reviewer runs chapter critique/revision loop (if enabled)
   → Orchestrator delegates chapter handoff generation to story-assembler for downstream continuity
 
@@ -434,9 +435,10 @@ Wiki pages support three hierarchical summary levels:
 
 ### 7.5 Wiki Update Lifecycle
 
-1. **Scene-level update** (after each scene): `wiki-maintainer` agent extracts entities, state changes, and relationships
-2. **Chapter-level lint** (after each chapter): Consistency check against the ConStory-Bench error taxonomy
-3. **Pre-generation snapshot** (before each scene): `wiki-snapshot` tool assembles a token-budgeted world state snapshot
+1. **Initial population** (before chapter generation): `wiki-extract` reads the outline plus character and setting sheets, creates the first wiki page set, and writes retrieval-ready L1/L2/L3 detail levels
+2. **Post-chapter persistence** (after each accepted chapter): `wiki-maintainer` calls `update_wiki_from_chapter()`, the `wiki/extract_from_chapter` prompt returns structured JSON, and `run_batch()` persists new pages, state changes, aliases, and timeline events under `stories/<name>/wiki/`
+3. **Chapter-level lint** (after each chapter): `wiki-lint` checks consistency against the ConStory-Bench error taxonomy
+4. **Pre-generation snapshot** (before each scene): `wiki-snapshot` assembles a token-budgeted world state snapshot from the current wiki
 
 ### 7.6 Wikilink Syntax
 
@@ -461,7 +463,7 @@ Agent system prompts now live in `prompts/agents/` as Markdown files. `src/infra
 | `story-orchestrator` | Primary pipeline controller; drives the full generation lifecycle |
 | `outline-planner` | Generates and refines the story outline |
 | `chapter-writer` | Writes individual chapter content |
-| `wiki-maintainer` | Updates wiki pages after each scene/chapter |
+| `wiki-maintainer` | Persists wiki page updates after each accepted chapter and reports changed page slugs |
 
 **Orchestrator Pipeline Phases:** Init → Outline → Approval → Wiki Init → Characters → Settings → Chapter Generation → Final Polish
 
@@ -485,11 +487,11 @@ Tools are Python modules under `src/tools/`. The runtime imports them directly o
 | Tool | Purpose |
 |------|---------|
 | `wiki_init.py` | Initialize wiki directory structure and schema |
-| `wiki_update.py` | Update wiki pages after scene/chapter |
+| `wiki_update.py` | Apply wiki page, alias, and timeline updates |
 | `wiki_read.py` | Read wiki pages at specified detail levels |
 | `wiki_search.py` | Semantic search over wiki pages (ChromaDB) |
 | `wiki_snapshot.py` | Assemble token-budgeted world state snapshot |
-| `wiki_extract.py` | Extract candidate wiki facts from text |
+| `wiki_extract.py` | Run initial-populate and post-chapter extraction flows, generate detail levels, and persist batch-ready wiki payloads |
 | `wiki_lint.py` | Check wiki page format and consistency compliance |
 
 #### RAG Tools
