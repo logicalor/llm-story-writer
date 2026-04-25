@@ -1,5 +1,6 @@
 """Unit tests for the pipeline orchestrator."""
 
+import json
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -109,6 +110,14 @@ async def test_run_pipeline_happy_path(tmp_path: Path) -> None:
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
@@ -151,6 +160,14 @@ async def test_chapter_files_written_during_chapter_loop(tmp_path: Path) -> None
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
@@ -192,6 +209,14 @@ async def test_assembly_writes_output_story_md(tmp_path: Path) -> None:
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
@@ -231,6 +256,14 @@ async def test_run_pipeline_outline_rejection(tmp_path: Path) -> None:
             "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
         ),
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
 
@@ -272,6 +305,14 @@ async def test_run_pipeline_chapter_revision(tmp_path: Path) -> None:
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(
@@ -331,6 +372,14 @@ async def test_resume_pipeline_from_savepoint(tmp_path: Path) -> None:
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
@@ -391,6 +440,14 @@ async def test_assembly_raises_when_no_chapters(tmp_path: Path) -> None:
         ),
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
         patch("tools._io.STORIES_DIR", tmp_path),
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         await _write_savepoint(partial_state)
 
@@ -407,3 +464,167 @@ async def test_assembly_raises_when_no_chapters(tmp_path: Path) -> None:
                 config=_config(),
                 provider=provider,
             )
+
+
+@pytest.mark.asyncio
+async def test_characters_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
+    """Characters phase writes character sheet JSON files to disk."""
+    provider = MagicMock()
+    provider.generate_text = AsyncMock(
+        side_effect=[
+            '["Alice", "Bob"]',
+            "# Alice\nHero of the story.",
+            "# Bob\nSidekick.",
+        ]
+    )
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+
+        await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    characters_dir = tmp_path / "test-story" / "characters"
+    assert characters_dir.exists()
+    written = list(characters_dir.glob("*.json"))
+    assert len(written) == 2
+    names_written = {
+        json.loads(path.read_text(encoding="utf-8"))["name"] for path in written
+    }
+    assert names_written == {"Alice", "Bob"}
+
+
+@pytest.mark.asyncio
+async def test_settings_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
+    """Settings phase writes setting sheet JSON files to disk."""
+    provider = MagicMock()
+    provider.generate_text = AsyncMock(
+        side_effect=[
+            '["The Citadel", "Dark Forest"]',
+            "# The Citadel\nA fortified city.",
+            "# Dark Forest\nA mysterious woodland.",
+        ]
+    )
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+
+        await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    settings_dir = tmp_path / "test-story" / "settings"
+    assert settings_dir.exists()
+    written = list(settings_dir.glob("*.json"))
+    assert len(written) == 2
+    names_written = {
+        json.loads(path.read_text(encoding="utf-8"))["name"] for path in written
+    }
+    assert names_written == {"The Citadel", "Dark Forest"}
+
+
+@pytest.mark.asyncio
+async def test_characters_phase_graceful_on_invalid_json(tmp_path: Path) -> None:
+    """Characters phase handles malformed LLM names response gracefully."""
+    provider = MagicMock()
+    provider.generate_text = AsyncMock(return_value="not valid json at all")
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+
+        state = await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    characters_dir = tmp_path / "test-story" / "characters"
+    if characters_dir.exists():
+        assert len(list(characters_dir.glob("*.json"))) == 0

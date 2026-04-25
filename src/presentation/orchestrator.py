@@ -7,8 +7,10 @@ both TUI and headless operation without code changes.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 from application.interfaces.model_provider import ModelProvider
@@ -16,6 +18,8 @@ from application.pipeline.handoffs import ChapterDraft, OutlineResult, PipelineS
 from config.config_loader import ConfigLoader
 from domain.exceptions import StoryGenerationError
 from domain.value_objects.generation_settings import GenerationSettings
+from domain.value_objects.model_config import ModelConfig
+from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.agents.consistency_checker import ConsistencyCheckerAgent
 from presentation.agents.outline_planner import OutlinePlannerAgent
@@ -27,7 +31,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
-from tools._io import STORIES_DIR, _validate_story_name
+from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 
 
 def _savepoint_path(story_name: str) -> Path:
@@ -171,6 +175,165 @@ async def _generate_chapter_with_gate(
         await _write_savepoint(state)
 
 
+def _slugify_name(name: str) -> str:
+    """Convert a name to a filesystem-safe slug."""
+    slug = name.lower().replace(" ", "-")
+    slug = re.sub(r"[^a-z0-9-]", "", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug
+
+
+def _build_story_elements(outline_result: OutlineResult) -> str:
+    """Build story_elements string from OutlineResult for prompt injection."""
+    parts = [outline_result.summary]
+    if outline_result.chapter_outlines:
+        parts.append(json.dumps(outline_result.chapter_outlines, ensure_ascii=False))
+    return "\n\n".join(parts)
+
+
+def _parse_name_list(names_raw: str) -> list[str]:
+    names_text = names_raw.strip()
+    if names_text.startswith("```"):
+        names_lines = names_text.splitlines()
+        if names_lines:
+            names_lines = names_lines[1:]
+        if names_lines and names_lines[-1].strip() == "```":
+            names_lines = names_lines[:-1]
+        names_text = "\n".join(names_lines).strip()
+
+    parsed = json.loads(names_text)
+    if not isinstance(parsed, list):
+        return []
+    return [name for name in parsed if isinstance(name, str)]
+
+
+async def _generate_character_sheets(
+    story_name: str,
+    outline_result: OutlineResult,
+    provider: ModelProvider,
+    config: dict[str, Any],
+    stories_dir: Path,
+) -> list[Path]:
+    """Generate character sheets from outline and write to disk."""
+    project_root = Path(__file__).resolve().parents[2]
+    loader = PromptLoader(prompts_dir=str(project_root / "prompts"))
+    models = config.get("models", {})
+    model_name = models.get("chapter_writer", "openai-compat://default")
+    model_config = ModelConfig.from_string(model_name)
+    story_elements = _build_story_elements(outline_result)
+
+    extract_prompt = loader.load_prompt(
+        "characters/extract_names", {"story_elements": story_elements}
+    )
+    messages = [{"role": "user", "content": extract_prompt}]
+    try:
+        names_raw = await provider.generate_text(messages, model_config)
+        names = _parse_name_list(names_raw)
+    except (json.JSONDecodeError, Exception):
+        names = []
+
+    characters_dir = stories_dir / story_name / "characters"
+    characters_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+
+    for character_name in names:
+        if not character_name.strip():
+            continue
+        slug = _slugify_name(character_name)
+        if not slug:
+            continue
+        try:
+            create_prompt = loader.load_prompt(
+                "characters/create",
+                {
+                    "story_elements": story_elements,
+                    "character_name": character_name,
+                },
+            )
+            sheet_messages = [{"role": "user", "content": create_prompt}]
+            sheet_text = await provider.generate_text(sheet_messages, model_config)
+        except Exception:
+            continue
+
+        sheet_data = {
+            "name": character_name,
+            "sheet": sheet_text,
+            "chunks": {},
+            "summary": "",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        char_path = characters_dir / f"{slug}.json"
+        _atomic_write(char_path, json.dumps(sheet_data, indent=2, ensure_ascii=False))
+        written.append(char_path)
+
+    return written
+
+
+async def _generate_setting_sheets(
+    story_name: str,
+    outline_result: OutlineResult,
+    provider: ModelProvider,
+    config: dict[str, Any],
+    stories_dir: Path,
+) -> list[Path]:
+    """Generate setting sheets from outline and write to disk."""
+    project_root = Path(__file__).resolve().parents[2]
+    loader = PromptLoader(prompts_dir=str(project_root / "prompts"))
+    models = config.get("models", {})
+    model_name = models.get("chapter_writer", "openai-compat://default")
+    model_config = ModelConfig.from_string(model_name)
+    story_elements = _build_story_elements(outline_result)
+
+    extract_prompt = loader.load_prompt(
+        "settings/extract_names", {"story_elements": story_elements}
+    )
+    messages = [{"role": "user", "content": extract_prompt}]
+    try:
+        names_raw = await provider.generate_text(messages, model_config)
+        names = _parse_name_list(names_raw)
+    except (json.JSONDecodeError, Exception):
+        names = []
+
+    settings_dir = stories_dir / story_name / "settings"
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+
+    for setting_name in names:
+        if not setting_name.strip():
+            continue
+        slug = _slugify_name(setting_name)
+        if not slug:
+            continue
+        try:
+            create_prompt = loader.load_prompt(
+                "settings/create",
+                {
+                    "story_elements": story_elements,
+                    "setting_name": setting_name,
+                },
+            )
+            sheet_messages = [{"role": "user", "content": create_prompt}]
+            sheet_text = await provider.generate_text(sheet_messages, model_config)
+        except Exception:
+            continue
+
+        sheet_data = {
+            "name": setting_name,
+            "sheet": sheet_text,
+            "chunks": {},
+            "summary": "",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        setting_path = settings_dir / f"{slug}.json"
+        _atomic_write(
+            setting_path,
+            json.dumps(sheet_data, indent=2, ensure_ascii=False),
+        )
+        written.append(setting_path)
+
+    return written
+
+
 async def _continue_pipeline(
     state: PipelineState,
     gate: ApprovalGate,
@@ -217,9 +380,17 @@ async def _continue_pipeline(
                 WikiContextEvent(
                     phase="characters",
                     event_type="entity_match",
-                    content=f"Assembling character context for: {state.story_name}",
+                    content=f"Generating character sheets for: {state.story_name}",
                 )
             )
+            if state.outline_result is not None:
+                await _generate_character_sheets(
+                    state.story_name,
+                    state.outline_result,
+                    resolved_provider,
+                    resolved_config,
+                    story_dir.parent,
+                )
             await _mark_phase_complete(state, "characters", "characters")
 
         if "settings" not in state.completed_phases:
@@ -228,9 +399,17 @@ async def _continue_pipeline(
                 WikiContextEvent(
                     phase="settings",
                     event_type="detail_level",
-                    content=f"Assembling setting context for: {state.story_name}",
+                    content=f"Generating setting sheets for: {state.story_name}",
                 )
             )
+            if state.outline_result is not None:
+                await _generate_setting_sheets(
+                    state.story_name,
+                    state.outline_result,
+                    resolved_provider,
+                    resolved_config,
+                    story_dir.parent,
+                )
             await _mark_phase_complete(state, "settings", "settings")
 
         outline_result = state.outline_result

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
@@ -14,6 +15,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
+from tools._io import STORIES_DIR
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -71,6 +73,36 @@ class ChapterWriterAgent:
         )
         if feedback:
             prompt = f"{prompt}\n\n## Revision Feedback\n{feedback}"
+
+        context_parts: list[str] = []
+        story_dir = STORIES_DIR / story_name
+        for entity_type, label in (
+            ("characters", "Character"),
+            ("settings", "Setting"),
+        ):
+            entity_dir = story_dir / entity_type
+            if not entity_dir.exists():
+                continue
+            sheets: list[str] = []
+            for sheet_path in sorted(entity_dir.glob("*.json")):
+                try:
+                    data = json.loads(sheet_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    continue
+
+                name = data.get("name", sheet_path.stem)
+                summary = data.get("summary") or ""
+                if not summary:
+                    sheet_text = data.get("sheet", "")
+                    summary = sheet_text[:300].strip() if sheet_text else ""
+                if summary:
+                    sheets.append(f"- {name}: {summary}")
+
+            if sheets:
+                context_parts.append(f"## {label}s\n" + "\n".join(sheets))
+
+        if context_parts:
+            prompt = prompt + "\n\n" + "\n\n".join(context_parts)
 
         await self.wiki_bus.emit(
             WikiContextEvent(
