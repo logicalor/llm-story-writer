@@ -99,7 +99,9 @@ def _set_stories_dir(monkeypatch: pytest.MonkeyPatch, stories_dir: Path) -> None
 def _set_fake_llm(monkeypatch: pytest.MonkeyPatch, responses: list[str]) -> None:
     remaining = list(responses)
 
-    def _fake_chat_completion(prompt: str, *, model: str | None = None) -> str:
+    def _fake_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
         assert model in {None, "test-model"}
         assert remaining, f"Unexpected LLM prompt: {prompt[:200]}"
         return remaining.pop(0)
@@ -348,7 +350,9 @@ def test_initial_populate_cache_miss_calls_llm_and_writes_cache(
 
     llm_calls: list[str] = []
 
-    def _fake_chat_completion(prompt: str, *, model: str | None = None) -> str:
+    def _fake_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
         llm_calls.append(prompt)
         if len(llm_calls) == 1:
             return json.dumps(
@@ -464,7 +468,9 @@ def test_initial_populate_cache_hit_skips_llm(
     llm_calls: list[str] = []
     captured: dict[str, object] = {}
 
-    def _fake_chat_completion(prompt: str, *, model: str | None = None) -> str:
+    def _fake_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
         llm_calls.append(prompt)
         raise AssertionError(f"LLM should not be called: {prompt[:200]}")
 
@@ -672,7 +678,9 @@ def test_update_from_chapter_reads_chapter_file_path(
         ),
     )
 
-    def _fake_chat_completion(prompt: str, *, model: str | None = None) -> str:
+    def _fake_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
         if "Captain Vale docks at Ember Port" in prompt:
             return json.dumps(
                 {
@@ -744,7 +752,9 @@ def test_update_from_chapter_cache_hit_skips_llm(
     llm_calls: list[str] = []
     captured: dict[str, object] = {}
 
-    def _fake_chat_completion(prompt: str, *, model: str | None = None) -> str:
+    def _fake_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
         llm_calls.append(prompt)
         raise AssertionError(f"LLM should not be called: {prompt[:200]}")
 

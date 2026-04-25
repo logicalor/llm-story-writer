@@ -31,8 +31,10 @@ class WikiMaintainerAgent:
         bus: TokenStreamBus,
         wiki_bus: WikiContextBus,
     ) -> None:
+        # Retained for constructor interface compatibility with orchestrator; not active in run().
         self.provider = provider
         self.config = config
+        # Retained for constructor interface compatibility with orchestrator; not active in run().
         self.bus = bus
         self.wiki_bus = wiki_bus
 
@@ -55,14 +57,23 @@ class WikiMaintainerAgent:
             "eval_model",
             "openai-compat://default",
         )
-
-        summary = await asyncio.to_thread(
-            update_wiki_from_chapter,
-            story_name,
-            chapter_number,
-            chapter_content,
-            model=model_config.name,
+        base_url: str | None = (
+            f"http://{model_config.host}/v1" if model_config.host else None
         )
+
+        try:
+            summary = await asyncio.to_thread(
+                update_wiki_from_chapter,
+                story_name,
+                chapter_number,
+                chapter_content,
+                model=model_config.name,
+                base_url=base_url,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"Wiki update failed for story={story_name!r} chapter={chapter_number}: {exc}"
+            ) from exc
 
         new_slugs: list[str] = summary.get("new_slugs", [])
         updated_slugs: list[str] = summary.get("updated_slugs", [])

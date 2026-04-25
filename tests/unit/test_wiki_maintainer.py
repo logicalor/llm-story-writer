@@ -185,4 +185,5 @@ async def test_run_uses_model_config_from_eval_model() -> None:
         5,
         "Chapter text",
         model="my-model",
+        base_url=None,
     )

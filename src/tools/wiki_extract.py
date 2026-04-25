@@ -106,8 +106,10 @@ def _load_prompt(prompt_id: str, variables: dict[str, Any]) -> str:
     return _get_prompt_loader().load_prompt(prompt_id, variables)
 
 
-def _chat_completion(prompt: str, *, model: str | None = None) -> str:
-    return _llm.generate_text(prompt, model=model)
+def _chat_completion(
+    prompt: str, *, model: str | None = None, base_url: str | None = None
+) -> str:
+    return _llm.generate_text(prompt, model=model, base_url=base_url)
 
 
 def _parse_json_response(raw_text: str, context: str) -> Any:
@@ -394,6 +396,7 @@ def _generate_detail_levels(
     model: str | None,
     cache: dict[str, Any] | None = None,
     story_dir: Path | None = None,
+    base_url: str | None = None,
 ) -> dict[str, str]:
     slug = entity.get("slug", "")
     if not isinstance(slug, str):
@@ -410,7 +413,8 @@ def _generate_detail_levels(
         {"entity": json.dumps(entity, indent=2, ensure_ascii=True)},
     )
     result = _parse_json_response(
-        _chat_completion(prompt, model=model), "detail level generation"
+        _chat_completion(prompt, model=model, base_url=base_url),
+        "detail level generation",
     )
     if not isinstance(result, dict):
         raise ValueError("detail level generation must return a JSON object")
@@ -580,6 +584,7 @@ def _prepare_chapter_update(
     chapter_text: str,
     *,
     model: str | None = None,
+    base_url: str | None = None,
 ) -> tuple[Path, dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     story_dir = _validate_story_name(story_name)
     cache = _load_extract_cache(story_dir)
@@ -613,15 +618,13 @@ def _prepare_chapter_update(
             },
         )
         extracted = _parse_json_response(
-            _chat_completion(prompt, model=model), "chapter extraction"
+            _chat_completion(prompt, model=model, base_url=base_url),
+            "chapter extraction",
         )
         if not isinstance(extracted, dict):
             raise ValueError("chapter extraction must return a JSON object")
         cache[chapter_cache_key] = extracted
         _save_extract_cache(story_dir, cache)
-
-    if not isinstance(extracted, dict):
-        raise ValueError("chapter extraction must return a JSON object")
 
     raw_new_entities = extracted.get("new_entities", [])
     if not isinstance(raw_new_entities, list):
@@ -645,6 +648,7 @@ def _prepare_chapter_update(
             model=model,
             cache=cache,
             story_dir=story_dir,
+            base_url=base_url,
         )
         creates.append(_build_create_entry(entity, detail_levels))
 
@@ -670,6 +674,7 @@ def update_wiki_from_chapter(
     chapter_text: str,
     *,
     model: str | None = None,
+    base_url: str | None = None,
 ) -> dict[str, Any]:
     """Run wiki update for a chapter from chapter text string.
 
@@ -690,6 +695,7 @@ def update_wiki_from_chapter(
         chapter_number,
         chapter_text,
         model=model,
+        base_url=base_url,
     )
 
     summary = run_batch(story_name, payload)

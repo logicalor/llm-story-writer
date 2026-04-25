@@ -25,6 +25,7 @@ def generate_text(
     model: str | None = None,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    base_url: str | None = None,
 ) -> str:
     """Call OpenAI-compatible chat completions API and return assistant content.
 
@@ -38,7 +39,11 @@ def generate_text(
     messages.append({"role": "user", "content": prompt})
 
     return generate_text_messages(
-        messages, model=model, temperature=temperature, max_tokens=max_tokens
+        messages,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        base_url=base_url,
     )
 
 
@@ -48,6 +53,7 @@ def generate_text_messages(
     model: str | None = None,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    base_url: str | None = None,
 ) -> str:
     """Call OpenAI-compatible chat completions with a full message list.
 
@@ -56,7 +62,9 @@ def generate_text_messages(
 
     Raises ``RuntimeError`` on HTTP or API errors.
     """
-    api_base = _get_api_base().rstrip("/")
+    api_base = (
+        base_url.rstrip("/") if base_url is not None else _get_api_base().rstrip("/")
+    )
     url = f"{api_base}/chat/completions"
 
     payload: dict[str, object] = {
