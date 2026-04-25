@@ -111,6 +111,26 @@ Follow the conventions defined in `copilot-instructions.md` for language-specifi
 
 **LLM JSON array response parsing:** When an LLM response is expected to contain a JSON array (e.g. a list of tags, topics, or entities), always parse it with `json.loads(response.strip())` and validate the result is a `list`. Never wrap the response string in a list literal — `[response]` produces a single-element list containing the raw string, not the parsed array values. This bug is invisible to ruff, mypy, and type checks; it produces no exception and silently stores the unparsed LLM string in place of the intended array items. Validation pattern: `result = json.loads(response.strip()); if not isinstance(result, list): raise ValueError(f"Expected list, got {type(result).__name__}")`. (Source: issue #180, PR #191 — `_generate_tags` used `[response]` instead of `json.loads(response)`, storing the raw LLM string as the only tag.)
 
+**LLM JSON structured response parsing guards:** When parsing a structured JSON response from an LLM (a dict with named sections), apply three unconditional guards — all are invisible to ruff, mypy, and type checks, and all fail silently at runtime without them:
+1. **`isinstance(data, dict)` after `json.loads()`** — valid JSON can parse to a list, number, string, or `None`. Check `isinstance(data, dict)` before any `.get()` call; raise a `ValueError` with the raw response on failure.
+2. **`or {}` / `or []` on every `.get()`** — `data.get("key", {})` returns `None` (not `{}`) when the LLM explicitly sets the field to JSON `null`. Apply `data.get("key") or {}` (and `or []` for lists) at every field extraction.
+3. **`isinstance(item, dict)` on list items** — when iterating a list of objects from LLM output, add `if not isinstance(item, dict): continue` before calling `.get()` on each item; the LLM may return strings or scalars interleaved with dict objects.
+
+```python
+# Canonical three-guard pattern:
+data = json.loads(llm_response)
+if not isinstance(data, dict):
+    raise ValueError(f"Expected dict from LLM, got {type(data).__name__}")
+issues = data.get("issues") or []           # guard against explicit null
+summary = data.get("summary") or {}
+for item in issues:
+    if not isinstance(item, dict):          # guard against mixed-type list items
+        continue
+    severity = item.get("severity") or "info"
+```
+
+(Source: issue #184, PR #197 — consistency-checker parser; see `gotchas.md` #032, #033, #034.)
+
 **Exception wrapping during refactor:** When extracting a helper that previously surfaced a raised exception's text to the caller (CLI script, JSON output, TS wrapper), do NOT use `raise NewError(...) from None`. `from None` discards `__cause__` and the chained traceback, and any caller that prints `str(exc)` will see only the wrapper's payload — the original failure reason (`"wiki not initialised"`, `"duplicate slug"`, `"invalid page type"`) is silently lost. Use `raise NewError(...) from exc` to preserve the chain. When the new error encodes structured state for a non-Python consumer (JSON payload, TS wrapper output), include the original message explicitly: `raise RuntimeError(json.dumps({"rollback": rollback, "cause": str(exc)})) from exc` — and have the consumer surface the `cause` field rather than treating the entire JSON blob as the user-visible message. Unit tests that exercise only the happy path or assert the wrapper type will not catch this regression. (Source: issue #144, PR #145 — `run_batch()` extracted from `cmd_batch()` used `from None`, producing JSON-in-JSON error output with the original cause erased.)
 
 **CLI entry point isolation:** `cmd_*()` functions in `src/tools/` are CLI entry points — they call `_error()` which calls `sys.exit()` on any failure. This is safe when invoked from `if __name__ == "__main__"` or as a subprocess, but it terminates the host process if called from orchestration or library code (`src/presentation/`, `src/application/`, tests). When integrating tool logic into non-CLI code, call the underlying `_helper()` functions directly — never call `cmd_*()` entry points. If no helper exists, extract the shared logic into one that the `cmd_*()` entry point delegates to. (Source: issue #181, PR #192 — Coder correctly avoided calling `cmd_assemble()` from the orchestrator; implemented inline assembly using the orchestrator's in-memory `approved_chapters` instead.)
