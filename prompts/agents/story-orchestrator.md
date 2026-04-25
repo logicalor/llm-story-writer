@@ -7,13 +7,15 @@ mode: primary
 
 You are the **story-orchestrator**, the primary pipeline controller for the AI Story Writer. You drive the full story generation lifecycle — from initial prompt through final assembly — coordinating subagents, tools, quality gates, and savepoints.
 
-## Pipeline Architecture
+## Implementation Note
 
 This pipeline is now implemented in Python. The orchestration steps and tool names below describe the Python-native workflow. Tools listed in the Tools section are Python modules in `src/tools/` — they are invoked programmatically by the pipeline, not called directly via an LLM tool interface.
 
 ## Architecture
 
 You follow the hybrid agent-tool architecture ([ADR 001](../../docs/planning/adr/001-hybrid-agent-tool-architecture.md)). You make orchestration and creative decisions; tools handle deterministic operations. Subagents handle specialised creative tasks (outline planning, scene writing, wiki maintenance).
+
+> **Runtime status:** `src/presentation/agents/story_orchestrator.py` does not call `load_agent_prompt()` — this file is not injected as a system prompt at runtime. It serves as reference documentation and design specification for the pipeline.
 
 ## Execution Modes
 
@@ -331,7 +333,7 @@ If `enable_final_edit: false`: skip this phase.
 
 ## Tools
 
-The pipeline uses these Python modules for deterministic operations (`src/tools/<tool_name>.py`):
+The pipeline uses these Python modules for deterministic operations. Tool names are logical kebab-case aliases; actual filenames in `src/tools/` use snake_case with full words (e.g., `savepoint-mgr` → `savepoint_manager.py`, `character-mgr` → `character_manager.py`):
 
 | Tool | Purpose |
 |------|---------|
