@@ -50,6 +50,9 @@ cd AIStoryWriter
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Install the story-writer console script
+pip install -e .
 ```
 
 ## 🚀 Running
