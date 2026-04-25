@@ -1,22 +1,17 @@
-"""Verification tests for Issue #5 — Prompt Template Relocation.
-
-Confirms that 131 prompt templates were correctly moved from
-src/application/strategies/outline_chapter/prompts/ to the top-level prompts/ directory,
-and that all code references point to the new location.
-"""
+"""Verification tests for issue #5 (Prompt Template Relocation) and issue #164 (OpenCode artefact removal)."""
 
 import inspect
 import sys
 from pathlib import Path
 
-# Project root is two directories above this test file (tests/unit/)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# src/ must be on sys.path so bare imports (e.g. "from domain.exceptions ...")
-# used inside the production modules resolve correctly.
 _src_dir = str(PROJECT_ROOT / "src")
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
+
+
+# --- Issue #5: Prompt Template Relocation ---
 
 
 def test_prompts_directory_exists():
@@ -84,11 +79,7 @@ def test_prompt_loader_default_path():
 
 
 def test_outline_chapter_prompt_directory():
-    """Verify OutlineChapterStrategy.get_prompt_directory() returns 'prompts'.
-
-    Parses the source file directly to avoid importing heavy transitive
-    dependencies (aiohttp, etc.) that may not be installed in the test env.
-    """
+    """Verify OutlineChapterStrategy.get_prompt_directory() returns 'prompts'."""
     strategy_file = (
         PROJECT_ROOT
         / "src"
@@ -99,7 +90,6 @@ def test_outline_chapter_prompt_directory():
     )
     assert strategy_file.is_file(), f"Strategy file not found: {strategy_file}"
     source = strategy_file.read_text(encoding="utf-8")
-    # The method should contain: return "prompts"
     assert 'return "prompts"' in source, (
         'get_prompt_directory() should return "prompts" but pattern not found in source'
     )
@@ -133,3 +123,67 @@ def test_agent_prompt_files_present():
     for filename in expected_files:
         path = agents_dir / filename
         assert path.is_file(), f"Expected agent prompt {filename} in prompts/agents/"
+
+
+# --- Issue #164: OpenCode artefact removal ---
+
+
+def test_opencode_artefacts_deleted() -> None:
+    assert not (PROJECT_ROOT / ".opencode").exists()
+    assert not (PROJECT_ROOT / "opencode.json").exists()
+    assert not (PROJECT_ROOT / "package.json").exists()
+    assert not (PROJECT_ROOT / "package-lock.json").exists()
+    assert not (PROJECT_ROOT / "tsconfig.json").exists()
+    assert not (PROJECT_ROOT / "vitest.config.ts").exists()
+
+
+def test_commands_relocated_to_prompts_agents() -> None:
+    assert (PROJECT_ROOT / "prompts" / "agents" / "continue.md").is_file()
+    assert (PROJECT_ROOT / "prompts" / "agents" / "regenerate.md").is_file()
+
+
+def test_skills_relocated_to_prompts_skills() -> None:
+    skills_dir = PROJECT_ROOT / "prompts" / "skills"
+    expected_skill_files = [
+        "character-voice/SKILL.md",
+        "context-budgeting/SKILL.md",
+        "final-edit/SKILL.md",
+        "narrative-arc/SKILL.md",
+        "outline-structure/SKILL.md",
+        "scene-writing/SKILL.md",
+        "story-pipeline/SKILL.md",
+        "wiki-conventions/SKILL.md",
+        "wiki-maintenance/SKILL.md",
+    ]
+
+    assert skills_dir.is_dir()
+    for relative_path in expected_skill_files:
+        assert (skills_dir / relative_path).is_file()
+
+
+def test_pyproject_has_required_dependencies() -> None:
+    pyproject_text = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert 'textual>=6.0,<7.0' in pyproject_text
+    assert 'openai>=1.0' in pyproject_text
+
+
+def test_requirements_txt_textual_version() -> None:
+    requirements_text = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
+
+    assert 'textual>=6.0,<7.0' in requirements_text
+    assert 'textual>=0.85.0,<1.0.0' not in requirements_text
+
+
+def test_no_stale_opencode_refs_in_agent_prompts() -> None:
+    """Verify no agent prompt file references the deleted .opencode/ path."""
+    agents_dir = PROJECT_ROOT / "prompts" / "agents"
+    stale_refs = []
+    for md_file in agents_dir.glob("*.md"):
+        content = md_file.read_text(encoding="utf-8")
+        if ".opencode/" in content:
+            stale_refs.append(md_file.name)
+    assert not stale_refs, (
+        f"Agent prompts contain stale .opencode/ references: {stale_refs}. "
+        "Update these files to use prompts/skills/ paths instead."
+    )

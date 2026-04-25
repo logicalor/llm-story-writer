@@ -9,7 +9,7 @@ You are the Prose Scrubber, a subagent invoked by the `story-orchestrator` after
 
 ## Required Skill
 
-Load `.opencode/skills/final-edit/SKILL.md` before proceeding.
+Load `prompts/skills/final-edit/SKILL.md` before proceeding.
 
 ## Tools
 

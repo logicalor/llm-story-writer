@@ -35,8 +35,7 @@ src/
 ### Prerequisites
 
 1. **Python 3.8+** installed
-2. **OpenCode** installed
-3. An **OpenAI-compatible local model server** running (LM Studio, Ollama, or llama.cpp)
+2. An **OpenAI-compatible local model server** running (LM Studio, Ollama, or llama.cpp)
 
 ### Installation
 
@@ -45,10 +44,6 @@ src/
 git clone https://github.com/datacrystals/AIStoryWriter.git
 cd AIStoryWriter
 
-# Install OpenCode first
-# Follow your platform's OpenCode install instructions, then verify:
-opencode --version
-
 # Start your local model server and load the models referenced by config.yml
 # e.g. LM Studio (default: http://127.0.0.1:1234/v1)
 # or:  ollama serve        (http://127.0.0.1:11434/v1)
@@ -56,22 +51,6 @@ opencode --version
 # Install dependencies
 pip install -r requirements.txt
 ```
-
-### Basic Usage (OpenCode TUI)
-
-The application uses OpenCode for an interactive story generation experience:
-
-```bash
-# Start OpenCode in the project root
-opencode
-
-# In the TUI, use slash commands:
-/new-story prompts/YourPrompt.txt    # Initialize and start a new story
-/continue [story-name]               # Resume from last savepoint
-/status                              # Show generation progress
-```
-
-The application will use all configuration options defined in `config.yml`.
 
 ## 🧰 Configuration
 
@@ -132,9 +111,6 @@ pytest tests/unit/ -v
 # Run integration tests explicitly (live LLM required)
 pytest tests/integration/ -v -m integration
 
-# Run the full end-to-end integration file with a longer timeout
-pytest tests/integration/test_e2e_opencode.py -v -m integration --timeout=7200
-
 # Run with coverage
 pytest --cov=src tests/unit tests/integration
 ```
@@ -154,17 +130,13 @@ llm-story-writer/
 │   ├── presentation/            # CLI and API interfaces
 │   ├── tools/                   # Python tool implementations
 │   └── config/                  # Configuration management
-├── .opencode/                   # OpenCode agentic system
-│   ├── agents/                  # Agent definitions (orchestrator, scene-writer, etc.)
-│   ├── tools/                   # TypeScript tool wrappers
-│   ├── skills/                  # Reusable skills
-│   ├── commands/                # TUI slash commands (/new-story, /continue, etc.)
-│   └── plugins/                 # OpenCode plugins
 ├── prompts/                     # Prompt templates (relocated from src/)
+│   ├── agents/                  # Agent prompt templates
 │   ├── chapters/
 │   ├── characters/
 │   ├── outline/
 │   ├── scenes/
+│   ├── skills/                  # Reusable skill reference files
 │   └── ...
 ├── stories/<name>/              # Per-story storage
 │   ├── chapters/                # Generated chapter content
@@ -181,15 +153,14 @@ llm-story-writer/
 └── docs/                        # Documentation
 ```
 
-## 🤖 OpenCode Integration
+## 🐍 Python-Native Architecture
 
-This project uses a **hybrid agent-tool architecture** where OpenCode agents handle orchestration and human interaction, while Python scripts (wrapped as OpenCode tools) handle deterministic domain logic. The architecture preserves clean architecture principles in the Python domain layer while leveraging OpenCode's agentic capabilities for creative tasks.
+This project uses a Python-native story generation pipeline. All orchestration, tool execution, and domain logic run as Python scripts.
 
 Key components:
-- **Agents** (`prompts/agents/`): story-orchestrator, outline-planner, chapter-writer
-- **Tools** (`.opencode/tools/`): TypeScript wrappers that call Python scripts in `src/tools/`
-- **Skills** (`.opencode/skills/`): Reusable instructions for pipeline phases, wiki maintenance, etc.
-- **Commands** (`.opencode/commands/`): TUI slash commands like `/new-story`, `/continue`, `/status`
+- **Agents** (`prompts/agents/`): Prompt templates for story-orchestrator, outline-planner, chapter-writer, and other subagents
+- **Tools** (`src/tools/`): Python scripts for story state, wiki management, savepoints, and generation
+- **Skills** (`prompts/skills/`): Reusable instruction files for pipeline phases, wiki maintenance, and prose editing
 
 ## 📚 Wiki System
 

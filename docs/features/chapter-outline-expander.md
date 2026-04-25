@@ -107,7 +107,7 @@ On the next expansion iteration, `chapter-outline-expander` reads that structure
 | `prompts/chapters/expand_to_scenes.md` | Prompt template for synopsis-to-scene decomposition |
 | `prompts/chapters/generate_handoff.md` | Prompt template for the structured handoff JSON artifact |
 | `src/domain/value_objects/generation_settings.py` | Phase 7a scene-expansion flags and scene-count band validation |
-| `.opencode/skills/story-pipeline/SKILL.md` | Pipeline reference updated with the new Phase 7a subagent |
+| `prompts/skills/story-pipeline/SKILL.md` | Pipeline reference updated with the new Phase 7a subagent |
 
 ## Related
 

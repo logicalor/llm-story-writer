@@ -23,13 +23,13 @@ See [ADR 003: ChromaDB Replaces pgvector](./planning/adr/003-chromadb-replaces-p
 
 ## Runtime Stack
 
-The active runtime is intentionally small and OpenCode-first:
+The active runtime is intentionally small and Python-native:
 
 - **Python runtime**: install from `requirements.txt`; it is the only supported dependency manifest for the active project and includes `requests`, `openai`, `chromadb`, `pyyaml`, and `llm-output-parser`
 - **LLM integration**: Supported provider keys are `openai_compatible` and `openai_async`; all runtime traffic goes through OpenAI-compatible `/v1` endpoints rather than LangChain-specific adapters
 - **Async provider path**: `src/infrastructure/providers/openai_async_provider.py` adds an `AsyncOpenAI`-backed `ModelProvider` implementation for Python-native streaming flows, while `OpenAICompatibleProvider` remains in place for existing synchronous paths
-- **Tool wiring**: the Python-native orchestrator and tool modules now run in-process; `.opencode/tools/` remains only as a placeholder directory with `.gitkeep`
-- **Python-native migration foundation**: agent system prompts now live in `prompts/agents/`, with shared loading logic in `src/infrastructure/prompts/agent_prompt_loader.py` and typed orchestration payloads in `src/application/pipeline/handoffs.py`
+- **Tool wiring**: the Python-native orchestrator and tool modules now run in-process with no `.opencode/` or Node.js wrapper layer remaining in the repository
+- **Python-native migration foundation**: agent prompt assets now live in `prompts/agents/`, reusable skill references live in `prompts/skills/`, and shared loading logic lives in `src/infrastructure/prompts/agent_prompt_loader.py` with typed orchestration payloads in `src/application/pipeline/handoffs.py`
 - **Pipeline presentation primitives**: `src/presentation/pipeline_primitives.py` adds transport-agnostic approval gates plus token and wiki context buses for both headless runners and the Textual TUI
 - **Headless orchestrator slice**: `src/presentation/orchestrator.py` now runs the implemented Python-native phase sequence (`init → outline → characters → settings → chapter-loop → final-edit → assembly`) and persists `PipelineState` savepoints for resume support
 - **Interactive Textual TUI**: `src/presentation/tui/app.py` adds `StoryWriterApp`, a three-panel terminal UI with live token streaming, wiki context, and approval gates launched through `story-writer tui`
@@ -58,8 +58,8 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 - [Chapter Outline Expander](./features/chapter-outline-expander.md) — Phase 7a subagent that expands all chapter outlines and carries structured handoff continuity between chapters
 - [Prose Quality Passes](./features/prose-quality-passes.md) — `prose-scrubber` and `final-editor` pipeline stages, config flags, scope constraints, and tool usage
 - [Wiki Maintainer](./features/wiki-maintainer.md) — Wiki maintenance subagent: tool-delegated extraction via `wiki-extract`, confidence scoring, detail levels, alias identification, and chapter boundary procedures
-- [Custom Commands](./features/custom-commands.md) — Seven slash commands for the OpenCode TUI: `/new-story`, `/continue`, `/regenerate`, `/savepoint`, `/status`, `/settings`, `/wiki`
-- [Compaction Plugin](./features/compaction-plugin.md) — OpenCode plugin that injects story continuity context into session compaction summaries
+- [Custom Commands](./features/custom-commands.md) — Historical note on the retired OpenCode slash-command surface; reusable `continue` and `regenerate` prompt bodies were preserved under `prompts/agents/`
+- [Compaction Plugin](./features/compaction-plugin.md) — Historical note on the removed OpenCode session-compaction plugin
 
 ## Planning
 
