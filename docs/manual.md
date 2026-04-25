@@ -261,8 +261,9 @@ Phase 4: Wiki Init
 
 Phase 5: Characters & Settings
   → Extract characters and locations from outline
-  → Delegate to character-sheet-generator subagent
-  → Generate character sheets and setting sheets
+  → Orchestrator helper functions generate markdown sheets via prompts/characters and prompts/settings
+  → Write per-entity JSON sheets to stories/<name>/characters/ and stories/<name>/settings/
+  → If name extraction returns invalid JSON, phase degrades gracefully and pipeline continues
 
 Phase 6: Wiki Population
   → Delegate to wiki-maintainer subagent
@@ -270,7 +271,7 @@ Phase 6: Wiki Population
 
 Phase 7: Chapter Expansion + Generation
   → Phase 7a: chapter-outline-expander expands all chapter outlines once
-  → Per chapter: chapter-writer generates scenes and assembles chapter
+  → Per chapter: chapter-writer loads abridged character/setting sheet context, then generates scenes and assembles chapter
   → After chapter approval, orchestrator writes stories/<name>/chapters/chapter_{N}.md
   → wiki-maintainer updates wiki, recap-manager writes recap, wiki-lint checks consistency
   → quality-reviewer runs chapter critique/revision loop (if enabled)

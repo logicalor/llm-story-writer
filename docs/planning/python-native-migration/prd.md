@@ -100,7 +100,7 @@ Task 5 currently implements the headless slice only. TUI wiring, CLI commands, a
 ### Orchestration
 
 - Each OpenCode agent becomes a Python async function or class in `src/presentation/agents/`. Each agent owns: (a) its system prompt (loaded from `prompts/agents/<name>.md`), (b) its dispatch of relevant services, (c) its typed handoff output.
-- Pipeline phases are sequential `await` calls in `src/presentation/orchestrator.py`. The long-term target is: Init → Outline → Narrative Arc Analysis → Character Sheets → Settings → Chapter Loop → Final Edit → Assembly. Issue #161 currently implements: Init → Outline → Characters → Settings → Chapter Loop → Final Edit → Assembly.
+- Pipeline phases are sequential `await` calls in `src/presentation/orchestrator.py`. The long-term target is: Init → Outline → Narrative Arc Analysis → Character Sheets → Settings → Chapter Loop → Final Edit → Assembly. The current implementation runs: Init → Outline → Characters → Settings → Chapter Loop → Final Edit → Assembly, and the characters/settings phases now extract entity names from the outline, generate per-entity JSON sheets on disk, and feed abridged sheet context into `ChapterWriterAgent`.
 - Approval gates are `asyncio.Future` objects. The orchestrator awaits the future; the TUI resolves it when the user submits input. In batch mode, a null-gate implementation resolves futures immediately.
 - Streaming: the LLM provider yields token deltas onto an `asyncio.Queue`. The TUI's worker drains the queue and writes to the `RichLog` via `call_from_thread()`. The orchestrator is agnostic to consumer.
 
@@ -138,7 +138,7 @@ Task 5 currently implements the headless slice only. TUI wiring, CLI commands, a
 
 ### Database / Storage
 
-No schema changes. JSON savepoints, JSON story state, and ChromaDB collections are unchanged.
+No database schema changes. JSON savepoints, JSON story state, and ChromaDB collections are unchanged. The implemented runtime also writes intermediate character and setting sheet artefacts to `stories/<story>/characters/` and `stories/<story>/settings/`; those files are consumed as prompt context during chapter generation.
 
 ## Acceptance Criteria
 

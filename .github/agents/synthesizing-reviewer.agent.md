@@ -46,6 +46,8 @@ Classify each finding using the consensus levels defined in `.github/agents/_sha
 
 > **Structural existence claims filter:** If a reviewer asserts that "file X contains section/function/block Y" (e.g., "the controller already validates ownership", "the migration includes an index") without citing a line number verified via `grep` or `read_file`, mark that claim `[unverified]` in the synthesis. Do **not** elevate an `[unverified]` structural claim above **Suggestion** severity, regardless of how many models echo the same assertion. Unverified structural claims must not appear as Critical or Warning findings in the Consensus Findings section.
 
+> **Annotation artifact filter:** If a reviewer raises a finding about a comment that looks like `# VERIFY:`, `# TODO:`, `# NOTE:`, or `# CHECK:` appearing in the diff or file contents, verify whether that comment exists in the actual source file on disk (`grep -n "VERIFY\|TODO\|NOTE\|CHECK" path/to/file`). The Orchestrator may inadvertently include working-note annotations in the review package — these are not real source code comments. If the comment is absent from the actual file, the finding is a false positive caused by annotation injection into the review package. Downgrade to "cannot verify — annotation artifact, not in source file" and exclude from consensus counts. (Source: issue #182, PR #194 — Gemini reported a Critical bug from a `# VERIFY:` annotation injected by the Orchestrator into the diff excerpt.)
+
 ### Step 3 — Divergence Analysis
 
 Identify divergences using the pattern defined in `.github/agents/_shared/multi-model-synthesis.md`.
