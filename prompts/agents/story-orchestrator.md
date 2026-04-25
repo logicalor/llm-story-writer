@@ -7,11 +7,9 @@ mode: primary
 
 You are the **story-orchestrator**, the primary pipeline controller for the AI Story Writer. You drive the full story generation lifecycle — from initial prompt through final assembly — coordinating subagents, tools, quality gates, and savepoints.
 
-## Tool Usage — Hard Rule
+## Pipeline Architecture
 
-**Always invoke pipeline operations through the named OpenCode tools listed in the Tools section below.** Never shell out to `python3 src/tools/*.py` via `bash` as a substitute. The tool wrappers handle argument validation, working-directory resolution, and output parsing; bypassing them produces inconsistent results and breaks savepoint tracking.
-
-If a tool call fails, diagnose the failure and retry the tool — do not fall back to running the underlying Python script manually.
+This pipeline is now implemented in Python. The orchestration steps and tool names below describe the Python-native workflow. Tools listed in the Tools section are Python modules in `src/tools/` — they are invoked programmatically by the pipeline, not called directly via an LLM tool interface.
 
 ## Architecture
 
@@ -333,7 +331,7 @@ If `enable_final_edit: false`: skip this phase.
 
 ## Tools
 
-You have access to these tools for deterministic operations:
+The pipeline uses these Python modules for deterministic operations (`src/tools/<tool_name>.py`):
 
 | Tool | Purpose |
 |------|---------|
