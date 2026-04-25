@@ -1,0 +1,1793 @@
+diff --git a/src/application/interfaces/model_provider.py b/src/application/interfaces/model_provider.py
+index 6de50a0..15fd3df 100644
+--- a/src/application/interfaces/model_provider.py
++++ b/src/application/interfaces/model_provider.py
+@@ -48,7 +48,7 @@ class ModelProvider(ABC):
+         pass
+ 
+     @abstractmethod
+-    async def stream_text(
++    def stream_text(
+         self,
+         messages: List[Dict[str, str]],
+         model_config: ModelConfig,
+diff --git a/src/application/interfaces/story_strategy.py b/src/application/interfaces/story_strategy.py
+index 13e8e43..ad81c42 100644
+--- a/src/application/interfaces/story_strategy.py
++++ b/src/application/interfaces/story_strategy.py
+@@ -1,7 +1,7 @@
+ """Abstract story writing strategy interface."""
+ 
+ from abc import ABC, abstractmethod
+-from typing import List
++from typing import List, Optional
+ from domain.entities.story import Outline, Chapter, StoryInfo
+ from domain.value_objects.generation_settings import GenerationSettings
+ from ..interfaces.model_provider import ModelProvider
+@@ -15,7 +15,10 @@ class StoryStrategy(ABC):
+ 
+     @abstractmethod
+     async def generate_outline(
+-        self, prompt: str, settings: GenerationSettings
++        self,
++        prompt: str,
++        settings: GenerationSettings,
++        prompt_filename: Optional[str] = None,
+     ) -> Outline:
+         """Generate story outline from prompt."""
+         pass
+diff --git a/src/application/services/critique_parser.py b/src/application/services/critique_parser.py
+index 0e6776d..1b7021b 100644
+--- a/src/application/services/critique_parser.py
++++ b/src/application/services/critique_parser.py
+@@ -193,7 +193,7 @@ class CritiqueParser:
+             return {}
+ 
+         # Group scores by criterion
+-        criterion_scores = {}
++        criterion_scores: Dict[str, List[float]] = {}
+         for result in critique_results:
+             for score in result.scores:
+                 if score.criterion not in criterion_scores:
+diff --git a/src/application/services/model_reranker_service.py b/src/application/services/model_reranker_service.py
+index f37efac..4cabb4b 100644
+--- a/src/application/services/model_reranker_service.py
++++ b/src/application/services/model_reranker_service.py
+@@ -200,6 +200,9 @@ class ModelRerankerService:
+     def _run_cross_encoder_inference(self, pairs: List[List[str]]) -> List[float]:
+         """Run cross-encoder inference (runs in thread pool)."""
+         try:
++            if self.model is None:
++                raise RuntimeError("Reranker model not initialized")
++
+             scores = self.model.predict(pairs)
+             # Convert to list if it's a numpy array
+             if hasattr(scores, "tolist"):
+diff --git a/src/application/services/outline_service.py b/src/application/services/outline_service.py
+index 89e1e81..d972846 100644
+--- a/src/application/services/outline_service.py
++++ b/src/application/services/outline_service.py
+@@ -41,7 +41,7 @@ class OutlineService:
+             story_elements = await self._generate_story_elements(prompt, settings)
+ 
+             # Generate initial outline
+-            outline_content = await self._generate_initial_outline(
++            await self._generate_initial_outline(
+                 prompt, story_elements, base_context, settings
+             )
+ 
+diff --git a/src/application/services/story_generation_service.py b/src/application/services/story_generation_service.py
+index 17fe800..2dfaa6e 100644
+--- a/src/application/services/story_generation_service.py
++++ b/src/application/services/story_generation_service.py
+@@ -1,5 +1,6 @@
+ """Main story generation service."""
+ 
++from pathlib import Path
+ from typing import Optional
+ from domain.entities.story import Story
+ from domain.value_objects.generation_settings import GenerationSettings
+@@ -72,11 +73,11 @@ class StoryGenerationService:
+ 
+             # Save markdown version
+             markdown_content = self._format_story_markdown(story)
+-            markdown_path = f"{output_path}.md"
++            markdown_path = Path(f"{output_path}.md")
+             await self.storage.save_file(markdown_path, markdown_content)
+ 
+             # Save JSON version
+-            json_path = f"{output_path}.json"
++            json_path = Path(f"{output_path}.json")
+             await self.storage.save_json(json_path, story.to_dict())
+ 
+             return output_path
+diff --git a/src/application/services/story_info_service.py b/src/application/services/story_info_service.py
+index 46996df..bdda453 100644
+--- a/src/application/services/story_info_service.py
++++ b/src/application/services/story_info_service.py
+@@ -125,7 +125,6 @@ class StoryInfoService:
+             required_attributes=[],
+             seed=settings.seed,
+             debug=settings.debug,
+-            stream=settings.stream,
+         )
+ 
+         # Handle different response formats
+diff --git a/src/application/strategies/outline_chapter/chapter_generator.py b/src/application/strategies/outline_chapter/chapter_generator.py
+index fa49df1..f0a85c4 100644
+--- a/src/application/strategies/outline_chapter/chapter_generator.py
++++ b/src/application/strategies/outline_chapter/chapter_generator.py
+@@ -11,7 +11,10 @@ from domain.exceptions import StoryGenerationError
+ 
+ from application.interfaces.model_provider import ModelProvider
+ from infrastructure.prompts.prompt_handler import PromptHandler
+-from infrastructure.prompts.prompt_wrapper import execute_prompt_with_savepoint
++from infrastructure.prompts.prompt_wrapper import (
++    execute_messages_with_savepoint,
++    execute_prompt_with_savepoint,
++)
+ from infrastructure.savepoints import SavepointManager
+ from .character_manager import CharacterManager
+ from .setting_manager import SettingManager
+@@ -96,7 +99,9 @@ class ChapterGenerator:
+             # Unified workflow: generate outlines, content, and recaps in sequence
+             # First, find existing chapter directories in the savepoint directory
+             chapter_count = 0
+-            story_dir = self.savepoint_manager.savepoint_repo._current_story_dir
++            story_dir = getattr(
++                self.savepoint_manager.savepoint_repo, "_current_story_dir", None
++            )
+ 
+             if story_dir and os.path.exists(story_dir):
+                 for item in os.listdir(story_dir):
+@@ -122,7 +127,7 @@ class ChapterGenerator:
+ 
+                     # Step 1: Generate/load chapter outline
+                     print(f"  Step 1: Checking outline for Chapter {chapter_num}...")
+-                    chapter_outline = None
++                    chapter_outline = ""
+                     try:
+                         if await self.savepoint_manager.has_step(
+                             f"chapter_{chapter_num}/outline"
+@@ -130,8 +135,15 @@ class ChapterGenerator:
+                             print(
+                                 f"  Chapter {chapter_num} outline already exists, loading..."
+                             )
+-                            chapter_outline = await self.savepoint_manager.load_step(
+-                                f"chapter_{chapter_num}/outline"
++                            chapter_outline_raw = (
++                                await self.savepoint_manager.load_step(
++                                    f"chapter_{chapter_num}/outline"
++                                )
++                            )
++                            chapter_outline = (
++                                chapter_outline_raw
++                                if isinstance(chapter_outline_raw, str)
++                                else ""
+                             )
+                         else:
+                             # Verify that this chapter has a synopsis
+@@ -190,6 +202,8 @@ class ChapterGenerator:
+                                 try:
+                                     scene_definitions = json.loads(
+                                         scene_definitions_raw
++                                        if isinstance(scene_definitions_raw, str)
++                                        else "[]"
+                                     )
+ 
+                                     # Validate that we got a list of scene objects
+@@ -248,8 +262,12 @@ class ChapterGenerator:
+ 
+                                     scene = Scene(
+                                         number=scene_num,
+-                                        title=scene_title,
+-                                        content=scene_content,
++                                        title=scene_title
++                                        if isinstance(scene_title, str)
++                                        else "",
++                                        content=scene_content
++                                        if isinstance(scene_content, str)
++                                        else "",
+                                         outline="",
+                                     )
+                                     chapter_scenes.append(scene)
+@@ -311,7 +329,9 @@ class ChapterGenerator:
+                             chapter_scenes = await self.scene_generator.generate_scenes(
+                                 chapter_num=chapter_num,
+                                 chapter_count=chapter_count,
+-                                chapter_outline=chapter_outline_for_scene,
++                                chapter_outline=chapter_outline_for_scene
++                                if isinstance(chapter_outline_for_scene, str)
++                                else "",
+                                 base_context=outline.base_context,
+                                 story_elements=outline.story_elements,
+                                 previous_recap=previous_recap,
+@@ -407,11 +427,16 @@ class ChapterGenerator:
+                             previous_recap = ""
+                             if chapter_num > 1:
+                                 try:
+-                                    previous_recap = (
++                                    previous_recap_raw = (
+                                         await self.savepoint_manager.load_step(
+                                             f"chapter_{chapter_num - 1}/recap"
+                                         )
+                                     )
++                                    previous_recap = (
++                                        previous_recap_raw
++                                        if isinstance(previous_recap_raw, str)
++                                        else ""
++                                    )
+                                 except Exception:
+                                     if settings.debug:
+                                         print(
+@@ -421,12 +446,17 @@ class ChapterGenerator:
+                             # Get story start date from savepoint or use a default
+                             story_start_date = "2024-01-01"  # Default fallback
+                             try:
+-                                story_start_date = (
++                                story_start_date_raw = (
+                                     await self.savepoint_manager.load_step(
+                                         "story_start_date"
+                                     )
+                                 )
+-                            except:
++                                story_start_date = (
++                                    story_start_date_raw
++                                    if isinstance(story_start_date_raw, str)
++                                    else "2024-01-01"
++                                )
++                            except Exception:
+                                 if settings.debug:
+                                     print(
+                                         f"    Using default story start date for chapter {chapter_num}"
+@@ -534,12 +564,15 @@ class ChapterGenerator:
+ 
+         # Get previous chapter recap if available
+         previous_recap = ""
+-        if chapter_num > 1:
++        if chapter_num > 1 and self.savepoint_manager:
+             try:
+-                previous_recap = await self.savepoint_manager.load_step(
++                previous_recap_raw = await self.savepoint_manager.load_step(
+                     f"chapter_{chapter_num - 1}/recap"
+                 )
+-            except:
++                previous_recap = (
++                    previous_recap_raw if isinstance(previous_recap_raw, str) else ""
++                )
++            except Exception:
+                 previous_recap = ""
+ 
+         # Generate the detailed chapter outline
+@@ -564,10 +597,6 @@ class ChapterGenerator:
+         settings: GenerationSettings,
+     ) -> str:
+         """Implementation of chapter outline generation."""
+-        model_config = ModelConfig.from_string(
+-            self.config["models"]["chapter_outline_writer"]
+-        )
+-
+         # First, generate the core outline
+         core_outline = await self._generate_core_outline(
+             chapter_num,
+@@ -643,10 +672,15 @@ class ChapterGenerator:
+         next_chapter_synopsis = ""
+         if self.savepoint_manager:
+             try:
+-                next_chapter_synopsis = await self.savepoint_manager.load_step(
++                next_chapter_synopsis_raw = await self.savepoint_manager.load_step(
+                     f"chapter_{chapter_num + 1}/synopsis"
+                 )
+-            except:
++                next_chapter_synopsis = (
++                    next_chapter_synopsis_raw
++                    if isinstance(next_chapter_synopsis_raw, str)
++                    else ""
++                )
++            except Exception:
+                 if settings.debug:
+                     print(
+                         f"[OUTLINE GENERATION] Could not load next chapter synopsis for chapter {chapter_num}"
+@@ -656,10 +690,15 @@ class ChapterGenerator:
+         previous_chapter_outline = ""
+         if chapter_num > 1 and self.savepoint_manager:
+             try:
+-                previous_chapter_outline = await self.savepoint_manager.load_step(
++                previous_chapter_outline_raw = await self.savepoint_manager.load_step(
+                     f"chapter_{chapter_num - 1}/outline"
+                 )
+-            except:
++                previous_chapter_outline = (
++                    previous_chapter_outline_raw
++                    if isinstance(previous_chapter_outline_raw, str)
++                    else ""
++                )
++            except Exception:
+                 if settings.debug:
+                     print(
+                         f"[OUTLINE GENERATION] Could not load previous chapter outline for chapter {chapter_num}"
+@@ -670,10 +709,15 @@ class ChapterGenerator:
+         setting_context = ""
+         if self.savepoint_manager:
+             try:
+-                character_context = await self.savepoint_manager.load_step(
++                character_context_raw = await self.savepoint_manager.load_step(
+                     f"chapter_{chapter_num}/characters_abridged"
+                 )
+-            except:
++                character_context = (
++                    character_context_raw
++                    if isinstance(character_context_raw, str)
++                    else ""
++                )
++            except Exception:
+                 if settings.debug:
+                     print(
+                         f"[OUTLINE GENERATION] Could not load abridged character summary for chapter {chapter_num}"
+@@ -682,10 +726,13 @@ class ChapterGenerator:
+ 
+         if self.savepoint_manager:
+             try:
+-                setting_context = await self.savepoint_manager.load_step(
++                setting_context_raw = await self.savepoint_manager.load_step(
+                     f"chapter_{chapter_num}/settings_abridged"
+                 )
+-            except:
++                setting_context = (
++                    setting_context_raw if isinstance(setting_context_raw, str) else ""
++                )
++            except Exception:
+                 if settings.debug:
+                     print(
+                         f"[OUTLINE GENERATION] Could not load abridged setting summary for chapter {chapter_num}"
+@@ -919,11 +966,15 @@ class ChapterGenerator:
+         if chapter_num >= total_chapters:
+             return ""
+ 
++        if self.savepoint_manager is None:
++            return ""
++
+         try:
+-            return await self.savepoint_manager.load_step(
++            synopsis = await self.savepoint_manager.load_step(
+                 f"chapter_{chapter_num + 1}/synopsis"
+             )
+-        except:
++            return synopsis if isinstance(synopsis, str) else ""
++        except Exception:
+             return ""
+ 
+     async def _generate_chapter_content(
+@@ -1010,7 +1061,7 @@ class ChapterGenerator:
+         )
+ 
+         # Step 2: Generate synopsis for each chapter
+-        synopses = []
++        synopses: List[str] = []
+         for chapter_data in chapter_list:
+             chapter_num = chapter_data.get("number", len(synopses) + 1)
+             chapter_title = chapter_data.get("title", f"Chapter {chapter_num}")
+@@ -1152,10 +1203,15 @@ class ChapterGenerator:
+         previous_chapter = ""
+         if chapter_num > 1 and self.savepoint_manager:
+             try:
+-                previous_chapter = await self.savepoint_manager.load_step(
++                previous_chapter_raw = await self.savepoint_manager.load_step(
+                     f"chapter_{chapter_num - 1}/synopsis"
+                 )
+-            except:
++                previous_chapter = (
++                    previous_chapter_raw
++                    if isinstance(previous_chapter_raw, str)
++                    else ""
++                )
++            except Exception:
+                 if settings.debug:
+                     print(
+                         f"[CHAPTER SYNOPSES] Could not load previous chapter synopsis for chapter {chapter_num}"
+@@ -1172,7 +1228,7 @@ class ChapterGenerator:
+         )
+         conversation_history.append({"role": "user", "content": storyline_prompt})
+ 
+-        response = await execute_prompt_with_savepoint(
++        response = await execute_messages_with_savepoint(
+             handler=self.prompt_handler,
+             conversation_history=conversation_history,
+             savepoint_id=f"chapter_{chapter_num}_step1_storyline",
+@@ -1191,7 +1247,7 @@ class ChapterGenerator:
+         )
+         conversation_history.append({"role": "user", "content": base_context_prompt})
+ 
+-        response = await execute_prompt_with_savepoint(
++        response = await execute_messages_with_savepoint(
+             handler=self.prompt_handler,
+             conversation_history=conversation_history,
+             model_config=model_config,
+@@ -1209,7 +1265,7 @@ class ChapterGenerator:
+         )
+         conversation_history.append({"role": "user", "content": outline_prompt})
+ 
+-        response = await execute_prompt_with_savepoint(
++        response = await execute_messages_with_savepoint(
+             handler=self.prompt_handler,
+             conversation_history=conversation_history,
+             model_config=model_config,
+@@ -1233,7 +1289,7 @@ class ChapterGenerator:
+         )
+         conversation_history.append({"role": "user", "content": character_prompt})
+ 
+-        response = await execute_prompt_with_savepoint(
++        response = await execute_messages_with_savepoint(
+             handler=self.prompt_handler,
+             conversation_history=conversation_history,
+             model_config=model_config,
+@@ -1257,7 +1313,7 @@ class ChapterGenerator:
+         )
+         conversation_history.append({"role": "user", "content": setting_prompt})
+ 
+-        response = await execute_prompt_with_savepoint(
++        response = await execute_messages_with_savepoint(
+             handler=self.prompt_handler,
+             conversation_history=conversation_history,
+             model_config=model_config,
+@@ -1278,7 +1334,7 @@ class ChapterGenerator:
+                 {"role": "user", "content": previous_chapter_prompt}
+             )
+ 
+-            response = await execute_prompt_with_savepoint(
++            response = await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation_history,
+                 model_config=model_config,
+@@ -1300,7 +1356,7 @@ class ChapterGenerator:
+         )
+         conversation_history.append({"role": "user", "content": synopsis_prompt})
+ 
+-        response = await execute_prompt_with_savepoint(
++        response = await execute_messages_with_savepoint(
+             handler=self.prompt_handler,
+             conversation_history=conversation_history,
+             savepoint_id=f"chapter_{chapter_num}/synopsis",
+@@ -1315,9 +1371,9 @@ class ChapterGenerator:
+         self, combined_outline: str
+     ) -> List[Dict[str, Any]]:
+         """Fallback method to extract chapters when JSON parsing fails."""
+-        chapters = []
++        chapters: List[Dict[str, Any]] = []
+         lines = combined_outline.split("\n")
+-        current_chapter = None
++        current_chapter: Optional[Dict[str, Any]] = None
+ 
+         for line in lines:
+             line = line.strip()
+diff --git a/src/application/strategies/outline_chapter/character_manager.py b/src/application/strategies/outline_chapter/character_manager.py
+index d24721a..b2551eb 100644
+--- a/src/application/strategies/outline_chapter/character_manager.py
++++ b/src/application/strategies/outline_chapter/character_manager.py
+@@ -272,7 +272,7 @@ class CharacterManager:
+ 
+             conversation.append({"role": "user", "content": personality_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"characters/{character_name}/personality_chunk",
+@@ -352,7 +352,7 @@ class CharacterManager:
+ 
+             conversation.append({"role": "user", "content": background_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"characters/{character_name}/background_chunk",
+@@ -398,7 +398,7 @@ class CharacterManager:
+ 
+             conversation.append({"role": "user", "content": motivations_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"characters/{character_name}/motivations_chunk",
+@@ -444,7 +444,7 @@ class CharacterManager:
+ 
+             conversation.append({"role": "user", "content": relationships_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"characters/{character_name}/relationships_chunk",
+@@ -490,7 +490,7 @@ class CharacterManager:
+ 
+             conversation.append({"role": "user", "content": skills_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"characters/{character_name}/skills_chunk",
+@@ -532,7 +532,7 @@ class CharacterManager:
+ 
+             conversation.append({"role": "user", "content": current_state_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"characters/{character_name}/current_state_chunk",
+@@ -578,7 +578,7 @@ class CharacterManager:
+ 
+             conversation.append({"role": "user", "content": growth_arc_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"characters/{character_name}/growth_arc_chunk",
+@@ -781,7 +781,7 @@ class CharacterManager:
+                 sheet_key = f"characters/{character_name}/sheet"
+                 sheet_content = await self.savepoint_manager.load_step(sheet_key)
+                 character_sheets.append(f"=== {character_name} ===\n{sheet_content}")
+-            except:
++            except Exception:
+                 if settings.debug:
+                     print(
+                         f"[CHARACTER SHEETS] Could not load sheet for {character_name}"
+@@ -806,8 +806,11 @@ class CharacterManager:
+                 sheet_key = f"characters/{character_name}/sheet"
+                 existing_sheet = ""
+                 try:
+-                    existing_sheet = await self.savepoint_manager.load_step(sheet_key)
+-                except:
++                    loaded_sheet = await self.savepoint_manager.load_step(sheet_key)
++                    existing_sheet = (
++                        loaded_sheet if isinstance(loaded_sheet, str) else ""
++                    )
++                except Exception:
+                     if settings.debug:
+                         print(
+                             f"[CHARACTER UPDATE] No existing sheet for {character_name}, trying personality chunk as fallback"
+@@ -817,14 +820,17 @@ class CharacterManager:
+                             personality_key = (
+                                 f"characters/{character_name}/personality_chunk"
+                             )
+-                            existing_sheet = await self.savepoint_manager.load_step(
++                            loaded_sheet = await self.savepoint_manager.load_step(
+                                 personality_key
+                             )
++                            existing_sheet = (
++                                loaded_sheet if isinstance(loaded_sheet, str) else ""
++                            )
+                             if settings.debug:
+                                 print(
+                                     f"[CHARACTER UPDATE] Using personality chunk for {character_name}"
+                                 )
+-                        except:
++                        except Exception:
+                             if settings.debug:
+                                 print(
+                                     f"[CHARACTER UPDATE] No personality chunk either for {character_name}"
+@@ -836,7 +842,7 @@ class CharacterManager:
+                     self.config["models"]["initial_outline_writer"]
+                 )
+ 
+-                response = await execute_prompt_with_savepoint(
++                await execute_prompt_with_savepoint(
+                     handler=self.prompt_handler,
+                     prompt_id="characters/update",
+                     variables={
+diff --git a/src/application/strategies/outline_chapter/outline_generator.py b/src/application/strategies/outline_chapter/outline_generator.py
+index 9c353cb..d6193aa 100644
+--- a/src/application/strategies/outline_chapter/outline_generator.py
++++ b/src/application/strategies/outline_chapter/outline_generator.py
+@@ -2,25 +2,25 @@
+ 
+ import logging
+ from typing import Any, Dict, Optional
++
++from application.interfaces.model_provider import ModelProvider
+ from domain.entities.story import Outline
++from domain.exceptions import StoryGenerationError
+ from domain.value_objects.generation_settings import GenerationSettings
+ from domain.value_objects.model_config import ModelConfig
+-from domain.exceptions import StoryGenerationError
+-
+-logger = logging.getLogger(__name__)
+-
+-from application.interfaces.model_provider import ModelProvider
+ from infrastructure.prompts.prompt_handler import PromptHandler
+ from infrastructure.prompts.prompt_wrapper import (
+     execute_messages_with_savepoint,
+     execute_prompt_with_savepoint,
+ )
+ from infrastructure.savepoints import SavepointManager
++from .chapter_generator import ChapterGenerator
+ from .character_manager import CharacterManager
+ from .setting_manager import SettingManager
+-from .chapter_generator import ChapterGenerator
+ from .story_state_manager import StoryStateManager
+ 
++logger = logging.getLogger(__name__)
++
+ 
+ class OutlineGenerator:
+     """Handles outline generation functionality."""
+@@ -128,6 +128,10 @@ class OutlineGenerator:
+                 story_analysis, settings
+             )
+ 
++            # This path builds context and elements but does not generate a monolithic
++            # initial outline string, so keep the field explicit.
++            initial_outline = None
++
+             # Generate character sheets with RAG integration
+             await self.character_manager.generate_character_sheets(
+                 story_elements, base_context, settings
+diff --git a/src/application/strategies/outline_chapter/recap_manager.py b/src/application/strategies/outline_chapter/recap_manager.py
+index e868a5d..b81b998 100644
+--- a/src/application/strategies/outline_chapter/recap_manager.py
++++ b/src/application/strategies/outline_chapter/recap_manager.py
+@@ -38,12 +38,16 @@ class RecapManager:
+         if chapter_num <= 1:
+             return ""
+ 
++        if self.savepoint_manager is None:
++            return ""
++
+         try:
+             # Try to load existing recap from savepoint
+-            return await self.savepoint_manager.load_step(
++            recap = await self.savepoint_manager.load_step(
+                 f"chapter_{chapter_num - 1}/recap"
+             )
+-        except:
++            return recap if isinstance(recap, str) else ""
++        except Exception:
+             if settings.debug:
+                 print(
+                     f"[RECAP LOAD] No previous recap found in savepoint for chapter {chapter_num - 1}"
+@@ -422,7 +426,7 @@ class RecapManager:
+             # The content should now be a clean JSON string that we can parse
+             try:
+                 # Validate the parsed JSON
+-                recap_data = json.loads(response.content.strip())
++                json.loads(response.content.strip())
+                 if settings.debug:
+                     print(
+                         "[RECAP FORMAT] Successfully parsed formatted recap from JSON"
+@@ -446,8 +450,6 @@ class RecapManager:
+         settings: GenerationSettings,
+     ) -> str:
+         """Fallback recap generation method."""
+-        model_config = ModelConfig.from_string(self.config["models"]["chapter_writer"])
+-
+         # Since we're always loading from savepoints now, this fallback function is no longer needed
+         # The recap should already exist in the savepoint from when the chapter was created
+         if settings.debug:
+@@ -456,27 +458,17 @@ class RecapManager:
+         try:
+             # Try to load the existing recap from savepoint
+             if self.savepoint_manager:
+-                return await self.savepoint_manager.load_step(
++                recap = await self.savepoint_manager.load_step(
+                     f"chapter_{chapter_num}/recap"
+                 )
++                return recap if isinstance(recap, str) else ""
+             else:
+                 return ""
+-        except:
++        except Exception:
+             if settings.debug:
+                 print("[RECAP FALLBACK] No existing recap found in savepoint")
+             return ""
+ 
+-        # Ensure the response is valid JSON
+-        try:
+-            # Try to parse as JSON to validate
+-            json.loads(response.content.strip())
+-            return response.content.strip()
+-        except json.JSONDecodeError:
+-            if settings.debug:
+-                print("[RECAP FALLBACK] Invalid JSON response, attempting to sanitize")
+-            # Try to sanitize the response to extract JSON
+-            return await self.sanitize_json_response(response.content.strip())
+-
+     async def run_recap_sanitizer(
+         self,
+         recap: str,
+@@ -721,10 +713,10 @@ class RecapManager:
+             # Parse current date
+             try:
+                 current_dt = datetime.strptime(current_date, "%Y-%m-%d")
+-            except:
++            except Exception:
+                 try:
+                     current_dt = datetime.strptime(current_date, "%m/%d/%Y")
+-                except:
++                except Exception:
+                     # Fallback - just return original
+                     return events_json
+ 
+@@ -734,10 +726,10 @@ class RecapManager:
+ 
+                 try:
+                     event_dt = datetime.strptime(event_date_str, "%Y-%m-%d")
+-                except:
++                except Exception:
+                     try:
+                         event_dt = datetime.strptime(event_date_str, "%m/%d/%Y")
+-                    except:
++                    except Exception:
+                         event_dt = current_dt  # Fallback
+ 
+                 # Calculate days difference
+@@ -851,7 +843,7 @@ class RecapManager:
+             # The content should now be a clean JSON string that we can parse
+             try:
+                 # Validate the parsed JSON
+-                events_data = json.loads(response.content.strip())
++                json.loads(response.content.strip())
+                 if settings.debug:
+                     print(
+                         "[EVENT CLASSIFICATION] Successfully parsed classified events from JSON"
+@@ -980,7 +972,7 @@ class RecapManager:
+             # The content should now be a clean JSON string that we can parse
+             try:
+                 # Validate the parsed JSON
+-                recap_data = json.loads(response.content.strip())
++                json.loads(response.content.strip())
+                 if settings.debug:
+                     print(
+                         "[RECAP COMPACTION] Successfully parsed compacted recap from JSON"
+@@ -1011,10 +1003,10 @@ class RecapManager:
+             # Parse current date
+             try:
+                 current_dt = datetime.strptime(current_date, "%Y-%m-%d")
+-            except:
++            except Exception:
+                 try:
+                     current_dt = datetime.strptime(current_date, "%m/%d/%Y")
+-                except:
++                except Exception:
+                     return recap  # Fallback if date parsing fails
+ 
+             # Get max age from settings or use default
+@@ -1085,10 +1077,10 @@ class RecapManager:
+             # Parse event date
+             try:
+                 event_dt = datetime.strptime(event_date_str, "%Y-%m-%d")
+-            except:
++            except Exception:
+                 try:
+                     event_dt = datetime.strptime(event_date_str, "%m/%d/%Y")
+-                except:
++                except Exception:
+                     return True  # Keep high importance events with unparseable dates
+ 
+             # Calculate age in days
+diff --git a/src/application/strategies/outline_chapter/scene_generator.py b/src/application/strategies/outline_chapter/scene_generator.py
+index 6e478a3..153a9b4 100644
+--- a/src/application/strategies/outline_chapter/scene_generator.py
++++ b/src/application/strategies/outline_chapter/scene_generator.py
+@@ -117,20 +117,29 @@ class SceneGenerator:
+ 
+                         scene = Scene(
+                             number=scene_num,
+-                            title=scene_title,
+-                            content=scene_content,
++                            title=scene_title if isinstance(scene_title, str) else "",
++                            content=scene_content
++                            if isinstance(scene_content, str)
++                            else "",
+                             outline=scene_def.get("description", ""),
+                         )
+                         scenes.append(scene)
+                         continue
+ 
+-                    previous_scene = scenes[-1].content if scenes else None
++                    previous_scene = scenes[-1].content if scenes else ""
+ 
+-                    previous_scene_summary = None
++                    previous_scene_summary = ""
+                     # If the scene number is > 1, get the previous scene summary
+                     if scene_num > 1:
+-                        previous_scene_summary = await self.savepoint_manager.load_step(
+-                            f"chapter_{chapter_num}/scene_{scene_num - 1}_summary"
++                        previous_scene_summary_raw = (
++                            await self.savepoint_manager.load_step(
++                                f"chapter_{chapter_num}/scene_{scene_num - 1}_summary"
++                            )
++                        )
++                        previous_scene_summary = (
++                            previous_scene_summary_raw
++                            if isinstance(previous_scene_summary_raw, str)
++                            else ""
+                         )
+                         if not previous_scene_summary:
+                             previous_scene_summary = await self._extract_scene_events(
+@@ -140,7 +149,7 @@ class SceneGenerator:
+                                 settings=settings,
+                             )
+ 
+-                    scene_def_string = json.dumps(scene_def) if scene_def else None
++                    scene_def_string = json.dumps(scene_def) if scene_def else ""
+ 
+                     # If we are not at the last scene, set the next chapter synopsis to empty
+                     if scene_num < len(scene_definitions):
+@@ -155,7 +164,7 @@ class SceneGenerator:
+                     next_scene_definition_string = (
+                         json.dumps(next_scene_definition)
+                         if next_scene_definition
+-                        else None
++                        else ""
+                     )
+ 
+                     # Generate scene content
+@@ -399,7 +408,7 @@ class SceneGenerator:
+         scene_num: int,
+         scene_definition: str,
+         tense: str = "present",
+-        settings: GenerationSettings = None,
++        settings: Optional[GenerationSettings] = None,
+     ) -> str:
+         """
+         Get a natural language summary of a scene outline from its JSON definition.
+@@ -447,7 +456,7 @@ class SceneGenerator:
+             return f"Error generating scene summary: {e}"
+ 
+     async def _get_scene_outline_summary_programmatic(
+-        self, scene_definition: str, settings: GenerationSettings = None
++        self, scene_definition: str, settings: Optional[GenerationSettings] = None
+     ) -> str:
+         """
+         Get a natural language summary of a scene outline programmatically from its JSON definition.
+@@ -556,7 +565,7 @@ class SceneGenerator:
+         chapter_num: int,
+         chapter_outline: str,
+         tense: str = "present",
+-        settings: GenerationSettings = None,
++        settings: Optional[GenerationSettings] = None,
+     ) -> str:
+         """
+         Get a natural language summary of a chapter outline.
+@@ -776,7 +785,7 @@ class SceneGenerator:
+                 settings=settings,
+             )
+ 
+-        if scene_num == chapter_count or scene_num != 1:
++        if self.savepoint_manager and (scene_num == chapter_count or scene_num != 1):
+             previous_scene_summary = await self.savepoint_manager.load_step(
+                 f"chapter_{chapter_num}/scene_{scene_num - 1}_multistep_content"
+             )
+diff --git a/src/application/strategies/outline_chapter/setting_manager.py b/src/application/strategies/outline_chapter/setting_manager.py
+index 6ce45fa..d948d1c 100644
+--- a/src/application/strategies/outline_chapter/setting_manager.py
++++ b/src/application/strategies/outline_chapter/setting_manager.py
+@@ -276,7 +276,7 @@ class SettingManager:
+                 {"role": "user", "content": physical_description_prompt}
+             )
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"settings/{setting_name}/physical_description_chunk",
+@@ -361,7 +361,7 @@ class SettingManager:
+ 
+             conversation.append({"role": "user", "content": history_background_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"settings/{setting_name}/history_background_chunk",
+@@ -412,7 +412,7 @@ class SettingManager:
+ 
+             conversation.append({"role": "user", "content": function_purpose_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"settings/{setting_name}/function_purpose_chunk",
+@@ -463,7 +463,7 @@ class SettingManager:
+ 
+             conversation.append({"role": "user", "content": atmosphere_mood_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"settings/{setting_name}/atmosphere_mood_chunk",
+@@ -514,7 +514,7 @@ class SettingManager:
+ 
+             conversation.append({"role": "user", "content": rules_constraints_prompt})
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"settings/{setting_name}/rules_constraints_chunk",
+@@ -569,7 +569,7 @@ class SettingManager:
+                 {"role": "user", "content": connections_relationships_prompt}
+             )
+ 
+-            response = await execute_messages_with_savepoint(
++            await execute_messages_with_savepoint(
+                 handler=self.prompt_handler,
+                 conversation_history=conversation,
+                 savepoint_id=f"settings/{setting_name}/connections_relationships_chunk",
+@@ -772,7 +772,7 @@ class SettingManager:
+                 sheet_key = f"settings/{setting_name}/sheet"
+                 sheet_content = await self.savepoint_manager.load_step(sheet_key)
+                 setting_sheets.append(f"=== {setting_name} ===\n{sheet_content}")
+-            except:
++            except Exception:
+                 if settings.debug:
+                     print(f"[SETTING SHEETS] Could not load sheet for {setting_name}")
+ 
+@@ -795,8 +795,11 @@ class SettingManager:
+                 sheet_key = f"settings/{setting_name}/sheet"
+                 existing_sheet = ""
+                 try:
+-                    existing_sheet = await self.savepoint_manager.load_step(sheet_key)
+-                except:
++                    loaded_sheet = await self.savepoint_manager.load_step(sheet_key)
++                    existing_sheet = (
++                        loaded_sheet if isinstance(loaded_sheet, str) else ""
++                    )
++                except Exception:
+                     if settings.debug:
+                         print(
+                             f"[SETTING UPDATE] No existing sheet for {setting_name}, trying physical description chunk"
+@@ -806,14 +809,17 @@ class SettingManager:
+                             physical_key = (
+                                 f"settings/{setting_name}/physical_description_chunk"
+                             )
+-                            existing_sheet = await self.savepoint_manager.load_step(
++                            loaded_sheet = await self.savepoint_manager.load_step(
+                                 physical_key
+                             )
++                            existing_sheet = (
++                                loaded_sheet if isinstance(loaded_sheet, str) else ""
++                            )
+                             if settings.debug:
+                                 print(
+                                     f"[SETTING UPDATE] Using physical description chunk for {setting_name}"
+                                 )
+-                        except:
++                        except Exception:
+                             if settings.debug:
+                                 print(
+                                     f"[SETTING UPDATE] No physical description chunk either for {setting_name}"
+@@ -825,7 +831,7 @@ class SettingManager:
+                     self.config["models"]["initial_outline_writer"]
+                 )
+ 
+-                response = await execute_prompt_with_savepoint(
++                await execute_prompt_with_savepoint(
+                     handler=self.prompt_handler,
+                     prompt_id="settings/update",
+                     variables={
+diff --git a/src/application/strategies/outline_chapter/story_state_manager.py b/src/application/strategies/outline_chapter/story_state_manager.py
+index c8d0fb6..4abf230 100644
+--- a/src/application/strategies/outline_chapter/story_state_manager.py
++++ b/src/application/strategies/outline_chapter/story_state_manager.py
+@@ -112,7 +112,9 @@ class StoryStateManager:
+     def set_story_directory(self, story_name: str) -> None:
+         """Set the story directory for state persistence."""
+         if self.savepoint_manager and self.savepoint_manager.savepoint_repo:
+-            story_dir = self.savepoint_manager.savepoint_repo._current_story_dir
++            story_dir = getattr(
++                self.savepoint_manager.savepoint_repo, "_current_story_dir", None
++            )
+             if story_dir:
+                 self.state_file_path = os.path.join(story_dir, "story_state.json")
+                 self._load_state()
+@@ -197,8 +199,6 @@ class StoryStateManager:
+         self, chapter_num: int, settings: GenerationSettings
+     ) -> None:
+         """Analyze how the chapter affects story evolution using RAG interrogation."""
+-        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
+-
+         # Use RAG to interrogate the chapter instead of reading full content
+         evolution_data = await self._analyze_chapter_evolution_rag(
+             chapter_num, settings
+@@ -370,6 +370,9 @@ class StoryStateManager:
+ 
+     def _prepare_planning_context(self) -> str:
+         """Prepare context information for chapter planning."""
++        if self.story_context is None:
++            return "Story context not initialized."
++
+         context_parts = [
+             f"Story Direction: {self.story_context.story_direction}",
+             f"Current Themes: {', '.join(self.story_context.current_themes)}",
+@@ -488,7 +491,7 @@ class StoryStateManager:
+     ) -> Dict[str, Any]:
+         """Parse the response from chapter planning prompt."""
+         lines = response.strip().split("\n")
+-        chapter_data = {
++        chapter_data: Dict[str, Any] = {
+             "chapter_number": chapter_num,
+             "title": f"Chapter {chapter_num}",
+             "status": "planned",
+@@ -550,7 +553,7 @@ class StoryStateManager:
+     def _parse_evolution_response(self, response: str) -> Dict[str, Any]:
+         """Parse the response from evolution analysis prompt."""
+         # Simplified parser - in practice, you'd want more robust parsing
+-        evolution_data = {
++        evolution_data: Dict[str, Any] = {
+             "character_updates": [],
+             "plot_advancements": [],
+             "new_themes": [],
+@@ -588,7 +591,7 @@ class StoryStateManager:
+ 
+     def _parse_revision_response(self, response: str) -> Dict[str, Any]:
+         """Parse the response from chapter revision prompt."""
+-        revision_data = {
++        revision_data: Dict[str, Any] = {
+             "updated_content": "",
+             "new_events": [],
+             "character_updates": [],
+@@ -654,7 +657,7 @@ class StoryStateManager:
+         self.story_evolution.append(evolution_summary.strip())
+ 
+         # Update story context
+-        if evolution_data["new_themes"]:
++        if self.story_context is not None and evolution_data["new_themes"]:
+             self.story_context.current_themes.extend(evolution_data["new_themes"])
+ 
+         # Update characters (simplified - in practice, you'd want more sophisticated character tracking)
+diff --git a/src/application/strategies/outline_chapter/strategy.py b/src/application/strategies/outline_chapter/strategy.py
+index 34f861f..a533031 100644
+--- a/src/application/strategies/outline_chapter/strategy.py
++++ b/src/application/strategies/outline_chapter/strategy.py
+@@ -358,9 +358,9 @@ You have deep knowledge of storytelling techniques, character development, plot
+             from domain.entities.story import Chapter
+ 
+             chapter = Chapter(
++                number=chapter_plan["chapter_number"],
+                 title=chapter_plan["title"],
+                 content=chapter_plan["planned_content"],
+-                chapter_number=chapter_plan["chapter_number"],
+             )
+ 
+             # Use ChapterGenerator to enhance the chapter content if needed
+@@ -368,16 +368,14 @@ You have deep knowledge of storytelling techniques, character development, plot
+             # For now, we'll use the planned content directly
+             if settings.debug:
+                 print(
+-                    f"[PROGRESSIVE STORY] Chapter {chapter.chapter_number} generated from plan"
++                    f"[PROGRESSIVE STORY] Chapter {chapter.number} generated from plan"
+                 )
+                 print(f"   Title: {chapter.title}")
+                 print(f"   Content length: {len(chapter.content)} characters")
+ 
+             # Update the chapter state in StoryStateManager
+-            if chapter.chapter_number in self.story_state_manager.chapters:
+-                chapter_state = self.story_state_manager.chapters[
+-                    chapter.chapter_number
+-                ]
++            if chapter.number in self.story_state_manager.chapters:
++                chapter_state = self.story_state_manager.chapters[chapter.number]
+                 chapter_state.actual_content = chapter.content
+                 chapter_state.status = "completed"
+                 chapter_state.updated_at = datetime.now()
+@@ -544,4 +542,5 @@ You have deep knowledge of storytelling techniques, character development, plot
+             system_message=self.system_message,
+         )
+ 
+-        return response.content.strip()
++        content = response.content.strip()
++        return [content] if content else []
+diff --git a/src/application/strategies/strategy_factory.py b/src/application/strategies/strategy_factory.py
+index 0a363c1..8f539ae 100644
+--- a/src/application/strategies/strategy_factory.py
++++ b/src/application/strategies/strategy_factory.py
+@@ -1,6 +1,6 @@
+ """Strategy factory for managing story writing strategies."""
+ 
+-from typing import Any, Dict, Optional, Type
++from typing import Any, Dict, Optional
+ from domain.exceptions import ConfigurationError
+ from domain.repositories.savepoint_repository import SavepointRepository
+ from ..interfaces.story_strategy import StoryStrategy
+@@ -14,7 +14,7 @@ class StrategyFactory:
+     """Factory for creating and managing story writing strategies."""
+ 
+     def __init__(self):
+-        self._strategies: Dict[str, Type[StoryStrategy]] = {}
++        self._strategies: Dict[str, Any] = {}
+         self._register_default_strategies()
+ 
+     def _register_default_strategies(self):
+@@ -22,7 +22,7 @@ class StrategyFactory:
+         self.register_strategy("outline-chapter", OutlineChapterStrategy)
+         self.register_strategy("stream-of-consciousness", StreamOfConsciousnessStrategy)
+ 
+-    def register_strategy(self, name: str, strategy_class: Type[StoryStrategy]):
++    def register_strategy(self, name: str, strategy_class: Any):
+         """Register a new strategy."""
+         self._strategies[name] = strategy_class
+ 
+@@ -121,7 +121,8 @@ class StrategyFactory:
+             # Check if all required models are configured
+             for model_name in required_models:
+                 try:
+-                    config.get_model(model_name)
++                    if model_name not in config.get("models", {}):
++                        return False
+                 except Exception:
+                     return False
+ 
+diff --git a/src/application/strategies/stream_of_consciousness/strategy.py b/src/application/strategies/stream_of_consciousness/strategy.py
+index 8885e83..491a1af 100644
+--- a/src/application/strategies/stream_of_consciousness/strategy.py
++++ b/src/application/strategies/stream_of_consciousness/strategy.py
+@@ -1,6 +1,6 @@
+ """Stream of Consciousness story writing strategy."""
+ 
+-from typing import List, Dict, Any
++from typing import List, Dict, Any, Optional
+ from domain.entities.story import Outline, Chapter, StoryInfo
+ from domain.value_objects.generation_settings import GenerationSettings
+ from domain.value_objects.model_config import ModelConfig
+@@ -12,16 +12,27 @@ from application.interfaces.model_provider import ModelProvider
+ class StreamOfConsciousnessStrategy(StoryStrategy):
+     """Story writing strategy that generates content in a stream-of-consciousness style."""
+ 
+-    def __init__(self, model_provider: ModelProvider, config: Dict[str, Any] = None):
++    def __init__(
++        self,
++        model_provider: ModelProvider,
++        config: Optional[Dict[str, Any]] = None,
++    ):
+         super().__init__(model_provider)
+-        self.config = config
++        self.config = config or {}
+         # Create strategy-specific prompt loader
+         from infrastructure.prompts.prompt_loader import PromptLoader
+ 
+         self.prompt_loader = PromptLoader(prompts_dir=self.get_prompt_directory())
+ 
++    def _get_model_config(self, model_key: str) -> ModelConfig:
++        """Resolve a configured model for this strategy."""
++        return ModelConfig.from_string(self.config["models"][model_key])
++
+     async def generate_outline(
+-        self, prompt: str, settings: GenerationSettings
++        self,
++        prompt: str,
++        settings: GenerationSettings,
++        prompt_filename: Optional[str] = None,
+     ) -> Outline:
+         """Generate a minimal outline for stream-of-consciousness writing."""
+         # Load outline prompt
+@@ -31,20 +42,14 @@ class StreamOfConsciousnessStrategy(StoryStrategy):
+ 
+         messages = [{"role": "user", "content": outline_prompt}]
+ 
+-        response = await self.model_provider.generate_text(
++        await self.model_provider.generate_text(
+             messages=messages,
+-            model_config=ModelConfig.from_string(
+-                self.config["models"]["initial_outline_writer"]
+-            )
+-            if self.config
+-            else None,
++            model_config=self._get_model_config("initial_outline_writer"),
+             seed=settings.seed,
+             debug=settings.debug,
+             stream=settings.stream,
+         )
+ 
+-        outline_content = response.strip()
+-
+         return Outline(
+             story_elements="Stream of consciousness narrative",
+             base_context=prompt,
+@@ -64,11 +69,7 @@ class StreamOfConsciousnessStrategy(StoryStrategy):
+ 
+         response = await self.model_provider.generate_text(
+             messages=messages,
+-            model_config=ModelConfig.from_string(
+-                self.config["models"]["initial_outline_writer"]
+-            )
+-            if self.config
+-            else None,
++            model_config=self._get_model_config("initial_outline_writer"),
+             seed=settings.seed,
+             min_word_count=2000,
+             debug=settings.debug,
+@@ -107,9 +108,7 @@ class StreamOfConsciousnessStrategy(StoryStrategy):
+ 
+         title_response = await self.model_provider.generate_text(
+             messages=messages,
+-            model_config=ModelConfig.from_string(self.config["models"]["info_model"])
+-            if self.config
+-            else None,
++            model_config=self._get_model_config("info_model"),
+             seed=settings.seed,
+             debug=settings.debug,
+             stream=settings.stream,
+diff --git a/src/config/config_loader.py b/src/config/config_loader.py
+index 72b77b1..ce055a6 100644
+--- a/src/config/config_loader.py
++++ b/src/config/config_loader.py
+@@ -81,7 +81,9 @@ class ConfigLoader:
+                         "logs_dir": infrastructure.get("logs_dir", "Logs"),
+                         "model_api_base": _normalize_model_api_base(
+                             model_api_base
+-                            or os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1")
++                            or os.environ.get(
++                                "LLM_API_BASE", "http://127.0.0.1:1234/v1"
++                            )
+                         ),
+                         "context_length": infrastructure.get("context_length", 4096),
+                         "randomize_seed": infrastructure.get("randomize_seed", True),
+diff --git a/src/config/rag_config.py b/src/config/rag_config.py
+index 33eeb8c..d49855d 100644
+--- a/src/config/rag_config.py
++++ b/src/config/rag_config.py
+@@ -31,7 +31,7 @@ def _parse_embedding_model_uri(embedding_model: str) -> Tuple[Optional[str], str
+     """Parse embedding model URI into optional host and model name."""
+     scheme = "openai-compat://"
+     if embedding_model.startswith(scheme):
+-        remainder = embedding_model[len(scheme):]
++        remainder = embedding_model[len(scheme) :]
+         if "/" in remainder:
+             candidate_host, model_name = remainder.split("/", 1)
+             if ":" in candidate_host:
+diff --git a/src/infrastructure/logging/structured_logger.py b/src/infrastructure/logging/structured_logger.py
+index 9832d54..a4e843b 100644
+--- a/src/infrastructure/logging/structured_logger.py
++++ b/src/infrastructure/logging/structured_logger.py
+@@ -120,6 +120,9 @@ class StructuredLogger:
+     async def _write_to_file(self, log_entry: Dict[str, Any]):
+         """Write log entry to file asynchronously."""
+         try:
++            if self.log_file is None:
++                return
++
+             log_line = json.dumps(log_entry) + "\n"
+ 
+             await asyncio.to_thread(self._append_to_file, self.log_file, log_line)
+diff --git a/src/infrastructure/prompts/prompt_wrapper.py b/src/infrastructure/prompts/prompt_wrapper.py
+index ee0c023..e51ef42 100644
+--- a/src/infrastructure/prompts/prompt_wrapper.py
++++ b/src/infrastructure/prompts/prompt_wrapper.py
+@@ -1,6 +1,9 @@
+ """Simple wrapper functions for prompt execution with savepoint management."""
+ 
++import json
++
+ from typing import Dict, Any, Optional
++from domain.exceptions import StoryGenerationError
+ from domain.value_objects.model_config import ModelConfig
+ from .prompt_handler import PromptHandler, PromptRequest, PromptResponse
+ 
+@@ -406,6 +409,9 @@ async def execute_messages_with_savepoint(
+ 
+     # Execute the conversation with custom history
+     try:
++        if model_config is None:
++            raise StoryGenerationError("model_config is required for message execution")
++
+         # Extract parameters from kwargs
+         seed = kwargs.get("seed")
+         debug = kwargs.get("debug", False)
+diff --git a/src/infrastructure/prompts/usage_example.py b/src/infrastructure/prompts/usage_example.py
+index c93f38e..7e7591e 100644
+--- a/src/infrastructure/prompts/usage_example.py
++++ b/src/infrastructure/prompts/usage_example.py
+@@ -10,6 +10,11 @@ from domain.repositories.savepoint_repository import SavepointRepository
+ from infrastructure.prompts.prompt_loader import PromptLoader
+ 
+ 
++def _example_model_config() -> ModelConfig:
++    """Provide a concrete example model configuration for sample code."""
++    return ModelConfig.from_string("openai-compat://example-model")
++
++
+ class EnhancedOutlineChapterStrategy:
+     """Example of how to enhance the existing strategy with the new prompt handler."""
+ 
+@@ -34,7 +39,7 @@ class EnhancedOutlineChapterStrategy:
+         self, prompt: str, settings: GenerationSettings
+     ) -> str:
+         """Extract story start date using the new prompt handler."""
+-        model_config = ModelConfig.from_string(settings.model)
++        model_config = _example_model_config()
+ 
+         response = await execute_prompt_with_savepoint(
+             handler=self.prompt_handler,
+@@ -52,7 +57,7 @@ class EnhancedOutlineChapterStrategy:
+         self, prompt: str, settings: GenerationSettings
+     ) -> str:
+         """Extract base context using the new prompt handler."""
+-        model_config = ModelConfig.from_string(settings.model)
++        model_config = _example_model_config()
+ 
+         response = await execute_prompt_with_savepoint(
+             handler=self.prompt_handler,
+@@ -70,7 +75,7 @@ class EnhancedOutlineChapterStrategy:
+         self, prompt: str, settings: GenerationSettings
+     ) -> str:
+         """Generate story elements using the new prompt handler."""
+-        model_config = ModelConfig.from_string(settings.model)
++        model_config = _example_model_config()
+ 
+         response = await execute_prompt_with_savepoint(
+             handler=self.prompt_handler,
+@@ -92,7 +97,7 @@ class EnhancedOutlineChapterStrategy:
+         settings: GenerationSettings,
+     ) -> str:
+         """Generate initial outline using the new prompt handler."""
+-        model_config = ModelConfig.from_string(settings.model)
++        model_config = _example_model_config()
+ 
+         response = await execute_prompt_with_savepoint(
+             handler=self.prompt_handler,
+@@ -119,7 +124,7 @@ class EnhancedOutlineChapterStrategy:
+         settings: GenerationSettings,
+     ) -> str:
+         """Generate chapter outline using the new prompt handler."""
+-        model_config = ModelConfig.from_string(settings.model)
++        model_config = _example_model_config()
+ 
+         response = await execute_prompt_with_savepoint(
+             handler=self.prompt_handler,
+@@ -146,7 +151,7 @@ class EnhancedOutlineChapterStrategy:
+         settings: GenerationSettings,
+     ) -> str:
+         """Generate chapter content using the new prompt handler."""
+-        model_config = ModelConfig.from_string(settings.model)
++        model_config = _example_model_config()
+ 
+         response = await execute_prompt_with_savepoint(
+             handler=self.prompt_handler,
+diff --git a/src/tools/story_assembler.py b/src/tools/story_assembler.py
+index e0175e7..3294db9 100644
+--- a/src/tools/story_assembler.py
++++ b/src/tools/story_assembler.py
+@@ -261,23 +261,21 @@ def cmd_generate_handoff(
+         if isinstance(candidate, dict):
+             chapter_data = candidate
+ 
+-    # Expanded outlines live in the `expanded_chapter_{N}_{N}` savepoint only.
+-    # state.json no longer stores `chapters.{N}.expanded_outline`.
+     expanded_step = f"expanded_chapter_{chapter_num}_{chapter_num}"
+-    if not _has_savepoint(repo, expanded_step):
+-        _error(
+-            f"expanded_chapter savepoint '{expanded_step}' not found for chapter "
+-            f"{chapter_num} — run outline expansion (Phase 7a) first"
++    if _has_savepoint(repo, expanded_step):
++        expanded_outline_raw = _load_savepoint(repo, expanded_step)
++        expanded_outline = (
++            expanded_outline_raw
++            if isinstance(expanded_outline_raw, str)
++            else json.dumps(expanded_outline_raw, default=str)
+         )
+-    expanded_outline_raw = _load_savepoint(repo, expanded_step)
+-    expanded_outline = (
+-        expanded_outline_raw
+-        if isinstance(expanded_outline_raw, str)
+-        else json.dumps(expanded_outline_raw, default=str)
+-    )
++    else:
++        expanded_outline = chapter_data.get("expanded_outline", "")
++
+     if not expanded_outline.strip():
+         _error(
+-            f"expanded_chapter savepoint '{expanded_step}' is empty — re-run Phase 7a"
++            f"no expanded outline found for chapter {chapter_num} — "
++            f"run outline expansion (Phase 7a) first"
+         )
+ 
+     chapter_title = chapter_data.get("title", f"Chapter {chapter_num}")
+diff --git a/src/tools/story_state.py b/src/tools/story_state.py
+index f743049..8cd4771 100644
+--- a/src/tools/story_state.py
++++ b/src/tools/story_state.py
+@@ -262,11 +262,7 @@ def cmd_write(name: str, field: str, value_str: str) -> None:
+         sys.exit(1)
+ 
+     try:
+-        if not value_str.startswith('"') or not value_str.endswith('"'):
+-            # Fallback for plain text that isn't explicitly quoted as a JSON string
+-            value = value_str
+-        else:
+-            value = json.loads(value_str)
++        value = json.loads(value_str)
+     except json.JSONDecodeError as e:
+         print(f"Error: invalid JSON in --value: {e}", file=sys.stderr)
+         sys.exit(1)
+diff --git a/src/tools/wiki_extract.py b/src/tools/wiki_extract.py
+index bb760cf..c76428f 100644
+--- a/src/tools/wiki_extract.py
++++ b/src/tools/wiki_extract.py
+@@ -579,9 +579,12 @@ def cmd_initial_populate(args: argparse.Namespace) -> None:
+     cache = _load_extract_cache(story_dir)
+     state = _read_json_file(story_dir / "state.json", label="state.json")
+ 
+-    # Outline content lives in the `outline` savepoint; state.json no longer
+-    # stores it. Fall back to `refined_outline` when the canonical step is absent.
+     outline_text = _load_outline_savepoint(story_dir)
++    if not outline_text.strip():
++        state_for_outline = _read_json_file(
++            story_dir / "state.json", label="state.json"
++        )
++        outline_text = state_for_outline.get("outline", "") or ""
+     if not outline_text.strip():
+         raise ValueError(
+             "outline savepoint missing — run Phase 2 (outline-planner) before wiki population"
+diff --git a/tests/integration/test_outline_generator_expand_to_scenes.py b/tests/integration/test_outline_generator_expand_to_scenes.py
+index 42a2344..e8281c3 100644
+--- a/tests/integration/test_outline_generator_expand_to_scenes.py
++++ b/tests/integration/test_outline_generator_expand_to_scenes.py
+@@ -42,7 +42,9 @@ def _make_scene(index: int) -> dict[str, object]:
+     }
+ 
+ 
+-def _write_savepoint(stories_dir: Path, story_name: str, step_name: str, data: str) -> None:
++def _write_savepoint(
++    stories_dir: Path, story_name: str, step_name: str, data: str
++) -> None:
+     savepoint_dir = stories_dir / story_name / "savepoints"
+     if "/" in step_name:
+         parts = step_name.split("/")
+@@ -122,4 +124,4 @@ def test_phase7a_expand_to_scenes_writes_valid_savepoints(
+     assert 8 <= len(chapter_1_data) <= 16
+     assert 8 <= len(chapter_2_data) <= 16
+     assert all(set(SCENE_TEMPLATE) <= set(scene) for scene in chapter_1_data)
+-    assert all(set(SCENE_TEMPLATE) <= set(scene) for scene in chapter_2_data)
+\ No newline at end of file
++    assert all(set(SCENE_TEMPLATE) <= set(scene) for scene in chapter_2_data)
+diff --git a/tests/unit/test_critique_runner_tool.py b/tests/unit/test_critique_runner_tool.py
+index 26cf1f7..391f07c 100644
+--- a/tests/unit/test_critique_runner_tool.py
++++ b/tests/unit/test_critique_runner_tool.py
+@@ -527,7 +527,9 @@ def test_run_arc_analysis_returns_structured_result(
+ ) -> None:
+     """Direct call with monkeypatched LLM and prompt loader returns structured result."""
+     stories_dir, story_name = story_env
+-    monkeypatch.setattr(cr, "_validate_story_name", lambda _name: stories_dir / story_name)
++    monkeypatch.setattr(
++        cr, "_validate_story_name", lambda _name: stories_dir / story_name
++    )
+     monkeypatch.setattr(cr, "_load_prompt", lambda *_a, **_kw: "mock prompt text")
+ 
+     call_count = 0
+@@ -553,7 +555,9 @@ def test_run_arc_analysis_returns_structured_result(
+     captured = io.StringIO()
+     with contextlib.redirect_stdout(captured):
+         try:
+-            cr.cmd_run_arc_analysis(story_name, "The outline content.", "Critic: 85/100")
++            cr.cmd_run_arc_analysis(
++                story_name, "The outline content.", "Critic: 85/100"
++            )
+         except SystemExit:
+             pass
+ 
+diff --git a/tests/unit/test_io_tool.py b/tests/unit/test_io_tool.py
+index 7bfd48f..992843c 100644
+--- a/tests/unit/test_io_tool.py
++++ b/tests/unit/test_io_tool.py
+@@ -25,7 +25,10 @@ class TestSlugifyStoryName:
+         assert _slugify_story_name("my-story") == "my-story"
+ 
+     def test_spaces_to_hyphens(self) -> None:
+-        assert _slugify_story_name("The Silence Between Stars") == "the-silence-between-stars"
++        assert (
++            _slugify_story_name("The Silence Between Stars")
++            == "the-silence-between-stars"
++        )
+ 
+     def test_underscores_to_hyphens(self) -> None:
+         assert _slugify_story_name("my_story_name") == "my-story-name"
+diff --git a/tests/unit/test_model_config.py b/tests/unit/test_model_config.py
+index 7646956..551f348 100644
+--- a/tests/unit/test_model_config.py
++++ b/tests/unit/test_model_config.py
+@@ -61,7 +61,18 @@ class TestModelConfig:
+         with pytest.raises(ValidationError, match="Invalid provider"):
+             ModelConfig.from_string("openrouter://anthropic/claude-3-opus")
+ 
+-    @pytest.mark.parametrize("scheme", ["google", "openrouter", "openai", "anthropic", "ollama", "lm_studio", "llama_cpp"])
++    @pytest.mark.parametrize(
++        "scheme",
++        [
++            "google",
++            "openrouter",
++            "openai",
++            "anthropic",
++            "ollama",
++            "lm_studio",
++            "llama_cpp",
++        ],
++    )
+     def test_removed_cloud_provider_schemes_raise_validation_error(self, scheme):
+         """Test that all four removed cloud provider schemes are rejected."""
+         with pytest.raises(ValidationError, match="Invalid provider"):
+@@ -124,7 +135,6 @@ class TestModelConfig:
+         expected = "openai-compat://llama3:70b@192.168.1.100:11434?temperature=0.7"
+         assert str(config) == expected
+ 
+-
+     def test_repr(self):
+         """Test ModelConfig representation."""
+         config = ModelConfig(
+diff --git a/tests/unit/test_openai_async_provider.py b/tests/unit/test_openai_async_provider.py
+index 11ff9bf..d82c15e 100644
+--- a/tests/unit/test_openai_async_provider.py
++++ b/tests/unit/test_openai_async_provider.py
+@@ -20,11 +20,7 @@ from domain.value_objects.model_config import ModelConfig
+ 
+ _provider_spec = importlib.util.spec_from_file_location(
+     "openai_async_provider_module",
+-    PROJECT_ROOT
+-    / "src"
+-    / "infrastructure"
+-    / "providers"
+-    / "openai_async_provider.py",
++    PROJECT_ROOT / "src" / "infrastructure" / "providers" / "openai_async_provider.py",
+ )
+ assert _provider_spec is not None and _provider_spec.loader is not None
+ _provider_module = importlib.util.module_from_spec(_provider_spec)
+@@ -207,4 +203,4 @@ class TestOpenAIAsyncProvider:
+             api_key="lm-studio",
+             timeout=60.0,
+             max_retries=3,
+-        )
+\ No newline at end of file
++        )
+diff --git a/tests/unit/test_outline_generator_rag_guard.py b/tests/unit/test_outline_generator_rag_guard.py
+index 145313f..9ddff02 100644
+--- a/tests/unit/test_outline_generator_rag_guard.py
++++ b/tests/unit/test_outline_generator_rag_guard.py
+@@ -29,7 +29,9 @@ def _make_outline_generator() -> OutlineGenerator:
+     )
+ 
+ 
+-def test_index_story_analysis_chunk_returns_early_when_rag_integration_is_none() -> None:
++def test_index_story_analysis_chunk_returns_early_when_rag_integration_is_none() -> (
++    None
++):
+     generator = _make_outline_generator()
+     settings = GenerationSettings()
+ 
+@@ -46,7 +48,9 @@ def test_index_story_analysis_chunk_returns_early_when_rag_integration_is_none()
+     assert result is None
+ 
+ 
+-def test_index_story_analysis_chunk_calls_index_outline_when_rag_integration_present() -> None:
++def test_index_story_analysis_chunk_calls_index_outline_when_rag_integration_present() -> (
++    None
++):
+     generator = _make_outline_generator()
+     settings = GenerationSettings()
+     rag_integration = MagicMock()
+@@ -69,4 +73,4 @@ def test_index_story_analysis_chunk_calls_index_outline_when_rag_integration_pre
+             "chunk_type": "plot_structure",
+             "generation_stage": "story_analysis",
+         },
+-    )
+\ No newline at end of file
++    )
+diff --git a/tests/unit/test_outline_generator_tool.py b/tests/unit/test_outline_generator_tool.py
+index 63b49b6..db7f3b6 100644
+--- a/tests/unit/test_outline_generator_tool.py
++++ b/tests/unit/test_outline_generator_tool.py
+@@ -90,7 +90,9 @@ def _write_savepoint(
+     filepath.write_text(f"# Savepoint: {step_name}\n\n{data}", encoding="utf-8")
+ 
+ 
+-def _make_scene(index: int, *, missing_keys: set[str] | None = None) -> dict[str, object]:
++def _make_scene(
++    index: int, *, missing_keys: set[str] | None = None
++) -> dict[str, object]:
+     """Build one valid scene definition with optional missing keys."""
+     scene = {
+         **SCENE_TEMPLATE,
+@@ -747,7 +749,9 @@ def test_expand_to_scenes_rejects_too_few_scenes(
+     error = json.loads(stderr)
+     assert error["status"] == "error"
+     assert error["operation"] == "expand-to-scenes"
+-    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
++    assert (
++        error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
++    )
+     assert "scene count 3 outside allowed range [8, 16]" in error["data"]["detail"]
+ 
+ 
+@@ -782,7 +786,9 @@ def test_expand_to_scenes_rejects_too_many_scenes(
+     assert returncode == 1
+     assert call_count == 2
+     error = json.loads(stderr)
+-    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
++    assert (
++        error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
++    )
+     assert "scene count 20 outside allowed range [8, 16]" in error["data"]["detail"]
+ 
+ 
+@@ -816,7 +822,9 @@ def test_expand_to_scenes_retry_once_then_error(
+     assert returncode == 1
+     assert call_count == 2
+     error = json.loads(stderr)
+-    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
++    assert (
++        error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
++    )
+     assert error["data"]["detail"]
+ 
+ 
+@@ -852,7 +860,9 @@ def test_expand_to_scenes_missing_required_key(
+     assert returncode == 1
+     assert call_count == 2
+     error = json.loads(stderr)
+-    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
++    assert (
++        error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
++    )
+     assert "scene 5 missing required keys: literary_devices" in error["data"]["detail"]
+ 
+ 
+diff --git a/tests/unit/test_pipeline_primitives.py b/tests/unit/test_pipeline_primitives.py
+index 20bf498..8ed94d7 100644
+--- a/tests/unit/test_pipeline_primitives.py
++++ b/tests/unit/test_pipeline_primitives.py
+@@ -175,4 +175,4 @@ def test_close_idempotent() -> None:
+ 
+         return [delta async for delta in bus]
+ 
+-    assert asyncio.run(main()) == ["x"]
+\ No newline at end of file
++    assert asyncio.run(main()) == ["x"]
+diff --git a/tests/unit/test_prompt_relocation.py b/tests/unit/test_prompt_relocation.py
+index 50569b1..78daae4 100644
+--- a/tests/unit/test_prompt_relocation.py
++++ b/tests/unit/test_prompt_relocation.py
+@@ -164,15 +164,15 @@ def test_skills_relocated_to_prompts_skills() -> None:
+ def test_pyproject_has_required_dependencies() -> None:
+     pyproject_text = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+ 
+-    assert 'textual>=6.0,<7.0' in pyproject_text
+-    assert 'openai>=1.0' in pyproject_text
++    assert "textual>=6.0,<7.0" in pyproject_text
++    assert "openai>=1.0" in pyproject_text
+ 
+ 
+ def test_requirements_txt_textual_version() -> None:
+     requirements_text = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
+ 
+-    assert 'textual>=6.0,<7.0' in requirements_text
+-    assert 'textual>=0.85.0,<1.0.0' not in requirements_text
++    assert "textual>=6.0,<7.0" in requirements_text
++    assert "textual>=0.85.0,<1.0.0" not in requirements_text
+ 
+ 
+ def test_no_stale_opencode_refs_in_agent_prompts() -> None:
+diff --git a/tests/unit/test_rag_service_removal.py b/tests/unit/test_rag_service_removal.py
+index 97954b9..732063a 100644
+--- a/tests/unit/test_rag_service_removal.py
++++ b/tests/unit/test_rag_service_removal.py
+@@ -91,4 +91,4 @@ def test_outline_chapter_strategy_dead_rag_methods_removed() -> None:
+     ]
+ 
+     for method_name in removed_methods:
+-        assert not hasattr(OutlineChapterStrategy, method_name)
+\ No newline at end of file
++        assert not hasattr(OutlineChapterStrategy, method_name)
+diff --git a/tests/unit/test_wiki_extract_tool.py b/tests/unit/test_wiki_extract_tool.py
+index fadb18b..e678b93 100644
+--- a/tests/unit/test_wiki_extract_tool.py
++++ b/tests/unit/test_wiki_extract_tool.py
+@@ -377,7 +377,9 @@ def test_initial_populate_cache_miss_calls_llm_and_writes_cache(
+                 }
+             )
+         if len(llm_calls) == 3:
+-            return json.dumps({"l1": "Hero", "l2": "Protagonist", "l3": "Detailed hero"})
++            return json.dumps(
++                {"l1": "Hero", "l2": "Protagonist", "l3": "Detailed hero"}
++            )
+         raise AssertionError(f"Unexpected LLM prompt: {prompt[:200]}")
+ 
+     cache_snapshot: dict[str, object] = {}
+@@ -387,7 +389,9 @@ def test_initial_populate_cache_miss_calls_llm_and_writes_cache(
+         cache_path = _cache_path(story_env)
+         assert cache_path.exists()
+         cache_snapshot.update(json.loads(cache_path.read_text()))
+-        return _apply_summary(created=len(payload["creates"]), entity_counts={"character": 1})
++        return _apply_summary(
++            created=len(payload["creates"]), entity_counts={"character": 1}
++        )
+ 
+     monkeypatch.setattr(wiki_extract, "_chat_completion", _fake_chat_completion)
+     monkeypatch.setattr(wiki_extract, "run_batch", _fake_run_batch)
+@@ -397,9 +401,15 @@ def test_initial_populate_cache_miss_calls_llm_and_writes_cache(
+     assert code == 0
+     assert output["applied"] is True
+     assert llm_calls
+-    assert set(cache_snapshot) >= {"outline_entities", "sheet_entities", "detail_levels"}
++    assert set(cache_snapshot) >= {
++        "outline_entities",
++        "sheet_entities",
++        "detail_levels",
++    }
+     assert cache_snapshot["outline_entities"][0]["name"] == "Alice"
+-    assert cache_snapshot["sheet_entities"]["characters/alice.json"][0]["name"] == "Alice"
++    assert (
++        cache_snapshot["sheet_entities"]["characters/alice.json"][0]["name"] == "Alice"
++    )
+     assert cache_snapshot["detail_levels"]["alice"] == {
+         "L1": "Hero",
+         "L2": "Protagonist",
+@@ -461,7 +471,9 @@ def test_initial_populate_cache_hit_skips_llm(
+     def _fake_run_batch(name: str, payload: dict) -> dict:
+         captured["name"] = name
+         captured["payload"] = payload
+-        return _apply_summary(created=len(payload["creates"]), entity_counts={"character": 1})
++        return _apply_summary(
++            created=len(payload["creates"]), entity_counts={"character": 1}
++        )
+ 
+     monkeypatch.setattr(wiki_extract, "_chat_completion", _fake_chat_completion)
+     monkeypatch.setattr(wiki_extract, "run_batch", _fake_run_batch)
+@@ -525,7 +537,9 @@ def test_initial_populate_cache_deleted_after_apply(
+     monkeypatch.setattr(
+         wiki_extract,
+         "run_batch",
+-        lambda name, payload: _apply_summary(created=len(payload["creates"]), entity_counts={"character": 1}),
++        lambda name, payload: _apply_summary(
++            created=len(payload["creates"]), entity_counts={"character": 1}
++        ),
+     )
+ 
+     code, output = _invoke_main(["initial-populate", "--name", "test-story"], capsys)
+@@ -737,7 +751,9 @@ def test_update_from_chapter_cache_hit_skips_llm(
+     def _fake_run_batch(name: str, payload: dict) -> dict:
+         captured["name"] = name
+         captured["payload"] = payload
+-        return _apply_summary(created=len(payload["creates"]), entity_counts={"location": 1})
++        return _apply_summary(
++            created=len(payload["creates"]), entity_counts={"location": 1}
++        )
+ 
+     monkeypatch.setattr(wiki_extract, "_chat_completion", _fake_chat_completion)
+     monkeypatch.setattr(wiki_extract, "run_batch", _fake_run_batch)
+@@ -798,13 +814,17 @@ def test_update_from_chapter_cache_deleted_after_apply(
+                 "new_aliases": [],
+             }
+         ),
+-        json.dumps({"l1": "Station", "l2": "Trade station", "l3": "Detailed trade station"}),
++        json.dumps(
++            {"l1": "Station", "l2": "Trade station", "l3": "Detailed trade station"}
++        ),
+     ]
+     _set_fake_llm(monkeypatch, responses)
+     monkeypatch.setattr(
+         wiki_extract,
+         "run_batch",
+-        lambda name, payload: _apply_summary(created=len(payload["creates"]), entity_counts={"location": 1}),
++        lambda name, payload: _apply_summary(
++            created=len(payload["creates"]), entity_counts={"location": 1}
++        ),
+     )
+ 
+     code, output = _invoke_main(
+diff --git a/tests/unit/test_workflow_improvement_fixes.py b/tests/unit/test_workflow_improvement_fixes.py
+index 9f8608c..0b9788e 100644
+--- a/tests/unit/test_workflow_improvement_fixes.py
++++ b/tests/unit/test_workflow_improvement_fixes.py
+@@ -254,4 +254,4 @@ class TestStoryAssemblerHelpers:
+             story_state={"chapters": {"1": {}, 4: {}}},
+         )
+ 
+-        assert chapter_numbers == [1, 2, 3, 4, 10]
+\ No newline at end of file
++        assert chapter_numbers == [1, 2, 3, 4, 10]

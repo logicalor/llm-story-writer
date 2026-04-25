@@ -1,7 +1,8 @@
 """Outline-Chapter story writing strategy."""
 
-from typing import Any, Dict, List, Optional
+import json
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 from domain.entities.story import Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
@@ -543,4 +544,18 @@ You have deep knowledge of storytelling techniques, character development, plot 
         )
 
         content = response.content.strip()
-        return [content] if content else []
+        if not content:
+            return []
+
+        try:
+            parsed = json.loads(content)
+            if isinstance(parsed, list):
+                return [str(tag).strip() for tag in parsed if str(tag).strip()]
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        return [
+            tag.strip()
+            for tag in content.replace(",", "\n").splitlines()
+            if tag.strip()
+        ]
