@@ -946,3 +946,49 @@ This pattern also prevents deletion of a developer's real story named `"e2e-test
 parallel-runner path conflicts.
 
 ChromaDB ID: `gotcha-e2e-test-story-name-kebab-case-027`
+
+---
+
+### 028 — `story_dir.parent` is idiomatic for recovering `stories_dir` inside helper functions
+
+**Source:** issue #182, PR #194
+**Severity:** info
+
+When a helper function receives a validated `story_dir` path (returned by `_validate_story_name()`),
+use `story_dir.parent` to recover the `stories_dir` root — do **not** re-read `STORIES_DIR` from
+the environment or accept a separate `stories_dir` parameter.
+
+`_validate_story_name()` always returns an absolute, normalised `Path`:
+
+```python
+# src/tools/_io.py
+def _validate_story_name(story_name: str) -> Path:
+    ...
+    return STORIES_DIR / kebab_name   # absolute: /path/to/stories/my-story
+```
+
+So `story_dir.parent` is always `STORIES_DIR`:
+
+```python
+# Inside a helper that already has story_dir:
+def _list_character_sheets(story_dir: Path) -> list[Path]:
+    sheets_dir = story_dir / "characters"
+    ...
+
+# Caller — passing stories_dir to a sibling helper:
+def cmd_generate(story_name: str) -> None:
+    story_dir = _validate_story_name(story_name)      # .../stories/my-story
+    stories_dir = story_dir.parent                     # .../stories/
+    _generate_sheet(story_dir, stories_dir)            # idiomatic
+```
+
+**Why not re-read `STORIES_DIR`?** A second `os.environ.get("STORIES_DIR")` call introduces a
+second read point — if the environment changes between calls (rare in production, common in tests
+where monkeypatch patches only one binding), the two values diverge silently. `story_dir.parent`
+derives `stories_dir` from the already-validated path, guaranteeing consistency.
+
+**Why not add a `stories_dir` parameter?** Adding `stories_dir` to every helper's signature
+propagates redundant state and widens the test fixture surface. The parent relationship is an
+invariant of `_validate_story_name()`'s contract — exploit it at call sites.
+
+ChromaDB ID: `gotcha-story-dir-parent-stories-dir-028`
