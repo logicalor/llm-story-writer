@@ -44,7 +44,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 
 ## Testing
 
-- [Integration Tests](./testing/integration-tests.md) — Live end-to-end pipeline test for story generation with wiki support, runtime expectations, LLM endpoint configuration, and manual verification steps
+- [Integration Tests](./testing/integration-tests.md) — Live integration suite covering wiki E2E, headless batch E2E, `slow` marker usage, LLM endpoint requirements, and manual verification steps
 
 ## Features
 
