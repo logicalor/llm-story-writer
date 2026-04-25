@@ -565,7 +565,9 @@ tests/
 └── integration/             # Integration tests (live LLM required)
   ├── test_e2e_opencode.py
   ├── test_end_to_end_headless.py
-  └── test_openai_async_provider_live.py
+  ├── test_openai_async_provider_live.py
+  ├── test_outline_generator_expand_to_scenes.py
+  └── test_wiki_read_integration.py
 ```
 
 ### 10.2 Running Tests

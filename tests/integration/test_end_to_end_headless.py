@@ -13,7 +13,6 @@ import json
 import shutil
 import subprocess
 import sys
-import time
 from collections.abc import Generator
 from pathlib import Path
 
@@ -22,21 +21,30 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STORIES_DIR = PROJECT_ROOT / "stories"
-STORY_NAME = "e2e_test_"
-# slugify: e2e_test_ -> e2e-test (underscores->hyphens, trailing hyphen stripped)
+STORY_NAME = "e2e-test"
 STORY_DIR = STORIES_DIR / "e2e-test"
 STORY_PROMPT = "A two-chapter short story about a robot learning to dream."
 LM_STUDIO_URL = "http://127.0.0.1:1234/v1"
 TIMEOUT_SECONDS = 600  # 10 minutes
 
 
+def _tail_timeout_output(output: bytes | str | None) -> str:
+    if output is None:
+        return ""
+    if isinstance(output, bytes):
+        return output.decode("utf-8", errors="replace")[-2000:]
+    return output[-2000:]
+
+
 @pytest.fixture(autouse=True)
 def require_lm_studio() -> None:
     """Skip test if LM Studio is not running."""
     try:
-        httpx.get(f"{LM_STUDIO_URL}/models", timeout=3)
+        response = httpx.get(f"{LM_STUDIO_URL}/models", timeout=3)
     except (httpx.ConnectError, httpx.TimeoutException):
         pytest.skip("LM Studio not running - skipping integration test")
+    if response.status_code != 200:
+        pytest.skip("LM Studio not responding correctly - skipping integration test")
 
 
 @pytest.fixture()
@@ -56,25 +64,28 @@ def e2e_story_dir() -> Generator[Path, None, None]:
 @pytest.mark.slow
 def test_two_chapter_story_batch(e2e_story_dir: Path) -> None:
     """Full headless pipeline produces a two-chapter story within the time budget."""
-    start = time.monotonic()
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "src.presentation.cli.main",
-            "run",
-            "--story",
-            STORY_NAME,
-            "--batch",
-        ],
-        cwd=str(PROJECT_ROOT),
-        capture_output=True,
-        text=True,
-        timeout=TIMEOUT_SECONDS,
-    )
-
-    elapsed = time.monotonic() - start
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "src.presentation.cli.main",
+                "run",
+                "--story",
+                STORY_NAME,
+                "--batch",
+            ],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(
+            f"Pipeline timed out after {TIMEOUT_SECONDS}s.\n"
+            f"stdout: {_tail_timeout_output(exc.stdout)}\n"
+            f"stderr: {_tail_timeout_output(exc.stderr)}"
+        )
 
     assert result.returncode == 0, (
         f"Pipeline exited with code {result.returncode}.\n"
@@ -106,7 +117,3 @@ def test_two_chapter_story_batch(e2e_story_dir: Path) -> None:
 
     for i, ch in enumerate(approved_chapters):
         assert ch.get("content", "").strip(), f"Chapter {i + 1} has empty content"
-
-    assert elapsed <= TIMEOUT_SECONDS, (
-        f"Pipeline took {elapsed:.1f}s, exceeds budget of {TIMEOUT_SECONDS}s"
-    )
