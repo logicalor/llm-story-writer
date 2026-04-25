@@ -74,6 +74,10 @@ class ChapterWriterAgent:
         if feedback:
             prompt = f"{prompt}\n\n## Revision Feedback\n{feedback}"
 
+        # Guard against path traversal
+        if ".." in story_name or "/" in story_name or "\\" in story_name:
+            raise ValueError(f"Invalid story_name: {story_name!r}")
+
         context_parts: list[str] = []
         story_dir = STORIES_DIR / story_name
         for entity_type, label in (
@@ -88,6 +92,9 @@ class ChapterWriterAgent:
                 try:
                     data = json.loads(sheet_path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):
+                    continue
+
+                if not isinstance(data, dict):
                     continue
 
                 name = data.get("name", sheet_path.stem)

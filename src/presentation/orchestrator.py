@@ -229,7 +229,7 @@ async def _generate_character_sheets(
     try:
         names_raw = await provider.generate_text(messages, model_config)
         names = _parse_name_list(names_raw)
-    except (json.JSONDecodeError, Exception):
+    except Exception:
         names = []
 
     characters_dir = stories_dir / story_name / "characters"
@@ -291,7 +291,7 @@ async def _generate_setting_sheets(
     try:
         names_raw = await provider.generate_text(messages, model_config)
         names = _parse_name_list(names_raw)
-    except (json.JSONDecodeError, Exception):
+    except Exception:
         names = []
 
     settings_dir = stories_dir / story_name / "settings"

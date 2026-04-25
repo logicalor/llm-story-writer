@@ -525,6 +525,61 @@ async def test_characters_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_characters_phase_skips_failed_sheet_generation(tmp_path: Path) -> None:
+    provider = MagicMock()
+    provider.generate_text = AsyncMock(
+        side_effect=[
+            '["Alice", "Bob"]',
+            RuntimeError("LLM error"),
+            "# Bob\nSidekick.",
+        ]
+    )
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+
+        state = await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    characters_dir = tmp_path / "test-story" / "characters"
+    assert characters_dir.exists()
+    assert (characters_dir / "bob.json").exists()
+    assert not (characters_dir / "alice.json").exists()
+    assert {path.name for path in characters_dir.glob("*.json")} == {"bob.json"}
+
+
+@pytest.mark.asyncio
 async def test_settings_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
     """Settings phase writes setting sheet JSON files to disk."""
     provider = MagicMock()
