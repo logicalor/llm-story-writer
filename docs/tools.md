@@ -28,6 +28,13 @@ story-writer / orchestrator / agent
 
 This removes the old subprocess boundary between a TypeScript wrapper and a Python script. Runtime validation, error handling, and savepoint writes now happen inside one language boundary.
 
+The orchestrator also now produces intermediate story artefacts directly in the story directory during the implemented pipeline:
+
+- `stories/<story>/characters/*.json` from the characters phase
+- `stories/<story>/settings/*.json` from the settings phase
+- `stories/<story>/chapters/chapter_{N}.md` during chapter approval
+- `stories/<story>/output/story.md` during final assembly
+
 ## Tool Inventory
 
 ### Core State And Prompt Tools
@@ -73,6 +80,21 @@ These modules support the public tool CLIs but are not normal top-level user com
 | `src/tools/_llm.py` | Common LLM-provider bootstrap helpers |
 | `src/tools/_wiki.py` | Shared wiki utility logic |
 | `src/tools/migrate_state_slim.py` | One-off migration helper retained in Python |
+
+## Story Artefacts
+
+Several runtime artefacts are written by the Python-native orchestrator and then consumed by later phases. These are not separate CLI tools, but they are part of the active tool surface because downstream code relies on their on-disk format.
+
+| Path | Producer | Consumer | Notes |
+|------|----------|----------|-------|
+| `stories/<story>/characters/<slug>.json` | `src/presentation/orchestrator.py` characters phase | `src/presentation/agents/chapter_writer.py`, character-management workflows | JSON document with `name`, full markdown `sheet`, `chunks`, `summary`, and `updated_at` |
+| `stories/<story>/settings/<slug>.json` | `src/presentation/orchestrator.py` settings phase | `src/presentation/agents/chapter_writer.py`, setting-management workflows | Same JSON shape as character sheets |
+| `stories/<story>/chapters/chapter_{N}.md` | `src/presentation/orchestrator.py` chapter loop | `src/tools/story_assembler.py`, downstream review flows | Approved chapter manuscript |
+| `stories/<story>/output/story.md` | `src/presentation/orchestrator.py` assembly phase | Manual export and downstream editing | Concatenated final manuscript |
+
+Characters and settings files are generated from prompt templates in `prompts/characters/` and `prompts/settings/`. Filenames are slugified from the extracted entity names, and writes are atomic so later phases never read a half-written JSON file.
+
+`ChapterWriterAgent` reads both directories opportunistically. It prefers each sheet's stored `summary`; if that field is empty, it falls back to the first 300 characters of the `sheet` body. Missing directories, malformed JSON files, or individual read failures are skipped instead of aborting chapter generation.
 
 ## CLI Entry Points
 

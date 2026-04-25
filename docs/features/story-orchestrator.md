@@ -1,10 +1,10 @@
 # Story Orchestrator
 
-> Headless Python pipeline runner and agent-callable layer implemented for Issue #161 / PR #171.
+> Headless Python pipeline runner and agent-callable layer implemented in Issue #161 / PR #171, with characters and settings phases completed in Issue #182 / PR #194.
 
 ## Overview
 
-Issue #161 implements the first executable Python-native orchestration slice in `src/presentation/orchestrator.py`. The current implementation is intentionally smaller than the long-term PRD: it runs a headless async pipeline, persists one JSON savepoint file, and coordinates five Python agent callables through injected transport primitives.
+Issue #161 implements the first executable Python-native orchestration slice in `src/presentation/orchestrator.py`. Issue #182 extends that slice by replacing the characters and settings stubs with real sheet-generation helpers and by teaching the chapter writer to consume those generated sheets as prompt context. The current implementation still remains smaller than the long-term PRD: it runs a headless async pipeline, persists one JSON savepoint file, and coordinates Python presentation agents plus orchestrator-local helper phases through injected transport primitives.
 
 Two entry points exist:
 
@@ -28,22 +28,64 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 |------|----------------------|-------------------|
 | `init` | Create initial `PipelineState`, detect batch mode from gate type, ensure `stories/<story>/savepoints/` exists | `init` |
 | `outline` | Run `OutlinePlannerAgent`, persist `OutlineResult`, then wait on the outline approval gate | `outline` |
-| `characters` | Emit a wiki-context event for character assembly, mark phase complete | `characters` |
-| `settings` | Emit a wiki-context event for setting assembly, mark phase complete | `settings` |
+| `characters` | Emit a wiki-context event, build `story_elements` from the outline, extract character names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/characters/<slug>.json` | `characters` |
+| `settings` | Emit a wiki-context event, build `story_elements` from the outline, extract setting names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/settings/<slug>.json` | `settings` |
 | `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, then run wiki maintenance and per-chapter savepointing | `chapter-{N}`, then `chapter-loop` |
 | `final-edit` | Mark phase complete only; no editing subagent is wired yet | `final-edit` |
 | `assembly` | Read non-empty content from `state.approved_chapters`, write `stories/<story>/output/story.md`, and fail with `StoryGenerationError` if no approved chapter content exists | `assembly`, then `complete` |
 
 Chapter count comes from `OutlineResult.chapter_outlines` when present. If the outline did not produce chapter entries, the fallback is `range(1, min(settings.wanted_chapters, 3) + 1)`.
 
+The characters and settings phases are implemented as orchestrator helpers rather than standalone presentation agents. `_build_story_elements()` derives the prompt input directly from `OutlineResult`, so these phases do not depend on a separate outline savepoint artefact.
+
 ## Runtime Outputs
 
-The current orchestrator writes two manuscript-facing artifacts during a successful run:
+The current orchestrator writes four story-facing artifact groups during a successful run:
 
+- `stories/<story>/characters/<slug>.json` — one JSON character sheet per extracted name
+- `stories/<story>/settings/<slug>.json` — one JSON setting sheet per extracted name
 - `stories/<story>/chapters/chapter_{N}.md` — written immediately after chapter `N` passes the approval gate and consistency check
 - `stories/<story>/output/story.md` — written during `assembly` by joining the non-empty content of `state.approved_chapters` with blank lines
 
+Character and setting sheets use the same on-disk shape:
+
+```json
+{
+  "name": "Alice",
+  "sheet": "# Alice\nHero of the story.",
+  "chunks": {},
+  "summary": "",
+  "updated_at": "2026-04-25T12:34:56+00:00"
+}
+```
+
+Filenames are derived by `_slugify_name()`: lowercase, spaces converted to `-`, non-alphanumeric characters stripped except `-`, repeated dashes collapsed, and surrounding dashes trimmed.
+
 Assembly is guarded. If `state.approved_chapters` contains no non-empty content, `_continue_pipeline()` raises `StoryGenerationError` instead of writing an empty manuscript file.
+
+## Characters And Settings Behavior
+
+Both sheet-generation helpers follow the same pattern:
+
+1. Build a `story_elements` string from `OutlineResult.summary` plus serialized `chapter_outlines`.
+2. Load an extraction prompt from `prompts/characters/extract_names.md` or `prompts/settings/extract_names.md`.
+3. Ask the configured `chapter_writer` model for a JSON array of names.
+4. For each non-empty name that slugifies successfully, load the corresponding create prompt and request a full markdown sheet.
+5. Atomically persist the resulting JSON document under the story directory.
+
+Failure handling is intentionally permissive. If the extraction call returns malformed JSON or otherwise raises during parsing, the phase falls back to an empty name list and the pipeline continues. If generating an individual sheet fails, that sheet is skipped while the rest of the phase proceeds.
+
+## Chapter Prompt Enrichment
+
+`ChapterWriterAgent.run()` now reads generated sheet files from `stories/<story>/characters/*.json` and `stories/<story>/settings/*.json` before it sends the chapter prompt to the model.
+
+For each readable JSON file:
+
+- `name` is used as the display label
+- `summary` is preferred as the abridged prompt context
+- if `summary` is empty, the agent falls back to the first 300 characters of `sheet`
+
+The agent appends those entries under `## Characters` and `## Settings` sections in the user prompt. Missing directories, unreadable files, or malformed JSON are ignored so chapter generation still proceeds.
 
 ## Approval Gate Semantics
 
@@ -94,7 +136,7 @@ Issue #161 also adds `src/presentation/agents/__init__.py` and five Python calla
 | Agent | Prompt file | Return type | Current behavior |
 |------|-------------|-------------|------------------|
 | `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `OutlineResult` | Streams outline text, parses chapter outlines from JSON or `Chapter:` lines, extracts `genre` and `themes` when present |
-| `ChapterWriterAgent` | `prompts/agents/chapter-writer.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback |
+| `ChapterWriterAgent` | `prompts/agents/chapter-writer.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback, with abridged character and setting context loaded from disk when available |
 | `WikiMaintainerAgent` | `prompts/agents/wiki-maintainer.md` | `WikiUpdateBatch` | Streams evaluation text, currently returns empty `updated_pages` / `new_pages` placeholders |
 | `ConsistencyCheckerAgent` | `prompts/agents/consistency-checker.md` | `dict[str, Any]` | Streams analysis text, currently returns `{"issues": [], "passed": True}` placeholder result |
 | `StoryOrchestratorAgent` | none loaded | `dict[str, Any]` | Vestigial helper that returns a static phase plan; orchestration logic lives in `orchestrator.py` |
@@ -117,7 +159,6 @@ These fields round-trip through `to_dict()`, `from_dict()`, and `to_json()`. The
 The long-term migration PRD still describes additional phases and UI surfaces that are not yet wired in this implementation. Notably absent from the current code path:
 
 - narrative-arc analysis
-- character-sheet generation and setting-sheet generation subagents
 - wiki initialization and initial population
 - quality-reviewer, prose-scrubber, and final-editor execution
 - CLI wiring and Textual TUI integration

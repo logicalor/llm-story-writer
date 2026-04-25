@@ -461,6 +461,8 @@ Collect all review data upfront so each reviewer gets the same pre-computed pack
 
 Assemble the output into a **Review Package**:
 
+> **⚠️ No annotations in the package.** Do NOT add inline comments, `# VERIFY:`, `# TODO:`, `# NOTE:`, `# CHECK:`, or any other annotations into code blocks or diff excerpts. The package must be a verbatim copy of source and diff output only. Annotations inside diff code blocks are indistinguishable from real source comments to reviewers and systematically produce false-positive findings. (Source: issue #182, PR #194 — Gemini reported a Critical bug from an `# VERIFY:` annotation injected by the Orchestrator.)
+
 ```
 == REVIEW PACKAGE ==
 
@@ -504,6 +506,8 @@ Use this prompt template for each reviewer (substitute the actual values):
 
 ```
 Review all changes on the current branch against development. Follow the shared code review process at `.github/agents/_shared/code-review-process.md`. The review package below contains the diff, changed file list, commit log, and full file contents — use this data instead of re-running git commands or re-reading files. You may run targeted verification commands if needed, but do not re-collect the bulk data.
+
+Focus your review on correctness, security, test coverage, and project convention adherence for the changes in this PR. Do not propose architectural refactors, framework migrations, or structural redesigns that are out of scope for this PR — if you notice such opportunities, record them as Suggestions only with a clear note that they are out-of-scope for this change.
 
 Write your completed review report to: [file path]
 
