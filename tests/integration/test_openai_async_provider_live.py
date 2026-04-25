@@ -37,7 +37,7 @@ class TestOpenAIAsyncProviderLive:
             name=os.environ.get("TEST_OPENAI_ASYNC_MODEL")
             or os.environ.get("LLM_MODEL")
             or "local-model",
-            provider="openai_compatible",
+            provider="openai_async",
         )
 
         async def collect() -> list[str]:

@@ -31,7 +31,7 @@ async def main() -> None:
     provider = OpenAIAsyncProvider(base_url="http://127.0.0.1:1234/v1")
     model_config = ModelConfig(
         name="local-model",
-        provider="openai_compatible",
+        provider="openai_async",
     )
 
     text = await provider.generate_text(
@@ -60,7 +60,7 @@ async def main() -> None:
     provider = OpenAIAsyncProvider()
     model_config = ModelConfig(
         name="local-model",
-        provider="openai_compatible",
+        provider="openai_async",
     )
 
     async for chunk in provider.stream_text(
