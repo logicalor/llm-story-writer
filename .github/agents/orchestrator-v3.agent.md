@@ -281,6 +281,8 @@ After producing the plan:
 
 > **Skip this step** for config/agent/skill/documentation-only changes (e.g., `.github/copilot-instructions.md`, `.github/agents/*.md`, `.github/skills/*/SKILL.md` edits, or similar files that introduce no behavioral changes to production code). Proceed directly to Step 5.
 
+> For documentation-only issues where the primary deliverables are documentation files (`docs/`, `README.md`, `AGENTS.md`, `.github/copilot-instructions.md`, or similar), the changes will be made by the **Documenter** at Step 6. The Documenter is acting as the primary implementer for this issue — not just the supplementary documentarian. Proceed to Step 5 (lint quality gate only, no test writing), then Step 6.
+
 Dispatch to specialist agents **in dependency order**, passing the issue number, branch name, and full plan. Follow the retry protocol from **`.github/agents/_shared/dispatch-retry.md`** for any dispatch failures.
 
 | Task type                     | Dispatch order             |
@@ -424,6 +426,8 @@ Dispatch back to the **Coder** with the exact error output. The Coder must fix t
 **ChromaDB — embed new knowledge:** If this task uncovered new gotchas or patterns that were appended to `.github/notes/gotchas.md` or `patterns.md` during the task, embed them into the `conventions` ChromaDB collection now (see `.github/instructions/chromadb.instructions.md` for ID conventions and metadata schema).
 
 ### Step 6 — Document
+
+**Documentation-only issues (Step 4 was skipped):** The Documenter is dispatched here as the *primary implementer*, not just to supplement code changes. Pass it the full task description, acceptance criteria, and file list from Step 3. The Documenter's "Review the code changes" step (item 1 of its charter) can be skipped — there are no code changes.
 
 After verification is confirmed, **dispatch to the `Documenter` agent** with the issue number and PR number. It will:
 
