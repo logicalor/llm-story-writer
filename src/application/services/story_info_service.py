@@ -125,7 +125,6 @@ class StoryInfoService:
             required_attributes=[],
             seed=settings.seed,
             debug=settings.debug,
-            stream=settings.stream,
         )
 
         # Handle different response formats

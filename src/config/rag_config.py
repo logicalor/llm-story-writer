@@ -31,7 +31,7 @@ def _parse_embedding_model_uri(embedding_model: str) -> Tuple[Optional[str], str
     """Parse embedding model URI into optional host and model name."""
     scheme = "openai-compat://"
     if embedding_model.startswith(scheme):
-        remainder = embedding_model[len(scheme):]
+        remainder = embedding_model[len(scheme) :]
         if "/" in remainder:
             candidate_host, model_name = remainder.split("/", 1)
             if ":" in candidate_host:

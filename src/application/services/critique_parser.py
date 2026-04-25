@@ -193,7 +193,7 @@ class CritiqueParser:
             return {}
 
         # Group scores by criterion
-        criterion_scores = {}
+        criterion_scores: Dict[str, List[float]] = {}
         for result in critique_results:
             for score in result.scores:
                 if score.criterion not in criterion_scores:

@@ -200,6 +200,9 @@ class ModelRerankerService:
     def _run_cross_encoder_inference(self, pairs: List[List[str]]) -> List[float]:
         """Run cross-encoder inference (runs in thread pool)."""
         try:
+            if self.model is None:
+                raise RuntimeError("Reranker model not initialized")
+
             scores = self.model.predict(pairs)
             # Convert to list if it's a numpy array
             if hasattr(scores, "tolist"):

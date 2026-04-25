@@ -90,7 +90,9 @@ def _write_savepoint(
     filepath.write_text(f"# Savepoint: {step_name}\n\n{data}", encoding="utf-8")
 
 
-def _make_scene(index: int, *, missing_keys: set[str] | None = None) -> dict[str, object]:
+def _make_scene(
+    index: int, *, missing_keys: set[str] | None = None
+) -> dict[str, object]:
     """Build one valid scene definition with optional missing keys."""
     scene = {
         **SCENE_TEMPLATE,
@@ -747,7 +749,9 @@ def test_expand_to_scenes_rejects_too_few_scenes(
     error = json.loads(stderr)
     assert error["status"] == "error"
     assert error["operation"] == "expand-to-scenes"
-    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    assert (
+        error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    )
     assert "scene count 3 outside allowed range [8, 16]" in error["data"]["detail"]
 
 
@@ -782,7 +786,9 @@ def test_expand_to_scenes_rejects_too_many_scenes(
     assert returncode == 1
     assert call_count == 2
     error = json.loads(stderr)
-    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    assert (
+        error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    )
     assert "scene count 20 outside allowed range [8, 16]" in error["data"]["detail"]
 
 
@@ -816,7 +822,9 @@ def test_expand_to_scenes_retry_once_then_error(
     assert returncode == 1
     assert call_count == 2
     error = json.loads(stderr)
-    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    assert (
+        error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    )
     assert error["data"]["detail"]
 
 
@@ -852,7 +860,9 @@ def test_expand_to_scenes_missing_required_key(
     assert returncode == 1
     assert call_count == 2
     error = json.loads(stderr)
-    assert error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    assert (
+        error["data"]["error"] == "LLM failed to produce valid scene JSON after retry"
+    )
     assert "scene 5 missing required keys: literary_devices" in error["data"]["detail"]
 
 

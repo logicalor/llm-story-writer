@@ -29,7 +29,9 @@ def _make_outline_generator() -> OutlineGenerator:
     )
 
 
-def test_index_story_analysis_chunk_returns_early_when_rag_integration_is_none() -> None:
+def test_index_story_analysis_chunk_returns_early_when_rag_integration_is_none() -> (
+    None
+):
     generator = _make_outline_generator()
     settings = GenerationSettings()
 
@@ -46,7 +48,9 @@ def test_index_story_analysis_chunk_returns_early_when_rag_integration_is_none()
     assert result is None
 
 
-def test_index_story_analysis_chunk_calls_index_outline_when_rag_integration_present() -> None:
+def test_index_story_analysis_chunk_calls_index_outline_when_rag_integration_present() -> (
+    None
+):
     generator = _make_outline_generator()
     settings = GenerationSettings()
     rag_integration = MagicMock()

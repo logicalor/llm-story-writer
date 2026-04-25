@@ -61,7 +61,18 @@ class TestModelConfig:
         with pytest.raises(ValidationError, match="Invalid provider"):
             ModelConfig.from_string("openrouter://anthropic/claude-3-opus")
 
-    @pytest.mark.parametrize("scheme", ["google", "openrouter", "openai", "anthropic", "ollama", "lm_studio", "llama_cpp"])
+    @pytest.mark.parametrize(
+        "scheme",
+        [
+            "google",
+            "openrouter",
+            "openai",
+            "anthropic",
+            "ollama",
+            "lm_studio",
+            "llama_cpp",
+        ],
+    )
     def test_removed_cloud_provider_schemes_raise_validation_error(self, scheme):
         """Test that all four removed cloud provider schemes are rejected."""
         with pytest.raises(ValidationError, match="Invalid provider"):
@@ -123,7 +134,6 @@ class TestModelConfig:
 
         expected = "openai-compat://llama3:70b@192.168.1.100:11434?temperature=0.7"
         assert str(config) == expected
-
 
     def test_repr(self):
         """Test ModelConfig representation."""

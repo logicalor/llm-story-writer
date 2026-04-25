@@ -579,9 +579,12 @@ def cmd_initial_populate(args: argparse.Namespace) -> None:
     cache = _load_extract_cache(story_dir)
     state = _read_json_file(story_dir / "state.json", label="state.json")
 
-    # Outline content lives in the `outline` savepoint; state.json no longer
-    # stores it. Fall back to `refined_outline` when the canonical step is absent.
     outline_text = _load_outline_savepoint(story_dir)
+    if not outline_text.strip():
+        state_for_outline = _read_json_file(
+            story_dir / "state.json", label="state.json"
+        )
+        outline_text = state_for_outline.get("outline", "") or ""
     if not outline_text.strip():
         raise ValueError(
             "outline savepoint missing — run Phase 2 (outline-planner) before wiki population"

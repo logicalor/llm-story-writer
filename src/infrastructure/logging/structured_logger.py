@@ -120,6 +120,9 @@ class StructuredLogger:
     async def _write_to_file(self, log_entry: Dict[str, Any]):
         """Write log entry to file asynchronously."""
         try:
+            if self.log_file is None:
+                return
+
             log_line = json.dumps(log_entry) + "\n"
 
             await asyncio.to_thread(self._append_to_file, self.log_file, log_line)

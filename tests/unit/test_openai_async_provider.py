@@ -20,11 +20,7 @@ from domain.value_objects.model_config import ModelConfig
 
 _provider_spec = importlib.util.spec_from_file_location(
     "openai_async_provider_module",
-    PROJECT_ROOT
-    / "src"
-    / "infrastructure"
-    / "providers"
-    / "openai_async_provider.py",
+    PROJECT_ROOT / "src" / "infrastructure" / "providers" / "openai_async_provider.py",
 )
 assert _provider_spec is not None and _provider_spec.loader is not None
 _provider_module = importlib.util.module_from_spec(_provider_spec)

@@ -10,6 +10,11 @@ from domain.repositories.savepoint_repository import SavepointRepository
 from infrastructure.prompts.prompt_loader import PromptLoader
 
 
+def _example_model_config() -> ModelConfig:
+    """Provide a concrete example model configuration for sample code."""
+    return ModelConfig.from_string("openai-compat://example-model")
+
+
 class EnhancedOutlineChapterStrategy:
     """Example of how to enhance the existing strategy with the new prompt handler."""
 
@@ -34,7 +39,7 @@ class EnhancedOutlineChapterStrategy:
         self, prompt: str, settings: GenerationSettings
     ) -> str:
         """Extract story start date using the new prompt handler."""
-        model_config = ModelConfig.from_string(settings.model)
+        model_config = _example_model_config()
 
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -52,7 +57,7 @@ class EnhancedOutlineChapterStrategy:
         self, prompt: str, settings: GenerationSettings
     ) -> str:
         """Extract base context using the new prompt handler."""
-        model_config = ModelConfig.from_string(settings.model)
+        model_config = _example_model_config()
 
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -70,7 +75,7 @@ class EnhancedOutlineChapterStrategy:
         self, prompt: str, settings: GenerationSettings
     ) -> str:
         """Generate story elements using the new prompt handler."""
-        model_config = ModelConfig.from_string(settings.model)
+        model_config = _example_model_config()
 
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -92,7 +97,7 @@ class EnhancedOutlineChapterStrategy:
         settings: GenerationSettings,
     ) -> str:
         """Generate initial outline using the new prompt handler."""
-        model_config = ModelConfig.from_string(settings.model)
+        model_config = _example_model_config()
 
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -119,7 +124,7 @@ class EnhancedOutlineChapterStrategy:
         settings: GenerationSettings,
     ) -> str:
         """Generate chapter outline using the new prompt handler."""
-        model_config = ModelConfig.from_string(settings.model)
+        model_config = _example_model_config()
 
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,
@@ -146,7 +151,7 @@ class EnhancedOutlineChapterStrategy:
         settings: GenerationSettings,
     ) -> str:
         """Generate chapter content using the new prompt handler."""
-        model_config = ModelConfig.from_string(settings.model)
+        model_config = _example_model_config()
 
         response = await execute_prompt_with_savepoint(
             handler=self.prompt_handler,

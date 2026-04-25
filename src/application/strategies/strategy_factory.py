@@ -1,6 +1,6 @@
 """Strategy factory for managing story writing strategies."""
 
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional
 from domain.exceptions import ConfigurationError
 from domain.repositories.savepoint_repository import SavepointRepository
 from ..interfaces.story_strategy import StoryStrategy
@@ -14,7 +14,7 @@ class StrategyFactory:
     """Factory for creating and managing story writing strategies."""
 
     def __init__(self):
-        self._strategies: Dict[str, Type[StoryStrategy]] = {}
+        self._strategies: Dict[str, Any] = {}
         self._register_default_strategies()
 
     def _register_default_strategies(self):
@@ -22,7 +22,7 @@ class StrategyFactory:
         self.register_strategy("outline-chapter", OutlineChapterStrategy)
         self.register_strategy("stream-of-consciousness", StreamOfConsciousnessStrategy)
 
-    def register_strategy(self, name: str, strategy_class: Type[StoryStrategy]):
+    def register_strategy(self, name: str, strategy_class: Any):
         """Register a new strategy."""
         self._strategies[name] = strategy_class
 
@@ -121,7 +121,8 @@ class StrategyFactory:
             # Check if all required models are configured
             for model_name in required_models:
                 try:
-                    config.get_model(model_name)
+                    if model_name not in config.get("models", {}):
+                        return False
                 except Exception:
                     return False
 

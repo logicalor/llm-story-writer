@@ -117,20 +117,29 @@ class SceneGenerator:
 
                         scene = Scene(
                             number=scene_num,
-                            title=scene_title,
-                            content=scene_content,
+                            title=scene_title if isinstance(scene_title, str) else "",
+                            content=scene_content
+                            if isinstance(scene_content, str)
+                            else "",
                             outline=scene_def.get("description", ""),
                         )
                         scenes.append(scene)
                         continue
 
-                    previous_scene = scenes[-1].content if scenes else None
+                    previous_scene = scenes[-1].content if scenes else ""
 
-                    previous_scene_summary = None
+                    previous_scene_summary = ""
                     # If the scene number is > 1, get the previous scene summary
                     if scene_num > 1:
-                        previous_scene_summary = await self.savepoint_manager.load_step(
-                            f"chapter_{chapter_num}/scene_{scene_num - 1}_summary"
+                        previous_scene_summary_raw = (
+                            await self.savepoint_manager.load_step(
+                                f"chapter_{chapter_num}/scene_{scene_num - 1}_summary"
+                            )
+                        )
+                        previous_scene_summary = (
+                            previous_scene_summary_raw
+                            if isinstance(previous_scene_summary_raw, str)
+                            else ""
                         )
                         if not previous_scene_summary:
                             previous_scene_summary = await self._extract_scene_events(
@@ -140,7 +149,7 @@ class SceneGenerator:
                                 settings=settings,
                             )
 
-                    scene_def_string = json.dumps(scene_def) if scene_def else None
+                    scene_def_string = json.dumps(scene_def) if scene_def else ""
 
                     # If we are not at the last scene, set the next chapter synopsis to empty
                     if scene_num < len(scene_definitions):
@@ -155,7 +164,7 @@ class SceneGenerator:
                     next_scene_definition_string = (
                         json.dumps(next_scene_definition)
                         if next_scene_definition
-                        else None
+                        else ""
                     )
 
                     # Generate scene content
@@ -399,7 +408,7 @@ class SceneGenerator:
         scene_num: int,
         scene_definition: str,
         tense: str = "present",
-        settings: GenerationSettings = None,
+        settings: Optional[GenerationSettings] = None,
     ) -> str:
         """
         Get a natural language summary of a scene outline from its JSON definition.
@@ -447,7 +456,7 @@ class SceneGenerator:
             return f"Error generating scene summary: {e}"
 
     async def _get_scene_outline_summary_programmatic(
-        self, scene_definition: str, settings: GenerationSettings = None
+        self, scene_definition: str, settings: Optional[GenerationSettings] = None
     ) -> str:
         """
         Get a natural language summary of a scene outline programmatically from its JSON definition.
@@ -556,7 +565,7 @@ class SceneGenerator:
         chapter_num: int,
         chapter_outline: str,
         tense: str = "present",
-        settings: GenerationSettings = None,
+        settings: Optional[GenerationSettings] = None,
     ) -> str:
         """
         Get a natural language summary of a chapter outline.
@@ -776,7 +785,7 @@ class SceneGenerator:
                 settings=settings,
             )
 
-        if scene_num == chapter_count or scene_num != 1:
+        if self.savepoint_manager and (scene_num == chapter_count or scene_num != 1):
             previous_scene_summary = await self.savepoint_manager.load_step(
                 f"chapter_{chapter_num}/scene_{scene_num - 1}_multistep_content"
             )

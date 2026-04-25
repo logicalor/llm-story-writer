@@ -2,24 +2,24 @@
 
 import logging
 from typing import Any, Dict, Optional
-from domain.entities.story import Outline
-from domain.value_objects.generation_settings import GenerationSettings
-from domain.value_objects.model_config import ModelConfig
-from domain.exceptions import StoryGenerationError
-
-logger = logging.getLogger(__name__)
 
 from application.interfaces.model_provider import ModelProvider
+from domain.entities.story import Outline
+from domain.exceptions import StoryGenerationError
+from domain.value_objects.generation_settings import GenerationSettings
+from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_handler import PromptHandler
 from infrastructure.prompts.prompt_wrapper import (
     execute_messages_with_savepoint,
     execute_prompt_with_savepoint,
 )
 from infrastructure.savepoints import SavepointManager
+from .chapter_generator import ChapterGenerator
 from .character_manager import CharacterManager
 from .setting_manager import SettingManager
-from .chapter_generator import ChapterGenerator
 from .story_state_manager import StoryStateManager
+
+logger = logging.getLogger(__name__)
 
 
 class OutlineGenerator:
@@ -127,6 +127,10 @@ class OutlineGenerator:
             story_elements = await self._generate_story_elements_from_chunks(
                 story_analysis, settings
             )
+
+            # This path builds context and elements but does not generate a monolithic
+            # initial outline string, so keep the field explicit.
+            initial_outline = None
 
             # Generate character sheets with RAG integration
             await self.character_manager.generate_character_sheets(

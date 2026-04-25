@@ -41,7 +41,7 @@ class OutlineService:
             story_elements = await self._generate_story_elements(prompt, settings)
 
             # Generate initial outline
-            outline_content = await self._generate_initial_outline(
+            await self._generate_initial_outline(
                 prompt, story_elements, base_context, settings
             )
 
