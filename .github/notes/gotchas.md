@@ -880,3 +880,69 @@ the worker has posted its result to the DOM.
 **Note:** `@pytest.mark.asyncio` is required; Textual's `run_test()` is an async context manager.
 
 ChromaDB ID: `gotcha-textual-work-thread-testing-026`
+
+---
+
+### 027 — E2E subprocess test story names must be pre-normalized kebab-case
+
+**Source:** issue #165, PR #176
+**Severity:** warning
+
+When writing E2E integration tests that seed story data (e.g. `state.json`) and then invoke the
+CLI via `subprocess.run`, always pass a story name that is **already in canonical kebab-case**
+to both the subprocess and the test fixture. Do **not** rely on the pipeline normalising the name
+internally.
+
+**Why:** `run_pipeline()` in `src/presentation/orchestrator.py` calls `_validate_story_name()`
+but **discards the return value**. The raw (un-normalised) `story_name` is stored directly in
+`PipelineState` and used for all subsequent path operations:
+
+```python
+# Wrong — discards normalised form:
+_validate_story_name(story_name, STORIES_DIR)
+state = PipelineState(story_name=story_name, ...)  # raw name stored
+story_dir = STORIES_DIR / story_name               # --> stories/e2e_test_/
+```
+
+**Consequence:** If the test seeds `stories/e2e-test/state.json` but passes `--story e2e_test_`,
+the pipeline writes to `stories/e2e_test_/` and the assertions check `stories/e2e-test/` —
+producing either a `FileNotFoundError` on the seeded state (hard failure) or vacuous assertions
+against stale data from a prior run (silent false-pass). Neither failure produces a clear error
+message pointing to the name mismatch.
+
+**Right:** Use a name that is already in canonical kebab-case in both the fixture and the CLI
+invocation:
+
+```python
+STORY_NAME = "e2e-test"           # already kebab-case — no normalisation needed
+STORY_DIR  = STORIES_DIR / "e2e-test"
+
+# subprocess:
+subprocess.run(["python", "-m", "src...", "--story", STORY_NAME], ...)
+```
+
+**Isolation:** Combine with `tmp_path` and the `STORIES_DIR` env var to prevent
+cross-test contamination and real-data loss:
+
+```python
+@pytest.fixture(scope="session")
+def e2e_story_dir(tmp_path_factory: pytest.TempPathFactory):
+    base = tmp_path_factory.mktemp("stories")
+    story_dir = base / "e2e-test"
+    story_dir.mkdir(parents=True)
+    # seed state.json ...
+    yield story_dir
+    # tmp_path dirs are cleaned automatically — no shutil.rmtree needed
+
+# In the test:
+result = subprocess.run(
+    [..., "--story", "e2e-test"],
+    env={**os.environ, "STORIES_DIR": str(story_dir.parent)},
+    ...
+)
+```
+
+This pattern also prevents deletion of a developer's real story named `"e2e-test"` and avoids
+parallel-runner path conflicts.
+
+ChromaDB ID: `gotcha-e2e-test-story-name-kebab-case-027`

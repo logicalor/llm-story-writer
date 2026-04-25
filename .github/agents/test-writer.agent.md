@@ -62,6 +62,25 @@ Follow the test conventions and patterns established in the project (see `copilo
 
 **Textual `@work(thread=True)` apps:** When writing tests for Textual apps that run blocking work in `@work(thread=True)` workers, follow three rules: (1) Mock the worker's `_run_pipeline` (or equivalent) to prevent real LLM/pipeline execution — without this the test hangs or raises config errors; (2) Use `async with app.run_test() as pilot` — not `app.run()`, which blocks the test thread; (3) Use `await pilot.pause()` after any action that triggers a worker or reactive update — this yields control to the event loop so pending callbacks and worker-posted messages process before assertions. Multiple `pause()` calls may be needed. Missing a `pause()` causes flaky assertions that fire before the worker posts its result. Decorate the test function with `@pytest.mark.asyncio`. (Source: issue #163, PR #174 — gotcha #026.)
 
+**`subprocess.TimeoutExpired` handling:** When using `subprocess.run(timeout=N)` in tests, always wrap in `try/except subprocess.TimeoutExpired` and convert it to a clean `pytest.fail()`. Without the wrapper, a timeout causes pytest to record an ERROR instead of a FAIL, and all stdout/stderr captured up to that point is trapped in the exception attributes and never reported. Example pattern:
+
+```python
+try:
+    result = subprocess.run([...], capture_output=True, text=True, timeout=TIMEOUT_SECONDS)
+except subprocess.TimeoutExpired as e:
+    stdout = (e.stdout or b"").decode(errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+    stderr = (e.stderr or b"").decode(errors="replace") if isinstance(e.stderr, bytes) else (e.stderr or "")
+    pytest.fail(
+        f"Pipeline exceeded {TIMEOUT_SECONDS}s budget.\n"
+        f"stdout (truncated):\n{stdout[-2000:]}\n"
+        f"stderr (truncated):\n{stderr[-2000:]}"
+    )
+```
+
+Note: `.stdout` and `.stderr` on the exception are `bytes | None` when `capture_output=True` is used. Any `assert elapsed <= TIMEOUT_SECONDS` placed _after_ an unwrapped `subprocess.run(timeout=...)` call is unreachable dead code — execution only reaches it when the process has already returned within budget. (Source: issue #165, PR #176.)
+
+**Live-test availability fixtures:** When writing a live integration test that requires an external service (LLM endpoint, database, etc.), prefer the suite-standard `llm_available` fixture from `tests/integration/conftest.py` over defining a new one. The standard fixture is session-scoped, reads `LLM_API_BASE` from the environment (enabling Ollama, llama.cpp, and remote endpoints), and verifies **both** connectivity (no exception) and HTTP 200 status. If you must write a new availability fixture for a different service type, it must check both conditions — catching only connection exceptions is insufficient. A server returning HTTP 500, 401, or 503 is reachable but not operational; a test that proceeds against it will fail confusingly rather than skipping cleanly. (Source: issue #165, PR #176 — flagged unanimously by all three reviewers as U-W-01.)
+
 After writing each test, run the project's test command (see `copilot-instructions.md`).
 
 ### 3. Classify Results
