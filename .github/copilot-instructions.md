@@ -43,7 +43,6 @@
 | Type check       | `mypy src/` |
 | Full test suite  | `pytest` |
 | Single test      | `pytest tests/unit/test_<module>.py -v` |
-| TS/JS tests      | `npx vitest run` |
 
 ## Shell Commands
 

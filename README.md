@@ -52,6 +52,32 @@ cd AIStoryWriter
 pip install -r requirements.txt
 ```
 
+## 🚀 Running
+
+### Interactive TUI (recommended)
+
+```bash
+story-writer tui --story <story-name>
+```
+
+Opens the three-panel Textual TUI with live token streaming, wiki context panel, and interactive approval gates. Keybindings: `Ctrl+W` (toggle wiki panel), `Ctrl+S` (savepoint reminder), `Ctrl+C` (quit).
+
+### Headless Batch Mode
+
+```bash
+story-writer run --story <story-name> --batch
+```
+
+Runs the full generation pipeline headlessly with no interactive prompts.
+
+### Resume from Savepoint
+
+```bash
+story-writer resume --story <story-name>
+```
+
+Resumes the pipeline from the most recent persisted savepoint.
+
 ## 🧰 Configuration
 
 All configuration options are defined in `config.yml`. You can modify these values to customize the behavior of the application.

@@ -223,7 +223,7 @@ Keybindings:
 
 See [Textual TUI](./features/textual-tui.md) for the thread model, approval-gate bridge, and test coverage.
 
-### 5.2 Prompt Assets
+### 5.2 Prompt Asset Locations
 
 Issue #164 removed the remaining OpenCode runtime artefacts from the repository. Reusable prompt content that still matters to the Python-native pipeline now lives in these locations:
 
