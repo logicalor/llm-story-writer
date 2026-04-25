@@ -305,11 +305,12 @@ async def _continue_pipeline(
                 raise StoryGenerationError(
                     "Assembly failed: no approved chapter content to assemble"
                 )
-            output_path.write_text("\n\n".join(parts) + "\n", encoding="utf-8")
-            if not output_path.exists():
+            try:
+                output_path.write_text("\n\n".join(parts) + "\n", encoding="utf-8")
+            except OSError as exc:
                 raise StoryGenerationError(
-                    "Assembly failed: output file was not written"
-                )
+                    f"Assembly failed: could not write output file: {exc}"
+                ) from exc
             await _mark_phase_complete(state, "assembly", "assembly")
 
         state.current_phase = "complete"

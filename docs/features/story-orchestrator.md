@@ -110,7 +110,7 @@ Issue #161 extends `PipelineState` in `src/application/pipeline/handoffs.py` wit
 | `savepoints` | `list[str]` | Ordered record of checkpoint labels written during the run |
 | `status` | `str` | Run lifecycle state: defaults to `"running"`, changes to `"rejected"` or `"complete"` |
 
-These fields round-trip through `to_dict()`, `from_dict()`, and `to_json()`. The four unit tests in `tests/unit/test_orchestrator.py` assert the main behaviors built around them: happy-path completion, outline rejection, chapter revision, and resume from a persisted savepoint.
+These fields round-trip through `to_dict()`, `from_dict()`, and `to_json()`. The unit tests in `tests/unit/test_orchestrator.py` assert the main behaviors built around them: happy-path completion, outline rejection, chapter revision, and resume from a persisted savepoint.
 
 ## Current Scope Boundaries
 

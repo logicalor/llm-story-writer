@@ -103,6 +103,8 @@ async def test_run_pipeline_happy_path(tmp_path: Path) -> None:
         patch(
             "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
         ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
@@ -324,6 +326,8 @@ async def test_resume_pipeline_from_savepoint(tmp_path: Path) -> None:
         patch(
             "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
         ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
