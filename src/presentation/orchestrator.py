@@ -95,6 +95,15 @@ async def _mark_phase_complete(
     await _write_savepoint(state)
 
 
+def _write_chapter_file(story_dir: Path, chapter_number: int, content: str) -> None:
+    """Write an approved chapter's content to disk."""
+    chapters_dir = story_dir / "chapters"
+    chapters_dir.mkdir(parents=True, exist_ok=True)
+    (chapters_dir / f"chapter_{chapter_number}.md").write_text(
+        content, encoding="utf-8"
+    )
+
+
 def _chapter_numbers(
     outline_result: OutlineResult | None, settings: GenerationSettings
 ) -> list[int]:
@@ -266,6 +275,7 @@ async def _continue_pipeline(
                     state.story_name, chapter_number, draft.content
                 )
                 state.approved_chapters.append(draft)
+                _write_chapter_file(story_dir, chapter_number, draft.content)
                 wiki_batch = await wiki_agent.run(
                     state.story_name, chapter_number, draft.content
                 )
@@ -284,6 +294,22 @@ async def _continue_pipeline(
 
         state.current_phase = "assembly"
         if "assembly" not in state.completed_phases:
+            output_path = story_dir / "output" / "story.md"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            parts = [
+                ch.content.rstrip()
+                for ch in state.approved_chapters
+                if ch.content.strip()
+            ]
+            if not parts:
+                raise StoryGenerationError(
+                    "Assembly failed: no approved chapter content to assemble"
+                )
+            output_path.write_text("\n\n".join(parts) + "\n", encoding="utf-8")
+            if not output_path.exists():
+                raise StoryGenerationError(
+                    "Assembly failed: output file was not written"
+                )
             await _mark_phase_complete(state, "assembly", "assembly")
 
         state.current_phase = "complete"
