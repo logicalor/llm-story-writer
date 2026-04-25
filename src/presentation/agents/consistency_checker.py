@@ -40,9 +40,12 @@ def _extract_consistency_result(text: str) -> dict[str, Any]:
     except (json.JSONDecodeError, ValueError):
         return {"issues": [], "passed": True}
 
+    if not isinstance(data, dict):
+        return {"issues": [], "passed": True}
+
     issues: list[dict[str, Any]] = []
 
-    lint = data.get("wiki_lint_findings", {})
+    lint = data.get("wiki_lint_findings") or {}
     for contradiction in lint.get("contradictions", []):
         issues.append(
             {
@@ -68,7 +71,9 @@ def _extract_consistency_result(text: str) -> dict[str, Any]:
             }
         )
 
-    for finding in data.get("semantic_findings", []):
+    for finding in data.get("semantic_findings") or []:
+        if not isinstance(finding, dict):
+            continue
         issues.append(
             {
                 "type": "semantic",
@@ -77,7 +82,9 @@ def _extract_consistency_result(text: str) -> dict[str, Any]:
             }
         )
 
-    for finding in data.get("cross_chapter_findings", []):
+    for finding in data.get("cross_chapter_findings") or []:
+        if not isinstance(finding, dict):
+            continue
         issues.append(
             {
                 "type": "cross_chapter",

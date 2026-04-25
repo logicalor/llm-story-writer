@@ -102,6 +102,47 @@ def test_extract_consistency_result_json_in_fence() -> None:
     }
 
 
+def test_extract_consistency_result_null_sections_fallback() -> None:
+    response = (
+        '{"has_critical_findings": false, '
+        '"wiki_lint_findings": null, '
+        '"semantic_findings": null, '
+        '"cross_chapter_findings": null}'
+    )
+
+    result = _extract_consistency_result(response)
+
+    assert result == {"issues": [], "passed": True}
+
+
+def test_extract_consistency_result_non_dict_payload() -> None:
+    result = _extract_consistency_result("[]")
+
+    assert result == {"issues": [], "passed": True}
+
+
+def test_extract_consistency_result_non_dict_finding_items() -> None:
+    response = (
+        '{"has_critical_findings": false, '
+        '"wiki_lint_findings": {"contradictions": [], "timeline_issues": [], "trait_drift": []}, '
+        '"semantic_findings": ["unexpected string", {"finding": "valid finding", "severity": "info"}], '
+        '"cross_chapter_findings": []}'
+    )
+
+    result = _extract_consistency_result(response)
+
+    assert result == {
+        "issues": [
+            {
+                "type": "semantic",
+                "description": "valid finding",
+                "severity": "info",
+            }
+        ],
+        "passed": True,
+    }
+
+
 @pytest.mark.asyncio
 async def test_run_emits_tokens_and_returns_parsed_result() -> None:
     response = (
