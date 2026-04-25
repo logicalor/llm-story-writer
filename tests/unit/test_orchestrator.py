@@ -18,6 +18,7 @@ from application.pipeline.handoffs import (
     PipelineState,
     WikiUpdateBatch,
 )
+from domain.exceptions import StoryGenerationError
 from presentation.pipeline_primitives import (
     ApprovalGate,
     NullApprovalGate,
@@ -102,6 +103,8 @@ async def test_run_pipeline_happy_path(tmp_path: Path) -> None:
         patch(
             "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
         ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
@@ -127,6 +130,90 @@ async def test_run_pipeline_happy_path(tmp_path: Path) -> None:
     assert "init" in state.completed_phases
     assert "outline" in state.completed_phases
     assert len(state.savepoints) > 0
+
+
+@pytest.mark.asyncio
+async def test_chapter_files_written_during_chapter_loop(tmp_path: Path) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+
+        await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    chapter_path = tmp_path / "test-story" / "chapters" / "chapter_1.md"
+    assert chapter_path.exists()
+    assert chapter_path.read_text(encoding="utf-8") == "Draft content"
+
+
+@pytest.mark.asyncio
+async def test_assembly_writes_output_story_md(tmp_path: Path) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+
+        await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    output_path = tmp_path / "test-story" / "output" / "story.md"
+    assert output_path.exists()
+    content = output_path.read_text(encoding="utf-8")
+    assert content.strip()
+    assert "Draft content" in content
 
 
 @pytest.mark.asyncio
@@ -239,6 +326,8 @@ async def test_resume_pipeline_from_savepoint(tmp_path: Path) -> None:
         patch(
             "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
         ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
@@ -262,3 +351,59 @@ async def test_resume_pipeline_from_savepoint(tmp_path: Path) -> None:
     assert state.status == "complete"
     assert "chapter-loop" in state.completed_phases
     assert any(savepoint.startswith("chapter-") for savepoint in state.savepoints)
+
+
+@pytest.mark.asyncio
+async def test_assembly_raises_when_no_chapters(tmp_path: Path) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    partial_state = PipelineState(
+        story_name="test-story",
+        current_phase="assembly",
+        completed_phases=[
+            "init",
+            "outline",
+            "characters",
+            "settings",
+            "chapter-loop",
+            "final-edit",
+        ],
+        outline_result=_outline_result(),
+        approved_chapters=[],
+        status="running",
+        savepoints=[
+            "init",
+            "outline",
+            "characters",
+            "settings",
+            "chapter-loop",
+            "final-edit",
+        ],
+    )
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+    ):
+        await _write_savepoint(partial_state)
+
+        with pytest.raises(
+            StoryGenerationError,
+            match="Assembly failed: no approved chapter content to assemble",
+        ):
+            await resume_pipeline(
+                "test-story",
+                None,
+                NullApprovalGate(),
+                bus,
+                wiki_bus,
+                config=_config(),
+                provider=provider,
+            )
