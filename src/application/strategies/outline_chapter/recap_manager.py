@@ -38,12 +38,16 @@ class RecapManager:
         if chapter_num <= 1:
             return ""
 
+        if self.savepoint_manager is None:
+            return ""
+
         try:
             # Try to load existing recap from savepoint
-            return await self.savepoint_manager.load_step(
+            recap = await self.savepoint_manager.load_step(
                 f"chapter_{chapter_num - 1}/recap"
             )
-        except:
+            return recap if isinstance(recap, str) else ""
+        except Exception:
             if settings.debug:
                 print(
                     f"[RECAP LOAD] No previous recap found in savepoint for chapter {chapter_num - 1}"
@@ -422,7 +426,7 @@ class RecapManager:
             # The content should now be a clean JSON string that we can parse
             try:
                 # Validate the parsed JSON
-                recap_data = json.loads(response.content.strip())
+                json.loads(response.content.strip())
                 if settings.debug:
                     print(
                         "[RECAP FORMAT] Successfully parsed formatted recap from JSON"
@@ -446,8 +450,6 @@ class RecapManager:
         settings: GenerationSettings,
     ) -> str:
         """Fallback recap generation method."""
-        model_config = ModelConfig.from_string(self.config["models"]["chapter_writer"])
-
         # Since we're always loading from savepoints now, this fallback function is no longer needed
         # The recap should already exist in the savepoint from when the chapter was created
         if settings.debug:
@@ -456,26 +458,16 @@ class RecapManager:
         try:
             # Try to load the existing recap from savepoint
             if self.savepoint_manager:
-                return await self.savepoint_manager.load_step(
+                recap = await self.savepoint_manager.load_step(
                     f"chapter_{chapter_num}/recap"
                 )
+                return recap if isinstance(recap, str) else ""
             else:
                 return ""
-        except:
+        except Exception:
             if settings.debug:
                 print("[RECAP FALLBACK] No existing recap found in savepoint")
             return ""
-
-        # Ensure the response is valid JSON
-        try:
-            # Try to parse as JSON to validate
-            json.loads(response.content.strip())
-            return response.content.strip()
-        except json.JSONDecodeError:
-            if settings.debug:
-                print("[RECAP FALLBACK] Invalid JSON response, attempting to sanitize")
-            # Try to sanitize the response to extract JSON
-            return await self.sanitize_json_response(response.content.strip())
 
     async def run_recap_sanitizer(
         self,
@@ -721,10 +713,10 @@ class RecapManager:
             # Parse current date
             try:
                 current_dt = datetime.strptime(current_date, "%Y-%m-%d")
-            except:
+            except Exception:
                 try:
                     current_dt = datetime.strptime(current_date, "%m/%d/%Y")
-                except:
+                except Exception:
                     # Fallback - just return original
                     return events_json
 
@@ -734,10 +726,10 @@ class RecapManager:
 
                 try:
                     event_dt = datetime.strptime(event_date_str, "%Y-%m-%d")
-                except:
+                except Exception:
                     try:
                         event_dt = datetime.strptime(event_date_str, "%m/%d/%Y")
-                    except:
+                    except Exception:
                         event_dt = current_dt  # Fallback
 
                 # Calculate days difference
@@ -851,7 +843,7 @@ class RecapManager:
             # The content should now be a clean JSON string that we can parse
             try:
                 # Validate the parsed JSON
-                events_data = json.loads(response.content.strip())
+                json.loads(response.content.strip())
                 if settings.debug:
                     print(
                         "[EVENT CLASSIFICATION] Successfully parsed classified events from JSON"
@@ -980,7 +972,7 @@ class RecapManager:
             # The content should now be a clean JSON string that we can parse
             try:
                 # Validate the parsed JSON
-                recap_data = json.loads(response.content.strip())
+                json.loads(response.content.strip())
                 if settings.debug:
                     print(
                         "[RECAP COMPACTION] Successfully parsed compacted recap from JSON"
@@ -1011,10 +1003,10 @@ class RecapManager:
             # Parse current date
             try:
                 current_dt = datetime.strptime(current_date, "%Y-%m-%d")
-            except:
+            except Exception:
                 try:
                     current_dt = datetime.strptime(current_date, "%m/%d/%Y")
-                except:
+                except Exception:
                     return recap  # Fallback if date parsing fails
 
             # Get max age from settings or use default
@@ -1085,10 +1077,10 @@ class RecapManager:
             # Parse event date
             try:
                 event_dt = datetime.strptime(event_date_str, "%Y-%m-%d")
-            except:
+            except Exception:
                 try:
                     event_dt = datetime.strptime(event_date_str, "%m/%d/%Y")
-                except:
+                except Exception:
                     return True  # Keep high importance events with unparseable dates
 
             # Calculate age in days

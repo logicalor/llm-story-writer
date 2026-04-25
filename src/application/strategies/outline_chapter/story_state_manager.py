@@ -112,7 +112,9 @@ class StoryStateManager:
     def set_story_directory(self, story_name: str) -> None:
         """Set the story directory for state persistence."""
         if self.savepoint_manager and self.savepoint_manager.savepoint_repo:
-            story_dir = self.savepoint_manager.savepoint_repo._current_story_dir
+            story_dir = getattr(
+                self.savepoint_manager.savepoint_repo, "_current_story_dir", None
+            )
             if story_dir:
                 self.state_file_path = os.path.join(story_dir, "story_state.json")
                 self._load_state()
@@ -197,8 +199,6 @@ class StoryStateManager:
         self, chapter_num: int, settings: GenerationSettings
     ) -> None:
         """Analyze how the chapter affects story evolution using RAG interrogation."""
-        model_config = ModelConfig.from_string(self.config["models"]["logical_model"])
-
         # Use RAG to interrogate the chapter instead of reading full content
         evolution_data = await self._analyze_chapter_evolution_rag(
             chapter_num, settings
@@ -370,6 +370,9 @@ class StoryStateManager:
 
     def _prepare_planning_context(self) -> str:
         """Prepare context information for chapter planning."""
+        if self.story_context is None:
+            return "Story context not initialized."
+
         context_parts = [
             f"Story Direction: {self.story_context.story_direction}",
             f"Current Themes: {', '.join(self.story_context.current_themes)}",
@@ -488,7 +491,7 @@ class StoryStateManager:
     ) -> Dict[str, Any]:
         """Parse the response from chapter planning prompt."""
         lines = response.strip().split("\n")
-        chapter_data = {
+        chapter_data: Dict[str, Any] = {
             "chapter_number": chapter_num,
             "title": f"Chapter {chapter_num}",
             "status": "planned",
@@ -550,7 +553,7 @@ class StoryStateManager:
     def _parse_evolution_response(self, response: str) -> Dict[str, Any]:
         """Parse the response from evolution analysis prompt."""
         # Simplified parser - in practice, you'd want more robust parsing
-        evolution_data = {
+        evolution_data: Dict[str, Any] = {
             "character_updates": [],
             "plot_advancements": [],
             "new_themes": [],
@@ -588,7 +591,7 @@ class StoryStateManager:
 
     def _parse_revision_response(self, response: str) -> Dict[str, Any]:
         """Parse the response from chapter revision prompt."""
-        revision_data = {
+        revision_data: Dict[str, Any] = {
             "updated_content": "",
             "new_events": [],
             "character_updates": [],
@@ -654,7 +657,7 @@ class StoryStateManager:
         self.story_evolution.append(evolution_summary.strip())
 
         # Update story context
-        if evolution_data["new_themes"]:
+        if self.story_context is not None and evolution_data["new_themes"]:
             self.story_context.current_themes.extend(evolution_data["new_themes"])
 
         # Update characters (simplified - in practice, you'd want more sophisticated character tracking)

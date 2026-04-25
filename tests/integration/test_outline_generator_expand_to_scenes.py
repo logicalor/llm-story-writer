@@ -42,7 +42,9 @@ def _make_scene(index: int) -> dict[str, object]:
     }
 
 
-def _write_savepoint(stories_dir: Path, story_name: str, step_name: str, data: str) -> None:
+def _write_savepoint(
+    stories_dir: Path, story_name: str, step_name: str, data: str
+) -> None:
     savepoint_dir = stories_dir / story_name / "savepoints"
     if "/" in step_name:
         parts = step_name.split("/")

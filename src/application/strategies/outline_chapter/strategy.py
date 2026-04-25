@@ -1,7 +1,8 @@
 """Outline-Chapter story writing strategy."""
 
-from typing import Any, Dict, List, Optional
+import json
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 from domain.entities.story import Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
@@ -358,9 +359,9 @@ You have deep knowledge of storytelling techniques, character development, plot 
             from domain.entities.story import Chapter
 
             chapter = Chapter(
+                number=chapter_plan["chapter_number"],
                 title=chapter_plan["title"],
                 content=chapter_plan["planned_content"],
-                chapter_number=chapter_plan["chapter_number"],
             )
 
             # Use ChapterGenerator to enhance the chapter content if needed
@@ -368,16 +369,14 @@ You have deep knowledge of storytelling techniques, character development, plot 
             # For now, we'll use the planned content directly
             if settings.debug:
                 print(
-                    f"[PROGRESSIVE STORY] Chapter {chapter.chapter_number} generated from plan"
+                    f"[PROGRESSIVE STORY] Chapter {chapter.number} generated from plan"
                 )
                 print(f"   Title: {chapter.title}")
                 print(f"   Content length: {len(chapter.content)} characters")
 
             # Update the chapter state in StoryStateManager
-            if chapter.chapter_number in self.story_state_manager.chapters:
-                chapter_state = self.story_state_manager.chapters[
-                    chapter.chapter_number
-                ]
+            if chapter.number in self.story_state_manager.chapters:
+                chapter_state = self.story_state_manager.chapters[chapter.number]
                 chapter_state.actual_content = chapter.content
                 chapter_state.status = "completed"
                 chapter_state.updated_at = datetime.now()
@@ -544,4 +543,19 @@ You have deep knowledge of storytelling techniques, character development, plot 
             system_message=self.system_message,
         )
 
-        return response.content.strip()
+        content = response.content.strip()
+        if not content:
+            return []
+
+        try:
+            parsed = json.loads(content)
+            if isinstance(parsed, list):
+                return [str(tag).strip() for tag in parsed if str(tag).strip()]
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        return [
+            tag.strip()
+            for tag in content.replace(",", "\n").splitlines()
+            if tag.strip()
+        ]

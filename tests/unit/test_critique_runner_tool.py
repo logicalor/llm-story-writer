@@ -527,7 +527,9 @@ def test_run_arc_analysis_returns_structured_result(
 ) -> None:
     """Direct call with monkeypatched LLM and prompt loader returns structured result."""
     stories_dir, story_name = story_env
-    monkeypatch.setattr(cr, "_validate_story_name", lambda _name: stories_dir / story_name)
+    monkeypatch.setattr(
+        cr, "_validate_story_name", lambda _name: stories_dir / story_name
+    )
     monkeypatch.setattr(cr, "_load_prompt", lambda *_a, **_kw: "mock prompt text")
 
     call_count = 0
@@ -553,7 +555,9 @@ def test_run_arc_analysis_returns_structured_result(
     captured = io.StringIO()
     with contextlib.redirect_stdout(captured):
         try:
-            cr.cmd_run_arc_analysis(story_name, "The outline content.", "Critic: 85/100")
+            cr.cmd_run_arc_analysis(
+                story_name, "The outline content.", "Critic: 85/100"
+            )
         except SystemExit:
             pass
 

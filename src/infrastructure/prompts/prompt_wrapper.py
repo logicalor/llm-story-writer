@@ -1,6 +1,9 @@
 """Simple wrapper functions for prompt execution with savepoint management."""
 
+import json
+
 from typing import Dict, Any, Optional
+from domain.exceptions import StoryGenerationError
 from domain.value_objects.model_config import ModelConfig
 from .prompt_handler import PromptHandler, PromptRequest, PromptResponse
 
@@ -406,6 +409,9 @@ async def execute_messages_with_savepoint(
 
     # Execute the conversation with custom history
     try:
+        if model_config is None:
+            raise StoryGenerationError("model_config is required for message execution")
+
         # Extract parameters from kwargs
         seed = kwargs.get("seed")
         debug = kwargs.get("debug", False)

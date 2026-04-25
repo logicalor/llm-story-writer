@@ -1,6 +1,6 @@
 """Stream of Consciousness story writing strategy."""
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from domain.entities.story import Outline, Chapter, StoryInfo
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
@@ -12,16 +12,27 @@ from application.interfaces.model_provider import ModelProvider
 class StreamOfConsciousnessStrategy(StoryStrategy):
     """Story writing strategy that generates content in a stream-of-consciousness style."""
 
-    def __init__(self, model_provider: ModelProvider, config: Dict[str, Any] = None):
+    def __init__(
+        self,
+        model_provider: ModelProvider,
+        config: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(model_provider)
-        self.config = config
+        self.config = config or {}
         # Create strategy-specific prompt loader
         from infrastructure.prompts.prompt_loader import PromptLoader
 
         self.prompt_loader = PromptLoader(prompts_dir=self.get_prompt_directory())
 
+    def _get_model_config(self, model_key: str) -> ModelConfig:
+        """Resolve a configured model for this strategy."""
+        return ModelConfig.from_string(self.config["models"][model_key])
+
     async def generate_outline(
-        self, prompt: str, settings: GenerationSettings
+        self,
+        prompt: str,
+        settings: GenerationSettings,
+        prompt_filename: Optional[str] = None,
     ) -> Outline:
         """Generate a minimal outline for stream-of-consciousness writing."""
         # Load outline prompt
@@ -31,19 +42,13 @@ class StreamOfConsciousnessStrategy(StoryStrategy):
 
         messages = [{"role": "user", "content": outline_prompt}]
 
-        response = await self.model_provider.generate_text(
+        await self.model_provider.generate_text(
             messages=messages,
-            model_config=ModelConfig.from_string(
-                self.config["models"]["initial_outline_writer"]
-            )
-            if self.config
-            else None,
+            model_config=self._get_model_config("initial_outline_writer"),
             seed=settings.seed,
             debug=settings.debug,
             stream=settings.stream,
         )
-
-        outline_content = response.strip()
 
         return Outline(
             story_elements="Stream of consciousness narrative",
@@ -64,11 +69,7 @@ class StreamOfConsciousnessStrategy(StoryStrategy):
 
         response = await self.model_provider.generate_text(
             messages=messages,
-            model_config=ModelConfig.from_string(
-                self.config["models"]["initial_outline_writer"]
-            )
-            if self.config
-            else None,
+            model_config=self._get_model_config("initial_outline_writer"),
             seed=settings.seed,
             min_word_count=2000,
             debug=settings.debug,
@@ -107,9 +108,7 @@ class StreamOfConsciousnessStrategy(StoryStrategy):
 
         title_response = await self.model_provider.generate_text(
             messages=messages,
-            model_config=ModelConfig.from_string(self.config["models"]["info_model"])
-            if self.config
-            else None,
+            model_config=self._get_model_config("info_model"),
             seed=settings.seed,
             debug=settings.debug,
             stream=settings.stream,

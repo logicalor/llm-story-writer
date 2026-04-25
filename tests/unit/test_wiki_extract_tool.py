@@ -377,7 +377,9 @@ def test_initial_populate_cache_miss_calls_llm_and_writes_cache(
                 }
             )
         if len(llm_calls) == 3:
-            return json.dumps({"l1": "Hero", "l2": "Protagonist", "l3": "Detailed hero"})
+            return json.dumps(
+                {"l1": "Hero", "l2": "Protagonist", "l3": "Detailed hero"}
+            )
         raise AssertionError(f"Unexpected LLM prompt: {prompt[:200]}")
 
     cache_snapshot: dict[str, object] = {}
@@ -387,7 +389,9 @@ def test_initial_populate_cache_miss_calls_llm_and_writes_cache(
         cache_path = _cache_path(story_env)
         assert cache_path.exists()
         cache_snapshot.update(json.loads(cache_path.read_text()))
-        return _apply_summary(created=len(payload["creates"]), entity_counts={"character": 1})
+        return _apply_summary(
+            created=len(payload["creates"]), entity_counts={"character": 1}
+        )
 
     monkeypatch.setattr(wiki_extract, "_chat_completion", _fake_chat_completion)
     monkeypatch.setattr(wiki_extract, "run_batch", _fake_run_batch)
@@ -397,9 +401,15 @@ def test_initial_populate_cache_miss_calls_llm_and_writes_cache(
     assert code == 0
     assert output["applied"] is True
     assert llm_calls
-    assert set(cache_snapshot) >= {"outline_entities", "sheet_entities", "detail_levels"}
+    assert set(cache_snapshot) >= {
+        "outline_entities",
+        "sheet_entities",
+        "detail_levels",
+    }
     assert cache_snapshot["outline_entities"][0]["name"] == "Alice"
-    assert cache_snapshot["sheet_entities"]["characters/alice.json"][0]["name"] == "Alice"
+    assert (
+        cache_snapshot["sheet_entities"]["characters/alice.json"][0]["name"] == "Alice"
+    )
     assert cache_snapshot["detail_levels"]["alice"] == {
         "L1": "Hero",
         "L2": "Protagonist",
@@ -461,7 +471,9 @@ def test_initial_populate_cache_hit_skips_llm(
     def _fake_run_batch(name: str, payload: dict) -> dict:
         captured["name"] = name
         captured["payload"] = payload
-        return _apply_summary(created=len(payload["creates"]), entity_counts={"character": 1})
+        return _apply_summary(
+            created=len(payload["creates"]), entity_counts={"character": 1}
+        )
 
     monkeypatch.setattr(wiki_extract, "_chat_completion", _fake_chat_completion)
     monkeypatch.setattr(wiki_extract, "run_batch", _fake_run_batch)
@@ -525,7 +537,9 @@ def test_initial_populate_cache_deleted_after_apply(
     monkeypatch.setattr(
         wiki_extract,
         "run_batch",
-        lambda name, payload: _apply_summary(created=len(payload["creates"]), entity_counts={"character": 1}),
+        lambda name, payload: _apply_summary(
+            created=len(payload["creates"]), entity_counts={"character": 1}
+        ),
     )
 
     code, output = _invoke_main(["initial-populate", "--name", "test-story"], capsys)
@@ -737,7 +751,9 @@ def test_update_from_chapter_cache_hit_skips_llm(
     def _fake_run_batch(name: str, payload: dict) -> dict:
         captured["name"] = name
         captured["payload"] = payload
-        return _apply_summary(created=len(payload["creates"]), entity_counts={"location": 1})
+        return _apply_summary(
+            created=len(payload["creates"]), entity_counts={"location": 1}
+        )
 
     monkeypatch.setattr(wiki_extract, "_chat_completion", _fake_chat_completion)
     monkeypatch.setattr(wiki_extract, "run_batch", _fake_run_batch)
@@ -798,13 +814,17 @@ def test_update_from_chapter_cache_deleted_after_apply(
                 "new_aliases": [],
             }
         ),
-        json.dumps({"l1": "Station", "l2": "Trade station", "l3": "Detailed trade station"}),
+        json.dumps(
+            {"l1": "Station", "l2": "Trade station", "l3": "Detailed trade station"}
+        ),
     ]
     _set_fake_llm(monkeypatch, responses)
     monkeypatch.setattr(
         wiki_extract,
         "run_batch",
-        lambda name, payload: _apply_summary(created=len(payload["creates"]), entity_counts={"location": 1}),
+        lambda name, payload: _apply_summary(
+            created=len(payload["creates"]), entity_counts={"location": 1}
+        ),
     )
 
     code, output = _invoke_main(
