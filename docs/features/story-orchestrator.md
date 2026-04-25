@@ -137,7 +137,7 @@ Issue #161 also adds `src/presentation/agents/__init__.py` and five Python calla
 |------|-------------|-------------|------------------|
 | `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `OutlineResult` | Streams outline text, parses chapter outlines from JSON or `Chapter:` lines, extracts `genre` and `themes` when present |
 | `ChapterWriterAgent` | `prompts/agents/chapter-writer.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback, with abridged character and setting context loaded from disk when available |
-| `WikiMaintainerAgent` | `prompts/agents/wiki-maintainer.md` | `WikiUpdateBatch` | Streams evaluation text, currently returns empty `updated_pages` / `new_pages` placeholders |
+| `WikiMaintainerAgent` | `prompts/agents/wiki-maintainer.md` | `WikiUpdateBatch` | Calls `tools.wiki_extract.update_wiki_from_chapter()` on a worker thread, persists wiki batches after each approved chapter, returns concrete `updated_pages` / `new_pages` slug lists, and emits one `WikiContextEvent` per changed page |
 | `ConsistencyCheckerAgent` | `prompts/agents/consistency-checker.md` | `dict[str, Any]` | Streams analysis text, currently returns `{"issues": [], "passed": True}` placeholder result |
 | `StoryOrchestratorAgent` | none loaded | `dict[str, Any]` | Vestigial helper that returns a static phase plan; orchestration logic lives in `orchestrator.py` |
 

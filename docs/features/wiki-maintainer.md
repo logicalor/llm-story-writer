@@ -8,6 +8,8 @@ The wiki maintainer is a specialised subagent invoked by the `story-orchestrator
 
 Issue #144 refined that workflow to fix context bloat in the subagent. The most content-heavy work — reading full source material, extracting structured entities, generating L1/L2/L3 detail levels, and assembling the batch payload — now runs inside the `wiki-extract` Python tool instead of inside the agent's main LLM context. The agent remains responsible for orchestration, plausibility review, wikilink cleanup, and lint follow-up.
 
+Issue #183 completes the post-chapter persistence path. `WikiMaintainerAgent` no longer streams a free-form response that the pipeline cannot apply. It now calls `update_wiki_from_chapter()` in `src/tools/wiki_extract.py`, which runs the `wiki/extract_from_chapter` prompt, applies the resulting batch through `run_batch()`, writes markdown pages under `stories/<name>/wiki/`, and returns the actual created and updated slug lists. That makes ADR 004's structured wiki pages and ADR 005's retrieval-ready detail levels operational during the live chapter loop rather than design-only.
+
 The agent operates in two distinct modes, mapped to pipeline phases:
 
 - **Mode 1: Initial Wiki Population** (Phase 6) — Extracts all known entities from the outline, character sheets, and setting sheets to populate the wiki before chapter generation begins.
@@ -22,7 +24,10 @@ The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) th
 | `prompts/agents/wiki-maintainer.md` | Agent definition — workflows, tools, constraints, error handling |
 | `prompts/skills/wiki-maintenance/SKILL.md` | Skill reference — entity schemas, confidence taxonomy, output formats, error taxonomy |
 | `prompts/skills/wiki-conventions/SKILL.md` | Skill reference — page type schemas, YAML frontmatter specs, wikilink conventions, naming rules |
+| `src/tools/wiki_extract.py` | Extraction pipeline and programmatic `update_wiki_from_chapter()` API used after each chapter |
+| `src/presentation/agents/wiki_maintainer.py` | Agent wrapper that invokes the extraction pipeline on a worker thread and emits wiki context events |
 | `src/infrastructure/prompts/agent_prompt_loader.py` | Shared Python-native loader for prompt bodies in `prompts/agents/` |
+| `tests/unit/test_wiki_maintainer.py` | Unit coverage for populated slug lists, emitted wiki events, and non-streaming execution |
 
 ## Tools
 
@@ -50,12 +55,13 @@ Called once after outline and character/setting sheets are generated. The heavy 
 
 ## Workflow — Mode 2: Post-Chapter Incremental Update (Phase 7c)
 
-Called after each chapter is assembled. Updates the wiki with `verified` information from the generated text while keeping the full chapter and matched entity snapshots inside the tool boundary.
+Called after each approved chapter is assembled. Updates the wiki with `verified` information from the generated text while keeping the full chapter and matched entity snapshots inside the tool boundary.
 
-1. **Run `wiki-extract update-from-chapter`** — The tool reads the completed chapter file from disk, matches existing entities from the wiki index, extracts new entities plus state changes, aliases, and timeline events, generates L1/L2/L3 summaries for newly created entities, assembles the batch payload, and applies it. Each successful LLM call is checkpointed in `stories/<story-name>/.wiki-extract-cache.json`, so a retry after timeout resumes from the last completed step.
-2. **Review returned counts** — The agent inspects create, update, and timeline totals and checks whether the counts look plausible for the chapter.
-3. **Add or repair wikilinks** — Use `wiki-update` for short follow-up edits when created or updated pages need explicit cross-links.
-4. **Run chapter boundary lint** — Call `wiki-lint` (operation: `check-chapter`) and fix critical issues. This stays agent-owned because it is a short validation step with chapter-aware judgment.
+1. **Call `update_wiki_from_chapter()` via `asyncio.to_thread`** — `WikiMaintainerAgent` hands the accepted chapter text to the tool-owned programmatic API instead of streaming model output through the provider.
+2. **Run `wiki/extract_from_chapter` and build the batch** — `wiki-extract` matches existing wiki entities, asks the extraction prompt for `new_entities`, `state_changes`, `new_aliases`, and `timeline_events`, generates L1/L2/L3 detail levels for new pages, and assembles the batch payload. Each successful LLM call is checkpointed in `stories/<story-name>/.wiki-extract-cache.json`, so a retry after timeout resumes from the last completed step.
+3. **Persist changes through `run_batch()`** — The tool writes created and updated markdown pages under `stories/<story-name>/wiki/`, records timeline entries, and returns a summary with create/update counts plus concrete `new_slugs` and `updated_slugs` values.
+4. **Emit wiki context events per page** — The agent publishes one `WikiContextEvent` for each created or updated slug so the surrounding pipeline and TUI surfaces can show concrete wiki mutations instead of placeholder status text.
+5. **Run chapter boundary lint** — Call `wiki-lint` (operation: `check-chapter`) and fix critical issues. This stays agent-owned because it is a short validation step with chapter-aware judgment.
 
 The extraction rules themselves do not change: the tool still follows the wiki-maintenance skill's schema, confidence taxonomy, alias rules, and detail-level targets. The change is ownership, not output format.
 
@@ -191,4 +197,5 @@ The current workflow keeps the 7b agent within a smaller context envelope by del
 - [Tools Reference](../tools.md) — Full documentation for wiki-extract, wiki-read, wiki-update, wiki-lint, wiki-search, story-state
 - [ADR 004: Progressive Wiki Memory System](../planning/adr/004-progressive-wiki-memory-system.md) — Wiki page format, YAML frontmatter, wikilinks
 - [ADR 005: Hybrid Wiki Context Retrieval Pipeline](../planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md) — Three-stage retrieval pipeline using wiki detail levels
+- Issue [#183](https://github.com/logicalor/llm-story-writer/issues/183) — Persist wiki pages after each chapter through the extraction pipeline
 - Issue [#22](https://github.com/logicalor/llm-story-writer/issues/22) — Initial implementation

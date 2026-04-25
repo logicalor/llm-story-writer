@@ -65,7 +65,7 @@ The orchestrator also now produces intermediate story artefacts directly in the 
 | `src/tools/wiki_read.py` | Read wiki pages at requested detail levels |
 | `src/tools/wiki_search.py` | Search wiki content |
 | `src/tools/wiki_snapshot.py` | Assemble token-budgeted wiki context |
-| `src/tools/wiki_extract.py` | Extract candidate wiki facts from text |
+| `src/tools/wiki_extract.py` | Run initial wiki population and post-chapter extraction, generate detail levels, and apply batch-ready wiki updates |
 | `src/tools/wiki_update.py` | Apply wiki page updates |
 | `src/tools/wiki_lint.py` | Validate wiki pages against formatting and consistency rules |
 | `src/tools/rag_query.py` | Query ChromaDB collections for story context |
@@ -95,6 +95,8 @@ Several runtime artefacts are written by the Python-native orchestrator and then
 Characters and settings files are generated from prompt templates in `prompts/characters/` and `prompts/settings/`. Filenames are slugified from the extracted entity names, and writes are atomic so later phases never read a half-written JSON file.
 
 `ChapterWriterAgent` reads both directories opportunistically. It prefers each sheet's stored `summary`; if that field is empty, it falls back to the first 300 characters of the `sheet` body. Missing directories, malformed JSON files, or individual read failures are skipped instead of aborting chapter generation.
+
+`WikiMaintainerAgent` now uses `src/tools/wiki_extract.py` directly for post-chapter updates. The programmatic `update_wiki_from_chapter(story_name, chapter_number, chapter_text, *, model=None)` entry point runs the `wiki/extract_from_chapter` prompt, matches existing entities from the wiki index, generates detail levels for newly created pages, applies the batch through `run_batch()`, and returns both summary counts and the concrete created or updated slug lists. That keeps wiki persistence inside one Python boundary and gives the orchestrator a typed result instead of free-form model text.
 
 ## CLI Entry Points
 
