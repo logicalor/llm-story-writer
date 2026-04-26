@@ -69,13 +69,30 @@ Based on the changes, determine what documentation needs to be created or update
 | Change Type                    | Documentation Action                                              |
 | ------------------------------ | ----------------------------------------------------------------- |
 | New feature                    | Create `docs/features/[feature-name].md` or update relevant guide |
-| Architecture change            | Update `docs/architecture.md`                                     |
-| New ADR                        | Create `docs/planning/adr/NNN-[slug].md`                          |
+| Architecture change            | Update `docs/architecture.md` — **and run companion-document sweep** (see below)                                     |
+| New ADR                        | Create `docs/planning/adr/NNN-[slug].md` — **and run companion-document sweep** (see below)                          |
 | New development workflow       | Update `docs/setup.md` or `docs/testing.md`                       |
 | New OpenCode tool              | Update `docs/tools.md`                                            |
 | Wiki system change             | Update `docs/wiki-system.md`                                      |
 | Bug fix with non-obvious cause | Add a note to `.github/notes/gotchas.md`                          |
 | UI-visible change (keybindings, CLI flags, subcommands, interface descriptions) | Update the relevant `docs/features/` file **and** `README.md` at the repo root — README.md is higher-traffic than any feature doc and must not carry stale keybindings or interface descriptions. (Source: issue #187, PR #200.) |
+
+#### Architecture decision companion-document sweep
+
+For any **Architecture change** or **New ADR** row above, after updating the primary documentation target, sweep these four companion files for stale references to the changed component and update them in the same commit:
+
+- `AGENTS.md` — architecture layers section
+- `.github/copilot-instructions.md` — stack overview or architecture section
+- `docs/manual.md` — architecture or layer descriptions
+- `docs/tools.md` — implementation routing guidance
+
+The sweep must cover both prose descriptions and table cells. Run:
+
+```bash
+grep -rn '<old-term>' AGENTS.md .github/copilot-instructions.md docs/manual.md docs/tools.md
+```
+
+Replace `<old-term>` with the retired, introduced, or renamed layer, component, or tool pattern. All occurrences must be updated before committing — stale references in these files take effect immediately upon merge and actively mislead agents and developers that read them at runtime. (Source: issue #188, PR #201.)
 
 ### 3. Write Documentation
 
@@ -93,6 +110,7 @@ Based on the changes, determine what documentation needs to be created or update
 > - Scan the entire file for `TODO`, `[placeholder]`, `...` stubs, and trivially short sections (3 lines or fewer where substance is expected). Remove or complete them before committing.
 > - For behavioral descriptions (routing logic, model selection, configuration options, feature flags): read the actual implementation to confirm the described behavior is present in the code. The issue description often contains planned behaviors that were not implemented — do not document them as if they were. Every behavioral claim in the docs must be verifiable in the current codebase by reading the relevant source file.
 > - For caching, resumability, or retry-safety claims: any statement that an operation is "safe to retry", "resumable", or "cached" must be accompanied by (a) the input-stability contract under which the claim holds (e.g., "provided the source files and prompts are unchanged") and (b) the explicit recovery action when that contract is violated (typically deleting the cache file or state artefact to force a fresh run). Unqualified safety claims mislead callers when inputs change between runs.
+> - **Disk-artifact test audit for ADR retirement plans:** When writing an ADR's "Files to delete" section, run `grep -rn 'ast.parse\|open(' tests/` filtering for paths that contain the to-be-deleted file's name. Check whether any test function reads the production file from disk by path (rather than importing it). If found, document the co-deletion requirement explicitly in the ADR — naming the test function, the test file it lives in, and remaining tests in that file that must be preserved. Do not leave cleanup callers to discover this at deletion time. (Source: issue #188, PR #201 — ADR 008 listed `critique_service.py` for deletion without noting that `test_critique_service_has_dict_any_imports()` reads it via `ast.parse()`; deleting the production file would silently break the test suite.)
 
 Follow these conventions:
 

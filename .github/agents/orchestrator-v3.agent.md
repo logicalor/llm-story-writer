@@ -429,6 +429,8 @@ Dispatch back to the **Coder** with the exact error output. The Coder must fix t
 
 **Documentation-only issues (Step 4 was skipped):** The Documenter is dispatched here as the *primary implementer*, not just to supplement code changes. Pass it the full task description, acceptance criteria, and file list from Step 3. The Documenter's "Review the code changes" step (item 1 of its charter) can be skipped — there are no code changes.
 
+> **Architecture decision companion sweep (ADR PRs):** For documentation-only issues whose primary deliverable is an Architecture Decision Record (ADR) — or that retire, introduce, or rename an architectural layer, component, or tool pattern — instruct the Documenter to run a companion-document sweep across `AGENTS.md`, `.github/copilot-instructions.md`, `docs/manual.md`, and `docs/tools.md`, updating all references to the changed architectural component. This sweep is **required in the same PR** — stale references in these four files take effect immediately upon merge and directly influence agent behaviour at runtime. (Source: issue #188, PR #201.)
+
 After verification is confirmed, **dispatch to the `Documenter` agent** with the issue number and PR number. It will:
 
 1. Review the issue, PR, and code changes
