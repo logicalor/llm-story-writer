@@ -57,3 +57,9 @@ A three-model research synthesis (see `.github/research/python-native-migration-
 This ADR supersedes [ADR 001](./001-hybrid-agent-tool-architecture.md). The hybrid agent-tool architecture is retired. The underlying principle — agents make creative decisions, deterministic code handles mechanics — is preserved, but "agent" now means "Python async function that issues a prompt to an LLM," not "Markdown document dispatched by OpenCode."
 
 ADRs 002–006 remain in force. Context window management, ChromaDB retrieval, progressive wiki memory, and the OpenAI-compatible provider are all storage- or algorithm-level decisions orthogonal to the harness.
+
+## Addendum — Implementation Divergence (2026-04-26, ADR 008)
+
+During the Python-native migration, all orchestrator agents were implemented to call `provider.stream_text()` directly rather than routing through `src/application/services/`. This diverged from the intent stated in Decision point 5 above (*"the Python orchestrator imports and calls `src/application/services/*.py` directly, in-process"*).
+
+A formal architecture review (issue #188) examined the gap and issued [ADR 008](./008-retire-application-services-layer.md), which formally retires the services layer as dead code. The exception is `critique_parser.py`, which has active callers in `src/tools/critique_runner.py` and is retained.
