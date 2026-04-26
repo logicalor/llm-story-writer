@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
@@ -26,9 +27,15 @@ def _build_model_config(config: dict[str, Any], role: str, default: str) -> Mode
 def _parse_verdict(text: str) -> str:
     """Extract verdict_code from arc assessment text."""
     lowered = text.lower()
-    if "significant" in lowered:
-        return "significant_issues"
-    if "minor" in lowered or "concern" in lowered:
+    sig_match = re.search(
+        r"\bsignificant\s+(?:issues?|problems?|flaws?|concerns?)\b", lowered
+    )
+    if sig_match:
+        window_start = max(0, sig_match.start() - 25)
+        preceding = lowered[window_start : sig_match.start()]
+        if not re.search(r"\b(?:no|not|without|few|minimal|any)\b", preceding):
+            return "significant_issues"
+    if re.search(r"\bminor\b|\bconcerns?\b", lowered):
         return "minor_concerns"
     return "strong"
 

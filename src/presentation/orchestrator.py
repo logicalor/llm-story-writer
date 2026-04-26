@@ -397,8 +397,10 @@ async def _continue_pipeline(
                         f"\n[Narrative Arc] {arc_result.verdict_code}: "
                         f"{arc_result.arc_assessment[:200]}\n"
                     )
-                except Exception:
-                    await bus.emit("\n[Narrative Arc] arc analysis skipped (error)\n")
+                except Exception as exc:
+                    await bus.emit(
+                        f"\n[Narrative Arc] arc analysis skipped ({type(exc).__name__}: {exc})\n"
+                    )
             await _mark_phase_complete(state, "narrative-arc", "arc_analysis_complete")
 
         if "characters" not in state.completed_phases:
@@ -514,20 +516,25 @@ async def _continue_pipeline(
                 final_editor = FinalEditorAgent(
                     resolved_provider, resolved_config, bus, wiki_bus
                 )
-                final_edit_result: FinalEditResult = await final_editor.run(
-                    state.story_name, state.approved_chapters, settings
-                )
-                state.approved_chapters = final_edit_result.edited_chapters
-                edited_path = story_dir / "output" / "story_edited.md"
-                edited_path.parent.mkdir(parents=True, exist_ok=True)
-                edited_parts = [
-                    ch.content.rstrip()
-                    for ch in final_edit_result.edited_chapters
-                    if ch.content.strip()
-                ]
-                if edited_parts:
-                    edited_path.write_text(
-                        "\n\n".join(edited_parts) + "\n", encoding="utf-8"
+                try:
+                    final_edit_result: FinalEditResult = await final_editor.run(
+                        state.story_name, state.approved_chapters, settings
+                    )
+                    state.approved_chapters = final_edit_result.edited_chapters
+                    edited_path = story_dir / "output" / "story_edited.md"
+                    edited_path.parent.mkdir(parents=True, exist_ok=True)
+                    edited_parts = [
+                        ch.content.rstrip()
+                        for ch in final_edit_result.edited_chapters
+                        if ch.content.strip()
+                    ]
+                    if edited_parts:
+                        edited_path.write_text(
+                            "\n\n".join(edited_parts) + "\n", encoding="utf-8"
+                        )
+                except Exception as exc:
+                    await bus.emit(
+                        f"\n[Final Edit] final edit skipped ({type(exc).__name__}: {exc})\n"
                     )
             await _mark_phase_complete(state, "final-edit", "final_edit_complete")
 

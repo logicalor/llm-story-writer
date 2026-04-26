@@ -899,6 +899,81 @@ async def test_final_edit_phase_invokes_agent(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_final_edit_exception_does_not_abort_assembly(tmp_path: Path) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    original_draft = ChapterDraft(
+        story_name="test-story",
+        chapter_number=1,
+        title="Chapter 1",
+        content="Original approved content",
+        word_count=3,
+    )
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.StoryPlannerAgent") as arc_agent_cls,
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch("presentation.orchestrator.FinalEditorAgent") as final_editor_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        arc_agent_cls.return_value.run = AsyncMock(
+            return_value=ArcAnalysisResult(
+                story_name="test-story",
+                arc_assessment="Strong arc",
+                verdict_code="strong",
+                overall_score=0.9,
+            )
+        )
+        chapter_cls.return_value.run = AsyncMock(return_value=original_draft)
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+        final_editor_cls.return_value.run = AsyncMock(
+            side_effect=RuntimeError("LLM timeout")
+        )
+
+        state = await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    final_editor_cls.return_value.run.assert_awaited_once()
+    output_path = tmp_path / "test-story" / "output" / "story.md"
+    assert output_path.exists()
+    assert output_path.read_text(encoding="utf-8") == "Original approved content\n"
+    assert [chapter.content for chapter in state.approved_chapters] == [
+        "Original approved content"
+    ]
+    assert not (tmp_path / "test-story" / "output" / "story_edited.md").exists()
+
+
+@pytest.mark.asyncio
 async def test_final_edit_phase_skipped_when_disabled(tmp_path: Path) -> None:
     provider = MagicMock()
     bus = TokenStreamBus()
