@@ -1141,3 +1141,118 @@ async def test_final_edit_phase_skipped_when_disabled(tmp_path: Path) -> None:
     final_editor_cls.return_value.run.assert_not_awaited()
     assert "final-edit" in state.completed_phases
     assert not (tmp_path / "test-story" / "output" / "story_edited.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_wiki_initialised_before_chapter_loop(tmp_path: Path) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    (tmp_path / "test-story").mkdir(parents=True, exist_ok=True)
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+
+        await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    assert (tmp_path / "test-story" / "wiki" / "index.md").exists()
+    assert (tmp_path / "test-story" / "wiki" / "log.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_wiki_initialisation_idempotent_on_resume(tmp_path: Path) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    partial_state = PipelineState(
+        story_name="test-story",
+        current_phase="chapter-1",
+        completed_phases=["init", "outline", "characters", "settings"],
+        outline_result=_outline_result(),
+        status="running",
+        savepoints=["init", "outline", "characters", "settings"],
+    )
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    story_dir = tmp_path / "test-story"
+    story_dir.mkdir(parents=True, exist_ok=True)
+    wiki_dir = story_dir / "wiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    (wiki_dir / "index.md").write_text("# Pre-existing index\n", encoding="utf-8")
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+
+        await _write_savepoint(partial_state)
+
+        state = await resume_pipeline(
+            "test-story",
+            None,
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    assert (wiki_dir / "index.md").read_text(
+        encoding="utf-8"
+    ) == "# Pre-existing index\n"
