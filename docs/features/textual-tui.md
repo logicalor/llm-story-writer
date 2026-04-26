@@ -6,7 +6,7 @@
 
 Issue #163 adds `StoryWriterApp` in `src/presentation/tui/app.py` as the first interactive front end for the Python-native pipeline. It wraps the existing async orchestrator in a Textual application so operators can watch generation progress, inspect wiki-context activity, and respond to approval gates without dropping back to shell prompts.
 
-The TUI stays presentation-only. It does not reimplement orchestration logic or mutate story state directly. Instead, it launches the same `run_pipeline()` entry point used by headless runs, then bridges three transport primitives into Textual widgets: `ApprovalGate` for human decisions, `TokenStreamBus` for streamed model output, and `WikiContextBus` for wiki-context events.
+The TUI stays presentation-only. It does not reimplement orchestration logic or mutate story state directly. Instead, it launches `run_pipeline()` for fresh runs or `resume_pipeline()` for resumed runs, then bridges three transport primitives into Textual widgets: `ApprovalGate` for human decisions, `TokenStreamBus` for streamed model output, and `WikiContextBus` for wiki-context events.
 
 ## User Guide
 
@@ -16,7 +16,11 @@ Install the Python dependencies, then launch the app with:
 
 ```bash
 story-writer tui --story <name>
+story-writer tui --story <name> --resume
+story-writer tui --story <name> --resume --savepoint <name>
 ```
+
+Use `--resume` to continue a saved pipeline run through the TUI. Add `--savepoint <name>` to request a specific savepoint; if omitted, the resume path uses the latest available savepoint.
 
 The `tui` subcommand lazily imports `StoryWriterApp`. If `textual` is missing, the CLI exits with an install hint instead of breaking `run` or `resume`.
 
@@ -37,13 +41,14 @@ The wiki panel starts hidden. The approval input widget also starts hidden and a
 | Input | Effect |
 |------|--------|
 | `Ctrl+W` | Toggle the wiki context panel |
-| `Ctrl+S` | Write an informational message that automatic savepoints are taken at phase boundaries |
-| `Ctrl+C` | Cancel workers and exit the app |
+| `Ctrl+C` | Cancel workers, preserve the savepoint from the last completed phase, and print the resume command |
 | `approve` | Approve the current gate and continue |
 | `reject` | Reject the current gate |
 | `revise <feedback>` | Request a revision and pass free-text feedback back into the pipeline |
 
 Free text that does not match `approve`, `reject`, or `revise <feedback>` is treated as revision feedback.
+
+Manual savepoint hotkeys are no longer exposed in the TUI. Savepoints are written automatically at pipeline phase boundaries.
 
 ## Developer Guide
 
@@ -63,7 +68,7 @@ The TUI keeps the Textual event loop responsive by running the pipeline in a wor
 2. `_run_pipeline()` is decorated with `@work(thread=True)`, so Textual executes it off the UI thread.
 3. The worker thread calls `asyncio.run(_run())`.
 4. `_run()` creates the token bus and wiki bus, then `await asyncio.gather(...)` runs three coroutines together:
-   - `run_pipeline(story_name, gate, bus, wiki_bus)`
+   - `run_pipeline(story_name, gate, bus, wiki_bus)` for fresh runs, or `resume_pipeline(story_name, savepoint_name, gate, bus, wiki_bus)` for resumed runs
    - `_drain_tokens(bus)`
    - `_drain_wiki(wiki_bus)`
 5. A `finally` block closes both buses so the drain coroutines terminate cleanly even on failure.
@@ -102,6 +107,8 @@ Coverage focuses on the TUI presentation contract rather than the full live pipe
 - `Ctrl+W` wiki-panel toggling through Textual Pilot
 - parsing of `approve`, `reject`, `revise <feedback>`, and free-text revision input
 - approval submission resolving the pending gate future
+- `Ctrl+C` logging the preserved savepoint message for cooperative cancellation
+- resume mode dispatching `resume_pipeline()` instead of `run_pipeline()`
 - `TUIApprovalGate.resolve_from_ui()` using `call_soon_threadsafe()`
 
 Run the focused test file with:
