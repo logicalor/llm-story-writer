@@ -26,8 +26,15 @@ This is the Codex-native replacement for the Copilot Orchestrator workflow. It p
 6. Implement locally.
 7. Run focused lint, formatting, type checks, and tests.
 8. Update docs or notes when behavior, architecture, CLI, or workflows changed.
-9. Review the diff.
-10. Commit, push, and open or update the PR.
+9. Use the `reflection` skill when the task exposed agent-system friction or changed workflow instructions.
+10. Review the diff.
+11. Commit, push, and open or update the PR.
+
+## Reflection Checkpoints
+
+Use the `reflection` skill during GitHub workflow tasks when you notice a reusable workflow gotcha, stale instruction, unclear tool mapping, or agent/skill behavior that should be remembered.
+
+Near the end of a task, check whether active notes exist in `.github/notes/reflections/`. Apply minor instruction fixes, propose major workflow changes, and archive processed notes according to the reflection skill.
 
 ## Codex Delegation
 
@@ -38,6 +45,25 @@ Codex subagents are optional and follow Codex rules: spawn them only when the us
 - local main agent: git operations, final integration, verification, and user communication.
 
 Do not mimic Copilot's automatic nested agent dispatch when Codex policy does not allow it.
+
+## Copilot Subagent Touchpoints
+
+Translate Orchestrator V3 handoffs into Codex-native workflow pieces:
+
+| Copilot touchpoint | Codex coverage |
+| --- | --- |
+| `Researcher` | Use `project-memory`, local `rg`/file reads, Chroma queries, and optional `explorer` subagents only when the user explicitly permits delegation. |
+| `Coder` | Implement locally by default; use `worker` subagents only with explicit delegation permission and disjoint file ownership. Main Codex owns integration. |
+| `Test Writer` | Use the `test-verification` skill. Write or update tests locally by default; use a `worker` only when explicitly permitted. |
+| `Documenter` | Use the `documentation-maintenance` skill. For documentation-only tasks, Codex may make the documentation change directly. |
+| `Reviewer (Claude/GPT/Gemini)` | Use the `code-review` skill for local review. Do not attempt Copilot's three-model review fanout unless the user explicitly asks for parallel agents or multi-agent review. |
+| `Synthesizing Reviewer` | Use `code-review` synthesis rules when raw review reports exist. Otherwise perform a single local maintainer review. |
+| `PR Reviewer` / Copilot automated review | After a PR exists, inspect GitHub review comments or checks with GitHub plugin tools or `gh`; address actionable feedback through this workflow. |
+| `Browser` | For browser automation or UI verification, use available local browser/test tooling when present. If no browser automation tool is available, run the closest local verification and report the limitation. |
+| `Reflection` | Use the `reflection` skill to record, apply, propose, archive, and index workflow improvements. |
+| `Deploy` | If deployment monitoring is requested or relevant after merge, inspect GitHub checks, Actions logs, deployment status, or configured production endpoints. Do not start a hotfix without a new workflow pass. |
+
+Main Codex always retains ownership of GitHub operations, local git state, final verification, committing, pushing, PR updates, and user-facing status.
 
 ## Tool Mapping
 
@@ -51,4 +77,5 @@ When done, report:
 - files changed
 - verification run and result
 - PR link or why no PR was created
+- reflection notes recorded, applied, proposed, or skipped
 - any residual risk or blocked step

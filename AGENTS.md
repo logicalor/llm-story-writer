@@ -37,6 +37,7 @@ Codex-native development workflows live in `.agents/skills/`. These are the cano
 
 - `project-memory` — `.github/notes/` and ChromaDB recall protocol
 - `github-workflow` — issue/branch/implementation/verification/PR lifecycle
+- `reflection` — agent-system improvement notes, collation, and safe workflow instruction updates
 - `planning-workflow` — PRDs, ADRs, task breakdowns, and implementation plans
 - `code-review` — local and PR review process, including synthesis guidance
 - `test-verification` — test-writing and verification rules
