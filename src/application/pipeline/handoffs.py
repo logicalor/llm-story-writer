@@ -60,6 +60,35 @@ class WikiUpdateBatch:
 
 
 @dataclass
+class ArcAnalysisResult:
+    """Narrative arc assessment produced by the Story Planner phase.
+
+    Produced by: Narrative Arc phase (story-planner agent)
+    Consumed by: Pipeline orchestrator (surfaced on token bus; advisory only)
+    """
+
+    story_name: str
+    arc_assessment: str
+    verdict_code: str  # "strong", "minor_concerns", "significant_issues"
+    overall_score: float
+
+
+@dataclass
+class FinalEditResult:
+    """Prose editing result produced by the Final Edit phase.
+
+    Produced by: Final Edit phase (final-editor agent)
+    Consumed by: Pipeline orchestrator (updates approved_chapters, writes story_edited.md)
+    """
+
+    story_name: str
+    chapters_processed: int
+    total_issues_found: int
+    total_revisions_made: int
+    edited_chapters: list[ChapterDraft] = field(default_factory=list)
+
+
+@dataclass
 class ApprovalDecision:
     """The outcome of a human (or batch auto-proceed) approval gate.
 
@@ -88,6 +117,7 @@ class PipelineState:
     outline_result: OutlineResult | None = None
     approved_chapters: list[ChapterDraft] = field(default_factory=list)
     wiki_batches: list[WikiUpdateBatch] = field(default_factory=list)
+    arc_result: ArcAnalysisResult | None = None
     batch_mode: bool = False
     savepoint_id: str | None = None
     savepoints: list[str] = field(default_factory=list)
@@ -106,6 +136,8 @@ class PipelineState:
             ChapterDraft(**ch) for ch in data.get("approved_chapters", [])
         ]
         wiki_batches = [WikiUpdateBatch(**wb) for wb in data.get("wiki_batches", [])]
+        arc_data = data.get("arc_result")
+        arc_result = ArcAnalysisResult(**arc_data) if arc_data is not None else None
         return cls(
             story_name=data["story_name"],
             current_phase=data["current_phase"],
@@ -113,6 +145,7 @@ class PipelineState:
             outline_result=outline,
             approved_chapters=approved_chapters,
             wiki_batches=wiki_batches,
+            arc_result=arc_result,
             batch_mode=data.get("batch_mode", False),
             savepoint_id=data.get("savepoint_id"),
             savepoints=data.get("savepoints", []),
