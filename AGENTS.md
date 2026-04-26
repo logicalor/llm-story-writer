@@ -40,6 +40,7 @@ Codex-native development workflows live in `.agents/skills/`. These are the cano
 - `reflection` — agent-system improvement notes, collation, and safe workflow instruction updates
 - `planning-workflow` — PRDs, ADRs, task breakdowns, and implementation plans
 - `code-review` — local and PR review process, including synthesis guidance
+- `synthesized-audit` — repository healthchecks using persona-based consensus synthesis
 - `test-verification` — test-writing and verification rules
 - `documentation-maintenance` — docs, ADR, README, and companion-file updates
 - `web-research` — current external research with Tavily, Context7, and primary sources

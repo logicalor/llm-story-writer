@@ -60,6 +60,7 @@ Translate Orchestrator V3 handoffs into Codex-native workflow pieces:
 | `Documenter` | Use the `documentation-maintenance` skill. For documentation-only tasks, Codex may make the documentation change directly. |
 | `Reviewer (Claude/GPT/Gemini)` | Use the `code-review` skill for local review. Do not attempt Copilot's three-model review fanout unless the user explicitly asks for parallel agents or multi-agent review. |
 | `Synthesizing Reviewer` | Use `code-review` synthesis rules when raw review reports exist. Otherwise perform a single local maintainer review. |
+| `Auditor` / `Synthesizing Auditor` | Use the `synthesized-audit` skill for repository healthchecks. It replaces Copilot's multi-model audit fanout with sequential Architect, Maintainer, and Product Documenter persona passes over shared evidence. |
 | `PR Reviewer` / Copilot automated review | After a PR exists, inspect GitHub review comments or checks with GitHub plugin tools or `gh`; address actionable feedback through this workflow. |
 | `Browser` | For browser automation or UI verification, use available local browser/test tooling when present. If no browser automation tool is available, run the closest local verification and report the limitation. |
 | `Reflection` | Use the `reflection` skill to record, apply, propose, archive, and index workflow improvements. |
