@@ -24,7 +24,10 @@ def _init_wiki_for_story(story_name: str, base_dir: Path | None = None) -> dict:
 
     Returns a dict with status information.  Does NOT call sys.exit.
     """
-    story_dir = _validate_story_name(story_name, base_dir)
+    try:
+        story_dir = _validate_story_name(story_name, base_dir)
+    except SystemExit:
+        return {"error": "invalid story name", "story_name": story_name}
 
     if not story_dir.exists():
         return {"error": "story directory not found", "story_name": story_name}
