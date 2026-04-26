@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -56,6 +57,14 @@ class TestStoryWriterAppInit:
             async with app.run_test(size=(120, 40)):
                 output_log = app.query_one("#output-log")
                 assert output_log.markup is False
+
+    def test_app_accepts_resume_param(self) -> None:
+        app = StoryWriterApp(
+            story_name="test_story", resume=True, savepoint_name="chap3"
+        )
+
+        assert app.resume is True
+        assert app.savepoint_name == "chap3"
 
 
 class TestWikiPanelToggle:
@@ -175,10 +184,66 @@ class TestQuitAction:
 
                 app.action_request_quit()
 
-                assert (
-                    "Cancellation requested. Finishing current LLM call before exit..."
-                    in output_log.lines[-2].text
+                assert any(
+                    "Pipeline cancelled. Savepoint at last completed phase is preserved."
+                    in line.text
+                    for line in output_log.lines
                 )
+
+
+class TestResumeMode:
+    def test_run_pipeline_calls_run_pipeline_when_resume_false(self) -> None:
+        app = StoryWriterApp(story_name="test_story", resume=False)
+
+        with (
+            patch.object(
+                app,
+                "call_from_thread",
+                side_effect=lambda callback, *args: callback(*args),
+            ),
+            patch.object(app, "_on_pipeline_complete") as mock_on_complete,
+            patch.object(app, "_append_error") as mock_append_error,
+            patch(
+                "presentation.tui.app.run_pipeline", new_callable=AsyncMock
+            ) as mock_run_pipeline,
+            patch(
+                "presentation.tui.app.resume_pipeline", new_callable=AsyncMock
+            ) as mock_resume_pipeline,
+        ):
+            mock_run_pipeline.return_value = SimpleNamespace(status="complete")
+            StoryWriterApp._run_pipeline.__wrapped__(app, "test_story", False, None)
+
+        mock_run_pipeline.assert_awaited_once()
+        mock_resume_pipeline.assert_not_called()
+        mock_on_complete.assert_called_once_with("complete")
+        mock_append_error.assert_not_called()
+
+    def test_run_pipeline_calls_resume_pipeline_when_resume_true(self) -> None:
+        app = StoryWriterApp(story_name="test_story", resume=True, savepoint_name="ch3")
+
+        with (
+            patch.object(
+                app,
+                "call_from_thread",
+                side_effect=lambda callback, *args: callback(*args),
+            ),
+            patch.object(app, "_on_pipeline_complete") as mock_on_complete,
+            patch.object(app, "_append_error") as mock_append_error,
+            patch(
+                "presentation.tui.app.run_pipeline", new_callable=AsyncMock
+            ) as mock_run_pipeline,
+            patch(
+                "presentation.tui.app.resume_pipeline", new_callable=AsyncMock
+            ) as mock_resume_pipeline,
+        ):
+            mock_resume_pipeline.return_value = SimpleNamespace(status="complete")
+            StoryWriterApp._run_pipeline.__wrapped__(app, "test_story", True, "ch3")
+
+        mock_run_pipeline.assert_not_called()
+        mock_resume_pipeline.assert_awaited_once()
+        assert mock_resume_pipeline.await_args.args[:2] == ("test_story", "ch3")
+        mock_on_complete.assert_called_once_with("complete")
+        mock_append_error.assert_not_called()
 
 
 class TestTUIApprovalGate:

@@ -15,7 +15,7 @@ if str(_src_dir) not in sys.path:
     sys.path.insert(0, str(_src_dir))
 
 
-def _cmd_tui(story: str) -> None:
+def _cmd_tui(story: str, *, resume: bool = False, savepoint: str | None = None) -> None:
     try:
         from presentation.tui.app import StoryWriterApp  # type: ignore[import-not-found]
     except ImportError:
@@ -26,7 +26,7 @@ def _cmd_tui(story: str) -> None:
         )
         raise SystemExit(1)
 
-    app = StoryWriterApp(story_name=story)
+    app = StoryWriterApp(story_name=story, resume=resume, savepoint_name=savepoint)
     app.run()
 
 
@@ -38,7 +38,11 @@ def _cmd_run(story: str, *, batch: bool = False) -> None:
         WikiContextBus,
     )
 
-    _ = batch
+    if not batch:
+        print(
+            "Note: story-writer run is always headless. "
+            "Interactive approval mode is not yet implemented."
+        )
     gate = NullApprovalGate()
     bus = TokenStreamBus()
     wiki_bus = WikiContextBus()
@@ -68,7 +72,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.subcommand == "tui":
-        _cmd_tui(args.story)
+        _cmd_tui(args.story, resume=args.resume, savepoint=args.savepoint)
     elif args.subcommand == "run":
         _cmd_run(args.story, batch=args.batch)
     elif args.subcommand == "resume":

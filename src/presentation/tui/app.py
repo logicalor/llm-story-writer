@@ -32,7 +32,7 @@ if str(_src_dir) not in sys.path:
     sys.path.insert(0, str(_src_dir))
 
 from application.pipeline.handoffs import ApprovalDecision, PipelineState  # noqa: E402
-from presentation.orchestrator import run_pipeline  # noqa: E402
+from presentation.orchestrator import resume_pipeline, run_pipeline  # noqa: E402
 from presentation.pipeline_primitives import (  # noqa: E402
     ApprovalGate,
     TokenStreamBus,
@@ -90,13 +90,19 @@ class StoryWriterApp(App[None]):
 
     BINDINGS = [
         Binding("ctrl+w", "toggle_wiki", "Toggle wiki panel"),
-        Binding("ctrl+s", "force_savepoint", "Save checkpoint"),
         Binding("ctrl+c", "request_quit", "Quit", show=True),
     ]
 
-    def __init__(self, story_name: str) -> None:
+    def __init__(
+        self,
+        story_name: str,
+        resume: bool = False,
+        savepoint_name: str | None = None,
+    ) -> None:
         super().__init__()
         self.story_name = story_name
+        self.resume = resume
+        self.savepoint_name = savepoint_name
         self._gate: TUIApprovalGate | None = None
         self._wiki_visible = False
         self._completed_phases: list[str] = []
@@ -124,7 +130,7 @@ class StoryWriterApp(App[None]):
         self.query_one("#approval-input", Input).display = False
         self.query_one("#wiki-panel", Vertical).display = False
         self._update_phase("outline")
-        self._run_pipeline(self.story_name)
+        self._run_pipeline(self.story_name, self.resume, self.savepoint_name)
 
     def _append_token(self, delta: str) -> None:
         """Append a token delta to the output log."""
@@ -218,22 +224,27 @@ class StoryWriterApp(App[None]):
         self.query_one("#wiki-panel", Vertical).display = self._wiki_visible
 
     def action_force_savepoint(self) -> None:
-        """Show informational savepoint message."""
-        self.query_one("#output-log", RichLog).write(
-            "\nSavepoint requested (automatic savepoints are written at each phase boundary)\n"
-        )
+        """Preserved stub for removed manual savepoint binding."""
+        # Ctrl+S keybinding removed — savepoints written automatically at phase boundaries.
+        pass
 
     def action_request_quit(self) -> None:
         """Cancel workers and exit."""
         self.query_one("#output-log", RichLog).write(
-            "\nCancellation requested. Finishing current LLM call before exit...\n"
+            "\nPipeline cancelled. Savepoint at last completed phase is preserved.\n"
+            f"Resume with: story-writer tui --story {self.story_name} --resume\n"
         )
         for worker in self.workers:
             worker.cancel()
         self.exit()
 
     @work(thread=True)
-    def _run_pipeline(self, story_name: str) -> None:
+    def _run_pipeline(
+        self,
+        story_name: str,
+        resume: bool = False,
+        savepoint_name: str | None = None,
+    ) -> None:
         """Background worker: runs the async pipeline and bridges events to UI."""
         gate = TUIApprovalGate(self)
         self._gate = gate
@@ -250,6 +261,10 @@ class StoryWriterApp(App[None]):
             bus: TokenStreamBus, wiki_bus: WikiContextBus
         ) -> PipelineState:
             try:
+                if resume:
+                    return await resume_pipeline(
+                        story_name, savepoint_name, gate, bus, wiki_bus
+                    )
                 return await run_pipeline(story_name, gate, bus, wiki_bus)
             finally:
                 bus.close()
