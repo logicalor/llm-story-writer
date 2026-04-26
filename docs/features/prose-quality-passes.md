@@ -1,156 +1,122 @@
 # Prose Quality Passes
 
-> Conditional prose-polish layers for chapter cleanup and post-assembly manuscript editing.
+> Conditional prose-polish layers for chapter cleanup and late-stage manuscript editing.
 
 ## Overview
 
-Issue #121 and PR #128 added two distinct prose-quality subagents to the story pipeline: `prose-scrubber` and `final-editor`. PR #141 later moved their analysis LLM calls into `scene-writer` so both agents now stay tool-only.
+Issue #121 and PR #128 introduced two prose-quality surfaces: `prose-scrubber` and `final-editor`. The current Python-native orchestrator slice only wires `final-editor`. Issue #185 / PR #198 replaces the old Phase 9 stub with a real `FinalEditorAgent` execution path in `src/presentation/orchestrator.py`.
 
-`prose-scrubber` runs inside the per-chapter loop after Phase 7f has accepted a chapter. It targets sentence and paragraph-level defects such as adverb overuse, filter words, repetitive phrasing, and show-vs-tell drift. `final-editor` runs after Phase 8 assembly and revisits each assembled chapter for voice consistency, pacing, and cross-chapter coherence.
+`final-editor` now runs after the chapter loop and before assembly. It sends one approved chapter at a time through a streamed LLM edit pass, preserves the original chapter if the model returns empty output, updates `state.approved_chapters`, and writes `stories/<name>/output/story_edited.md` before `story.md` is assembled.
 
-Both passes are optional, controlled by config flags, and constrained to surgical prose edits. They do not replace the chapter-quality gate handled by `quality-reviewer`, and they must not change plot events, world facts, or entity state.
+`prose-scrubber` prompt assets still exist, but that phase is not currently invoked by `src/presentation/orchestrator.py`. Both passes remain optional at the configuration layer, and neither replaces the chapter approval gate.
 
 ## Pipeline Placement
 
 | Pass | Agent | Pipeline Position | Trigger | Scope |
 |------|-------|-------------------|---------|-------|
-| Prose Scrub | `prose-scrubber` | Phase 7.5, after Phase 7f | `generation.enable_scrubbing: true` | Sentence and paragraph |
-| Final Edit | `final-editor` | Phase 9, after Phase 8 assembly | `generation.enable_final_edit: true` | Chapter-level prose in manuscript context |
+| Prose Scrub | `prose-scrubber` | Not wired in current orchestrator slice | `generation.enable_scrubbing: true` | Sentence and paragraph |
+| Final Edit | `final-editor` | Phase 9, after chapter-loop and before assembly | `generation.enable_final_edit` not explicitly `false` | One accepted chapter at a time |
 
 The passes are complementary:
 
-- `quality-reviewer` decides whether a chapter is good enough to accept.
-- `prose-scrubber` cleans local prose issues in the accepted chapter text.
-- `final-editor` performs a later manuscript-context pass for style, pacing, and cross-chapter continuity of voice.
+- `quality-reviewer` is still a separate concept from prose polishing.
+- `prose-scrubber` remains a documented prompt surface, not an active orchestrator phase.
+- `final-editor` is the only prose-quality pass currently executed by the Python-native orchestrator.
 
 ## User Guide
 
-Enable or disable the passes in `config.md` under `generation`.
+Enable or disable the passes in the `generation` config block.
 
 ```yaml
 generation:
   enable_scrubbing: true
-  enable_final_edit: false
-
-models:
-  scrub_model: your-fast-analysis-model
+  enable_final_edit: true
 ```
 
-When `enable_scrubbing` is true, the orchestrator dispatches `prose-scrubber` after the chapter quality loop finishes. When `enable_final_edit` is true, the orchestrator dispatches `final-editor` after manuscript assembly. If a flag is false, the corresponding pass is skipped cleanly.
+Current behavior in `src/presentation/orchestrator.py`:
+
+- `enable_final_edit` skips Phase 9 only when the value is explicitly `false`
+- if the key is missing from the raw `generation` config mapping, the orchestrator treats final-edit as enabled
+- `enable_scrubbing` is not currently consulted by the active orchestrator code path
 
 ## Developer Guide
 
 ### `prose-scrubber`
 
-`prose-scrubber` reads one chapter from story state, delegates sentence-level issue extraction to `scene-writer` with `operation: "scrub-analyze"`, and applies targeted `scene-writer` revisions.
+`prose-scrubber` is not wired into `src/presentation/orchestrator.py` today. Keep its prompt assets and related docs as design/reference material until a future pipeline slice reconnects the phase.
 
-It focuses on four issue types:
-
-- Adverb overuse
-- Filter words and distancing constructions
-- Repetitive phrase patterns
-- Show-vs-tell imbalance
-
-Operational details:
-
-- Uses `config.models.scrub_model` when present; otherwise uses the default model role
-- The analysis prompt loading and JSON parsing now live inside `scene-writer`, not the agent
-- Stops after at most five revision calls for one chapter
-- Writes the revised chapter object back to the original text-bearing field in story state
-- Creates `chapter_{N}_scrubbed` savepoints
-- Returns issue and revision counts to the orchestrator
-
-Because this pass is prose-only, it does not re-run wiki updates, recap generation, or wiki lint.
+Because the active orchestrator never calls this pass, do not document `chapter_{N}_scrubbed` as a current runtime artifact of the Python-native path.
 
 ### `final-editor`
 
-`final-editor` runs after the story has been assembled. It processes chapters one by one, but it evaluates them in manuscript context by pulling prior-chapter material through `rag-query`.
-
-It performs two analysis passes per chapter:
-
-1. `scene-writer` `voice-analyze` for voice consistency, pacing, and cross-chapter coherence
-2. `scene-writer` `scrub-analyze` for a second sentence-level cleanup on the assembled chapter text
+`final-editor` is implemented in `src/presentation/agents/final_editor.py` and called directly from Phase 9 of `src/presentation/orchestrator.py`.
 
 Operational details:
 
-- Reads chapter text from story state and preserves sibling fields when writing updates back
-- Uses `rag-query` to gather prior chapter context for stylistic continuity
-- Delegates prompt loading, LLM invocation, and JSON parsing to `scene-writer` for both analysis passes
-- Applies up to three targeted revisions from the voice-analysis pass and up to three targeted revisions from the scrub pass
-- Creates `chapter_{N}_final_edited` savepoints per chapter
-- Creates `final_edit_complete` when the full manuscript pass finishes
+- Loads `prompts/agents/final-editor.md` lazily through `load_agent_prompt("final-editor")`
+- Uses the `chapter_writer` model role for the streaming edit pass
+- Emits one `WikiContextEvent` per chapter with phase `final-edit`
+- Sends one user message containing the chapter title and full chapter content
+- Replaces each chapter with streamed output when non-empty; otherwise preserves the original text
+- Returns `FinalEditResult` with `edited_chapters`, `chapters_processed`, `total_issues_found`, and `total_revisions_made`
+- Writes `stories/<story>/output/story_edited.md` from the edited chapters when at least one edited chapter has non-empty content
+- Persists `final_edit_complete` after the phase finishes
 
-`final-editor` runs after assembly, not instead of `quality-reviewer`. It assumes each chapter has already passed the acceptance gate and only polishes the accepted text.
+`final-editor` now runs before assembly, not after it. `story.md` is assembled from the already-edited `state.approved_chapters`, so `story_edited.md` and `story.md` are aligned unless later phases mutate chapter content again.
 
 ### Tool Usage
 
 | Agent | Tool | Purpose |
 |-------|------|---------|
-| `prose-scrubber` | `story-state` | Read and write chapter objects |
-| `prose-scrubber` | `scene-writer` | Run `scrub-analyze` and apply local prose revisions |
-| `prose-scrubber` | `savepoint-mgr` | Record `chapter_{N}_scrubbed` |
-| `final-editor` | `story-state` | Read and write assembled chapter objects |
-| `final-editor` | `scene-writer` | Run `voice-analyze` and `scrub-analyze`, then apply voice, pacing, and scrub revisions |
-| `final-editor` | `rag-query` | Retrieve prior-chapter context |
-| `final-editor` | `savepoint-mgr` | Record per-chapter and final completion savepoints |
+| `final-editor` | `agent_prompt_loader` | Load `prompts/agents/final-editor.md` |
+| `final-editor` | `ModelProvider.stream_text(...)` | Run one streamed edit pass per approved chapter |
+| `final-editor` | `TokenStreamBus` | Surface editing output tokens live |
+| `final-editor` | `WikiContextBus` | Emit one phase event per chapter |
 
 ### Constraints
 
-Both agents load `prompts/skills/final-edit/SKILL.md` and inherit the same hard limits:
+The current implementation relies on agent prompt instructions rather than a separate runtime skill loader. The active guardrails are:
 
-- Allowed scope: sentence, paragraph, and local chapter-level prose revision
-- Forbidden: new plot events, removed plot events, changed entity facts, changed timeline facts, changed world rules
-- Forbidden: wholesale chapter rewrites or full chapter replacement
-- Required fallback: mark `needs_review` when a problem exceeds prose scope instead of forcing a rewrite
-- Architecture rule: depth-1 nesting only; both agents are tool-only subagents
+- Final-edit is optional and skips cleanly when disabled
+- Empty model output must not erase accepted chapter content
+- The phase edits accepted chapter drafts only; it does not reopen approval gates
+- The current orchestrator writes one phase-level savepoint, not per-chapter final-edit checkpoints
 
 ### Key Files
 
-- `prompts/agents/prose-scrubber.md` — Phase 7.5 chapter scrub workflow
 - `prompts/agents/final-editor.md` — Phase 9 manuscript polish workflow
-- `src/tools/scene_writer.py` — Prompt-loading, LLM-calling, JSON-parsing implementation for prose analysis and scene generation
-- `prompts/skills/final-edit/SKILL.md` — shared constraints, pass types, revision budget, status tokens
-- `prompts/final_edit/prose_scrub.md` — sentence and paragraph-level issue extraction prompt
-- `prompts/final_edit/voice_consistency_pass.md` — voice, pacing, and cross-chapter coherence prompt
-- `prompts/agents/story-orchestrator.md` — orchestrator integration points and feature flags
-
-The former `.opencode/tools/scene-writer.ts` wrapper was deleted in Python-native migration Task 7. Runtime calls now use the Python implementation directly.
+- `src/presentation/agents/final_editor.py` — streaming agent implementation and empty-output fallback
+- `src/presentation/orchestrator.py` — Phase 9 wiring, config flag check, `story_edited.md` write, and `final_edit_complete` savepoint
+- `src/application/pipeline/handoffs.py` — `FinalEditResult` dataclass consumed by the orchestrator
 
 ### Data
 
-The passes mutate chapter text in story state and add savepoints. They do not add new wiki entities or alter wiki facts.
+The current Python-native path mutates `state.approved_chapters`, writes one edited manuscript artifact, and adds one completion savepoint. It does not add new wiki entities or alter wiki facts.
 
 | Artifact | Producer | Notes |
 |----------|----------|-------|
-| `chapter_{N}_scrubbed` | `prose-scrubber` | Per-chapter Phase 7.5 checkpoint |
-| `chapter_{N}_final_edited` | `final-editor` | Per-chapter post-assembly checkpoint |
-| `final_edit_complete` | `final-editor` | Final manuscript-polish checkpoint |
+| `stories/<story>/output/story_edited.md` | `final-editor` phase controller | Edited manuscript assembled from `FinalEditResult.edited_chapters` |
+| `final_edit_complete` | `final-editor` phase controller | Phase 9 completion savepoint |
 
 ### Testing
 
-PR #141 added `scene-writer` tests covering both analysis operations, including success, empty-result, JSON-parse failure, and CLI validation cases. For documentation changes, verify the feature descriptions against the source agent files, tool contracts, and prompt templates:
+`tests/unit/test_orchestrator.py` covers the active final-edit orchestration paths with `test_final_edit_phase_invokes_agent()` and `test_final_edit_phase_skipped_when_disabled()`.
 
-- `prompts/agents/prose-scrubber.md`
 - `prompts/agents/final-editor.md`
-- `src/tools/scene_writer.py`
-- `prompts/skills/final-edit/SKILL.md`
-- `prompts/final_edit/prose_scrub.md`
-- `prompts/final_edit/voice_consistency_pass.md`
+- `src/presentation/agents/final_editor.py`
+- `src/presentation/orchestrator.py`
 
 ## Configuration
 
 | Setting | Location | Default | Effect |
 |---------|----------|---------|--------|
-| `enable_scrubbing` | `generation` | `true` | Enables Phase 7.5 `prose-scrubber` |
-| `enable_final_edit` | `generation` | `false` | Enables Phase 9 `final-editor` |
-| `scrub_model` | `models` | unset | Optional named model role used by `prose-scrubber` |
+| `enable_scrubbing` | `generation` | `true` | Reserved for a future prose-scrubber reintegration; unused by the active orchestrator |
+| `enable_final_edit` | `generation` | `true` when the raw config key is absent in `orchestrator.py` | Enables or skips Phase 9 `final-editor` |
 
 ## Related
 
 - [Story Orchestrator](./story-orchestrator.md) — Pipeline placement, subagent registry, and savepoint flow
-- [Tools Reference](../tools.md) — Deterministic tool contracts used by both subagents
+- [Story Planner](./story-planner.md) — Adjacent narrative quality pass that now runs before characters
 - [ADR 001: Hybrid Agent-Tool Architecture](../planning/adr/001-hybrid-agent-tool-architecture.md) — Depth-1 orchestration pattern
-- Issue #121 — Initial implementation request
-- PR #128 — Implemented `final-editor`, `prose-scrubber`, shared skill, and prompt templates
-- Issue #134 — Moved prose-analysis LLM calls into `scene-writer`
-- PR #141 — Added `scrub-analyze` and `voice-analyze` and removed `prompt-loader` from both agents
+- Issue #185 — Implement final-edit phase and add narrative-arc phase
+- PR #198 — Narrative-arc and final-edit implementation

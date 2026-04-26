@@ -1,23 +1,24 @@
 # Story Planner
 
-> Phase 2.5 subagent that evaluates the finalized outline's dramatic arc before the human approval gate.
+> Phase 2.5 agent that performs advisory narrative-arc analysis after outline approval and before character generation.
 
 ## Overview
 
-`story-planner` runs after the orchestrator has saved the final outline at `outline_complete` and before the user approves the story for downstream generation. Its job is to add a structured narrative-arc review surface without reopening the nested-agent depth problems that previously caused orchestration instability.
+`story-planner` is implemented in `src/presentation/agents/story_planner.py` and wired into `src/presentation/orchestrator.py` by Issue #185 / PR #198. The orchestrator runs it only after the outline approval gate resolves successfully, so the agent always analyzes the approved `OutlineResult` rather than a draft under revision.
 
-The subagent is advisory only. It does not trigger an automatic rewrite loop and it does not block batch mode. Instead, it returns a compact arc report that the orchestrator presents during Phase 3 alongside the normal outline summary.
+The phase is advisory only. It does not mutate the outline, it does not reopen the approval gate, and it does not block the rest of the pipeline. If the agent raises, the orchestrator emits a skip message, writes `arc_analysis_complete`, and continues into the characters phase.
 
 ## Workflow
 
-`story-planner` now executes a four-step, tool-only pipeline:
+`story-planner` currently executes one streaming LLM call:
 
-1. Read the finalized `outline` and supporting `story_elements` context from story state.
-2. Run the six `outline_review/` critics through `critique-runner` in `outline` mode.
-3. Call `critique-runner` once with `run-arc-analysis`, which executes the three `prompts/outline_arc/` prompts internally and returns the synthesized arc result.
-4. Return the structured assessment payload to the orchestrator.
+1. Emit a `WikiContextEvent` for phase `narrative-arc`.
+2. Load `prompts/agents/story-planner.md` lazily through `load_agent_prompt("story-planner")`.
+3. Build one user prompt from `OutlineResult.summary` plus JSON-formatted `chapter_outlines` when chapter entries exist.
+4. Stream the response through `provider.stream_text(...)` using the `initial_outline_writer` model role.
+5. Accumulate the streamed text and return an `ArcAnalysisResult`.
 
-Because the agent calls tools only, orchestration depth stays at 1. The orchestrator remains responsible for user interaction and for any outline regeneration if the user decides the arc findings warrant a rewrite. `story-planner` no longer depends on `prompt-loader`; the prompt chaining moved into `critique-runner`.
+The orchestrator then stores the returned object in `PipelineState.arc_result` and emits a compact summary line on the token bus.
 
 ## Inputs And Outputs
 
@@ -27,8 +28,9 @@ The orchestrator dispatches `story-planner` with:
 
 | Field | Description |
 |-------|-------------|
-| `story_name` | Story identifier used for all `story-state` and savepoint operations |
-| `outline_quality` | Configured outline-quality threshold, passed through for consistent reporting context |
+| `story_name` | Story identifier used in the prompt and event stream |
+| `outline_result` | Approved outline summary plus optional `chapter_outlines` payload |
+| `settings.seed` | Seed forwarded into `provider.stream_text(...)` |
 
 ### Output Schema
 
@@ -36,97 +38,57 @@ The orchestrator dispatches `story-planner` with:
 
 ```json
 {
-  "arc_assessment": "<full synthesized dramatic arc assessment markdown>",
-  "overall_score": 83,
-  "critic_scores": {
-    "audiobook-producer": 84,
-    "book-club-moderator": 82,
-    "commercial-fiction-editor": 85,
-    "literary-fiction-reviewer": 80,
-    "publishing-acquisitions-editor": 86,
-    "subject-expert": 81
-  },
-  "verdict": "minor_concerns"
+  "story_name": "my-story",
+  "arc_assessment": "<first 1000 characters of streamed analysis>",
+  "verdict_code": "minor_concerns",
+  "overall_score": 0.0
 }
 ```
 
 ### Verdict Codes
 
-The synthesized report is normalized to one of three verdict codes:
+The current implementation infers `verdict_code` heuristically from the streamed text:
 
 | Verdict | Meaning |
 |--------|---------|
-| `strong` | Arc shape is solid; proceed without major concern |
-| `minor_concerns` | Arc is viable but has noticeable pacing or payoff weaknesses |
-| `significant_issues` | Structural issues are serious enough that the user should consider outline revision |
-
-## Critic Pass
-
-The subagent reuses the existing outline review stack rather than inventing a second scoring system. `critique-runner` returns parsed results for these six critics:
-
-- `audiobook-producer`
-- `book-club-moderator`
-- `commercial-fiction-editor`
-- `literary-fiction-reviewer`
-- `publishing-acquisitions-editor`
-- `subject-expert`
-
-`story-planner` projects those results into a compact `critic_scores` object and uses the reported `overall_average` as `overall_score`.
-
-## Arc Prompt Set
-
-Phase 2.5 still uses three prompts under `prompts/outline_arc/`, but `story-planner` no longer loads them directly. It delegates that prompt chain to `critique-runner run-arc-analysis`.
-
-| Prompt | Purpose |
-|--------|---------|
-| `arc_distribution.md` | Measure dramatic weight distribution across chapters and detect flat or back-loaded structure |
-| `promise_payoff.md` | Map narrative promises against later payoff opportunities and identify broken setup chains |
-| `arc_synthesis.md` | Merge critic scores and arc analyses into the final structured assessment |
-
-These prompts complement the generic outline critics. They do not replace them.
+| `strong` | Response text does not contain `significant`, `minor`, or `concern` |
+| `minor_concerns` | Response text contains `minor` or `concern` |
+| `significant_issues` | Response text contains `significant` |
 
 ## Savepoint And State
 
-The arc-analysis flow now persists its intermediate artifacts inside `critique-runner`, then the orchestrator stores the returned assessment in the existing Phase 2.5 handoff surfaces:
+Phase 2.5 persists through the normal orchestrator savepoint path rather than an internal prompt-chain savepoint set.
 
 | Location | Purpose |
 |----------|---------|
-| `arc_distribution` savepoint | Persist the dramatic-weight analysis generated from `outline_arc/arc_distribution` |
-| `arc_promise_payoff` savepoint | Persist the setup/payoff analysis generated from `outline_arc/promise_payoff` |
-| `arc_assessment` savepoint | Persist the final synthesis generated from `outline_arc/arc_synthesis` |
-| `arc_assessment` story-state field | Give the orchestrator a stable payload to show during Phase 3 approval |
-| `arc_analysis_complete` savepoint | Persist the final Phase 2.5 arc payload after `story-planner` returns |
+| `PipelineState.arc_result` | Persist the latest successful `ArcAnalysisResult` into `stories/<story>/savepoints/pipeline_state.json` |
+| `arc_analysis_complete` savepoint | Mark Phase 2.5 complete whether analysis succeeded or was skipped after an exception |
 
-The outline itself remains the authoritative input. Phase 2.5 analyzes the existing outline; it does not mutate it. `critique-runner` owns the prompt-chain savepoints; the orchestrator owns the approval-gate state and final Phase 2.5 checkpoint.
+The phase analyzes the existing outline only. It does not rewrite `OutlineResult`, create intermediate arc savepoints, or store a separate story-state field.
 
 ## Developer Notes
 
 ### Key Files
 
-- `prompts/agents/story-planner.md` — subagent contract and workflow
-- `src/tools/critique_runner.py` — arc-analysis prompt orchestration and savepoint persistence
-- `prompts/outline_arc/arc_distribution.md` — dramatic-weight prompt
-- `prompts/outline_arc/promise_payoff.md` — setup/payoff prompt
-- `prompts/outline_arc/arc_synthesis.md` — synthesis prompt
-- `prompts/agents/story-orchestrator.md` — Phase 2.5 integration and Phase 3 presentation rules
-
-Task 7 of the Python-native migration removed the former `.opencode/tools/critique-runner.ts` wrapper. `story-planner` now depends only on the Python implementation path in `src/tools/critique_runner.py`.
+- `prompts/agents/story-planner.md` — system prompt loaded by the agent
+- `src/presentation/agents/story_planner.py` — prompt loading, streaming call, verdict parsing, and `ArcAnalysisResult` construction
+- `src/presentation/orchestrator.py` — Phase 2.5 wiring, exception handling, token-bus summary, and savepoint persistence
+- `src/application/pipeline/handoffs.py` — `ArcAnalysisResult` and `PipelineState.arc_result`
 
 ### Constraints
 
-- Depth-1 only: no nested subagent dispatch.
-- Advisory only: no automated outline rewrite loop.
-- Uses finalized outline content explicitly, not a fallback savepoint lookup.
-- Keeps returned payload compact so the approval gate stays readable.
-- Uses `critique-runner` for both critic execution and arc prompt orchestration; no direct `prompt-loader` dependency remains.
+- Advisory only: the orchestrator catches agent failures and continues.
+- One-pass only: no nested critic fan-out or prompt chain is wired in the current implementation.
+- Compact persistence: `arc_assessment` is truncated to 1000 characters before storage.
+- Deterministic verdict parsing: `verdict_code` comes from keyword matching, not structured JSON parsing.
 
 ## Testing
 
-Phase 2.5 documentation was added after implementation verification on branch `feat/issue-124-story-planner-agent`. Existing test coverage for prompt relocation and story-state interactions continued to pass in the feature branch test run used for PR #130.
+`tests/unit/test_orchestrator.py` covers both successful execution and the advisory error path with `test_narrative_arc_phase_runs_after_outline()` and `test_narrative_arc_phase_advisory_continues_on_error()`.
 
 ## Related
 
 - [Story Orchestrator](./story-orchestrator.md)
 - [Comprehensive Manual](../manual.md)
-- Issue #124 — Story planner subagent
-- PR #130 — Story planner integration
+- Issue #185 — Implement final-edit phase and add narrative-arc phase
+- PR #198 — Narrative-arc and final-edit implementation
