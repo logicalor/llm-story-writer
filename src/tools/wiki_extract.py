@@ -17,16 +17,20 @@ if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
 from infrastructure.prompts.prompt_loader import PromptLoader  # noqa: E402
-from src.tools import _llm  # noqa: E402
-from src.tools._io import _atomic_write, _validate_story_name  # noqa: E402
-from src.tools._wiki import (  # noqa: E402
+from tools import _llm  # noqa: E402
+from tools._io import _atomic_write, _validate_story_name  # noqa: E402
+from tools._wiki import (  # noqa: E402
     get_wiki_dir,
-    match_entities_in_text,
     parse_frontmatter,
-    read_index,
     slugify,
 )
-from src.tools.wiki_update import run_batch  # noqa: E402
+from tools._wiki_api import (  # noqa: E402
+    _prepare_chapter_update,
+    update_wiki_from_chapter,
+)
+from tools.wiki_update import run_batch  # noqa: E402
+
+__all__ = ["update_wiki_from_chapter"]
 
 
 def _load_outline_savepoint(story_dir: Path) -> str:
@@ -576,136 +580,6 @@ def _build_payload_from_entities(
         )
         creates.append(_build_create_entry(entity, detail_levels))
     return {"creates": creates, "updates": [], "timeline_events": []}
-
-
-def _prepare_chapter_update(
-    story_name: str,
-    chapter_number: int,
-    chapter_text: str,
-    *,
-    model: str | None = None,
-    base_url: str | None = None,
-) -> tuple[Path, dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
-    story_dir = _validate_story_name(story_name)
-    cache = _load_extract_cache(story_dir)
-
-    wiki_dir = get_wiki_dir(story_dir)
-    index_entries = read_index(wiki_dir) if wiki_dir.exists() else []
-    matches = match_entities_in_text(chapter_text, index_entries)
-
-    existing_entities = []
-    for match in matches:
-        slug = match.get("slug")
-        if not isinstance(slug, str):
-            continue
-        compact_page = _read_compact_page(story_dir, slug)
-        if compact_page is not None:
-            existing_entities.append(compact_page)
-
-    chapter_cache_key = f"chapter_entities/{chapter_number}"
-    cached_extracted = cache.get(chapter_cache_key)
-    if cached_extracted is not None:
-        extracted = cached_extracted
-    else:
-        prompt = _load_prompt(
-            "wiki/extract_from_chapter",
-            {
-                "chapter_text": chapter_text,
-                "chapter_number": chapter_number,
-                "existing_entities": json.dumps(
-                    existing_entities, indent=2, ensure_ascii=True
-                ),
-            },
-        )
-        extracted = _parse_json_response(
-            _chat_completion(prompt, model=model, base_url=base_url),
-            "chapter extraction",
-        )
-        if not isinstance(extracted, dict):
-            raise ValueError("chapter extraction must return a JSON object")
-        cache[chapter_cache_key] = extracted
-        _save_extract_cache(story_dir, cache)
-
-    raw_new_entities = extracted.get("new_entities", [])
-    if not isinstance(raw_new_entities, list):
-        raise ValueError("new_entities must be an array")
-    new_entities = _deduplicate_entities(
-        [
-            _normalize_entity(
-                item,
-                default_confidence="verified",
-                first_appearance=chapter_number,
-            )
-            for item in raw_new_entities
-        ]
-    )
-
-    creates = []
-    for entity in new_entities:
-        entity_with_slug = {**entity, "slug": slugify(entity["name"])}
-        detail_levels = _generate_detail_levels(
-            entity_with_slug,
-            model=model,
-            cache=cache,
-            story_dir=story_dir,
-            base_url=base_url,
-        )
-        creates.append(_build_create_entry(entity, detail_levels))
-
-    updates = _merge_update_entries(
-        extracted.get("state_changes", []),
-        extracted.get("new_aliases", []),
-    )
-    timeline_events = extracted.get("timeline_events", [])
-    if not isinstance(timeline_events, list):
-        raise ValueError("timeline_events must be an array")
-
-    payload = {
-        "creates": creates,
-        "updates": updates,
-        "timeline_events": timeline_events,
-    }
-    return story_dir, payload, creates, updates
-
-
-def update_wiki_from_chapter(
-    story_name: str,
-    chapter_number: int,
-    chapter_text: str,
-    *,
-    model: str | None = None,
-    base_url: str | None = None,
-) -> dict[str, Any]:
-    """Run wiki update for a chapter from chapter text string.
-
-    This is the programmatic API used by WikiMaintainerAgent.
-    Unlike cmd_update_from_chapter, this accepts chapter text directly
-    instead of requiring a file path.
-
-    Returns a dict with keys:
-      created: int
-      updated: int
-      timeline_events: int
-      entity_counts: dict
-      new_slugs: list[str]   - slugs of newly created pages
-      updated_slugs: list[str]  - slugs of updated pages
-    """
-    story_dir, payload, creates, updates = _prepare_chapter_update(
-        story_name,
-        chapter_number,
-        chapter_text,
-        model=model,
-        base_url=base_url,
-    )
-
-    summary = run_batch(story_name, payload)
-    _delete_extract_cache(story_dir)
-
-    return {
-        **summary,
-        "new_slugs": [create["slug"] for create in creates],
-        "updated_slugs": [update["slug"] for update in updates],
-    }
 
 
 def cmd_initial_populate(args: argparse.Namespace) -> None:
