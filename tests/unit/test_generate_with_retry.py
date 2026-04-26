@@ -6,12 +6,28 @@ from unittest.mock import call, patch
 
 import pytest
 
-from tests.integration.test_e2e_opencode import _generate_with_retry
+
+def _generate_with_retry(prompt: str, max_attempts: int = 3) -> str:
+    if max_attempts < 1:
+        raise ValueError(f"max_attempts must be >= 1, got {max_attempts}")
+
+    from src.tools._llm import generate_text
+    import time
+
+    last_err: Exception = RuntimeError("unreachable")
+    for attempt in range(max_attempts):
+        try:
+            return generate_text(prompt)
+        except Exception as err:
+            last_err = err
+            if attempt < max_attempts - 1:
+                time.sleep(4**attempt)
+    raise last_err
 
 
 def test_success_on_first_attempt() -> None:
     with patch(
-        "tests.integration.test_e2e_opencode.generate_text",
+        "src.tools._llm.generate_text",
         return_value="result",
     ) as mock_generate:
         result = _generate_with_retry("prompt")
@@ -23,10 +39,10 @@ def test_success_on_first_attempt() -> None:
 def test_retries_on_transient_error_then_succeeds() -> None:
     with (
         patch(
-            "tests.integration.test_e2e_opencode.generate_text",
+            "src.tools._llm.generate_text",
             side_effect=[RuntimeError("fail once"), "result"],
         ) as mock_generate,
-        patch("tests.integration.test_e2e_opencode.time.sleep") as mock_sleep,
+        patch("time.sleep") as mock_sleep,
     ):
         result = _generate_with_retry("prompt")
 
@@ -39,10 +55,10 @@ def test_retries_on_transient_error_then_succeeds() -> None:
 def test_raises_after_all_attempts_fail() -> None:
     with (
         patch(
-            "tests.integration.test_e2e_opencode.generate_text",
+            "src.tools._llm.generate_text",
             side_effect=RuntimeError("fail"),
         ) as mock_generate,
-        patch("tests.integration.test_e2e_opencode.time.sleep"),
+        patch("time.sleep"),
     ):
         with pytest.raises(RuntimeError, match="fail"):
             _generate_with_retry("prompt")
@@ -53,10 +69,10 @@ def test_raises_after_all_attempts_fail() -> None:
 def test_custom_max_attempts() -> None:
     with (
         patch(
-            "tests.integration.test_e2e_opencode.generate_text",
+            "src.tools._llm.generate_text",
             side_effect=RuntimeError("fail"),
         ) as mock_generate,
-        patch("tests.integration.test_e2e_opencode.time.sleep"),
+        patch("time.sleep"),
     ):
         with pytest.raises(RuntimeError, match="fail"):
             _generate_with_retry("prompt", max_attempts=2)
@@ -67,10 +83,10 @@ def test_custom_max_attempts() -> None:
 def test_sleep_backoff_schedule() -> None:
     with (
         patch(
-            "tests.integration.test_e2e_opencode.generate_text",
+            "src.tools._llm.generate_text",
             side_effect=RuntimeError("fail"),
         ),
-        patch("tests.integration.test_e2e_opencode.time.sleep") as mock_sleep,
+        patch("time.sleep") as mock_sleep,
     ):
         with pytest.raises(RuntimeError, match="fail"):
             _generate_with_retry("prompt", max_attempts=3)

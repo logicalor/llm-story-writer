@@ -117,3 +117,14 @@ def test_two_chapter_story_batch(e2e_story_dir: Path) -> None:
 
     for i, ch in enumerate(approved_chapters):
         assert ch.get("content", "").strip(), f"Chapter {i + 1} has empty content"
+
+    # Assert assembly wrote the output file
+    story_md = e2e_story_dir / "output" / "story.md"
+    assert story_md.exists(), "story.md was not produced by assembly"
+    assert story_md.stat().st_size > 100, "story.md is suspiciously small (< 100 bytes)"
+
+    # Assert individual chapter files were written
+    chapter_files = list((e2e_story_dir / "chapters").glob("chapter_*.md"))
+    assert len(chapter_files) >= 2, (
+        f"Expected >= 2 chapter files, found {len(chapter_files)}"
+    )
