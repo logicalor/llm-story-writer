@@ -190,7 +190,7 @@ class TestCmdTui:
         assert exc_info.value.code == 1
         assert capsys.readouterr().err == (
             "textual is not installed. Install it with:\n"
-            "  pip install 'textual>=0.85.0,<1.0.0'\n\n"
+            "  pip install 'textual>=6.0,<7.0'\n\n"
         )
 
 

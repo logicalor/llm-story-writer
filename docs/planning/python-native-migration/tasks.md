@@ -96,6 +96,8 @@ Create `src/application/pipeline/handoffs.py` with dataclasses/Pydantic models r
 **Estimated scope:** small
 **Dependencies:** Task 3
 
+**Status:** implemented in Issue #160 / PR #170
+
 **Description:**
 
 Create `src/presentation/pipeline_primitives.py`. Implement:
@@ -108,12 +110,12 @@ All three primitives are transport-agnostic — the TUI and headless runner both
 
 **Acceptance Criteria:**
 
-- [ ] `ApprovalGate.await_decision()` blocks until `.resolve()` is called and returns the provided decision
-- [ ] `NullApprovalGate` returns `APPROVE` immediately without blocking
-- [ ] `TokenStreamBus` forwards all emitted deltas in order to the consumer
-- [ ] `WikiContextBus` forwards all emitted events in order to the consumer
-- [ ] Closing any bus terminates its async iterator cleanly
-- [ ] Unit tests cover: single-consumer, null gate, close-before-consume, close-mid-consume, wiki event emit
+- [x] `ApprovalGate.await_decision()` blocks until `.resolve()` is called and returns the provided decision
+- [x] `NullApprovalGate` returns `APPROVE` immediately without blocking
+- [x] `TokenStreamBus` forwards all emitted deltas in order to the consumer
+- [x] `WikiContextBus` forwards all emitted events in order to the consumer
+- [x] Closing any bus terminates its async iterator cleanly
+- [x] Unit tests cover: single-consumer, null gate, close-before-consume, close-mid-consume, wiki event emit
 
 **Key Files:**
 

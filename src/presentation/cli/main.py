@@ -21,7 +21,7 @@ def _cmd_tui(story: str, *, resume: bool = False, savepoint: str | None = None) 
     except ImportError:
         print(
             "textual is not installed. Install it with:\n"
-            "  pip install 'textual>=0.85.0,<1.0.0'\n",
+            "  pip install 'textual>=6.0,<7.0'\n",
             file=sys.stderr,
         )
         raise SystemExit(1)

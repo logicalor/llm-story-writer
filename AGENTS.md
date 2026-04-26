@@ -31,6 +31,20 @@ Story generation agent prompt files are defined in `prompts/agents/` and loaded 
 
 Story generation skills are defined in `prompts/skills/`. The `story-pipeline` skill provides the pipeline reference (phases, quality gates, savepoints, config settings).
 
+### Codex Workflow Skills
+
+Codex-native development workflows live in `.agents/skills/`. These are the canonical workflow instructions for Codex sessions in this repository:
+
+- `project-memory` — `.github/notes/` and ChromaDB recall protocol
+- `github-workflow` — issue/branch/implementation/verification/PR lifecycle
+- `planning-workflow` — PRDs, ADRs, task breakdowns, and implementation plans
+- `code-review` — local and PR review process, including synthesis guidance
+- `test-verification` — test-writing and verification rules
+- `documentation-maintenance` — docs, ADR, README, and companion-file updates
+- `web-research` — current external research with Tavily, Context7, and primary sources
+
+Older VS Code/GitHub Copilot agent definitions remain under `.github/agents/` for reference and Copilot use. Do not treat their `tools:` frontmatter or `github/...` tool names as directly callable by Codex; translate through the Codex workflow skills first.
+
 ### Storage
 
 - Stories are stored in `stories/<name>/` directories with JSON state files

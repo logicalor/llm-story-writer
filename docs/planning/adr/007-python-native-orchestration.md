@@ -1,7 +1,7 @@
 # ADR 007: Python-Native Orchestration and TUI (Supersedes ADR 001)
 
 **Date:** 2026-04-24
-**Status:** Proposed — supersedes [ADR 001](./001-hybrid-agent-tool-architecture.md)
+**Status:** Accepted — supersedes [ADR 001](./001-hybrid-agent-tool-architecture.md)
 
 ## Context
 
@@ -63,3 +63,13 @@ ADRs 002–006 remain in force. Context window management, ChromaDB retrieval, p
 During the Python-native migration, all orchestrator agents were implemented to call `provider.stream_text()` directly rather than routing through `src/application/services/`. This diverged from the intent stated in Decision point 5 above (*"the Python orchestrator imports and calls `src/application/services/*.py` directly, in-process"*).
 
 A formal architecture review (issue #188) examined the gap and issued [ADR 008](./008-retire-application-services-layer.md), which formally retires the services layer as dead code. The exception is `critique_parser.py`, which has active callers in `src/tools/critique_runner.py` and is retained.
+
+## Implementation Status (2026-04-26)
+
+Tasks 1–7, 9, and 12 are complete. The following tasks remain open and are tracked as separate GitHub issues:
+
+- **Task 8** (Textual TUI) — in progress
+- **Task 10** (documentation sweep) — tracked in issue #189
+- **Task 11** (end-to-end integration test) — tracked separately
+
+The core Python-native runtime (provider, prompt loader, pipeline handoffs, approval gates, token streaming, orchestrator, CLI, and TypeScript cleanup) is fully operational.
