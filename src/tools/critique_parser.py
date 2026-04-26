@@ -1,4 +1,4 @@
-"""Critique parser service for extracting scores and summaries from critic responses."""
+"""Parse critique scores and summaries for the critique-runner tool."""
 
 import re
 from typing import Dict, List, Tuple, Optional

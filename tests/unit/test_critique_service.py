@@ -1,12 +1,11 @@
-"""Verification tests for Issue #30 — Fix critique service outline_review prompt path.
+"""Verification tests for critique prompts and parser support.
 
 Confirms that:
 - All 6 outline review prompt files exist at prompts/outline_review/
 - PromptLoader resolves outline_review paths without error
-- critique_service module imports Dict and Any without ImportError
+- CritiqueParser supports character voice consistency checks
 """
 
-import ast
 import sys
 from pathlib import Path
 
@@ -49,29 +48,6 @@ def test_prompt_loader_resolves_outline_review():
     assert len(content) > 0, "Prompt content should not be empty"
 
 
-def test_critique_service_has_dict_any_imports():
-    """Verify critique_service.py imports Dict and Any (no ImportError at parse time)."""
-    source_file = (
-        PROJECT_ROOT / "src" / "application" / "services" / "critique_service.py"
-    )
-    assert source_file.is_file(), f"critique_service.py not found at {source_file}"
-
-    tree = ast.parse(source_file.read_text(encoding="utf-8"), filename=str(source_file))
-
-    imported_names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "typing":
-            for alias in node.names:
-                imported_names.add(alias.name)
-
-    assert "Dict" in imported_names, (
-        "Dict not imported from typing in critique_service.py"
-    )
-    assert "Any" in imported_names, (
-        "Any not imported from typing in critique_service.py"
-    )
-
-
 # ---------------------------------------------------------------------------
 # Issue #125: character-voice-consistency in CritiqueParser
 # ---------------------------------------------------------------------------
@@ -79,7 +55,7 @@ def test_critique_service_has_dict_any_imports():
 
 def test_character_voice_consistency_in_critic_criteria() -> None:
     """CritiqueParser knows 'character-voice-consistency' with correct criteria."""
-    from application.services.critique_parser import CritiqueParser
+    from src.tools.critique_parser import CritiqueParser
 
     parser = CritiqueParser()
 
