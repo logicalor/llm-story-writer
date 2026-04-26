@@ -6,7 +6,7 @@
 
 The integration suite verifies the story pipeline against a real OpenAI-compatible LLM endpoint. It exercises story state initialisation, wiki setup, outline generation, character and setting sheet generation, wiki population, scene writing, recap generation, wiki linting, savepoint creation, and final story assembly.
 
-The integration area includes two end-to-end paths and a focused live smoke test for `OpenAIAsyncProvider`. `test_e2e_opencode.py` covers the wiki-heavy orchestration path. `test_end_to_end_headless.py` covers the headless Python CLI batch runner by invoking `python -m src.presentation.cli.main run --story e2e_test_ --batch` in a subprocess and asserting that savepoints and approved chapter outputs are created. `test_openai_async_provider_live.py` covers streaming behaviour against a live endpoint.
+The integration area includes one end-to-end path and a focused live smoke test for `OpenAIAsyncProvider`. `test_end_to_end_headless.py` covers the headless Python CLI batch runner by invoking `python -m src.presentation.cli.main run --story e2e_test_ --batch` in a subprocess and asserting that savepoints and approved chapter outputs are created. `test_openai_async_provider_live.py` covers streaming behaviour against a live endpoint.
 
 These tests are intentionally heavier than unit tests. They make live model calls, create temporary story and ChromaDB directories, and validate real runtime behaviour instead of mocking tool boundaries.
 
@@ -15,7 +15,6 @@ These tests are intentionally heavier than unit tests. They make live model call
 The suite currently lives in `tests/integration/` and includes:
 
 - `tests/integration/conftest.py` — registers the `integration` pytest marker and provides the session-scoped `llm_available` fixture.
-- `tests/integration/test_e2e_opencode.py` — a 12-test class that runs the full wiki-enabled generation pipeline and asserts the expected outputs at each stage.
 - `tests/integration/test_end_to_end_headless.py` — a slow headless E2E test that creates `stories/e2e-test/state.json`, runs the Python CLI in batch mode, auto-skips when LM Studio is unavailable, and checks savepoints, `pipeline_state.json`, approved chapter count, chapter titles, chapter content, and a 600-second wall-clock budget.
 - `tests/integration/test_openai_async_provider_live.py` — a live streaming smoke test for `OpenAIAsyncProvider` that asserts multiple streamed chunks are received from a real endpoint.
 
@@ -62,7 +61,7 @@ pytest tests/integration/test_openai_async_provider_live.py -v -m integration
 Run the single end-to-end file with a longer timeout:
 
 ```bash
-pytest tests/integration/test_e2e_opencode.py -v -m integration --timeout=7200
+pytest tests/integration/test_end_to_end_headless.py -v -m "integration and slow" --timeout=7200
 ```
 
 Run only the non-slow integration tests:
@@ -121,7 +120,7 @@ LLM_API_BASE=http://192.168.1.50:1234/v1 pytest tests/integration/ -v -m integra
 pytest tests/integration/test_end_to_end_headless.py -v -m "integration and slow"
 
 # Ollama or another OpenAI-compatible server
-LLM_API_BASE=http://127.0.0.1:11434/v1 pytest tests/integration/test_e2e_opencode.py -v -m integration --timeout=7200
+LLM_API_BASE=http://127.0.0.1:11434/v1 pytest tests/integration/test_openai_async_provider_live.py -v -m integration
 
 # Async provider smoke test against a loaded model
 LLM_API_BASE=http://127.0.0.1:1234/v1 TEST_OPENAI_ASYNC_MODEL=local-model \

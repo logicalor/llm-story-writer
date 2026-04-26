@@ -568,7 +568,6 @@ tests/
 ├── unit/                    # Unit tests (fast, no LLM required)
 │   └── test_<module>.py
 └── integration/             # Integration tests (live LLM required)
-  ├── test_e2e_opencode.py
   ├── test_end_to_end_headless.py
   ├── test_openai_async_provider_live.py
   ├── test_outline_generator_expand_to_scenes.py
