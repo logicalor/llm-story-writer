@@ -315,7 +315,7 @@ This tool implements the context-budgeting strategy: for each scene, it selectiv
 **Dependencies:** Task 4, Task 6
 
 **Description:**
-Create the `critique-runner` tool wrapping `CritiqueService` logic. Operations: `run-critics` (run all 6 critic types against content), `parse-scores` (extract structured scores from critic responses), `should-refine` (determine if content meets quality threshold), `generate-feedback` (synthesize actionable feedback from critic scores). The 6 critic types (audiobook-producer, book-club-moderator, commercial-fiction-editor, literary-fiction-reviewer, publishing-acquisitions-editor, subject-expert) are preserved.
+Create the `critique-runner` tool wrapping the legacy critique flow. Operations: `run-critics` (run all 6 critic types against content), `parse-scores` (extract structured scores from critic responses), `should-refine` (determine if content meets quality threshold), `generate-feedback` (synthesize actionable feedback from critic scores). The 6 critic types (audiobook-producer, book-club-moderator, commercial-fiction-editor, literary-fiction-reviewer, publishing-acquisitions-editor, subject-expert) are preserved.
 
 **Acceptance Criteria:**
 
@@ -330,8 +330,7 @@ Create the `critique-runner` tool wrapping `CritiqueService` logic. Operations: 
 
 - `.opencode/tools/critique-runner.ts` — TypeScript tool definition
 - `src/tools/critique_runner.py` — Python implementation
-- `src/application/services/critique_service.py` — legacy logic (reference)
-- `src/application/services/critique_parser.py` — legacy parser (reused)
+- `src/tools/critique_parser.py` — parser reused by critique-runner
 
 ---
 

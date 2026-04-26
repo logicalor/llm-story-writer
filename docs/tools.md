@@ -10,7 +10,7 @@ Deterministic operations now live in Python only. They are used in two ways:
 
 | Path | Entry point | Role |
 |------|-------------|------|
-| In-process | `src/presentation/orchestrator.py`, presentation agents, and application services | Normal runtime path for the Python-native pipeline |
+| In-process | `src/presentation/orchestrator.py` and presentation agents | Normal runtime path for the Python-native pipeline |
 | Ad-hoc CLI | `python -m src.tools.<tool_module> ...` or direct script execution | Manual inspection, repair, and one-off operations |
 
 The `story-writer` console script is separate from the tool CLIs. It dispatches pipeline-level commands from `src/presentation/cli/main.py`; the individual tool modules remain available for focused shell usage.

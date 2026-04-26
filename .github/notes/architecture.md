@@ -9,7 +9,7 @@
 ### Layer Structure
 
 - `src/presentation/cli/` — CLI entry point, argument parsing
-- `src/application/services/` — Services: story generation, outline, chapter, critique, RAG, etc.
+- `src/application/services/` — Retired compatibility package per ADR 008; do not add new services.
 - `src/application/strategies/` — Strategy pattern: outline-chapter (primary), stream-of-consciousness
 - `src/application/interfaces/` — Abstractions: ModelProvider, StorageProvider, StoryStrategy
 - `src/domain/entities/` — Story, Chapter, Scene, Outline, StoryInfo
@@ -95,7 +95,7 @@ Fifteen tools implemented following the hybrid pattern from [ADR 001](docs/plann
 | `recap-manager` | `.opencode/tools/recap-manager.ts` | `src/tools/recap_manager.py` | `_llm.py` + `FilesystemSavepointRepository` — 5-stage recap pipeline with LLM |
 | `outline-generator` | `.opencode/tools/outline-generator.ts` | `src/tools/outline_generator.py` | `_llm.py` + `FilesystemSavepointRepository` + `PromptLoader` — multi-step outline pipeline with conversation history |
 | `scene-writer` | `.opencode/tools/scene-writer.ts` | `src/tools/scene_writer.py` | `_llm.py` + `FilesystemSavepointRepository` + `PromptLoader` — per-scene generation, revision, and chapter assembly |
-| `critique-runner` | `.opencode/tools/critique-runner.ts` | `src/tools/critique_runner.py` | `_llm.py` + `CritiqueParser` — 6-critic evaluation with scoring and threshold logic |
+| `critique-runner` | `.opencode/tools/critique-runner.ts` | `src/tools/critique_runner.py` | `_llm.py` + `src/tools/critique_parser.py` — 6-critic evaluation with scoring and threshold logic |
 | `wiki-init` | `.opencode/tools/wiki-init.ts` | `src/tools/wiki_init.py` | `_wiki.py` — idempotent wiki directory + schema creation |
 | `wiki-read` | `.opencode/tools/wiki-read.ts` | `src/tools/wiki_read.py` | `_wiki.py` — page reading with detail levels, entity matching |
 | `wiki-search` | `.opencode/tools/wiki-search.ts` | `src/tools/wiki_search.py` | ChromaDB `PersistentClient` — semantic + metadata search over `wiki-<name>` collections |

@@ -7,7 +7,7 @@
 
 ADR 007 stated that the Python-native orchestrator would preserve `src/application/services/` as the main orchestration layer and call those services in-process. The repository did not converge on that design. The active Python-native path lives in `src/presentation/agents/`, where core generation agents call `provider.stream_text()` directly, `WikiMaintainerAgent` delegates straight to `src/tools/wiki_extract.py`, and `StoryOrchestratorAgent` is a thin vestigial coordinator. No active presentation-layer code routes through `src/application/services/`.
 
-The result is a documented architecture that differs from the implemented one. Most files under `src/application/services/` now have no production callers, little or no dedicated test coverage, and overlapping behavior with the presentation-layer agents or tool scripts that replaced them. The only exception is `critique_parser.py`, which remains on an active tool path because `src/tools/critique_runner.py` imports `CritiqueParser` directly.
+The result is a documented architecture that differs from the implemented one. Most files under `src/application/services/` now have no production callers, little or no dedicated test coverage, and overlapping behavior with the presentation-layer agents or tool scripts that replaced them. The former exception was `critique_parser.py`; it has been relocated to `src/tools/critique_parser.py` because `src/tools/critique_runner.py` still uses `CritiqueParser` directly.
 
 | Service file | Approx. lines | Test coverage status | Active callers |
 | --- | ---: | --- | --- |
@@ -17,7 +17,7 @@ The result is a documented architecture that differs from the implemented one. M
 | `story_generation_service.py` | 139 | None found | None |
 | `outline_service.py` | 191 | None found | None |
 | `critique_service.py` | 272 | Limited smoke coverage only in `tests/unit/test_critique_service.py` | None |
-| `critique_parser.py` | 265 | Active parser coverage in `tests/unit/test_critique_service.py` | `src/tools/critique_runner.py` |
+| `critique_parser.py` | 265 | Active parser coverage in `tests/unit/test_critique_service.py` | Relocated to `src/tools/critique_parser.py` for `src/tools/critique_runner.py` |
 | `reranker_service.py` | 304 | None found | None |
 | `model_reranker_service.py` | 242 | None found | None |
 | `content_chunker.py` | 324 | None found | Only imported by inactive `rag_integration_service.py` |
@@ -26,7 +26,7 @@ This inventory shows a retired-by-implementation layer: valuable domain entities
 
 ## Decision
 
-Choose **Option B**: formally retire `src/application/services/` as an architectural layer. The repository will treat the service files above as dead code, except for `critique_parser.py`, which is retained because `src/tools/critique_runner.py` depends on it today.
+Choose **Option B**: formally retire `src/application/services/` as an architectural layer. The repository treats the service files above as dead code. The active critique parser behavior was preserved by moving it to `src/tools/critique_parser.py`.
 
 This decision does not change the status of `src/application/strategies/`. The strategies layer is out of scope for this ADR and will be evaluated separately. This ADR addresses only the mismatch between ADR 007 and the implemented Python-native orchestration path.
 
@@ -54,13 +54,14 @@ This decision does not change the status of `src/application/strategies/`. The s
 - `src/application/services/story_generation_service.py` — no active callers.
 - `src/application/services/outline_service.py` — behavior duplicated by presentation agents.
 - `src/application/services/critique_service.py` — no active callers; quality loop deferred. Note: `tests/unit/test_critique_service.py::test_critique_service_has_dict_any_imports` reads this file via `ast.parse()` and must be deleted alongside the source file.
+- `src/application/services/critique_parser.py` — moved to `src/tools/critique_parser.py` because `src/tools/critique_runner.py` still depends on parser behavior.
 - `src/application/services/reranker_service.py` — no active callers.
 - `src/application/services/model_reranker_service.py` — no active callers.
 - `src/application/services/content_chunker.py` — only feeds retired `rag_integration_service.py`.
 
-### Files to retain
+### Files to retain outside services
 
-- `src/application/services/critique_parser.py` — retain until `src/tools/critique_runner.py` is refactored away from it or an equivalent parser is moved to a more appropriate layer.
+- `src/tools/critique_parser.py` — tool-local parser used by `src/tools/critique_runner.py`.
 
 Deletion work is tracked separately from this ADR and should proceed through focused cleanup issues so each removal can be validated against the remaining tool and test surface.
 

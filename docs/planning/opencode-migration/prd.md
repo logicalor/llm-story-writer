@@ -129,8 +129,8 @@ A **hybrid architecture** where OpenCode agents handle orchestration, coordinati
 │  Prompt templates:  131 .md files (unchanged)                 │
 │  Domain entities:   Story, Chapter, Scene, Outline            │
 │  State management:  StoryStateManager, CharacterState, etc.   │
-│  Content chunking:  ContentChunker                            │
-│  Critique pipeline: CritiqueService, CritiqueParser           │
+│  Content chunking:  retired with inactive services            │
+│  Critique parser:   src/tools/critique_parser.py              │
 │  Savepoint system:  SavepointManager, FilesystemRepository    │
 │  Recap sanitizer:   RecapManager (multi-stage)                │
 └──────────────────────────────────────────────────────────────┘

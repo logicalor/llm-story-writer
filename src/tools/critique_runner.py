@@ -164,7 +164,7 @@ def cmd_run_critics(
     model: str | None = None,
 ) -> None:
     """Run all critics for the selected mode against story content."""
-    from application.services.critique_parser import CritiqueParser
+    from src.tools.critique_parser import CritiqueParser
 
     story_dir = _validate_story_name(name)
     if not story_dir.exists():
@@ -249,7 +249,7 @@ def cmd_parse_scores(
     critic_type: str, response_text: str, *, mode: str = "outline"
 ) -> None:
     """Parse scores from a single critic response."""
-    from application.services.critique_parser import CritiqueParser
+    from src.tools.critique_parser import CritiqueParser
 
     valid_critics = _critic_types_for_mode(mode)
     if critic_type not in valid_critics:
@@ -307,7 +307,7 @@ def cmd_should_refine(
 
 def cmd_generate_feedback(name: str, iteration: int, *, mode: str = "outline") -> None:
     """Format critique results as structured markdown."""
-    from application.services.critique_parser import (
+    from src.tools.critique_parser import (
         CritiqueParser,
         CritiqueResult,
         CritiqueScore,

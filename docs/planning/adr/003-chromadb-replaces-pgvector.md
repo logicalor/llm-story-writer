@@ -51,5 +51,5 @@ Rationale:
 ### Neutral
 
 - Embedding model (nomic-embed-text via Ollama) is unchanged
-- Content chunking logic (ContentChunker) is unchanged
+- The retired application-layer `ContentChunker` was later removed by ADR 008 cleanup
 - Query semantics (similarity search with threshold) are equivalent
