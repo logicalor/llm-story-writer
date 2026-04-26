@@ -1,6 +1,6 @@
 # Story Orchestrator
 
-> Headless Python pipeline runner and agent-callable layer implemented in Issue #161 / PR #171, with characters and settings phases completed in Issue #182 / PR #194.
+> Headless Python pipeline runner and agent-callable layer implemented in Issue #161 / PR #171, extended with characters and settings in Issue #182 / PR #194, and real consistency-result parsing in Issue #184 / PR #197.
 
 ## Overview
 
@@ -30,7 +30,7 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 | `outline` | Run `OutlinePlannerAgent`, persist `OutlineResult`, then wait on the outline approval gate | `outline` |
 | `characters` | Emit a wiki-context event, build `story_elements` from the outline, extract character names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/characters/<slug>.json` | `characters` |
 | `settings` | Emit a wiki-context event, build `story_elements` from the outline, extract setting names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/settings/<slug>.json` | `settings` |
-| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, then run wiki maintenance and per-chapter savepointing | `chapter-{N}`, then `chapter-loop` |
+| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, emit any failed consistency findings to the token bus, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, then run wiki maintenance and per-chapter savepointing | `chapter-{N}`, then `chapter-loop` |
 | `final-edit` | Mark phase complete only; no editing subagent is wired yet | `final-edit` |
 | `assembly` | Read non-empty content from `state.approved_chapters`, write `stories/<story>/output/story.md`, and fail with `StoryGenerationError` if no approved chapter content exists | `assembly`, then `complete` |
 
@@ -87,6 +87,24 @@ For each readable JSON file:
 
 The agent appends those entries under `## Characters` and `## Settings` sections in the user prompt. Missing directories, unreadable files, or malformed JSON are ignored so chapter generation still proceeds.
 
+## Consistency Check Behavior
+
+After a chapter draft clears the chapter approval gate, `_continue_pipeline()` calls `ConsistencyCheckerAgent.run()` with the story name, chapter number, and draft content.
+
+The agent now accumulates the streamed model output into one `full_text` buffer and parses that response through `_extract_consistency_result()`. The parser accepts plain JSON plus fenced code blocks such as ```json ... ```, then normalizes findings into a flat `issues` list with `type`, `description`, and `severity` fields.
+
+The current implementation maps these LLM response sections into issues:
+
+- `wiki_lint_findings.contradictions` → critical `contradiction` issues
+- `wiki_lint_findings.timeline_issues` → warning `timeline` issues
+- `wiki_lint_findings.trait_drift` → warning `trait_drift` issues
+- `semantic_findings` → `semantic` issues using the returned severity
+- `cross_chapter_findings` → warning `cross_chapter` issues
+
+`passed` is derived from `has_critical_findings`. When that flag is `true`, the returned result is `{"issues": [...], "passed": false}`. If the model response cannot be parsed as JSON, the helper falls back to `{"issues": [], "passed": true}` so the pipeline degrades gracefully instead of crashing on malformed output.
+
+The orchestrator does not currently reject or revise the chapter automatically on consistency findings. Instead, when `passed` is `false`, it emits a `[Consistency] Chapter N — issues found:` header and one line per issue onto `TokenStreamBus`, then continues with chapter persistence and wiki maintenance.
+
 ## Approval Gate Semantics
 
 The orchestrator is transport-agnostic. It receives an `ApprovalGate` implementation and never reads from stdin or the UI directly.
@@ -138,7 +156,7 @@ Issue #161 also adds `src/presentation/agents/__init__.py` and five Python calla
 | `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `OutlineResult` | Streams outline text, parses chapter outlines from JSON or `Chapter:` lines, extracts `genre` and `themes` when present |
 | `ChapterWriterAgent` | `prompts/agents/chapter-writer.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback, with abridged character and setting context loaded from disk when available |
 | `WikiMaintainerAgent` | none loaded at runtime | `WikiUpdateBatch` | Calls `tools.wiki_extract.update_wiki_from_chapter()` on a worker thread, persists wiki batches after each approved chapter, returns concrete `updated_pages` / `new_pages` slug lists, and emits one `WikiContextEvent` per changed page |
-| `ConsistencyCheckerAgent` | `prompts/agents/consistency-checker.md` | `dict[str, Any]` | Streams analysis text, currently returns `{"issues": [], "passed": True}` placeholder result |
+| `ConsistencyCheckerAgent` | `prompts/agents/consistency-checker.md` | `dict[str, Any]` | Streams analysis text, parses JSON or fenced JSON into a flattened `issues` list, and returns `passed=False` when the LLM reports critical findings |
 | `StoryOrchestratorAgent` | none loaded | `dict[str, Any]` | Vestigial helper that returns a static phase plan; orchestration logic lives in `orchestrator.py` |
 
 The prompt load is lazy and instance-local in the current code. Despite the issue text describing import-time loading, the implementation caches the prompt the first time `_get_system_prompt()` runs.

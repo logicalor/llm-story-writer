@@ -1126,3 +1126,104 @@ only fail for test paths that actually pass the new kwarg — other tests contin
 the coverage gap easy to miss in PR review.
 
 ChromaDB ID: `gotcha-chat-completion-stub-base-url-signature-031`
+
+---
+
+## LLM JSON Parsing
+
+### 032 — `data.get("key", {})` null-trap: explicit JSON `null` returns `None`, not the default
+
+**Source:** issue #184, PR #197
+**Severity:** warning
+
+When an LLM returns explicit JSON `null` for a field — `{"issues": null}` — Python's `dict.get("issues", [])` returns `None`, **not** `[]`. The default argument only substitutes when the key is **absent**; it is not used when the key is present with a `null` value. Any downstream `.items()`, iteration, or `.get()` call on `None` immediately raises `AttributeError` or `TypeError`.
+
+```python
+data = json.loads('{"issues": null}')
+
+# Wrong — returns None when LLM explicitly sets the field to null:
+issues = data.get("issues", [])
+for item in issues:  # TypeError: 'NoneType' is not iterable
+    ...
+
+# Right — `or` coalesces None to the fallback:
+issues = data.get("issues") or []
+for item in issues:  # safe
+    ...
+```
+
+The same pattern applies to dict-valued fields:
+
+```python
+# Wrong:
+summary = data.get("summary", {})
+for k, v in summary.items():  # AttributeError on null
+    ...
+
+# Right:
+summary = data.get("summary") or {}
+```
+
+This is a systematic footgun in any code that parses structured LLM JSON output. LLMs routinely set fields they cannot populate to explicit `null` rather than omitting them. Apply `or {}` / `or []` unconditionally to all `.get()` calls on LLM-sourced dicts.
+
+ChromaDB ID: `gotcha-llm-json-null-trap-get-default-032`
+
+---
+
+### 033 — Always `isinstance(data, dict)` after `json.loads()` before calling `.get()`
+
+**Source:** issue #184, PR #197
+**Severity:** warning
+
+Valid JSON can parse to a `list`, `int`, `float`, `str`, `bool`, or `None` — not only a `dict`. Code that calls `json.loads()` and immediately calls `.get()` on the result without a type guard crashes on any non-dict payload with `AttributeError: 'list' object has no attribute 'get'`.
+
+LLMs occasionally return a list at the root (e.g. `[{"issue": "..."}]`) when prompted for a dict, or return a plain string when confused. A single unexpected response crashes the entire parser.
+
+```python
+# Wrong — crashes on list, string, None, or number payload:
+data = json.loads(llm_response)
+issues = data.get("issues") or []
+
+# Right — guard before any .get():
+data = json.loads(llm_response)
+if not isinstance(data, dict):
+    raise ValueError(f"Expected dict from LLM, got {type(data).__name__}: {llm_response[:100]}")
+issues = data.get("issues") or []
+```
+
+Extend the pattern to the section-level fields as well: after extracting a nested value, guard it before iterating:
+
+```python
+raw_issues = data.get("issues") or []
+if not isinstance(raw_issues, list):
+    raw_issues = []
+```
+
+ChromaDB ID: `gotcha-llm-json-isinstance-dict-guard-033`
+
+---
+
+### 034 — Non-dict list items in LLM JSON: guard before calling `.get()` on items
+
+**Source:** issue #184, PR #197
+**Severity:** warning
+
+When iterating a list of objects extracted from LLM JSON output, the LLM may return strings or other scalar values interleaved with the expected dict objects. Any `.get()` call on a `str` raises `AttributeError: 'str' object has no attribute 'get'`. Neither ruff nor mypy catches this — both see the list as `list[Any]` after `json.loads()`.
+
+```python
+# LLM may return: ["fix the imports", {"severity": "warning", "message": "..."}]
+
+# Wrong — crashes on string items:
+for item in issues:
+    severity = item.get("severity", "info")  # AttributeError for str items
+
+# Right — skip non-dict items:
+for item in issues:
+    if not isinstance(item, dict):
+        continue
+    severity = item.get("severity") or "info"
+```
+
+This guard is required whenever iterating any list sourced from LLM JSON output, including nested lists inside nested dicts. The LLM mixes types more often when the list is long or the prompt schema is complex.
+
+ChromaDB ID: `gotcha-llm-json-non-dict-list-items-034`
