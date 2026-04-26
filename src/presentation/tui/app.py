@@ -90,7 +90,7 @@ class StoryWriterApp(App[None]):
 
     BINDINGS = [
         # Manual save shortcut removed; phase savepoints are automatic.
-        Binding("ctrl+w", "toggle_wiki", "Toggle wiki panel"),
+        Binding("ctrl+w", "toggle_wiki", "Toggle wiki panel", priority=True),
         Binding("ctrl+c", "request_quit", "Cancel", show=True),
     ]
 
