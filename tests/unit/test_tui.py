@@ -170,7 +170,7 @@ class TestPipelineCompletion:
                 app._on_pipeline_complete("error")
 
                 assert app.sub_title == "Failed - error"
-                assert app.query_one("#phase-assembly").renderable == "- assembly"
+                assert str(app.query_one("#phase-assembly").render()) == "- assembly"
 
 
 class TestQuitAction:
