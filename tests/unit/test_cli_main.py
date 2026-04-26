@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -199,7 +199,8 @@ class TestCmdRun:
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         with patch(
-            "src.presentation.cli.main.asyncio.run",
+            "presentation.orchestrator.run_pipeline",
+            new_callable=AsyncMock,
             return_value=SimpleNamespace(status="complete"),
         ):
             _cmd_run("my_story", batch=False)
@@ -211,7 +212,8 @@ class TestCmdRun:
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         with patch(
-            "src.presentation.cli.main.asyncio.run",
+            "presentation.orchestrator.run_pipeline",
+            new_callable=AsyncMock,
             return_value=SimpleNamespace(status="complete"),
         ):
             _cmd_run("my_story", batch=True)

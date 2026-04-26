@@ -89,8 +89,9 @@ class StoryWriterApp(App[None]):
     CSS_PATH = "app.tcss"
 
     BINDINGS = [
+        # Manual save shortcut removed; phase savepoints are automatic.
         Binding("ctrl+w", "toggle_wiki", "Toggle wiki panel"),
-        Binding("ctrl+c", "request_quit", "Quit", show=True),
+        Binding("ctrl+c", "request_quit", "Cancel", show=True),
     ]
 
     def __init__(
@@ -223,15 +224,11 @@ class StoryWriterApp(App[None]):
         self._wiki_visible = not self._wiki_visible
         self.query_one("#wiki-panel", Vertical).display = self._wiki_visible
 
-    def action_force_savepoint(self) -> None:
-        """Preserved stub for removed manual savepoint binding."""
-        # Ctrl+S keybinding removed — savepoints written automatically at phase boundaries.
-        pass
-
     def action_request_quit(self) -> None:
-        """Cancel workers and exit."""
+        """Request pipeline cancellation and exit the TUI."""
         self.query_one("#output-log", RichLog).write(
-            "\nPipeline cancelled. Savepoint at last completed phase is preserved.\n"
+            "\nCancellation requested. Pipeline will finish its current phase before stopping.\n"
+            "Savepoint at last completed phase is preserved.\n"
             f"Resume with: story-writer tui --story {self.story_name} --resume\n"
         )
         for worker in self.workers:

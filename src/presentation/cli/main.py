@@ -72,6 +72,8 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.subcommand == "tui":
+        if getattr(args, "savepoint", None) and not args.resume:
+            parser.error("--savepoint requires --resume")
         _cmd_tui(args.story, resume=args.resume, savepoint=args.savepoint)
     elif args.subcommand == "run":
         _cmd_run(args.story, batch=args.batch)

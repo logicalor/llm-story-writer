@@ -185,7 +185,7 @@ class TestQuitAction:
                 app.action_request_quit()
 
                 assert any(
-                    "Pipeline cancelled. Savepoint at last completed phase is preserved."
+                    "Cancellation requested. Pipeline will finish its current phase before stopping."
                     in line.text
                     for line in output_log.lines
                 )

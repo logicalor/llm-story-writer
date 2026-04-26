@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--savepoint",
         default=None,
         metavar="NAME",
-        help="Savepoint name to resume from (optional, uses latest if omitted).",
+        help="Savepoint name to validate against (currently always resumes from latest state).",
     )
 
     run_p = sub.add_parser("run", help="Run the full pipeline headlessly.")
