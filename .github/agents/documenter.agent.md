@@ -75,6 +75,7 @@ Based on the changes, determine what documentation needs to be created or update
 | New OpenCode tool              | Update `docs/tools.md`                                            |
 | Wiki system change             | Update `docs/wiki-system.md`                                      |
 | Bug fix with non-obvious cause | Add a note to `.github/notes/gotchas.md`                          |
+| UI-visible change (keybindings, CLI flags, subcommands, interface descriptions) | Update the relevant `docs/features/` file **and** `README.md` at the repo root — README.md is higher-traffic than any feature doc and must not carry stale keybindings or interface descriptions. (Source: issue #187, PR #200.) |
 
 ### 3. Write Documentation
 
