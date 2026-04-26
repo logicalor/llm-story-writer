@@ -34,6 +34,8 @@ This is the Codex-native replacement for the Copilot Orchestrator workflow. It p
 
 Use the `reflection` skill during GitHub workflow tasks when you notice a reusable workflow gotcha, stale instruction, unclear tool mapping, or agent/skill behavior that should be remembered.
 
+Skill availability is determined from the current workspace. If `.agents/skills/reflection/SKILL.md` exists locally, use it even when the file is new on the current branch or absent from `origin/development`. Do not skip reflection because a skill or instruction file has not merged to the remote base branch yet.
+
 Near the end of a task, check whether active notes exist in `.github/notes/reflections/`. Apply minor instruction fixes, propose major workflow changes, and archive processed notes according to the reflection skill.
 
 ## Codex Delegation

@@ -21,6 +21,8 @@ Reflection targets include:
 
 Reflection notes live in `.github/notes/reflections/`. The `reflections` ChromaDB collection is a derived semantic index.
 
+Use the current workspace as the source of truth for reflection availability. If this skill file exists locally, it is available for the session even when the file is new on the branch or absent from `origin/development`.
+
 ## When To Reflect
 
 Reflect during a task when you discover:
