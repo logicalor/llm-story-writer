@@ -233,7 +233,7 @@ Issue #164 removed the remaining OpenCode runtime artefacts from the repository.
 
 ### 5.3 Story Generation Pipeline
 
-The full pipeline runs through these phases:
+The current Python-native orchestrator slice runs through these phases:
 
 ```
 Phase 1: Init
@@ -241,53 +241,52 @@ Phase 1: Init
 
 Phase 2: Outline
   → Delegate to outline-planner subagent
-  → Chunked or monolithic outline generation
-  → Critique/refinement loop (if enabled)
+  → Stream outline generation
+  → Persist `OutlineResult`
+
+Phase 2 Gate: Outline Approval
+  → Wait for injected approval gate
+  → Reject halts cleanly; revise reruns outline with feedback
 
 Phase 2.5: Narrative Arc Analysis
   → Delegate to story-planner subagent
-  → Run six outline_review critics on the finalised outline
-  → Apply arc distribution, promise/payoff, and synthesis prompts
-  → Save advisory arc assessment for Phase 3 review
+  → Load `prompts/agents/story-planner.md`
+  → Stream one advisory arc assessment from approved outline content
+  → Persist `state.arc_result` and write `arc_analysis_complete`
+  → On agent error, emit skip message and continue
 
-Phase 3: Approval (interactive gate)
-  → User reviews outline summary
-  → User reviews arc assessment and verdict
-  → User may request revisions → return to Phase 2
-
-Phase 4: Wiki Init
-  → Create wiki directory structure
-  → Initialize schema and page templates
-
-Phase 5: Characters & Settings
-  → Extract characters and locations from outline
+Phase 3: Characters
+  → Extract character names from outline
   → Orchestrator helper functions generate markdown sheets via prompts/characters and prompts/settings
-  → Write per-entity JSON sheets to stories/<name>/characters/ and stories/<name>/settings/
+  → Write per-entity JSON sheets to `stories/<name>/characters/`
   → If name extraction returns invalid JSON, phase degrades gracefully and pipeline continues
 
-Phase 6: Wiki Population
-  → Delegate to wiki-maintainer subagent
-  → `wiki-extract` initial-populate path creates wiki entity pages from outline + sheets and writes detail levels into stories/<name>/wiki/
+Phase 4: Settings
+  → Extract setting names from outline
+  → Generate one JSON sheet per extracted setting
+  → Write per-entity JSON sheets to `stories/<name>/settings/`
 
-Phase 7: Chapter Expansion + Generation
-  → Phase 7a: chapter-outline-expander expands all chapter outlines once
-  → Per chapter: chapter-writer loads abridged character/setting sheet context, then generates scenes and assembles chapter
+Phase 5: Chapter Loop
+  → Per chapter: chapter-writer loads abridged character/setting sheet context, then generates chapter text
+  → Wait for chapter approval gate; revise reruns chapter with feedback
   → After chapter approval, orchestrator writes stories/<name>/chapters/chapter_{N}.md
   → wiki-maintainer calls `update_wiki_from_chapter()` to extract structured JSON, persist wiki pages through `run_batch()`, and emit created/updated page events
-  → recap-manager writes recap, wiki-lint checks consistency
-  → quality-reviewer runs chapter critique/revision loop (if enabled)
-  → Orchestrator delegates chapter handoff generation to story-assembler for downstream continuity
+  → consistency-checker streams findings but does not block persistence
 
-Phase 7.5: Prose Scrub (conditional)
-  → prose-scrubber performs sentence/paragraph cleanup after chapter acceptance
+Phase 6: Final Edit (conditional)
+  → Enabled unless `generation.enable_final_edit` is explicitly `false`
+  → final-editor loads `prompts/agents/final-editor.md`
+  → Stream one editing pass per approved chapter
+  → Fall back to original chapter content if the model returns empty output
+  → Write `stories/<name>/output/story_edited.md`
+  → Persist `final_edit_complete`
 
-Phase 8: Assembly
-  → Assemble final manuscript from approved chapter content
-  → Write stories/<name>/output/story.md
-
-Phase 9: Final Edit (conditional)
-  → final-editor performs post-assembly voice, pacing, and coherence polish
+Phase 7: Assembly
+  → Assemble final manuscript from the current `state.approved_chapters`
+  → Write `stories/<name>/output/story.md`
 ```
+
+Current implementation note: this slice does not yet wire the PRD's wiki-initialization phase, initial wiki population pass, chapter-outline-expander, quality-reviewer, or prose-scrubber into `src/presentation/orchestrator.py`.
 
 ---
 

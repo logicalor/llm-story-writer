@@ -38,6 +38,7 @@ Review each changed source file systematically:
 - [ ] Missing indexes on foreign keys and frequently queried columns
 - [ ] Migrations have proper rollback support
 - [ ] **Batch/composite operations** — if a function wraps multiple state-changing operations, verify: (1) pre-flight snapshot or backup is taken before the batch starts, (2) failures mid-batch trigger rollback or at minimum leave state consistent, (3) a final sync/consistency check runs after the batch completes
+- [ ] **LLM JSON parsing guards** — in any code that calls `json.loads()` on LLM output and extracts fields from the result, verify all three guards are present: (1) `isinstance(data, dict)` check immediately after `json.loads()` — valid JSON can parse to a list, number, or `None`, all of which crash on `.get()`; (2) `data.get("key") or {}` / `or []` (not `data.get("key", {})`) — the default argument does not apply when the key is present with an explicit JSON `null` value; (3) `if not isinstance(item, dict): continue` before calling `.get()` on each item in a list extracted from LLM output — the LLM may return scalar values interleaved with objects. All three defects are invisible to ruff, mypy, and type checks; only explicit null-payload tests reveal them. (Source: issue #184, PR #197 — consistency-checker; gotchas #032–034.)
 
 #### Agent Instructions
 
