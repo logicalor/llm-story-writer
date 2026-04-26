@@ -14,7 +14,13 @@ import re
 from typing import Any
 
 from application.interfaces.model_provider import ModelProvider
-from application.pipeline.handoffs import ChapterDraft, OutlineResult, PipelineState
+from application.pipeline.handoffs import (
+    ArcAnalysisResult,
+    ChapterDraft,
+    FinalEditResult,
+    OutlineResult,
+    PipelineState,
+)
 from config.config_loader import ConfigLoader
 from domain.exceptions import StoryGenerationError
 from domain.value_objects.generation_settings import GenerationSettings
@@ -22,7 +28,9 @@ from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.agents.consistency_checker import ConsistencyCheckerAgent
+from presentation.agents.final_editor import FinalEditorAgent
 from presentation.agents.outline_planner import OutlinePlannerAgent
+from presentation.agents.story_planner import StoryPlannerAgent
 from presentation.agents.wiki_maintainer import WikiMaintainerAgent
 from presentation.pipeline_primitives import (
     ApprovalGate,
@@ -374,6 +382,25 @@ async def _continue_pipeline(
             if state.status == "rejected":
                 return state
 
+        if "narrative-arc" not in state.completed_phases:
+            state.current_phase = "narrative-arc"
+            if state.outline_result is not None:
+                arc_agent = StoryPlannerAgent(
+                    resolved_provider, resolved_config, bus, wiki_bus
+                )
+                try:
+                    arc_result: ArcAnalysisResult = await arc_agent.run(
+                        state.story_name, state.outline_result, settings
+                    )
+                    state.arc_result = arc_result
+                    await bus.emit(
+                        f"\n[Narrative Arc] {arc_result.verdict_code}: "
+                        f"{arc_result.arc_assessment[:200]}\n"
+                    )
+                except Exception:
+                    await bus.emit("\n[Narrative Arc] arc analysis skipped (error)\n")
+            await _mark_phase_complete(state, "narrative-arc", "arc_analysis_complete")
+
         if "characters" not in state.completed_phases:
             state.current_phase = "characters"
             await wiki_bus.emit(
@@ -477,7 +504,32 @@ async def _continue_pipeline(
 
         if "final-edit" not in state.completed_phases:
             state.current_phase = "final-edit"
-            await _mark_phase_complete(state, "final-edit", "final-edit")
+            generation_config = resolved_config.get("generation", {})
+            enable_final_edit = (
+                generation_config.get("enable_final_edit", True)
+                if isinstance(generation_config, dict)
+                else True
+            )
+            if enable_final_edit and state.approved_chapters:
+                final_editor = FinalEditorAgent(
+                    resolved_provider, resolved_config, bus, wiki_bus
+                )
+                final_edit_result: FinalEditResult = await final_editor.run(
+                    state.story_name, state.approved_chapters, settings
+                )
+                state.approved_chapters = final_edit_result.edited_chapters
+                edited_path = story_dir / "output" / "story_edited.md"
+                edited_path.parent.mkdir(parents=True, exist_ok=True)
+                edited_parts = [
+                    ch.content.rstrip()
+                    for ch in final_edit_result.edited_chapters
+                    if ch.content.strip()
+                ]
+                if edited_parts:
+                    edited_path.write_text(
+                        "\n\n".join(edited_parts) + "\n", encoding="utf-8"
+                    )
+            await _mark_phase_complete(state, "final-edit", "final_edit_complete")
 
         state.current_phase = "assembly"
         if "assembly" not in state.completed_phases:
