@@ -202,6 +202,8 @@ The progressive wiki memory system maintains structured story knowledge using ma
 
 The wiki is automatically updated after each scene by the wiki-maintainer agent, ensuring consistent story state throughout generation.
 
+> **Note:** Wiki page persistence is currently in progress. The `WikiMaintainerAgent` generates wiki content but persistent storage is not yet wired end-to-end. Full implementation is tracked in issue #183.
+
 ## 🔍 ChromaDB RAG
 
 Semantic search for context retrieval using ChromaDB vector collections:
@@ -210,6 +212,8 @@ Semantic search for context retrieval using ChromaDB vector collections:
 - **Wiki Embedding**: Wiki pages are automatically embedded when created or updated
 - **Hybrid Retrieval**: Combines entity matching, metadata filtering, semantic search, and wikilink traversal
 - **Context Assembly**: The `wiki-snapshot` tool assembles token-budgeted context for each scene using detail levels L1/L2/L3
+
+*Wiki embedding depends on the wiki persistence layer tracked in issue #183. Other ChromaDB retrieval features (entity matching, metadata filtering, context assembly) are fully operational.*
 
 ## 🔧 Development
 
