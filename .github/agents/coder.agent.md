@@ -18,6 +18,7 @@ Read **`.github/agents/_shared/communication.md`** — use caveman for chat/prog
 
 1. **After every code change**, run the project's lint command (see `copilot-instructions.md`). Fix all lint errors before moving on.
 2. **After every code change**, run the project's type-check command (see `copilot-instructions.md`) if applicable. Fix all errors before moving on.
+   - **When fixing a regex or text parsing pattern** — after making the fix, run a quick manual check against the actual production file the pattern targets (e.g., `python -c "import re; print(re.search(PATTERN, open('path/to/real_file').read()))"`). Synthetic unit test strings are typically much shorter and less varied than real file content; a window calculation, lookahead, or anchor that passes a 10-token test may fail on a 500-token real-file neighbourhood. This check takes seconds and prevents a second Coder dispatch. (Source: issue #185, PR #198 — window-based negation regex passed synthetic unit test; failed on real prompt file due to narrow window; required second iteration.)
 3. **Never hardcode URLs or credentials.**
 4. **Consult `.github/notes/`** before starting — read any available `architecture.md`, `patterns.md`, and `gotchas.md` for context relevant to the task.
 5. **Load ONLY skills relevant to the task domain** — use `read_file` on `.github/skills/{name}/SKILL.md`. Each skill costs ~1,000–5,000 tokens. Load selectively. **Never load all skills at once.**

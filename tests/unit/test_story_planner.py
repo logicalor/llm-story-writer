@@ -10,7 +10,12 @@ from presentation.agents.story_planner import _parse_verdict
 
 
 def test_parse_verdict_strong_arc() -> None:
-    assert _parse_verdict("Arc lands cleanly. Stakes escalate with no arc issues keywords.") == "strong"
+    assert (
+        _parse_verdict(
+            "Arc lands cleanly. Stakes escalate with no arc issues keywords."
+        )
+        == "strong"
+    )
 
 
 def test_parse_verdict_significant_issues() -> None:
@@ -36,6 +41,7 @@ def test_parse_verdict_minor_concerns() -> None:
 
 
 def test_parse_verdict_concern_keyword() -> None:
-    assert _parse_verdict(
-        "The main concern is the lack of motivation in act three"
-    ) == "minor_concerns"
+    assert (
+        _parse_verdict("The main concern is the lack of motivation in act three")
+        == "minor_concerns"
+    )
