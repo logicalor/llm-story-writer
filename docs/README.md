@@ -75,3 +75,5 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 - [ADR 004: Progressive Wiki Memory System](./planning/adr/004-progressive-wiki-memory-system.md)
 - [ADR 005: Hybrid Wiki Context Retrieval Pipeline](./planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md)
 - [ADR 006: Replace Ollama SDK with Generic OpenAI-Compatible REST Provider](./planning/adr/006-openai-compatible-provider.md)
+- [ADR 007: Python-Native Orchestration and TUI](./planning/adr/007-python-native-orchestration.md)
+- [ADR 008: Retire the Application Services Layer](./planning/adr/008-retire-application-services-layer.md)

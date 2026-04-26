@@ -133,7 +133,7 @@ The exact arguments differ per tool module. Read the module's `cmd_*` function o
 
 When you add a new deterministic operation:
 
-1. Put the implementation in `src/tools/` or, if it is orchestration-only, in `src/application/services/`.
+1. Put the implementation in `src/tools/`. The `src/application/services/` layer is retired (ADR 008) — do not add new services there.
 2. Keep the shell interface in Python with argparse if ad-hoc execution is useful.
 3. Wire the runtime path by importing the Python module or service directly from the orchestrator or presentation agent.
 4. Update this document and any affected feature docs. Do not reintroduce a wrapper layer outside Python.

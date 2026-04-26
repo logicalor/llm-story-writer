@@ -22,7 +22,7 @@
 ### Architecture
 
 - **Python-native architecture**: Agent prompts in `prompts/agents/` define orchestration; Python scripts in `src/tools/` handle deterministic domain logic
-- **Clean architecture** preserved in Python domain layer: `src/domain/` (entities, value objects) → `src/application/` (services, strategies) → `src/infrastructure/` (providers, storage)
+- **Clean architecture** preserved in Python domain layer: `src/domain/` (entities, value objects) → `src/application/` (strategies; `services/` retired per ADR 008) → `src/infrastructure/` (providers, storage)
 - Tools are Python scripts in `src/tools/` — no TypeScript or subprocess wrappers
 - **Progressive wiki memory system** ([ADR 004](docs/planning/adr/004-progressive-wiki-memory-system.md)): structured markdown pages with YAML frontmatter in `stories/<name>/wiki/`
 - **Three-stage context retrieval pipeline** ([ADR 005](docs/planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md)): entity matching → metadata query → semantic search → wikilink traversal → detail level selection → structured assembly
