@@ -56,7 +56,7 @@ The system uses a **Python-native prompt-and-tool architecture** during active r
 
 ```
 src/domain/          → Entities, value objects (core business rules, no dependencies)
-src/application/     → Services, strategies (use cases, depends on domain)
+src/application/     → Strategies (use cases, depends on domain); services/ layer retired per ADR 008
 src/infrastructure/  → Providers, storage (external adapters: OpenAI-compatible LLM, ChromaDB, disk I/O)
 src/presentation/    → CLI entry points and pipeline orchestration
 src/tools/           → Python tool implementations and ad-hoc CLIs

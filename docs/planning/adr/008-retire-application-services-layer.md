@@ -53,7 +53,7 @@ This decision does not change the status of `src/application/strategies/`. The s
 - `src/application/services/story_info_service.py` — no active callers.
 - `src/application/services/story_generation_service.py` — no active callers.
 - `src/application/services/outline_service.py` — behavior duplicated by presentation agents.
-- `src/application/services/critique_service.py` — no active callers; quality loop deferred.
+- `src/application/services/critique_service.py` — no active callers; quality loop deferred. Note: `tests/unit/test_critique_service.py::test_critique_service_has_dict_any_imports` reads this file via `ast.parse()` and must be deleted alongside the source file.
 - `src/application/services/reranker_service.py` — no active callers.
 - `src/application/services/model_reranker_service.py` — no active callers.
 - `src/application/services/content_chunker.py` — only feeds retired `rag_integration_service.py`.

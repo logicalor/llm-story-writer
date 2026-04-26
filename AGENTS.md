@@ -13,7 +13,7 @@ This project uses a **Python-native architecture**. Python scripts handle orches
 
 ```
 src/domain/       → Entities, value objects (core business rules)
-src/application/  → Services, strategies (use cases)
+src/application/  → Strategies (use cases); services/ layer retired per ADR 008
 src/infrastructure/ → Providers, storage (external adapters)
 ```
 
