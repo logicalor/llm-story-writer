@@ -66,7 +66,7 @@ A formal architecture review (issue #188) examined the gap and issued [ADR 008](
 
 ## Implementation Status (2026-04-26)
 
-Tasks 1–9 and Task 12 are complete. The following tasks remain open and are tracked as separate GitHub issues:
+Tasks 1–7, 9, and 12 are complete. The following tasks remain open and are tracked as separate GitHub issues:
 
 - **Task 8** (Textual TUI) — in progress
 - **Task 10** (documentation sweep) — tracked in issue #189
