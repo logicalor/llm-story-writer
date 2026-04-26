@@ -63,7 +63,7 @@ pip install -e .
 story-writer tui --story <story-name>
 ```
 
-Opens the three-panel Textual TUI with live token streaming, wiki context panel, and interactive approval gates. Keybindings: `Ctrl+W` (toggle wiki panel), `Ctrl+S` (savepoint reminder), `Ctrl+C` (quit).
+Opens the three-panel Textual TUI with live token streaming, wiki context panel, and interactive approval gates. Keybindings: `Ctrl+W` (toggle wiki panel), `Ctrl+C` (cancel and preserve latest completed-phase savepoint).
 
 ### Headless Batch Mode
 

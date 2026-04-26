@@ -199,11 +199,11 @@ Available subcommands:
 
 | Command | Description |
 |---------|-------------|
-| `story-writer tui --story <name>` | Launch the interactive Textual TUI for a story run |
+| `story-writer tui --story <name> [--resume] [--savepoint <name>]` | Launch the interactive Textual TUI for a fresh run or resume an existing run |
 | `story-writer run --story <name> [--batch]` | Run the headless Python-native pipeline |
 | `story-writer resume --story <name> [--savepoint <name>]` | Resume from the persisted pipeline state |
 
-`run` currently uses `NullApprovalGate` internally, so it behaves headlessly even when `--batch` is omitted. The flag remains for forward compatibility with later interactive surfaces.
+`run` currently uses `NullApprovalGate` internally, so it behaves headlessly even when `--batch` is omitted. When you omit `--batch`, the CLI prints a headless notice before starting the run. The flag remains for forward compatibility with later interactive surfaces.
 
 #### Textual TUI
 
@@ -211,15 +211,20 @@ Use the TUI when you want live pipeline visibility and interactive approval gate
 
 ```bash
 story-writer tui --story test_story
+story-writer tui --story test_story --resume
+story-writer tui --story test_story --resume --savepoint chapter-3
 ```
 
+Use `--resume` to continue from saved pipeline state inside the TUI. Add `--savepoint` to target a specific savepoint; without it, resume uses the latest available savepoint.
+
 The screen shows a left-side phase tracker, a central streaming output log, and a toggleable wiki-context panel on the right. Approval requests appear in the footer input widget. Type `approve`, `reject`, or `revise <feedback>` to answer the gate.
+
+Savepoints are written automatically at phase boundaries. The TUI no longer exposes a manual savepoint keybinding.
 
 Keybindings:
 
 - `Ctrl+W` — toggle wiki panel
-- `Ctrl+S` — show savepoint reminder message
-- `Ctrl+C` — cancel workers and quit
+- `Ctrl+C` — cancel workers, preserve the savepoint from the last completed phase, and print the resume command
 
 See [Textual TUI](./features/textual-tui.md) for the thread model, approval-gate bridge, and test coverage.
 

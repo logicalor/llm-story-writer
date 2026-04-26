@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -13,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.presentation.cli.argument_parser import build_parser  # noqa: E402
+from src.presentation.cli.main import _cmd_run  # noqa: E402
 from src.presentation.cli.main import _cmd_tui  # noqa: E402
 from src.presentation.cli.main import main  # noqa: E402
 
@@ -25,6 +27,36 @@ class TestBuildParser:
 
         assert args.subcommand == "tui"
         assert args.story == "my_story"
+
+    def test_tui_subcommand_parses_resume_flag(self) -> None:
+        parser = build_parser()
+
+        args = parser.parse_args(["tui", "--story", "my_story", "--resume"])
+
+        assert args.resume is True
+
+    def test_tui_subcommand_resume_defaults_false(self) -> None:
+        parser = build_parser()
+
+        args = parser.parse_args(["tui", "--story", "my_story"])
+
+        assert args.resume is False
+
+    def test_tui_subcommand_parses_savepoint_flag(self) -> None:
+        parser = build_parser()
+
+        args = parser.parse_args(
+            ["tui", "--story", "my_story", "--resume", "--savepoint", "chapter-3"]
+        )
+
+        assert args.savepoint == "chapter-3"
+
+    def test_tui_subcommand_savepoint_defaults_none(self) -> None:
+        parser = build_parser()
+
+        args = parser.parse_args(["tui", "--story", "my_story"])
+
+        assert args.savepoint is None
 
     def test_run_subcommand_parses_story_name(self) -> None:
         parser = build_parser()
@@ -93,7 +125,39 @@ class TestMainDispatch:
         finally:
             sys.argv = original_argv
 
-        mock_cmd_tui.assert_called_once_with("my_story")
+        mock_cmd_tui.assert_called_once_with("my_story", resume=False, savepoint=None)
+
+    def test_tui_with_resume_dispatches_cmd_tui_with_resume(self) -> None:
+        original_argv = sys.argv[:]
+
+        try:
+            sys.argv = ["story-writer", "tui", "--story", "my_story", "--resume"]
+            with patch("src.presentation.cli.main._cmd_tui") as mock_cmd_tui:
+                main()
+        finally:
+            sys.argv = original_argv
+
+        mock_cmd_tui.assert_called_once_with("my_story", resume=True, savepoint=None)
+
+    def test_tui_with_resume_and_savepoint_dispatches_correctly(self) -> None:
+        original_argv = sys.argv[:]
+
+        try:
+            sys.argv = [
+                "story-writer",
+                "tui",
+                "--story",
+                "my_story",
+                "--resume",
+                "--savepoint",
+                "ch3",
+            ]
+            with patch("src.presentation.cli.main._cmd_tui") as mock_cmd_tui:
+                main()
+        finally:
+            sys.argv = original_argv
+
+        mock_cmd_tui.assert_called_once_with("my_story", resume=True, savepoint="ch3")
 
     def test_resume_dispatches_cmd_resume(self) -> None:
         original_argv = sys.argv[:]
@@ -128,3 +192,31 @@ class TestCmdTui:
             "textual is not installed. Install it with:\n"
             "  pip install 'textual>=0.85.0,<1.0.0'\n\n"
         )
+
+
+class TestCmdRun:
+    def test_run_without_batch_prints_headless_notice(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with patch(
+            "presentation.orchestrator.run_pipeline",
+            new_callable=AsyncMock,
+            return_value=SimpleNamespace(status="complete"),
+        ):
+            _cmd_run("my_story", batch=False)
+
+        captured = capsys.readouterr()
+        assert "story-writer run is always headless" in captured.out
+
+    def test_run_with_batch_does_not_print_headless_notice(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with patch(
+            "presentation.orchestrator.run_pipeline",
+            new_callable=AsyncMock,
+            return_value=SimpleNamespace(status="complete"),
+        ):
+            _cmd_run("my_story", batch=True)
+
+        captured = capsys.readouterr()
+        assert "headless" not in captured.out.lower()

@@ -15,13 +15,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     tui_p = sub.add_parser("tui", help="Launch the interactive Textual TUI.")
     tui_p.add_argument("--story", required=True, metavar="NAME", help="Story name.")
+    tui_p.add_argument(
+        "--resume",
+        action="store_true",
+        default=False,
+        help="Resume pipeline from the latest savepoint.",
+    )
+    tui_p.add_argument(
+        "--savepoint",
+        default=None,
+        metavar="NAME",
+        help="Savepoint name to validate against (currently always resumes from latest state).",
+    )
 
     run_p = sub.add_parser("run", help="Run the full pipeline headlessly.")
     run_p.add_argument("--story", required=True, metavar="NAME", help="Story name.")
     run_p.add_argument(
         "--batch",
         action="store_true",
-        help="Auto-accept all approval gates (reserved for forward compatibility — currently all headless runs use NullApprovalGate).",
+        help="Run headlessly (non-interactive). NOTE: story-writer run is always headless; this flag is reserved for future interactive mode.",
     )
 
     resume_p = sub.add_parser("resume", help="Resume from latest savepoint.")
