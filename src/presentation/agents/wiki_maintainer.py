@@ -14,7 +14,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
-from tools.wiki_extract import update_wiki_from_chapter
+from tools._wiki_api import update_wiki_from_chapter
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:

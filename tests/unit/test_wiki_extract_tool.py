@@ -11,8 +11,13 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+SRC_DIR = PROJECT_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
 from src.tools import _io, wiki_extract  # noqa: E402
+from tools import _io as api_io  # noqa: E402
+from tools import _wiki_api  # noqa: E402
 
 
 def _write_state(
@@ -95,6 +100,7 @@ def _apply_summary(
 
 def _set_stories_dir(monkeypatch: pytest.MonkeyPatch, stories_dir: Path) -> None:
     monkeypatch.setattr(_io, "STORIES_DIR", stories_dir)
+    monkeypatch.setattr(api_io, "STORIES_DIR", stories_dir)
 
 
 def _set_fake_llm(monkeypatch: pytest.MonkeyPatch, responses: list[str]) -> None:
@@ -108,6 +114,7 @@ def _set_fake_llm(monkeypatch: pytest.MonkeyPatch, responses: list[str]) -> None
         return remaining.pop(0)
 
     monkeypatch.setattr(wiki_extract, "_chat_completion", _fake_chat_completion)
+    monkeypatch.setattr(_wiki_api, "_chat_completion", _fake_chat_completion)
 
 
 def _invoke_main(
@@ -693,7 +700,7 @@ def test_update_from_chapter_reads_chapter_file_path(
             )
         raise AssertionError(f"Unexpected prompt: {prompt[:200]}")
 
-    monkeypatch.setattr(wiki_extract, "_chat_completion", _fake_chat_completion)
+    monkeypatch.setattr(_wiki_api, "_chat_completion", _fake_chat_completion)
 
     code, output = _invoke_main(
         [
@@ -766,7 +773,7 @@ def test_update_from_chapter_cache_hit_skips_llm(
             created=len(payload["creates"]), entity_counts={"location": 1}
         )
 
-    monkeypatch.setattr(wiki_extract, "_chat_completion", _fake_chat_completion)
+    monkeypatch.setattr(_wiki_api, "_chat_completion", _fake_chat_completion)
     monkeypatch.setattr(wiki_extract, "run_batch", _fake_run_batch)
 
     code, output = _invoke_main(
@@ -882,14 +889,14 @@ def test_update_wiki_from_chapter_returns_summary_with_slugs(
     delete_cache = MagicMock()
 
     monkeypatch.setattr(
-        wiki_extract,
+        _wiki_api,
         "_prepare_chapter_update",
         MagicMock(return_value=(story_env, payload, [create_entry], [update_entry])),
     )
-    monkeypatch.setattr(wiki_extract, "run_batch", run_batch)
-    monkeypatch.setattr(wiki_extract, "_delete_extract_cache", delete_cache)
+    monkeypatch.setattr(_wiki_api, "run_batch", run_batch)
+    monkeypatch.setattr(_wiki_api, "_delete_extract_cache", delete_cache)
 
-    summary = wiki_extract.update_wiki_from_chapter("test-story", 3, "Chapter text")
+    summary = _wiki_api.update_wiki_from_chapter("test-story", 3, "Chapter text")
 
     assert summary == {
         "created": 1,
@@ -914,9 +921,9 @@ def test_update_wiki_from_chapter_passes_base_url_to_prepare(
             [],
         )
     )
-    monkeypatch.setattr(wiki_extract, "_prepare_chapter_update", prepare)
+    monkeypatch.setattr(_wiki_api, "_prepare_chapter_update", prepare)
     monkeypatch.setattr(
-        wiki_extract,
+        _wiki_api,
         "run_batch",
         MagicMock(
             return_value={
@@ -927,9 +934,9 @@ def test_update_wiki_from_chapter_passes_base_url_to_prepare(
             }
         ),
     )
-    monkeypatch.setattr(wiki_extract, "_delete_extract_cache", MagicMock())
+    monkeypatch.setattr(_wiki_api, "_delete_extract_cache", MagicMock())
 
-    wiki_extract.update_wiki_from_chapter(
+    _wiki_api.update_wiki_from_chapter(
         "test-story",
         3,
         "Chapter text",
@@ -951,7 +958,7 @@ def test_update_wiki_from_chapter_cache_deleted_after_run_batch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        wiki_extract,
+        _wiki_api,
         "_prepare_chapter_update",
         MagicMock(
             return_value=(
@@ -963,7 +970,7 @@ def test_update_wiki_from_chapter_cache_deleted_after_run_batch(
         ),
     )
     monkeypatch.setattr(
-        wiki_extract,
+        _wiki_api,
         "run_batch",
         MagicMock(
             return_value={
@@ -975,9 +982,9 @@ def test_update_wiki_from_chapter_cache_deleted_after_run_batch(
         ),
     )
     delete_cache = MagicMock()
-    monkeypatch.setattr(wiki_extract, "_delete_extract_cache", delete_cache)
+    monkeypatch.setattr(_wiki_api, "_delete_extract_cache", delete_cache)
 
-    wiki_extract.update_wiki_from_chapter("test-story", 3, "Chapter text")
+    _wiki_api.update_wiki_from_chapter("test-story", 3, "Chapter text")
 
     delete_cache.assert_called_once_with(story_env)
 
