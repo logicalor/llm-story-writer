@@ -116,6 +116,18 @@ def _write_chapter_file(story_dir: Path, chapter_number: int, content: str) -> N
     )
 
 
+def _backfill_missing_chapter_files(
+    story_dir: Path, approved_chapters: list[ChapterDraft]
+) -> None:
+    """Write persisted approved chapters that are absent from disk."""
+    chapters_dir = story_dir / "chapters"
+    for draft in approved_chapters:
+        chapter_path = chapters_dir / f"chapter_{draft.chapter_number}.md"
+        if chapter_path.exists():
+            continue
+        _write_chapter_file(story_dir, draft.chapter_number, draft.content)
+
+
 def _chapter_numbers(
     outline_result: OutlineResult | None, settings: GenerationSettings
 ) -> list[int]:
@@ -448,6 +460,7 @@ async def _continue_pipeline(
             )
 
         chapter_numbers = _chapter_numbers(outline_result, settings)
+        _backfill_missing_chapter_files(story_dir, state.approved_chapters)
         next_chapter = len(state.approved_chapters) + 1
         if "chapter-loop" not in state.completed_phases:
             chapter_agent = ChapterWriterAgent(
@@ -629,6 +642,10 @@ async def resume_pipeline(
             f"Savepoint '{savepoint_name}' not found in story '{story_name}'. "
             f"Available savepoints: {state.savepoints}"
         )
+
+    _backfill_missing_chapter_files(
+        STORIES_DIR / state.story_name, state.approved_chapters
+    )
 
     if state.status == "complete":
         bus.close()

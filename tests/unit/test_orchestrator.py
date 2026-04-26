@@ -73,6 +73,19 @@ def _chapter_draft() -> ChapterDraft:
     )
 
 
+def _two_chapter_outline_result() -> OutlineResult:
+    return OutlineResult(
+        story_name="test-story",
+        chapter_outlines=[
+            {"chapter_number": 1, "title": "Chapter 1", "summary": "Intro"},
+            {"chapter_number": 2, "title": "Chapter 2", "summary": "Turn"},
+        ],
+        summary="Story summary",
+        genre="science fiction",
+        themes=["memory"],
+    )
+
+
 def _wiki_batch() -> WikiUpdateBatch:
     return WikiUpdateBatch(
         story_name="test-story",
@@ -402,6 +415,89 @@ async def test_resume_pipeline_from_savepoint(tmp_path: Path) -> None:
     assert state.status == "complete"
     assert "chapter-loop" in state.completed_phases
     assert any(savepoint.startswith("chapter-") for savepoint in state.savepoints)
+
+
+@pytest.mark.asyncio
+async def test_resume_pipeline_backfills_missing_chapter_files(tmp_path: Path) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    chapter_one = ChapterDraft(
+        story_name="test-story",
+        chapter_number=1,
+        title="Chapter 1",
+        content="Existing approved content",
+        word_count=3,
+    )
+    chapter_two = ChapterDraft(
+        story_name="test-story",
+        chapter_number=2,
+        title="Chapter 2",
+        content="Missing approved content",
+        word_count=3,
+    )
+    partial_state = PipelineState(
+        story_name="test-story",
+        current_phase="complete",
+        completed_phases=[
+            "init",
+            "outline",
+            "narrative-arc",
+            "characters",
+            "settings",
+            "chapter-loop",
+            "final-edit",
+            "assembly",
+        ],
+        outline_result=_two_chapter_outline_result(),
+        approved_chapters=[chapter_one, chapter_two],
+        status="complete",
+        savepoints=[
+            "init",
+            "outline",
+            "arc_analysis_complete",
+            "characters",
+            "settings",
+            "chapter-loop",
+            "final_edit_complete",
+            "assembly",
+            "complete",
+        ],
+    )
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    existing_chapter_path = tmp_path / "test-story" / "chapters" / "chapter_1.md"
+    existing_chapter_path.parent.mkdir(parents=True, exist_ok=True)
+    existing_chapter_path.write_text("Keep this chapter file\n", encoding="utf-8")
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+    ):
+        await _write_savepoint(partial_state)
+
+        state = await resume_pipeline(
+            "test-story",
+            None,
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    assert (
+        existing_chapter_path.read_text(encoding="utf-8") == "Keep this chapter file\n"
+    )
+    assert (tmp_path / "test-story" / "chapters" / "chapter_2.md").read_text(
+        encoding="utf-8"
+    ) == "Missing approved content"
 
 
 @pytest.mark.asyncio
