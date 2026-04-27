@@ -13,9 +13,13 @@ A modern, clean AI story generation application built with clean architecture pr
 - **ChromaDB-backed wiki retrieval**: Per-story semantic search over progressive wiki memory
 - **Extensible Design**: Easy to add new features and providers
 - **Generate medium to full-length novels**: Produce substantial stories with coherent narratives
-- **Automatic model downloading**: Model provisioning is delegated to the local inference server (e.g. LM Studio's model browser or `ollama pull`)
+- **Local model inference**: Works with your own OpenAI-compatible server (e.g. LM Studio, Ollama, llama.cpp) — models are provisioned by the server, not downloaded by the app
 - **Translation support**: Translate stories and prompts to multiple languages
 - **Savepoint system**: Resume generation from any point
+- **Scene generation pipeline**: Configurable per-chapter scene breakdown with min/max scene counts and optional scene expansion
+- **Chunked outline generation**: Divides long outlines into manageable chunks for better coherence
+- **Outline critique**: Iterative outline review with configurable critique passes
+- **Multi-stage recap sanitizer**: Improved chapter recap generation for better long-context coherence
 
 ## 🏗️ Architecture
 
@@ -25,6 +29,7 @@ This application is built using clean architecture principles:
 src/
 ├── domain/              # Business logic and entities
 ├── application/         # Use cases and strategies
+├── tools/               # Python scripts for deterministic domain logic
 ├── infrastructure/      # External concerns (providers, storage, logging)
 ├── presentation/        # CLI and API interfaces
 └── config/             # Configuration management
@@ -34,15 +39,15 @@ src/
 
 ### Prerequisites
 
-1. **Python 3.8+** installed
+1. **Python 3.10+** installed
 2. An **OpenAI-compatible local model server** running (LM Studio, Ollama, or llama.cpp)
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/datacrystals/AIStoryWriter.git
-cd AIStoryWriter
+git clone https://github.com/logicalor/llm-story-writer.git
+cd llm-story-writer
 
 # Start your local model server and load the models referenced by config.yml
 # e.g. LM Studio (default: http://127.0.0.1:1234/v1)
@@ -120,7 +125,7 @@ The application supports multiple story writing strategies:
 
 To change strategies, update the `strategy` option in the generation settings above.
 
-See `src/application/strategies/README.md` for detailed information about creating custom strategies.
+See `src/application/strategies/README.md` for detailed information about the available strategies.
 
 ### Environment Variables
 
@@ -238,8 +243,7 @@ Semantic search for context retrieval using ChromaDB vector collections:
 ## 🚀 Performance
 
 - **Async Operations**: All I/O operations are async for better performance
-- **Model Caching**: Automatic model downloading and caching
-- **Resource Management**: Proper cleanup and resource handling
+- **Efficient Resource Management**: Proper cleanup and resource handling
 - **Streaming Support**: Stream model responses for real-time feedback
 
 ## 🔍 Monitoring
@@ -251,22 +255,22 @@ Semantic search for context retrieval using ChromaDB vector collections:
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome issues and pull requests! Feel free to open an issue or submit a PR.
 
 ### Development Setup
 
 ```bash
 # Clone and setup
-git clone https://github.com/datacrystals/AIStoryWriter.git
-cd AIStoryWriter
+git clone https://github.com/logicalor/llm-story-writer.git
+cd llm-story-writer
 pip install -r requirements.txt
-pip install -e src/
+pip install -e .
 
 # Run tests
 pytest tests/
 
 # Run linting
-flake8 src/
+ruff check --fix .
 mypy src/
 ```
 
@@ -277,8 +281,8 @@ This project is licensed under the GNU Affero General Public License v3.0 (AGPL-
 ## 🆘 Support
 
 - **Discord**: [Join our Discord server](https://discord.gg/R2SySWDr2s)
-- **Issues**: [GitHub Issues](https://github.com/datacrystals/AIStoryWriter/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/datacrystals/AIStoryWriter/discussions)
+- **Issues**: [GitHub Issues](https://github.com/logicalor/llm-story-writer/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/logicalor/llm-story-writer/discussions)
 
 ## 🎯 Roadmap
 
