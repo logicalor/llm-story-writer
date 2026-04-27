@@ -22,6 +22,7 @@ In this mode:
 - **Skip Prerequisites 1–4** — the data is already in the package
 - Use the package data for all review phases
 - You may still run **targeted** commands for specific verification (e.g., checking if a file referenced in the code exists on disk, grepping for a specific pattern across the workspace) — but do not re-run the bulk data collection commands
+- **For documentation files (`.md`, `.rst`, `.txt` prose)** — verify claims against the **Full File Contents** section of the review package, not the diff excerpt. Diff whitespace (leading `+`/`-` markers, indentation shifts) and hunk context lines are a known source of false positives on prose files.
 
 This eliminates redundant I/O when multiple reviewer models are dispatched against the same branch.
 
