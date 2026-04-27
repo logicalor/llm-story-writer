@@ -164,7 +164,7 @@ Across the current integration files, coverage includes these checkpoints:
 14. `savepoints/pipeline_state.json` is written during the headless run.
 15. At least two approved chapters are present with `Chapter` in the title and non-empty content.
 16. Headless runtime stays within the 600-second budget.
-17. Wiki artifacts (`wiki/index.md`, `wiki/log.md`, `wiki/timeline/`) exist after the headless run and `pipeline_state.json` contains `wiki_batches` with per-chapter `updated_pages` and `new_pages` entries.
+17. Wiki artifacts (`wiki/index.md`, `wiki/log.md`, `wiki/_schema.md`, `wiki/contradictions.md`, `wiki/timeline/`) exist after the headless run and `pipeline_state.json` contains `wiki_batches` with per-chapter `updated_pages` and `new_pages` entries.
 
 ## Manual Verification
 

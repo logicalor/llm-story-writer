@@ -19,6 +19,7 @@ Extend the existing live headless E2E in `tests/integration/test_end_to_end_head
    - Each entry has `story_name`, `chapter_number`, `updated_pages`, `new_pages`
    - `updated_pages` and `new_pages` are lists
 5. Add wiki subdirectory existence assertion (at least `timeline/`)
+6. Add `wiki/_schema.md` and `wiki/contradictions.md` existence assertions
 
 ## Execution Order
 Implementation → Verification tests → Confirm all pass
