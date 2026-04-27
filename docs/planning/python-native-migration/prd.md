@@ -4,7 +4,7 @@
 
 **Date:** 2026-04-24
 **Author:** Planner agent
-**Status:** Draft
+**Status:** Implemented — partial; see Current Status
 **Related:** [ADR 007](./adr/007-python-native-orchestration.md) supersedes [ADR 001](./adr/001-hybrid-agent-tool-architecture.md); research synthesis at `.github/research/python-native-migration-2026-04-24.md`.
 
 ## Problem Statement
@@ -21,13 +21,13 @@ A three-model research synthesis confirms the story generation pipeline is seque
 2. Preserve all existing domain logic (`src/domain/`, `src/application/`, `src/infrastructure/`) without rewrites.
 3. Preserve all existing Markdown agent system prompts by relocating them to `prompts/agents/` and loading via a frontmatter-stripping loader.
 4. Build a Textual TUI that streams LLM token output in real time, displays pipeline phase progress, and handles human approval gates mid-pipeline.
-5. Build a Python orchestrator that executes the story generation pipeline phases sequentially, calling `src/application/services/` directly in-process.
+5. **Build a Python orchestrator** that executes the story generation pipeline phases sequentially, calling `src/tools/` directly and loading agent prompts from `prompts/agents/`. (Originally planned to call `src/application/services/`; superseded by ADR 008 — see Superseded Decisions.)
 6. Support both interactive mode (TUI with approval gates) and batch/headless mode (CLI, no approval gates, auto-proceed).
 7. Maintain full test coverage: all existing `pytest` tests pass after migration; new orchestrator and TUI layers have their own tests.
 
 ## Non-Goals
 
-- **Rewriting the domain logic.** `src/domain/`, `src/application/services/`, and storage layers are preserved as-is.
+- **Rewriting the domain logic.** `src/domain/` and storage layers are preserved as-is. `src/application/services/` was retired per ADR 008 (see Superseded Decisions).
 - **Adopting LangGraph, CrewAI, AutoGen, or Pydantic AI as the orchestration framework.** Documented as deferred upgrade paths only.
 - **Changing the prompt templates in `prompts/`.** Content is preserved verbatim.
 - **Changing the LLM endpoint or local inference stack.** LM Studio at `http://127.0.0.1:1234/v1` remains the primary target.
@@ -69,6 +69,8 @@ Completed migration slices so far:
 - [x] Task 5 headless orchestrator complete: `src/presentation/orchestrator.py` now implements `run_pipeline()` and `resume_pipeline()` with outline and chapter approval semantics
 - [x] `PipelineState` now supports JSON-friendly `to_dict()` / `from_dict()` persistence helpers plus `savepoints` and `status` fields for persisted orchestration state
 
+> **Note:** The `src/application/services/` layer was retired per [ADR 008](../adr/008-retire-application-services-layer.md). Presentation-layer agents and `src/tools/` Python scripts are the active integration surface. The architecture diagram below shows the original plan; see the Superseded Decisions section for the updated structure.
+
 Task 5 currently implements the headless slice only. TUI wiring, CLI commands, and the broader long-term phase map remain future tasks.
 ### Architecture Overview
 
@@ -89,12 +91,13 @@ Task 5 currently implements the headless slice only. TUI wiring, CLI commands, a
 └─────────────────┬────────────────────────────────────┘
                   │ direct in-process calls (no subprocess)
 ┌─────────────────▼────────────────────────────────────┐
-│  src/application/services/     (UNCHANGED)           │
 │  src/application/strategies/   (UNCHANGED)           │
 │  src/domain/                   (UNCHANGED)           │
 │  src/infrastructure/           (+ AsyncOpenAI client)│
 │  src/tools/                    (UNCHANGED)           │
 └──────────────────────────────────────────────────────┘
+
+> **Note:** `src/application/services/` was originally planned as the unchanged application-services layer but was retired per ADR 008. The orchestrator now calls `src/tools/` directly and loads agent prompts from `prompts/agents/`; there is no services indirection.
 ```
 
 ### Orchestration
@@ -125,7 +128,7 @@ Task 5 currently implements the headless slice only. TUI wiring, CLI commands, a
 ### Tool Execution
 
 - Delete `.opencode/tools/*.ts`. The Python scripts in `src/tools/*.py` are already the real implementation.
-- Orchestrator imports services directly: `from application.services.chapter_service import ChapterService`.
+- Orchestrator calls `src/tools/` directly or dispatches agent prompts loaded from `prompts/agents/`. The original plan to import from `src/application/services/` was superseded by ADR 008.
 - The `src/tools/*.py` CLI entry points are retained as standalone scripts for ad-hoc shell invocation.
 
 ### CLI Entry Points
@@ -142,23 +145,23 @@ No database schema changes. JSON savepoints, JSON story state, and ChromaDB coll
 
 ## Acceptance Criteria
 
-- [ ] All files under `.opencode/`, all `.ts` files under the project root, `opencode.json`, `package.json`, `tsconfig.json`, and `vitest.config.ts` are removed from the repository.
+- [x] All files under `.opencode/`, all `.ts` files under the project root, `opencode.json`, `package.json`, `tsconfig.json`, and `vitest.config.ts` are removed from the repository.
 - [x] All `.opencode/agents/*.md` files are relocated to `prompts/agents/` with unchanged content.
 - [x] Typed handoff dataclasses exist under `src/application/pipeline/handoffs.py` with JSON round-trip support for pipeline savepoints.
 - [ ] `python -m src.presentation.cli.main tui --story <name>` launches a Textual app with status panel, streaming output panel, and approval input widget.
 - [ ] Launching a story run in the TUI streams LLM token output into the output panel in real time (visibly token-by-token, not all-at-once).
 - [ ] The TUI pauses at outline and chapter approval gates. Typing `approve` / `reject` / `revise <feedback>` resumes or adjusts the pipeline.
-- [ ] `python -m src.presentation.cli.main run --story <name> --batch` runs the full pipeline end-to-end without any prompts and exits with code 0 on success.
-- [ ] `python -m src.presentation.cli.main resume --story <name>` resumes from the latest savepoint.
-- [ ] The existing `pytest` test suite passes without modifications to domain or application layer tests (integration tests may be re-pointed at the new CLI).
-- [ ] New tests exist for the full migration surface.
+- [x] `python -m src.presentation.cli.main run --story <name> --batch` runs the full pipeline end-to-end without any prompts and exits with code 0 on success.
+- [x] `python -m src.presentation.cli.main resume --story <name>` resumes from the latest savepoint.
+- [x] The existing `pytest` test suite passes without modifications to domain or application layer tests (integration tests may be re-pointed at the new CLI).
+- [x] New tests exist for the full migration surface.
 - [x] Agent prompt loader tests exist for frontmatter stripping.
 - [x] Async provider tests exist for streaming behavior.
 - [x] Orchestrator phase-runner tests exist for sequential execution plus approval-gate resolution.
 - [ ] TUI bridge tests exist for token forwarding to widgets.
 - [ ] A full end-to-end integration test generates a two-chapter story in under 10 minutes against LM Studio.
-- [ ] `AGENTS.md`, `README.md`, and `docs/` contain no references to OpenCode, `opencode.json`, `.opencode/`, or the TypeScript tool layer.
-- [ ] `ruff check .`, `ruff format --check .`, and `mypy src/` all pass cleanly.
+- [x] `AGENTS.md`, `README.md`, and `docs/` contain no references to OpenCode, `opencode.json`, `.opencode/`, or the TypeScript tool layer.
+- [x] `ruff check .`, `ruff format --check .`, and `mypy src/` all pass cleanly.
 
 ## Resolved Decisions
 
@@ -166,6 +169,10 @@ No database schema changes. JSON savepoints, JSON story state, and ChromaDB coll
 - **Live wiki context in TUI.** In scope. The TUI gains a third panel (or toggleable overlay) showing the wiki context currently assembled for the phase being executed: active entity matches, wikilink traversal results, detail-level selections. Implemented in Task 8.
 - **`.opencode/plugins/story-compaction.ts` retention.** Removed. The plugin parses YAML frontmatter from agent Markdown to estimate token budgets for OpenCode's conversation-history compaction. In a Python harness there is no free-floating orchestrator conversation to compact — each pipeline phase is a bounded, direct LLM call. No Python port required.
 - **`.opencode/_run.ts` retention.** Removed. It is pure subprocess-invocation boilerplate for running Python tools from OpenCode; obsolete once the orchestrator calls Python in-process.
+
+## Superseded Decisions
+
+- **ADR 008 — Retire the services layer.** The original PRD planned to preserve `src/application/services/` unchanged and have the orchestrator import services directly (e.g., `from application.services.chapter_service import ChapterService`). ADR 008 superseded this: the services layer was retired and the orchestrator now calls `src/tools/` Python scripts directly or loads agent prompts from `prompts/agents/`. The architecture diagram in this document still shows the services box for historical context but is annotated as retired.
 
 ## Related
 

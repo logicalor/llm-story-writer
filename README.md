@@ -24,7 +24,7 @@ This application is built using clean architecture principles:
 ```
 src/
 ├── domain/              # Business logic and entities
-├── application/         # Use cases and services
+├── application/         # Use cases and strategies
 ├── infrastructure/      # External concerns (providers, storage, logging)
 ├── presentation/        # CLI and API interfaces
 └── config/             # Configuration management
@@ -154,7 +154,7 @@ See [docs/testing/integration-tests.md](docs/testing/integration-tests.md) for s
 llm-story-writer/
 ├── src/                          # Python domain logic (clean architecture)
 │   ├── domain/                  # Business logic and entities
-│   ├── application/             # Use cases and services
+│   ├── application/             # Use cases and strategies
 │   ├── infrastructure/          # External concerns (providers, storage)
 │   ├── presentation/            # CLI and API interfaces
 │   ├── tools/                   # Python tool implementations
@@ -200,7 +200,7 @@ The progressive wiki memory system maintains structured story knowledge using ma
 - **Confidence Taxonomy**: `verified` (explicitly stated), `planned` (outlined but not yet written), `speculative` (inferred or implied)
 - **Cross-References**: Wiki pages use `[[wikilink]]` syntax to reference related entities
 
-The wiki is automatically updated after each scene by the wiki-maintainer agent, ensuring consistent story state throughout generation.
+The wiki is automatically updated after each chapter by the wiki-maintainer agent, ensuring consistent story state throughout generation.
 
 ## 🔍 ChromaDB RAG
 
@@ -230,7 +230,7 @@ Semantic search for context retrieval using ChromaDB vector collections:
 ### Adding New Features
 
 1. Add domain entities and value objects in `src/domain/`
-2. Create application services in `src/application/services/`
+2. Create deterministic tools in `src/tools/` or agent prompts in `prompts/agents/`
 3. Add infrastructure implementations as needed
 4. Update CLI interface in `src/presentation/cli/`
 5. Add comprehensive tests

@@ -24,6 +24,8 @@
 - Keep summary tables synchronized with body text.
 - Keep numbered workflow steps contiguous.
 - Update `AGENTS.md`, `.github/copilot-instructions.md`, `docs/manual.md`, and `docs/tools.md` when architecture terms change.
+- Scan the full file for stale references — not only the diff context.
+- For documentation-only PRs, verify cross-file consistency aggressively; reviewers are the last line of defence against stale references.
 
 ## Agent And Skill Files
 

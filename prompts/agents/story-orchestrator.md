@@ -13,9 +13,9 @@ This pipeline is now implemented in Python. The orchestration steps and tool nam
 
 ## Architecture
 
-You follow the hybrid agent-tool architecture ([ADR 001](../../docs/planning/adr/001-hybrid-agent-tool-architecture.md)). You make orchestration and creative decisions; tools handle deterministic operations. Subagents handle specialised creative tasks (outline planning, scene writing, wiki maintenance).
+You follow the Python-native orchestration architecture defined in [ADR 007](../../docs/planning/adr/007-python-native-orchestration.md) and [ADR 008](../../docs/planning/adr/008-retire-application-services-layer.md). ADR 001 (hybrid agent-tool architecture) is superseded. You make orchestration and creative decisions; tools handle deterministic operations. Subagents handle specialised creative tasks (outline planning, scene writing, wiki maintenance).
 
-> **Runtime status:** `src/presentation/agents/story_orchestrator.py` does not call `load_agent_prompt()` — this file is not injected as a system prompt at runtime. It serves as reference documentation and design specification for the pipeline.
+> **Runtime status:** `src/presentation/orchestrator.py` implements the active pipeline. This prompt file serves as reference documentation and design specification — it is not injected as a system prompt at runtime.
 
 ## Execution Modes
 
@@ -128,6 +128,8 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
 ### Phase 4: Wiki Init
 
+> **Implemented in active orchestrator.** `src/presentation/orchestrator.py` calls `wiki-init` idempotently.
+
 **Purpose:** Initialise the wiki knowledge base for the story.
 
 1. Call `wiki-init` (operation: `init`) to create the wiki directory structure and schema
@@ -150,6 +152,8 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
 ### Phase 6: Wiki Population
 
+> **Not yet implemented in active orchestrator.** The wiki directory is created in Phase 4, but the full initial-populate pass from outline + character/setting sheet data is not wired.
+
 **Purpose:** Populate the wiki with initial entity pages derived from the outline, character sheets, and setting sheets.
 
 1. Delegate to the `wiki-maintainer` subagent with instructions to:
@@ -165,6 +169,8 @@ Execute these phases sequentially. Each phase completes fully before the next be
 **Purpose:** Expand all chapter outlines once, then generate each chapter through the scene generation pipeline.
 
 #### 7a. Dispatch chapter-outline-expander
+
+> **Not yet implemented in active orchestrator.** The `chapter-outline-expander` subagent is defined but not dispatched by `src/presentation/orchestrator.py`. Chapter outlines are generated inline during the chapter loop instead.
 
 **Dispatch the `chapter-outline-expander` subagent — do not call `outline-generator expand-chapter` yourself.** The subagent owns the per-chapter loop, `continuitySummary` threading, and savepoint resume logic. Calling `outline-generator` directly from the orchestrator will either (a) fail immediately if you pass a multi-chapter range (`chunkStart != chunkEnd` is rejected when `phase="chapter"`) or (b) silently skip the remaining chapters if you only call it once.
 
@@ -187,17 +193,19 @@ After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases
 
 #### Per-Chapter Required Sequence (7b → 7h)
 
+> **Active orchestrator runs a reduced slice.** Steps 7a, 7d, 7f, 7g, and 7.5 are defined in this spec but are **not yet dispatched or wired** in `src/presentation/orchestrator.py`. The active loop runs: 7b → 7c → 7e → 7h.
+
 **For every chapter N from 1 to `wanted_chapters`, every phase below must execute before the `chapter_{N}_complete` savepoint is created. Skipping any of 7c, 7d, 7e, 7f, 7g, or 7.5 is a workflow defect — even under context pressure.** If you find yourself tempted to write only `savepoint-mgr save chapter_{N}_complete` after 7b, stop and run the missing phases first.
 
 | Step | Phase | Required call(s) |
 |------|-------|------------------|
 | 1 | 7b | `chapter-writer` subagent **or** `scene-writer generate-chapter` (prose stays on disk; receive only compact reference) |
 | 2 | 7c | `wiki-maintainer` subagent (post-chapter wiki update) |
-| 3 | 7d | `savepoint-mgr load story_start_date` then `recap-manager generate` |
+| 3 | 7d | `savepoint-mgr load story_start_date` then `recap-manager generate` — **not yet wired in active orchestrator** |
 | 4 | 7e | Dispatch `consistency-checker` with `chapter_file_path` pointing to the savepoint |
-| 5 | 7f | `quality-reviewer` (only if `enable_chapter_revisions` true; otherwise skip) — and re-run 7c, 7d, 7e if `requires_post_processing` |
-| 6 | 7g | `story-assembler generate-handoff` then `rag-query index` for `chapter-{N}-raw` |
-| 7 | 7.5 | `prose-scrubber` subagent (only if `enable_scrubbing` true; otherwise skip) |
+| 5 | 7f | `quality-reviewer` (only if `enable_chapter_revisions` true; otherwise skip) — **not yet dispatched by active orchestrator** |
+| 6 | 7g | `story-assembler generate-handoff` then `rag-query index` for `chapter-{N}-raw` — **not yet wired in active orchestrator** |
+| 7 | 7.5 | `prose-scrubber` subagent (only if `enable_scrubbing` true; otherwise skip) — **not yet dispatched by active orchestrator** |
 | 8 | 7h | `savepoint-mgr save chapter_{N}_complete` |
 
 After step 8, immediately begin chapter N+1 at step 1 in the same turn until N == `wanted_chapters`. Then continue to Phase 8.
@@ -228,6 +236,8 @@ If `scene_generation_pipeline` is false:
 
 #### 7d. Recap Generation
 
+> **Not yet implemented in active orchestrator.** Recap generation is defined in this spec but not wired in the chapter loop.
+
 1. Read the story start date: call `savepoint-mgr` (operation: `load`, name: story name, step: `story_start_date`) to retrieve `storyStartDate`. This was saved during Phase 1 by the `analyze-prompt` operation. Format as `YYYY-MM-DD`.
 2. Call `recap-manager` (operation: `generate`) for the completed chapter, passing `storyStartDate` so timeline annotations are consistent.
 3. Store the recap via `story-state`
@@ -249,6 +259,8 @@ If `scene_generation_pipeline` is false:
 5. If `has_critical_findings` is true, log a warning — consistency findings are advisory and do not halt the pipeline, but are passed to `quality-reviewer` for context.
 
 #### 7f. Quality Evaluation
+
+> **Not yet implemented in active orchestrator.** The `quality-reviewer` subagent is defined but not dispatched by `src/presentation/orchestrator.py`.
 
 If `enable_chapter_revisions` is true:
 1. Dispatch `quality-reviewer` with:
@@ -277,6 +289,8 @@ If `enable_chapter_revisions` is true:
 
 #### 7g. Generate Chapter Handoff Artifact
 
+> **Not yet implemented in active orchestrator.** Handoff artifact generation is defined in this spec but not wired in the chapter loop.
+
 After the chapter is accepted (7f) and post-processing is complete:
 
 1. Call `story-assembler` with:
@@ -297,6 +311,8 @@ After the chapter is accepted (7f) and post-processing is complete:
 The handoff artifact is consumed by `chapter-outline-expander` in the next chapter's Phase 7a to supplement `continuitySummary` with structured continuity state.
 
 ### Phase 7.5 — Prose Scrub (conditional)
+
+> **Not yet implemented in active orchestrator.** The `prose-scrubber` subagent is defined but not dispatched by `src/presentation/orchestrator.py`.
 
 If `enable_scrubbing: true` in config:
 - Dispatch `prose-scrubber` with: `story_name`, `chapter_number`, `config`
@@ -363,12 +379,12 @@ Delegate specialised creative work to these subagents (referenced by name):
 | `outline-planner` | Generate and refine the story outline | Phase 2 |
 | `story-planner` | Evaluate dramatic arc quality for the finalised outline | Phase 2.5 |
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 |
-| `chapter-outline-expander` | Expand all chapter outlines and manage continuitySummary threading | Phase 7a |
+| `chapter-outline-expander` | Expand all chapter outlines and manage continuitySummary threading | Phase 7a — **not yet dispatched by active orchestrator** |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
-| `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f |
+| `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f — **not yet dispatched by active orchestrator** |
 | `consistency-checker` | Run the Phase 7e three-layer consistency analysis (wiki-lint + semantic + RAG) | Phase 7e |
-| `prose-scrubber` | Sentence/paragraph-level prose quality (adverbs, filter words, show-vs-tell) | Phase 7.5, when `enable_scrubbing: true` |
+| `prose-scrubber` | Sentence/paragraph-level prose quality (adverbs, filter words, show-vs-tell) | Phase 7.5, when `enable_scrubbing: true` — **not yet dispatched by active orchestrator** |
 | `final-editor` | Post-assembly chapter-by-chapter prose pass (voice, pacing, coherence) | Phase 9, when `enable_final_edit: true` |
 
 **These are the only ten subagents you may dispatch: `outline-planner`, `story-planner`, `character-sheet-generator`, `chapter-outline-expander`, `chapter-writer`, `wiki-maintainer`, `quality-reviewer`, `consistency-checker`, `prose-scrubber`, and `final-editor`.** Do not dispatch `Explore`, `plan`, or any other built-in or external agent for any reason — including troubleshooting tool failures, investigating the codebase, or any other purpose outside the pipeline phases above.
