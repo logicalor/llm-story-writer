@@ -1161,6 +1161,7 @@ async def test_wiki_initialised_before_chapter_loop(tmp_path: Path) -> None:
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
         patch("tools._io.STORIES_DIR", tmp_path),
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.StoryPlannerAgent") as arc_agent_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
@@ -1174,6 +1175,14 @@ async def test_wiki_initialised_before_chapter_loop(tmp_path: Path) -> None:
         ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        arc_agent_cls.return_value.run = AsyncMock(
+            return_value=ArcAnalysisResult(
+                story_name="test-story",
+                arc_assessment="Strong arc",
+                verdict_code="strong",
+                overall_score=0.9,
+            )
+        )
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
         consistency_cls.return_value.run = AsyncMock(
@@ -1222,6 +1231,7 @@ async def test_wiki_initialisation_idempotent_on_resume(tmp_path: Path) -> None:
         ),
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
         patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.StoryPlannerAgent") as arc_agent_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
@@ -1234,6 +1244,14 @@ async def test_wiki_initialisation_idempotent_on_resume(tmp_path: Path) -> None:
             new=AsyncMock(return_value=[]),
         ),
     ):
+        arc_agent_cls.return_value.run = AsyncMock(
+            return_value=ArcAnalysisResult(
+                story_name="test-story",
+                arc_assessment="Strong arc",
+                verdict_code="strong",
+                overall_score=0.9,
+            )
+        )
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
         consistency_cls.return_value.run = AsyncMock(
@@ -1256,3 +1274,72 @@ async def test_wiki_initialisation_idempotent_on_resume(tmp_path: Path) -> None:
     assert (wiki_dir / "index.md").read_text(
         encoding="utf-8"
     ) == "# Pre-existing index\n"
+
+
+@pytest.mark.asyncio
+async def test_wiki_init_error_raises_story_generation_error(
+    tmp_path: Path,
+) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    (tmp_path / "test-story").mkdir(parents=True, exist_ok=True)
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch(
+            "presentation.orchestrator._init_wiki_for_story",
+            return_value={
+                "error": "story directory not found",
+                "story_name": "test-story",
+            },
+        ),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.StoryPlannerAgent") as arc_agent_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        arc_agent_cls.return_value.run = AsyncMock(
+            return_value=ArcAnalysisResult(
+                story_name="test-story",
+                arc_assessment="Strong arc",
+                verdict_code="strong",
+                overall_score=0.9,
+            )
+        )
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+
+        with pytest.raises(
+            StoryGenerationError,
+            match="Wiki initialization failed for story 'test-story': story directory not found",
+        ):
+            await run_pipeline(
+                "test-story",
+                NullApprovalGate(),
+                bus,
+                wiki_bus,
+                config=_config(),
+                provider=provider,
+            )
