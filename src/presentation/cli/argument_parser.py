@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--savepoint",
         default=None,
         metavar="NAME",
-        help="Savepoint name to validate against (currently always resumes from latest state).",
+        help="Savepoint name to validate. Resume always continues from the latest savepoint; this argument only verifies the story reached at least the specified phase.",
     )
 
     run_p = sub.add_parser("run", help="Run the full pipeline headlessly.")
@@ -42,7 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--savepoint",
         default=None,
         metavar="NAME",
-        help="Savepoint name to validate against (currently always resumes from latest state).",
+        help="Savepoint name to validate. Resume always continues from the latest savepoint; this argument only verifies the story reached at least the specified phase.",
     )
 
     return parser

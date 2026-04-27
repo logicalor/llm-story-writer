@@ -645,7 +645,12 @@ async def resume_pipeline(
     config: dict[str, Any] | None = None,
     provider: ModelProvider | None = None,
 ) -> PipelineState:
-    """Resume a pipeline from a named savepoint or the latest savepoint."""
+    """Resume a pipeline from the latest persisted savepoint.
+
+    The ``savepoint_name`` parameter is validated for presence in the story's
+    savepoint history but does not alter the resume point; execution always
+    continues from the single latest ``pipeline_state.json`` snapshot.
+    """
     _validate_story_name(story_name, STORIES_DIR)
     state = await _load_savepoint(story_name)
     if state is None:
