@@ -201,7 +201,7 @@ Available subcommands:
 |---------|-------------|
 | `story-writer tui --story <name> [--resume] [--savepoint <name>]` | Launch the interactive Textual TUI for a fresh run or resume an existing run |
 | `story-writer run --story <name> [--batch]` | Run the headless Python-native pipeline |
-| `story-writer resume --story <name> [--savepoint <name>]` | Resume from the persisted pipeline state |
+| `story-writer resume --story <name> [--savepoint <name>]` | Resume from the latest persisted pipeline state. `--savepoint` validates the name exists but does not restore an older snapshot. |
 
 `run` currently uses `NullApprovalGate` internally, so it behaves headlessly even when `--batch` is omitted. When you omit `--batch`, the CLI prints a headless notice before starting the run. The flag remains for forward compatibility with later interactive surfaces.
 
@@ -690,7 +690,7 @@ curl http://127.0.0.1:1234/v1/models
 - Use the wiki tool CLIs or the Textual wiki panel to inspect wiki state
 - Use `story-writer resume --story <name>` from the last savepoint rather than restarting
 
-### Savepoint restore failing
+### Savepoint validation failing
 
 - Check `savepoint_dir` in `config.md` points to the correct path
 - Check both `stories/<name>/savepoints/**/*.json` and `stories/<name>/savepoints/**/*.md` for the expected step
