@@ -19,7 +19,7 @@ The current orchestrator runs these phases in order:
 
 ```text
 Init → Outline → [Outline Gate] → Narrative Arc → Characters → Settings
-→ Chapter Loop → Final Edit → Assembly
+→ Wiki Init → Chapter Loop → Final Edit → Assembly
 ```
 
 The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
@@ -31,6 +31,7 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 | `narrative-arc` | If `state.outline_result` exists, run `StoryPlannerAgent`, stream the arc assessment onto `TokenStreamBus`, store `ArcAnalysisResult` in `state.arc_result`, and continue even if the agent raises | `arc_analysis_complete` |
 | `characters` | Emit a wiki-context event, build `story_elements` from the outline, extract character names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/characters/<slug>.json` | `characters` |
 | `settings` | Emit a wiki-context event, build `story_elements` from the outline, extract setting names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/settings/<slug>.json` | `settings` |
+| `wiki-init` | Idempotently initialise `stories/<story>/wiki/` directory structure (subdirectories, `index.md`, `log.md`, `_schema.md`, `contradictions.md`). Skips if wiki already present. Must succeed before chapter-loop wiki maintenance runs. | — (no separate savepoint) |
 | `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, emit any failed consistency findings to the token bus, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, then run wiki maintenance and per-chapter savepointing | `chapter-{N}`, then `chapter-loop` |
 | `final-edit` | Unless `generation.enable_final_edit` is explicitly `false`, run `FinalEditorAgent` once per approved chapter, replace `state.approved_chapters` with the edited drafts, and write `stories/<story>/output/story_edited.md` when edited content exists | `final_edit_complete` |
 | `assembly` | Read non-empty content from `state.approved_chapters`, write `stories/<story>/output/story.md`, and fail with `StoryGenerationError` if no approved chapter content exists | `assembly`, then `complete` |
@@ -224,7 +225,7 @@ These fields round-trip through `to_dict()`, `from_dict()`, and `to_json()`. The
 
 The long-term migration PRD still describes additional phases and UI surfaces that are not yet wired in this implementation. Notably absent from the current code path:
 
-- wiki initialization and initial population
+- initial wiki population (wiki directory structure is initialised, but the full initial-populate pass that creates pages from outline and sheets is not yet wired)
 - quality-reviewer and prose-scrubber execution
 - resume-from-arbitrary-historical-savepoint behavior
 
