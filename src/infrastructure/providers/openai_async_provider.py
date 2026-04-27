@@ -4,10 +4,12 @@ import json
 import os
 import random
 import re
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, Iterable, List, Optional, cast
 from urllib.parse import urlparse, urlunparse
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, AsyncStream
+from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
+from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from application.interfaces.model_provider import ModelProvider
 from domain.exceptions import ModelProviderError
@@ -183,11 +185,12 @@ class OpenAIAsyncProvider(ModelProvider):
 
             options = self._prepare_options(model_config, seed, format_type)
             response = await self._get_client(model_config).chat.completions.create(
-                messages=messages,
+                messages=cast(Iterable[ChatCompletionMessageParam], messages),
                 model=model_config.name,
                 stream=False,
                 **options,
             )
+            response = cast(ChatCompletion, response)
             response_text = response.choices[0].message.content or ""
             response_text = self._filter_think_tags(response_text)
 
@@ -206,11 +209,14 @@ class OpenAIAsyncProvider(ModelProvider):
                 continuation = await self._get_client(
                     model_config
                 ).chat.completions.create(
-                    messages=continued_messages,
+                    messages=cast(
+                        Iterable[ChatCompletionMessageParam], continued_messages
+                    ),
                     model=model_config.name,
                     stream=False,
                     **options,
                 )
+                continuation = cast(ChatCompletion, continuation)
                 extra_text = continuation.choices[0].message.content or ""
                 response_text = self._filter_think_tags(
                     f"{response_text}\n{extra_text}".strip()
@@ -307,11 +313,12 @@ class OpenAIAsyncProvider(ModelProvider):
         try:
             options = self._prepare_options(model_config, seed, format_type)
             stream = await self._get_client(model_config).chat.completions.create(
-                messages=messages,
+                messages=cast(Iterable[ChatCompletionMessageParam], messages),
                 model=model_config.name,
                 stream=True,
                 **options,
             )
+            stream = cast(AsyncStream[ChatCompletionChunk], stream)
             async for chunk in stream:
                 delta = chunk.choices[0].delta.content if chunk.choices else None
                 if delta:

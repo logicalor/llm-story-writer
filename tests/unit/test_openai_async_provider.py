@@ -192,6 +192,94 @@ class TestOpenAIAsyncProvider:
 
         assert result == "visible beforevisible after"
 
+    def test_generate_text_multi_role_messages(self) -> None:
+        provider = _build_provider()
+        model_config = ModelConfig(name="llama3", provider="openai_compatible")
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "multi-role response"
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
+            {"role": "user", "content": "How are you?"},
+        ]
+
+        with patch.object(provider, "_get_client", return_value=mock_client):
+            result = asyncio.run(
+                provider.generate_text(
+                    messages=messages,
+                    model_config=model_config,
+                )
+            )
+
+        assert result == "multi-role response"
+
+    def test_stream_text_multi_role_messages(self) -> None:
+        provider = _build_provider()
+        model_config = ModelConfig(name="llama3", provider="openai_compatible")
+        mock_client = MagicMock()
+
+        async def async_gen():
+            for chunk_text in ["multi-", "role ", "stream"]:
+                chunk = MagicMock()
+                chunk.choices = [MagicMock()]
+                chunk.choices[0].delta.content = chunk_text
+                yield chunk
+
+        mock_client.chat.completions.create = AsyncMock(return_value=async_gen())
+
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
+            {"role": "user", "content": "How are you?"},
+        ]
+
+        async def collect() -> list[str]:
+            return [
+                chunk
+                async for chunk in provider.stream_text(
+                    messages=messages,
+                    model_config=model_config,
+                )
+            ]
+
+        with patch.object(provider, "_get_client", return_value=mock_client):
+            chunks = asyncio.run(collect())
+
+        assert chunks == ["multi-", "role ", "stream"]
+
+    def test_generate_text_stream_true_multi_role_messages(self) -> None:
+        provider = _build_provider()
+        model_config = ModelConfig(name="llama3", provider="openai_compatible")
+
+        async def fake_stream_text(*args, **kwargs):
+            del args, kwargs
+            for chunk in ["multi-", "role ", "stream"]:
+                yield chunk
+
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
+            {"role": "user", "content": "How are you?"},
+        ]
+
+        with patch.object(provider, "stream_text", fake_stream_text):
+            result = asyncio.run(
+                provider.generate_text(
+                    messages=messages,
+                    model_config=model_config,
+                    stream=True,
+                )
+            )
+
+        assert result == "multi-role stream"
+
     def test_empty_api_key_defaults_to_lm_studio(self) -> None:
         with patch.object(_provider_module, "AsyncOpenAI") as mock_async_openai:
             with patch.dict(_provider_module.os.environ, {}, clear=True):
