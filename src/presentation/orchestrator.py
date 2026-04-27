@@ -512,6 +512,14 @@ async def _continue_pipeline(
                         await bus.emit(
                             f"  [{issue['severity'].upper()}] {issue['description']}\n"
                         )
+                elif consistency_result["issues"]:
+                    await bus.emit(
+                        f"\n[Consistency] Chapter {chapter_number} — warnings/info found:\n"
+                    )
+                    for issue in consistency_result["issues"]:
+                        await bus.emit(
+                            f"  [{issue['severity'].upper()}] {issue['description']}\n"
+                        )
                 state.approved_chapters.append(draft)
                 _write_chapter_file(story_dir, chapter_number, draft.content)
                 wiki_batch = await wiki_agent.run(
