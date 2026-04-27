@@ -19,29 +19,29 @@ from tools._wiki import WIKI_SUBDIRS  # noqa: E402
 SCHEMA_TEMPLATE = Path(__file__).resolve().parent / "wiki_schema_template.md"
 
 
-def cmd_init(args: argparse.Namespace) -> None:
-    """Initialise wiki directory structure for a story."""
-    story_dir = _validate_story_name(args.name)
+def _init_wiki_for_story(story_name: str, base_dir: Path | None = None) -> dict:
+    """Initialise wiki directory structure for a story.
+
+    Returns a dict with status information.  Does NOT call sys.exit.
+    """
+    try:
+        story_dir = _validate_story_name(story_name, base_dir)
+    except SystemExit:
+        return {"error": "invalid story name", "story_name": story_name}
 
     if not story_dir.exists():
-        print(f"Error: story directory not found: {args.name}", file=sys.stderr)
-        sys.exit(1)
+        return {"error": "story directory not found", "story_name": story_name}
 
     wiki_dir = story_dir / "wiki"
 
-    # Idempotent: if wiki already exists, report and exit
+    # Idempotent: if wiki already exists, report and return
     if wiki_dir.exists():
-        print(
-            json.dumps(
-                {
-                    "status": "ok",
-                    "wiki_dir": str(wiki_dir),
-                    "created": False,
-                    "already_exists": True,
-                }
-            )
-        )
-        return
+        return {
+            "status": "ok",
+            "wiki_dir": str(wiki_dir),
+            "created": False,
+            "already_exists": True,
+        }
 
     # Create wiki root and subdirectories
     wiki_dir.mkdir(parents=True, exist_ok=True)
@@ -69,15 +69,22 @@ def cmd_init(args: argparse.Namespace) -> None:
     # Create empty contradictions.md
     _atomic_write(wiki_dir / "contradictions.md", "# Contradictions Log\n")
 
-    print(
-        json.dumps(
-            {
-                "status": "ok",
-                "wiki_dir": str(wiki_dir),
-                "created": True,
-            }
-        )
-    )
+    return {
+        "status": "ok",
+        "wiki_dir": str(wiki_dir),
+        "created": True,
+    }
+
+
+def cmd_init(args: argparse.Namespace) -> None:
+    """CLI entry point: initialise wiki directory structure for a story."""
+    result = _init_wiki_for_story(args.name)
+
+    if "error" in result:
+        print(f"Error: {result['error']}: {result['story_name']}", file=sys.stderr)
+        sys.exit(1)
+
+    print(json.dumps(result))
 
 
 def main() -> None:

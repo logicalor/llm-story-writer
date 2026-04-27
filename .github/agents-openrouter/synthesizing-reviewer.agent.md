@@ -1,7 +1,7 @@
 ---
 name: Synthesizing Reviewer
-description: "Cross-model code review synthesizer. Reads three pre-written review reports (from Claude Opus 4.6, GPT 5.4, and Gemini 3.1 Pro) and synthesizes them into a single consensus review with confidence ratings and divergence analysis. Does NOT dispatch sub-agents — the Orchestrator handles reviewer dispatch. Dispatched by the Orchestrator during Step 7."
-model: Claude Sonnet 4.6 (copilot)
+description: "Cross-model code review synthesizer. Reads three pre-written review reports (from Qwen, Kimi, and GLM) and synthesizes them into a single consensus review with confidence ratings and divergence analysis. Does NOT dispatch sub-agents — the Orchestrator handles reviewer dispatch. Dispatched by the Orchestrator during Step 7."
+model: MoonshotAI: Kimi K2.6 (openrouter)
 user-invocable: false
 tools: [read, edit, search, todo]
 ---
@@ -88,9 +88,9 @@ Brief (3–5 sentence) summary of each model's review, highlighting what each em
 
 | Model  | Overall Assessment | Unique Focus Areas | Critical Count | Warning Count |
 | ------ | ------------------ | ------------------ | -------------- | ------------- |
-| Claude | ...                | ...                | N              | N             |
-| GPT    | ...                | ...                | N              | N             |
-| Gemini | ...                | ...                | N              | N             |
+| Qwen   | ...                | ...                | N              | N             |
+| Kimi   | ...                | ...                | N              | N             |
+| GLM    | ...                | ...                | N              | N             |
 
 ### Consensus Findings
 
@@ -107,7 +107,7 @@ Category: Security | Correctness | Performance | Style | Testing | Documentation
 File: path/to/file.ext
 Lines: N-M
 Detail: Synthesised description incorporating insights from all three models
-Models: Claude ✓ GPT ✓ Gemini ✓
+Models: Qwen ✓ Kimi ✓ GLM ✓
 Suggestion: How to fix it
 ```
 
@@ -122,7 +122,7 @@ Category: ...
 File: path/to/file.ext
 Lines: N-M
 Detail: ...
-Models: Claude ✓ GPT ✓ Gemini ✗ (or other combination)
+Models: Qwen ✓ Kimi ✓ GLM ✗ (or other combination)
 Dissenting view: What the minority models said (or didn't say) and why
 Suggestion: ...
 ```
@@ -138,7 +138,7 @@ Category: ...
 File: path/to/file.ext
 Lines: N-M
 Detail: ...
-Model: Claude (or GPT or Gemini)
+Model: Qwen (or Kimi or GLM)
 Assessment: Why this might be a genuine finding / why it might be a false positive
 ```
 
@@ -148,9 +148,9 @@ A dedicated section documenting where the models disagreed and your assessment:
 
 ```
 [D-01] Topic: [area of disagreement]
-Claude says: ...
-GPT says: ...
-Gemini says: ...
+Qwen says: ...
+Kimi says: ...
+GLM says: ...
 Assessment: Which view is most likely correct (with evidence)
 Resolution: How this should be treated in the final findings
 ```
@@ -175,7 +175,7 @@ After completing the synthesis, write a summary to `.github/notes/reviews/YYYY-M
 ```markdown
 ## Synthesized Code Review — YYYY-MM-DD
 
-**Review Type:** Multi-model synthesis (Claude Opus 4.6 + GPT 5.4 + Gemini 3.1 Pro)
+**Review Type:** Multi-model synthesis (Qwen + Kimi + GLM)
 **Branch:** [branch-name]
 **Model Agreement Score:** X/10
 **Overall Assessment:** [Clean | Needs Fixes | Significant Issues]

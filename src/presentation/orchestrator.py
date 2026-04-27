@@ -40,6 +40,7 @@ from presentation.pipeline_primitives import (
     WikiContextEvent,
 )
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
+from tools.wiki_init import _init_wiki_for_story
 
 
 def _savepoint_path(story_name: str) -> Path:
@@ -452,6 +453,14 @@ async def _continue_pipeline(
                     story_dir.parent,
                 )
             await _mark_phase_complete(state, "settings", "settings")
+
+        # Ensure wiki is initialized before any chapter wiki maintenance
+        wiki_init_result = _init_wiki_for_story(state.story_name, STORIES_DIR)
+        if "error" in wiki_init_result:
+            raise StoryGenerationError(
+                f"Wiki initialization failed for story '{state.story_name}': "
+                f"{wiki_init_result['error']}"
+            )
 
         outline_result = state.outline_result
         if outline_result is None:

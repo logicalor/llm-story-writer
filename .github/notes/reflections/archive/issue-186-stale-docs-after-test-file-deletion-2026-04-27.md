@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/test-writer.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Stale documentation not updated when test files were deleted

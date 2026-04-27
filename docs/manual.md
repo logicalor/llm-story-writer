@@ -271,14 +271,19 @@ Phase 4: Settings
   → Generate one JSON sheet per extracted setting
   → Write per-entity JSON sheets to `stories/<name>/settings/`
 
-Phase 5: Chapter Loop
+Phase 5: Wiki Initialization
+  → Idempotently ensure `stories/<name>/wiki/` directory structure exists
+  → Creates subdirectories, index, log, and schema template if missing
+  → Safe to rerun on resume; skips creation if wiki already present
+
+Phase 6: Chapter Loop
   → Per chapter: chapter-writer loads abridged character/setting sheet context, then generates chapter text
   → Wait for chapter approval gate; revise reruns chapter with feedback
   → After chapter approval, orchestrator writes stories/<name>/chapters/chapter_{N}.md
   → wiki-maintainer calls `update_wiki_from_chapter()` to extract structured JSON, persist wiki pages through `run_batch()`, and emit created/updated page events
   → consistency-checker streams findings but does not block persistence
 
-Phase 6: Final Edit (conditional)
+Phase 7: Final Edit (conditional)
   → Enabled unless `generation.enable_final_edit` is explicitly `false`
   → final-editor loads `prompts/agents/final-editor.md`
   → Stream one editing pass per approved chapter
@@ -286,12 +291,12 @@ Phase 6: Final Edit (conditional)
   → Write `stories/<name>/output/story_edited.md`
   → Persist `final_edit_complete`
 
-Phase 7: Assembly
+Phase 8: Assembly
   → Assemble final manuscript from the current `state.approved_chapters`
   → Write `stories/<name>/output/story.md`
 ```
 
-Current implementation note: this slice does not yet wire the PRD's wiki-initialization phase, initial wiki population pass, chapter-outline-expander, quality-reviewer, or prose-scrubber into `src/presentation/orchestrator.py`.
+Current implementation note: the PRD's initial wiki population pass, chapter-outline-expander, quality-reviewer, and prose-scrubber are not yet wired into `src/presentation/orchestrator.py`. Wiki directory initialization is now handled idempotently before the chapter loop.
 
 ---
 
@@ -469,7 +474,7 @@ Agent system prompts now live in `prompts/agents/` as Markdown files. `src/infra
 | `chapter-writer` | Writes individual chapter content |
 | `wiki-maintainer` | Persists wiki page updates after each accepted chapter and reports changed page slugs |
 
-**Orchestrator Pipeline Phases:** Init → Outline → Approval → Wiki Init → Characters → Settings → Chapter Generation → Final Polish
+**Orchestrator Pipeline Phases:** Init → Outline → Approval → Narrative Arc → Characters → Settings → Wiki Init → Chapter Loop → Final Edit → Assembly
 
 ### 8.2 Tools
 

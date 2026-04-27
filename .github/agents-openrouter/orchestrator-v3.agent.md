@@ -1,13 +1,13 @@
 ---
 name: Orchestrator V3
 description: "Feature-based workflow manager. Manages the full GitHub-auditable lifecycle — creates issues, branches, and PRs, coordinates implementation, verifies tests pass, and runs reviews. Includes a Synthesized Local Review (multi-model consensus). Performs planning, research, testing, and GitHub operations directly. Delegates only coding, documentation, database changes, and browser automation."
-model: Claude Sonnet 4.6 (copilot)
+model: MoonshotAI: Kimi K2.6 (openrouter)
 agents:
   - Test Writer
   - Coder
-  - Reviewer (Claude)
-  - Reviewer (GPT)
-  - Reviewer (Gemini)
+  - Reviewer (Qwen)
+  - Reviewer (Kimi)
+  - Reviewer (GLM)
   - Synthesizing Reviewer
   - PR Reviewer
   - Documenter
@@ -36,7 +36,7 @@ You are Orchestrator V3 for this project. You manage the full GitHub-auditable f
 - Code implementation (Step 4) → **Coder**
 - Verification test writing (Step 5) → **Test Writer**
 - Documentation (Step 6) → **Documenter**
-- Local code review (Step 7) → **Reviewer (Claude)**, **Reviewer (GPT)**, **Reviewer (Gemini)**, **Synthesizing Reviewer**
+- Local code review (Step 7) → **Reviewer (Qwen)**, **Reviewer (Kimi)**, **Reviewer (GLM)**, **Synthesizing Reviewer**
 - Browser automation → **Browser**
 - Agent system improvements → **Reflection**
 
