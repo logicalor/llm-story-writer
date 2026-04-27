@@ -128,3 +128,43 @@ def test_two_chapter_story_batch(e2e_story_dir: Path) -> None:
     assert len(chapter_files) >= 2, (
         f"Expected >= 2 chapter files, found {len(chapter_files)}"
     )
+
+    # --- Wiki assertions ---
+
+    wiki_dir = e2e_story_dir / "wiki"
+    assert wiki_dir.exists(), "wiki directory was not created"
+
+    # Wiki index exists
+    assert (wiki_dir / "index.md").exists(), "wiki/index.md was not created"
+
+    # Wiki log exists and contains batch entries from run_batch
+    log_md = wiki_dir / "log.md"
+    assert log_md.exists(), "wiki/log.md was not created"
+    log_content = log_md.read_text(encoding="utf-8")
+    assert "[batch]" in log_content, "log.md missing batch entries"
+
+    # pipeline_state.json contains wiki_batches
+    assert "wiki_batches" in state_data, "pipeline_state.json missing wiki_batches"
+    wiki_batches = state_data["wiki_batches"]
+    assert isinstance(wiki_batches, list), "wiki_batches is not a list"
+    assert len(wiki_batches) >= 2, (
+        f"Expected >= 2 wiki_batches, got {len(wiki_batches)}"
+    )
+
+    # Each wiki_batch has expected keys
+    for i, wb in enumerate(wiki_batches):
+        assert isinstance(wb, dict), f"wiki_batch[{i}] is not a dict"
+        assert "story_name" in wb, f"wiki_batch[{i}] missing 'story_name'"
+        assert "chapter_number" in wb, f"wiki_batch[{i}] missing 'chapter_number'"
+        assert "updated_pages" in wb, f"wiki_batch[{i}] missing 'updated_pages'"
+        assert "new_pages" in wb, f"wiki_batch[{i}] missing 'new_pages'"
+        assert isinstance(wb.get("updated_pages"), list), (
+            f"wiki_batch[{i}] updated_pages is not a list"
+        )
+        assert isinstance(wb.get("new_pages"), list), (
+            f"wiki_batch[{i}] new_pages is not a list"
+        )
+
+    # Wiki subdirectory exists (timeline is guaranteed because run_batch ensures dirs)
+    timeline_dir = wiki_dir / "timeline"
+    assert timeline_dir.exists(), "wiki/timeline directory was not created"
