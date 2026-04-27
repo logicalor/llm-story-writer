@@ -1343,3 +1343,68 @@ async def test_wiki_init_error_raises_story_generation_error(
                 config=_config(),
                 provider=provider,
             )
+
+
+@pytest.mark.asyncio
+async def test_consistency_warnings_emitted_even_when_passed_true(
+    tmp_path: Path,
+) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={
+                "issues": [
+                    {
+                        "type": "semantic",
+                        "description": "Minor name inconsistency",
+                        "severity": "warning",
+                    }
+                ],
+                "passed": True,
+            }
+        )
+
+        state = await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    tokens: list[str] = []
+    async for token in bus:
+        tokens.append(token)
+    emitted = "".join(tokens)
+
+    assert state.status == "complete"
+    assert "[Consistency] Chapter 1 — warnings/info found:" in emitted
+    assert "[WARNING] Minor name inconsistency" in emitted
