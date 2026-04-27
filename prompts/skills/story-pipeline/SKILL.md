@@ -2,6 +2,22 @@
 
 Reference guide for the full story generation pipeline orchestrated by the `story-orchestrator` agent. Use this skill when implementing, debugging, or extending any part of the pipeline.
 
+## Current Implementation Status
+
+The active Python orchestrator (`src/presentation/orchestrator.py`) runs a **reduced slice** of the full pipeline below. Phases marked ⏳ are defined in this spec but **not yet wired** in the active orchestrator.
+
+**Active phases:** Init → Outline → Approval Gate → Narrative Arc → Characters & Settings → Wiki Init → Chapter Loop (7b, 7c, 7e, 7h only) → Assembly → Final Edit
+
+**Future work / not yet implemented:**
+- Phase 6: Wiki Population (wiki directory is initialised, but full initial-populate pass from outline+sheet data is not wired)
+- Phase 7a: Chapter-outline-expander (not dispatched by active orchestrator)
+- Phase 7d: Recap generation (not wired in chapter loop)
+- Phase 7f: Quality-reviewer / critique-revision loop (not dispatched)
+- Phase 7.5: Prose-scrubber (not dispatched)
+- Phase 7g: Handoff artifact generation (not wired)
+
+---
+
 ## Pipeline Overview
 
 The story generation pipeline transforms a story prompt into a complete novel-length manuscript through nine primary phases plus the conditional Phase 7.5 prose scrub pass. Each phase produces concrete artifacts, creates savepoints for resume capability, and enforces quality gates where configured.
@@ -16,7 +32,7 @@ The story generation pipeline transforms a story prompt into a complete novel-le
     ▼
 ┌─────────────────┐   ┌────────────────────────┐   ┌──────────┐   ┌────────────┐
 │ Wiki Population │──▶│ Per-Chapter Loop (7)   │──▶│ Assembly │──▶│ Final Edit │
-│ (6)             │   │ [1..wanted_chapters]   │   │ (8)      │   │ (9)        │
+│ (6) ⏳          │   │ [1..wanted_chapters]   │   │ (8)      │   │ (9)        │
 └─────────────────┘   └────────────────────────┘   └──────────┘   └────────────┘
 ```
 
@@ -25,14 +41,14 @@ The story generation pipeline transforms a story prompt into a complete novel-le
 ```
 ┌──────────────┐   ┌─────────────┐   ┌────────────────┐   ┌───────────┐
 │ Expand       │──▶│ Scene Gen   │──▶│ Wiki Update    │──▶│ Recap     │
-│ Outline (7a) │   │ (7b)        │   │ (7c)           │   │ (7d)      │
-└──────────────┘   └─────────────┘   └────────────────┘   └───────────┘
-                                                                │
+│ Outline (7a) │   │ (7b)        │   │ (7c)           │   │ (7d) ⏳   │
+│ ⏳            │   └─────────────┘   └────────────────┘   └───────────┘
+└──────────────┘                                                │
       ┌─────────────────────────────────────────────────────────┘
       ▼
 ┌───────────────┐   ┌──────────────────────────────┐   ┌──────────────┐   ┌────────────────────┐
 │ Consistency   │──▶│ Quality Eval + Revision Loop │──▶│ Prose Scrub  │──▶│ Chapter Savepoint  │
-│ Check (7e)    │   │ (7f)                         │   │ (7.5)        │   │ (7g)               │
+│ Check (7e)    │   │ (7f) ⏳                      │   │ (7.5) ⏳     │   │ (7g)               │
 └───────────────┘   └──────────────────────────────┘   └──────────────┘   └────────────────────┘
 ```
 
@@ -114,7 +130,9 @@ Key behaviours:
 | **Outputs** | Character sheet files, setting sheet files, references stored in story state |
 | **Savepoints** | `characters_complete`, `settings_complete` |
 
-### Phase 6: Wiki Population
+### Phase 6: Wiki Population ⏳
+
+> **Not yet implemented in the active orchestrator.** Wiki directory is initialised in Phase 4, but the full initial-populate pass from outline + character/setting sheets is not wired.
 
 | Attribute | Value |
 |-----------|-------|
@@ -133,14 +151,14 @@ Phase 7 begins with a single delegated outline-expansion pass, then executes the
 
 | Sub-phase | Purpose | Tools / Subagents |
 |-----------|---------|-------------------|
-| **7a** Expand outline | Delegate full chapter-outline expansion loop and continuitySummary threading | `chapter-outline-expander` subagent |
+| **7a** Expand outline ⏳ | Delegate full chapter-outline expansion loop and continuitySummary threading | `chapter-outline-expander` subagent — **not yet dispatched by active orchestrator** |
 | **7b** Scene generation | `scene_generation_pipeline: true`: generate scenes sequentially with wiki context; `scene_generation_pipeline: false`: generate full chapter in one LLM call | `chapter-writer` + `wiki-snapshot` (`scene_generation_pipeline: true`); `scene-writer` (`generate-chapter`) (`scene_generation_pipeline: false`) |
 | **7c** Wiki update | Record new facts, state changes, events | `wiki-maintainer` subagent |
-| **7d** Recap | Generate chapter recap | `recap-manager` |
+| **7d** Recap ⏳ | Generate chapter recap | `recap-manager` — **not yet wired in active orchestrator chapter loop** |
 | **7e** Consistency check | Check chapter consistency with three-layer analysis | `consistency-checker` subagent (three-layer: wiki-lint + semantic + RAG) |
-| **7f** Quality eval | Critique + revision loop | `critique-runner` |
-| **7g** Handoff artifact | Generate structured per-chapter continuity handoff in story state | `story-assembler` |
-| **7.5** Prose scrub | Sentence and paragraph-level prose cleanup | `prose-scrubber` subagent |
+| **7f** Quality eval ⏳ | Critique + revision loop | `critique-runner` — **not yet dispatched by active orchestrator** |
+| **7g** Handoff artifact ⏳ | Generate structured per-chapter continuity handoff in story state | `story-assembler` — **not yet wired in active orchestrator** |
+| **7.5** Prose scrub ⏳ | Sentence and paragraph-level prose cleanup | `prose-scrubber` subagent — **not yet dispatched by active orchestrator** |
 | **7h** Savepoint | Persist chapter completion | `savepoint-mgr` |
 
 ### Phase 8: Assembly
@@ -174,12 +192,12 @@ The pipeline uses ten subagents for specialised creative work. The `story-orches
 | `outline-planner` | Generate and refine the story outline | Phase 2 |
 | `story-planner` | Evaluate dramatic arc quality for the finalised outline — narrative arc analysis gate | Phase 2.5 |
 | `character-sheet-generator` | Generate and store all character and setting sheets | Phase 5 |
-| `chapter-outline-expander` | Expands all chapter outlines (Phase 7a); manages continuitySummary threading | Phase 7a |
+| `chapter-outline-expander` | Expands all chapter outlines (Phase 7a); manages continuitySummary threading | Phase 7a — **Future work: not yet dispatched by active orchestrator** |
 | `chapter-writer` | Manage per-chapter scene generation pipeline | Phase 7b |
 | `wiki-maintainer` | Maintain the wiki knowledge base — create, update, lint pages | Phases 6, 7c |
 | `consistency-checker` | Run the Phase 7e three-layer consistency analysis (wiki-lint + semantic + RAG) | Phase 7e |
-| `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f |
-| `prose-scrubber` | Run the Phase 7.5 sentence/paragraph scrub pass for a single chapter | Phase 7.5 |
+| `quality-reviewer` | Run the Phase 7f critique/revision loop for a single chapter | Phase 7f — **Future work: not yet dispatched by active orchestrator** |
+| `prose-scrubber` | Run the Phase 7.5 sentence/paragraph scrub pass for a single chapter | Phase 7.5 — **Future work: not yet dispatched by active orchestrator** |
 | `final-editor` | Run the Phase 9 post-assembly voice, pacing, and coherence pass | Phase 9 |
 
 **These are the only ten subagents the orchestrator may dispatch: `outline-planner`, `story-planner`, `character-sheet-generator`, `chapter-outline-expander`, `chapter-writer`, `wiki-maintainer`, `consistency-checker`, `quality-reviewer`, `prose-scrubber`, and `final-editor`.** Do not dispatch built-in or external agents for any reason outside the pipeline phases above.
