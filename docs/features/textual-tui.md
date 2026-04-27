@@ -20,7 +20,7 @@ story-writer tui --story <name> --resume
 story-writer tui --story <name> --resume --savepoint <name>
 ```
 
-Use `--resume` to continue a saved pipeline run through the TUI. Add `--savepoint <name>` to request a specific savepoint; if omitted, the resume path uses the latest available savepoint.
+Use `--resume` to continue a saved pipeline run through the TUI. Add `--savepoint <name>` to validate that the story reached at least that named phase. Resume always continues from the latest `pipeline_state.json` snapshot regardless of the named savepoint provided.
 
 The `tui` subcommand lazily imports `StoryWriterApp`. If `textual` is missing, the CLI exits with an install hint instead of breaking `run` or `resume`.
 

@@ -170,14 +170,14 @@ Savepoints are persisted as a single JSON snapshot of `PipelineState` at `storie
 
 `_mark_phase_complete()` is the standard path for successful phase completion. It appends the phase to `completed_phases`, updates `savepoint_id`, appends to `savepoints`, and writes the snapshot.
 
-`resume_pipeline()` currently behaves as follows:
+`resume_pipeline()` behaves as follows:
 
 1. Load the latest persisted `PipelineState` snapshot.
 2. If a `savepoint_name` was provided, verify that the name exists in `state.savepoints`.
 3. If `state.status == "complete"`, close both buses and return the saved state unchanged.
 4. Otherwise call `_continue_pipeline()` and skip any phase already listed in `completed_phases`.
 
-The current implementation validates `savepoint_name`, but it does not rewind to an older savepoint snapshot. Resume always continues from the single persisted `pipeline_state.json` state.
+Named savepoints are **validation-only**. Resume always continues from the single latest `pipeline_state.json` snapshot. The `savepoint_name` argument only verifies that the story reached at least that phase; it never restores an older snapshot.
 
 ## Agent Callable Pattern
 

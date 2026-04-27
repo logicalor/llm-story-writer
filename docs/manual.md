@@ -215,7 +215,7 @@ story-writer tui --story test_story --resume
 story-writer tui --story test_story --resume --savepoint chapter-3
 ```
 
-Use `--resume` to continue from saved pipeline state inside the TUI. Add `--savepoint` to target a specific savepoint; without it, resume uses the latest available savepoint.
+Use `--resume` to continue from saved pipeline state inside the TUI. Add `--savepoint <name>` to validate that the story reached at least that phase. Resume always continues from the latest `pipeline_state.json` snapshot regardless of the named savepoint provided.
 
 The screen shows a left-side phase tracker, a central streaming output log, and a toggleable wiki-context panel on the right. Approval requests appear in the footer input widget. Type `approve`, `reject`, or `revise <feedback>` to answer the gate.
 
@@ -486,7 +486,7 @@ Tools are Python modules under `src/tools/`. The runtime imports them directly o
 |------|---------|
 | `prompt_loader.py` | Load and render prompt templates with variable substitution |
 | `story_state.py` | Initialize and update story state JSON |
-| `savepoint_manager.py` | Create, inspect, and restore savepoints (`list` = names only, `list-full` = full payloads) |
+| `savepoint_manager.py` | Create, inspect, and load savepoints (`list` = names only, `list-full` = full payloads) |
 | `character_manager.py` | Extract and manage character sheets |
 | `setting_manager.py` | Extract and manage setting sheets |
 | `recap_manager.py` | Generate and manage chapter recaps |
