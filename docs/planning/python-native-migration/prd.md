@@ -21,7 +21,7 @@ A three-model research synthesis confirms the story generation pipeline is seque
 2. Preserve all existing domain logic (`src/domain/`, `src/application/`, `src/infrastructure/`) without rewrites.
 3. Preserve all existing Markdown agent system prompts by relocating them to `prompts/agents/` and loading via a frontmatter-stripping loader.
 4. Build a Textual TUI that streams LLM token output in real time, displays pipeline phase progress, and handles human approval gates mid-pipeline.
-5. Build a Python orchestrator that executes the story generation pipeline phases sequentially, calling `src/application/services/` directly in-process.
+5. **Build a Python orchestrator** that executes the story generation pipeline phases sequentially, calling `src/tools/` directly and loading agent prompts from `prompts/agents/`. (Originally planned to call `src/application/services/`; superseded by ADR 008 — see Superseded Decisions.)
 6. Support both interactive mode (TUI with approval gates) and batch/headless mode (CLI, no approval gates, auto-proceed).
 7. Maintain full test coverage: all existing `pytest` tests pass after migration; new orchestrator and TUI layers have their own tests.
 
@@ -69,7 +69,7 @@ Completed migration slices so far:
 - [x] Task 5 headless orchestrator complete: `src/presentation/orchestrator.py` now implements `run_pipeline()` and `resume_pipeline()` with outline and chapter approval semantics
 - [x] `PipelineState` now supports JSON-friendly `to_dict()` / `from_dict()` persistence helpers plus `savepoints` and `status` fields for persisted orchestration state
 
-> **Note:** The `src/application/services/` layer was retired per [ADR 008](../adr/008-retire-services-layer.md). Presentation-layer agents and `src/tools/` Python scripts are the active integration surface. The architecture diagram below shows the original plan; see the Superseded Decisions section for the updated structure.
+> **Note:** The `src/application/services/` layer was retired per [ADR 008](../adr/008-retire-application-services-layer.md). Presentation-layer agents and `src/tools/` Python scripts are the active integration surface. The architecture diagram below shows the original plan; see the Superseded Decisions section for the updated structure.
 
 Task 5 currently implements the headless slice only. TUI wiring, CLI commands, and the broader long-term phase map remain future tasks.
 ### Architecture Overview

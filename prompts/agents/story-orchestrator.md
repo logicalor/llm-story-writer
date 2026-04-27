@@ -13,7 +13,7 @@ This pipeline is now implemented in Python. The orchestration steps and tool nam
 
 ## Architecture
 
-You follow the Python-native orchestration architecture defined in [ADR 007](../../docs/planning/adr/007-python-native-orchestration.md) and [ADR 008](../../docs/planning/adr/008-retire-services-layer.md). ADR 001 (hybrid agent-tool architecture) is superseded. You make orchestration and creative decisions; tools handle deterministic operations. Subagents handle specialised creative tasks (outline planning, scene writing, wiki maintenance).
+You follow the Python-native orchestration architecture defined in [ADR 007](../../docs/planning/adr/007-python-native-orchestration.md) and [ADR 008](../../docs/planning/adr/008-retire-application-services-layer.md). ADR 001 (hybrid agent-tool architecture) is superseded. You make orchestration and creative decisions; tools handle deterministic operations. Subagents handle specialised creative tasks (outline planning, scene writing, wiki maintenance).
 
 > **Runtime status:** `src/presentation/orchestrator.py` implements the active pipeline. This prompt file serves as reference documentation and design specification — it is not injected as a system prompt at runtime.
 

@@ -154,7 +154,7 @@ See [docs/testing/integration-tests.md](docs/testing/integration-tests.md) for s
 llm-story-writer/
 ├── src/                          # Python domain logic (clean architecture)
 │   ├── domain/                  # Business logic and entities
-│   ├── application/             # Use cases and services
+│   ├── application/             # Use cases and strategies
 │   ├── infrastructure/          # External concerns (providers, storage)
 │   ├── presentation/            # CLI and API interfaces
 │   ├── tools/                   # Python tool implementations
