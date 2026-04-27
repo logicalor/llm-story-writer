@@ -1227,3 +1227,51 @@ for item in issues:
 This guard is required whenever iterating any list sourced from LLM JSON output, including nested lists inside nested dicts. The LLM mixes types more often when the list is long or the prompt schema is complex.
 
 ChromaDB ID: `gotcha-llm-json-non-dict-list-items-034`
+
+---
+
+## Python Patterns
+
+### 035 — Typed SDK integration: prefer `cast()` over `# type: ignore` for contractually guaranteed types
+
+**Source:** issue #211, PR #217
+**Severity:** info
+
+When integrating a typed Python SDK with complex generics (e.g., OpenAI SDK 2.x), mypy may fail to narrow union return types even when the branch is contractually guaranteed by the SDK's documented semantics. Three approaches exist:
+
+| Approach | When to use | Example |
+|----------|-------------|---------|
+| `cast(TargetType, expr)` | Type is contractually guaranteed by SDK docs or prior branching logic | `cast(AsyncOpenAI, client)` |
+| `isinstance(obj, TargetType)` | Type is not guaranteed; you need runtime validation | `isinstance(data, dict)` after `json.loads()` |
+| `# type: ignore` | **Avoid** — suppresses all type safety for the line; future regressions pass silently |
+
+**Why `cast()` over `# type: ignore`:** `cast()` documents the developer's intent, preserves downstream type safety, and has no runtime effect. `# type: ignore` removes all checking for that line — a subsequent refactor that changes the expression's type will not be caught. `isinstance()` adds runtime overhead and code clutter when the SDK already contractually guarantees the type.
+
+**Example — OpenAI SDK 2.x streaming vs. non-streaming:**
+
+```python
+from typing import cast
+from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai._streaming import AsyncStream
+
+client = AsyncOpenAI(base_url=base_url)
+
+# Streaming path — mypy sees `ChatCompletion | AsyncStream[ChatCompletionChunk]`
+stream = await client.chat.completions.create(..., stream=True)
+stream = cast(AsyncStream[ChatCompletionChunk], stream)
+async for chunk in stream:
+    choice = chunk.choices[0]
+    content = cast(str, choice.delta.content)  # SDK guarantees str for content chunks
+    ...
+
+# Non-streaming path
+response = await client.chat.completions.create(..., stream=False)
+response = cast(ChatCompletion, response)
+choice = response.choices[0]
+message = cast(str, choice.message.content)   # SDK guarantees str for non-streaming
+```
+
+**Rule of thumb:** If the SDK docs state "this field is always a string in this mode", use `cast()`. If the value comes from external/untrusted input, use `isinstance()`.
+
+ChromaDB ID: `gotcha-typed-sdk-cast-pattern-035`

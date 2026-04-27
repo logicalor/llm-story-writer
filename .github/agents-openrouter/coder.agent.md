@@ -138,6 +138,8 @@ for item in issues:
 
 **CLI entry point isolation:** `cmd_*()` functions in `src/tools/` are CLI entry points — they call `_error()` which calls `sys.exit()` on any failure. This is safe when invoked from `if __name__ == "__main__"` or as a subprocess, but it terminates the host process if called from orchestration or library code (`src/presentation/`, `src/application/`, tests). When integrating tool logic into non-CLI code, call the underlying `_helper()` functions directly — never call `cmd_*()` entry points. If no helper exists, extract the shared logic into one that the `cmd_*()` entry point delegates to. (Source: issue #181, PR #192 — Coder correctly avoided calling `cmd_assemble()` from the orchestrator; implemented inline assembly using the orchestrator's in-memory `approved_chapters` instead.)
 
+**Typed SDK integration: `cast()` vs `isinstance()` vs `# type: ignore`:** When integrating a typed Python SDK with complex generics (e.g., OpenAI SDK 2.x), mypy may fail to narrow union return types even when the type is contractually guaranteed by the SDK's documented semantics. Prefer `cast(TargetType, expr)` in this situation — it documents intent, preserves downstream type safety, and has no runtime cost. Use `isinstance(obj, TargetType)` only when the type is genuinely uncertain (e.g., after `json.loads()` on untrusted input). Avoid `# type: ignore` — it suppresses all type safety for the line and allows future regressions to pass silently. (Source: issue #211, PR #217 — `OpenAIAsyncProvider` used `cast()` for six OpenAI SDK types; see `gotchas.md` #035.)
+
 ## After Every Change
 
 Run the project's lint and type-check commands (see `copilot-instructions.md`).

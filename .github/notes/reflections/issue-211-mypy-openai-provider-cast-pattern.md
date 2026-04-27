@@ -1,4 +1,4 @@
 > **Archived.** This note has been processed and moved to:
-> `.github/notes/reflections/archive/issue-180-validation-baseline-patterns-2026-04-25.md`
+> `.github/notes/reflections/archive/issue-211-mypy-openai-provider-cast-pattern-2026-04-27.md`
 >
 > This file is a stale duplicate and should be deleted.
