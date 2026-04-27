@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/documenter.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## ADR retirement plans must document test functions that consume production files as disk artifacts

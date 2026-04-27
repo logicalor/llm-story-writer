@@ -54,6 +54,8 @@ Classify each finding using the consensus levels defined in `.github/agents/_sha
 
 > **"No tests exist for X" coverage claims filter:** If a reviewer asserts that no test coverage exists for a service, module, or feature — typically based on a class-name or module-name `grep` across `tests/` — verify the claim with a complementary filename-pattern search before accepting it. Run `find tests/ -name 'test_*<keyword>*'` where `<keyword>` is the domain term or snake_case service name. Removal regression tests (files written to verify a service was cleanly excised from all callers) are named after the deletion operation — e.g., `test_rag_service_removal.py`, `test_outline_generator_rag_guard.py` — and will not contain the deleted class's name anywhere in their source. A "no tests exist" finding based solely on a class-name `grep` is `[unverified]` until a filename-pattern search also returns zero results. (Source: issue #188, PR #201 — GPT raised Warning that `rag_integration_service.py` had no removal tests; `test_rag_service_removal.py` exists with 10 removal tests and was missed because none of its functions import or reference the deleted class by name.)
 
+> **Stale reviewer context filter:** If one reviewer reports a defect (e.g., `sys.exit` leak, import convention violation, missing guard) and another reviewer states that the defect was already fixed in a previous round or does not exist in the current branch, verify the claim by reading the actual file on disk. Reviewers occasionally operate from stale context about the codebase. If the current file does not contain the alleged defect, downgrade the finding to "already fixed — stale reviewer context" and exclude from consensus counts. (Source: issue #210, PR #216 — Qwen raised Critical findings about a `sys.exit` leak and lazy import that Kimi correctly identified as already resolved; divergence analysis confirmed Kimi was right.)
+
 ### Step 3 — Divergence Analysis
 
 Identify divergences using the pattern defined in `.github/agents/_shared/multi-model-synthesis.md`.
@@ -81,6 +83,8 @@ Produce a **Synthesized Review Report** with the following structure:
 3–4 sentences summarising: the scope of changes reviewed, the degree of agreement between the three models, and the highest-confidence findings.
 
 **Model Agreement Score:** X/10 — a subjective rating of how much the three reports aligned (10 = near-identical reports, 1 = wildly different).
+
+> **Partial-synthesis confidence cap:** When only two of three reviewers contributed (e.g., one reviewer hung or failed), cap the Model Agreement Score at **7/10** to signal reduced coverage confidence, even if the two available reports align perfectly. (Source: issue #210, PR #216 — GLM reviewer hung; Qwen and Kimi agreed on all findings but coverage was 2/3.)
 
 ### Individual Report Summaries
 

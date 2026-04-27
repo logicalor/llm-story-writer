@@ -6,7 +6,7 @@ category: agent
 targets:
   - ".github/agents/test-writer.agent.md"
 severity: minor
-status: active
+status: archived
 ---
 
 ## Test Writer created dedicated test file for helper with no production consumer

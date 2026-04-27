@@ -523,6 +523,8 @@ Dispatch order:
 
 After all three complete, verify the report files exist on disk before proceeding. Use exact file paths (`ls path/to/file` or `test -f path/to/file && echo "exists"`) rather than glob patterns — glob expansion in the terminal tool can return no results even when files are present.
 
+> **Reviewer hang / partial input rule:** If a reviewer sub-agent does not complete within a reasonable time or appears stuck in a repeated tool-call loop, proceed with the reports that have been written to disk. Do not block the review cycle indefinitely. If at least two reviewers have completed, dispatch the Synthesizing Reviewer with the available reports. If fewer than two reviewers complete, retry the hung reviewer once before escalating to the user. (Source: issue #210, PR #216 — GLM reviewer hung in a search loop; synthesis proceeded with Qwen + Kimi.)
+
 #### Phase C — Dispatch Synthesizing Reviewer
 
 Dispatch the **Synthesizing Reviewer** with the three file paths. It reads the raw reports from disk and produces the synthesized consensus review — no sub-agent dispatch needed (depth 1 only).
