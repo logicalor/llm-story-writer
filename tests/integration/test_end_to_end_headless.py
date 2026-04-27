@@ -137,11 +137,19 @@ def test_two_chapter_story_batch(e2e_story_dir: Path) -> None:
     # Wiki index exists
     assert (wiki_dir / "index.md").exists(), "wiki/index.md was not created"
 
+    # Wiki schema and contradictions files exist
+    assert (wiki_dir / "_schema.md").exists(), "wiki/_schema.md was not created"
+    assert (wiki_dir / "contradictions.md").exists(), (
+        "wiki/contradictions.md was not created"
+    )
+
     # Wiki log exists and contains batch entries from run_batch
     log_md = wiki_dir / "log.md"
     assert log_md.exists(), "wiki/log.md was not created"
     log_content = log_md.read_text(encoding="utf-8")
-    assert "[batch]" in log_content, "log.md missing batch entries"
+    assert "[batch]" in log_content, (
+        f"log.md missing batch entries. Log tail: {log_content[-500:]!r}"
+    )
 
     # pipeline_state.json contains wiki_batches
     assert "wiki_batches" in state_data, "pipeline_state.json missing wiki_batches"
