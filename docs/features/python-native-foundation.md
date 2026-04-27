@@ -108,7 +108,7 @@ story-writer = "src.presentation.cli.main:main"
 Two behavior details matter for follow-on work:
 
 - `run` is currently headless regardless of `--batch`, because `_cmd_run()` always constructs `NullApprovalGate()`.
-- `resume --savepoint <name>` passes the name through to the orchestrator, but current resume logic still restores the persisted `pipeline_state.json` snapshot rather than replaying an older savepoint file.
+- `resume --savepoint <name>` passes the name through to the orchestrator for validation only. Resume always continues from the latest `pipeline_state.json` snapshot; the named savepoint is never restored.
 
 ## OpenCode Artefact Removal
 

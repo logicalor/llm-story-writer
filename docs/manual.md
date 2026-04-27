@@ -201,7 +201,7 @@ Available subcommands:
 |---------|-------------|
 | `story-writer tui --story <name> [--resume] [--savepoint <name>]` | Launch the interactive Textual TUI for a fresh run or resume an existing run |
 | `story-writer run --story <name> [--batch]` | Run the headless Python-native pipeline |
-| `story-writer resume --story <name> [--savepoint <name>]` | Resume from the persisted pipeline state |
+| `story-writer resume --story <name> [--savepoint <name>]` | Resume from the latest persisted pipeline state. `--savepoint` validates the name exists but does not restore an older snapshot. |
 
 `run` currently uses `NullApprovalGate` internally, so it behaves headlessly even when `--batch` is omitted. When you omit `--batch`, the CLI prints a headless notice before starting the run. The flag remains for forward compatibility with later interactive surfaces.
 
@@ -215,7 +215,7 @@ story-writer tui --story test_story --resume
 story-writer tui --story test_story --resume --savepoint chapter-3
 ```
 
-Use `--resume` to continue from saved pipeline state inside the TUI. Add `--savepoint` to target a specific savepoint; without it, resume uses the latest available savepoint.
+Use `--resume` to continue from saved pipeline state inside the TUI. Add `--savepoint <name>` to validate that the story reached at least that phase. Resume always continues from the latest `pipeline_state.json` snapshot regardless of the named savepoint provided.
 
 The screen shows a left-side phase tracker, a central streaming output log, and a toggleable wiki-context panel on the right. Approval requests appear in the footer input widget. Type `approve`, `reject`, or `revise <feedback>` to answer the gate.
 
@@ -486,7 +486,7 @@ Tools are Python modules under `src/tools/`. The runtime imports them directly o
 |------|---------|
 | `prompt_loader.py` | Load and render prompt templates with variable substitution |
 | `story_state.py` | Initialize and update story state JSON |
-| `savepoint_manager.py` | Create, inspect, and restore savepoints (`list` = names only, `list-full` = full payloads) |
+| `savepoint_manager.py` | Create, inspect, and load savepoints (`list` = names only, `list-full` = full payloads) |
 | `character_manager.py` | Extract and manage character sheets |
 | `setting_manager.py` | Extract and manage setting sheets |
 | `recap_manager.py` | Generate and manage chapter recaps |
@@ -690,7 +690,7 @@ curl http://127.0.0.1:1234/v1/models
 - Use the wiki tool CLIs or the Textual wiki panel to inspect wiki state
 - Use `story-writer resume --story <name>` from the last savepoint rather than restarting
 
-### Savepoint restore failing
+### Savepoint validation failing
 
 - Check `savepoint_dir` in `config.md` points to the correct path
 - Check both `stories/<name>/savepoints/**/*.json` and `stories/<name>/savepoints/**/*.md` for the expected step

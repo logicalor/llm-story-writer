@@ -501,6 +501,82 @@ async def test_resume_pipeline_backfills_missing_chapter_files(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
+async def test_resume_pipeline_rejects_invalid_savepoint_name(tmp_path: Path) -> None:
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    partial_state = PipelineState(
+        story_name="test-story",
+        current_phase="outline",
+        completed_phases=["init", "outline"],
+        outline_result=_outline_result(),
+        status="running",
+        savepoints=["init", "outline"],
+    )
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+    ):
+        await _write_savepoint(partial_state)
+
+        with pytest.raises(
+            StoryGenerationError,
+            match="Savepoint 'nonexistent' not found in story 'test-story'",
+        ):
+            await resume_pipeline(
+                "test-story",
+                "nonexistent",
+                NullApprovalGate(),
+                bus,
+                wiki_bus,
+            )
+
+
+@pytest.mark.asyncio
+async def test_resume_pipeline_accepts_valid_savepoint_name(tmp_path: Path) -> None:
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    partial_state = PipelineState(
+        story_name="test-story",
+        current_phase="outline",
+        completed_phases=["init", "outline"],
+        outline_result=_outline_result(),
+        status="complete",
+        savepoints=["init", "outline"],
+    )
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+    ):
+        await _write_savepoint(partial_state)
+
+        result = await resume_pipeline(
+            "test-story",
+            "outline",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+        )
+
+    assert isinstance(result, PipelineState)
+    assert result.story_name == "test-story"
+    assert "outline" in result.savepoints
+
+
+@pytest.mark.asyncio
 async def test_assembly_raises_when_no_chapters(tmp_path: Path) -> None:
     provider = MagicMock()
     bus = TokenStreamBus()

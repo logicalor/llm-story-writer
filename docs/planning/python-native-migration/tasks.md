@@ -154,7 +154,7 @@ Leverage the existing `src/application/strategies/outline_chapter/` code where p
 - [x] Token streaming is visible via the injected bus during LLM calls
 - [x] Unit tests with stubbed services cover: happy path, rejection at outline gate, revision at chapter gate, resume from savepoint
 
-Current implementation note: Issue #185 / PR #198 adds the PRD's narrative-arc and final-edit phases to `src/presentation/orchestrator.py`. `resume_pipeline(savepoint_name=...)` still validates the requested savepoint name but resumes from the single persisted `pipeline_state.json` snapshot rather than restoring an older checkpoint file.
+Current implementation note: Issue #185 / PR #198 adds the PRD's narrative-arc and final-edit phases to `src/presentation/orchestrator.py`. `resume_pipeline(savepoint_name=...)` validates the requested savepoint name but always resumes from the single latest `pipeline_state.json` snapshot. Named savepoints are validation-only; they are never restored as historical checkpoints (issue #215).
 
 **Key Files:**
 

@@ -210,7 +210,7 @@ See [ADR 004](../adr/004-progressive-wiki-memory-system.md), [ADR 005](../adr/00
 **Custom Tools** (TypeScript wrappers in `.opencode/tools/` calling Python scripts):
 - `prompt-loader` — Load and render a prompt template by ID with variable substitution
 - `story-state` — CRUD operations on the story state JSON (read/write/query)
-- `savepoint-mgr` — Save/load/list/restore savepoints
+- `savepoint-mgr` — Save/load/list savepoints
 - `character-mgr` — Generate/update/query character sheets
 - `setting-mgr` — Generate/update/query setting sheets
 - `outline-generator` — Run outline generation steps (extract context, story elements, generate/refine outline)
