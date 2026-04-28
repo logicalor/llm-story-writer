@@ -1,6 +1,8 @@
 ---
 globs: ["src/**/*.py"]
 ---
+<!-- Source: .github/instructions/chromadb.instructions.md — keep in sync -->
+
 # ChromaDB — Agent Reference
 
 
