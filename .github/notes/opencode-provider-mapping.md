@@ -1,5 +1,8 @@
 # OpenRouter Provider Mapping
 
+**Date:** 2026-04-29
+**Source:** Coder — issue #226 / PR #235
+
 Confirmed OpenRouter model slugs and corresponding Opencode model identifiers for the three models used across the 24 migrated agents.
 
 ## Model ID Reference
