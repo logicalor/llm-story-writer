@@ -77,3 +77,4 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 - [ADR 006: Replace Ollama SDK with Generic OpenAI-Compatible REST Provider](./planning/adr/006-openai-compatible-provider.md)
 - [ADR 007: Python-Native Orchestration and TUI](./planning/adr/007-python-native-orchestration.md)
 - [ADR 008: Retire the Application Services Layer](./planning/adr/008-retire-application-services-layer.md)
+- [ADR 009: Opencode as Primary Agent Runtime](./planning/adr/009-opencode-as-primary-agent-runtime.md)

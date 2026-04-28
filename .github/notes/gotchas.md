@@ -1275,3 +1275,69 @@ message = cast(str, choice.message.content)   # SDK guarantees str for non-strea
 **Rule of thumb:** If the SDK docs state "this field is always a string in this mode", use `cast()`. If the value comes from external/untrusted input, use `isinstance()`.
 
 ChromaDB ID: `gotcha-typed-sdk-cast-pattern-035`
+
+---
+
+## Opencode Configuration
+
+### 036 — opencode.json MCP entry: type `"local"`, merged `command` array, no `cwd`
+
+**Source:** issue #224, PR #225
+**Severity:** warning
+
+opencode.json MCP server entries differ from VS Code's `.vscode/mcp.json` format in three ways:
+
+| Field | VS Code mcp.json | opencode.json |
+|-------|-----------------|---------------|
+| `type` | `"stdio"` | **`"local"`** |
+| binary + args | `"command": "uvx"` + `"args": ["chroma-mcp", ...]` | `"command": ["uvx", "chroma-mcp", ...]` (merged array) |
+| working dir | `"cwd": "/path"` | **no equivalent** — use relative paths; run opencode from project root |
+
+**Wrong (VS Code form — rejected or silently broken in opencode):**
+```json
+{
+  "type": "stdio",
+  "command": "uvx",
+  "args": ["chroma-mcp", "--client-type", "persistent"]
+}
+```
+
+**Right (opencode.json form):**
+```json
+{
+  "type": "local",
+  "command": ["uvx", "chroma-mcp", "--client-type", "persistent"],
+  "enabled": true
+}
+```
+
+Relative paths in `command` arguments work correctly when `opencode` is invoked from the project root — the standard invocation pattern.
+
+ChromaDB ID: `gotcha-opencode-mcp-entry-format-036`
+
+---
+
+### 037 — opencode-rules plugin key is `"plugin"` (singular)
+
+**Source:** issue #224, PR #225
+**Severity:** warning
+
+The `opencode-rules` package is registered under the **`plugin`** key (singular) in `opencode.json`. Using `"plugins"` (plural) causes the plugin to be silently ignored — no error is raised, but rule files are never loaded.
+
+**Wrong:**
+```json
+{
+  "plugins": ["opencode-rules@latest"]
+}
+```
+
+**Right:**
+```json
+{
+  "plugin": ["opencode-rules@latest"]
+}
+```
+
+This affects all tasks that add `.opencode/rules/` files — the rules are inert until the plugin is correctly registered under the singular key.
+
+ChromaDB ID: `gotcha-opencode-rules-plugin-key-singular-037`
