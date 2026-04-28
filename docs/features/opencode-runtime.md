@@ -60,7 +60,7 @@ Task 2 confirmed these OpenRouter model slugs and Opencode model identifiers:
 | `Qwen: Qwen3.6 Plus` | `qwen/qwen3.6-plus` | `openrouter/qwen/qwen3.6-plus` |
 | `Z.ai: GLM 5.1` | `z-ai/glm-5.1` | `openrouter/z-ai/glm-5.1` |
 
-The canonical mapping note lives in `../../.github/notes/opencode-provider-mapping.md`.
+The canonical mapping note lives in [../../.github/notes/opencode-provider-mapping.md](../../.github/notes/opencode-provider-mapping.md).
 
 ## User-Level MCP Servers
 
