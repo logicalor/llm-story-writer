@@ -1,0 +1,12 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["AGENTS.md"],
+  "plugin": ["opencode-rules@latest"],
+  "mcp": {
+    "chroma": {
+      "type": "local",
+      "command": ["uvx", "chroma-mcp", "--client-type", "persistent", "--data-dir", ".chromadb"],
+      "enabled": true
+    }
+  }
+}
