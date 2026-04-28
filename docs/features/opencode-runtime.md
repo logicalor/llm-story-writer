@@ -13,7 +13,7 @@ User-specific credentials and user-level MCP servers still stay outside the repo
 
 ## Project-Level Configuration
 
-The checked-in `opencode.json` keeps project runtime settings minimal:
+The checked-in `opencode.json` contents in full:
 
 ```json
 {
@@ -34,6 +34,13 @@ The checked-in `opencode.json` keeps project runtime settings minimal:
           "name": "Z.ai: GLM 5.1"
         }
       }
+    }
+  },
+  "mcp": {
+    "chroma": {
+      "type": "local",
+      "command": ["uvx", "chroma-mcp", "--client-type", "persistent", "--data-dir", ".chromadb"],
+      "enabled": true
     }
   }
 }
