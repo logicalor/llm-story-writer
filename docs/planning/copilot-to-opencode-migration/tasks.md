@@ -8,7 +8,7 @@
 
 1. Bootstrap (Task 1) must land before any agent or rule migration so Opencode can load at all.
 2. Confirm provider/model IDs (Task 2) must complete before agent frontmatter is finalised in Tasks 5–8 (avoids 24 rewrites if the provider strings are wrong).
-3. The agent migration is split into four batches (Tasks 5, 6, 7, 8) by family so each PR is reviewable. The Orchestrator family (Task 5) goes first because the Coder, Test Writer, Documenter, Browser, and Reflection agents are dispatched _by_ the orchestrator and need a working orchestrator to test through.
+3. The agent migration is split into four batches (Tasks 5, 6, 7, 8) by family so each PR is reviewable. Task 4 (Orchestrator V3 itself) is a prerequisite for all four batches and must land first. Task 5 (orchestrator's specialist sub-agents: Coder, Test Writer, Documenter, Browser, Reflection) goes first among the four batches because these agents are dispatched _by_ the orchestrator and need a working orchestrator to test through.
 4. Rules and dual-run validation (Tasks 9, 10) come after agents because they exercise the full topology.
 
 ## Tasks
