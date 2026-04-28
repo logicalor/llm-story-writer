@@ -1,16 +1,72 @@
 # Opencode Runtime Configuration
 
-User-level setup required for full agentic capability in this project. These entries go in `~/.config/opencode/opencode.json` (or the platform equivalent) — **not** in the project-level `opencode.json`.
+> Project-level and user-level Opencode setup required for the OpenRouter-backed agent runtime introduced by migration Task 2.
 
-## MCP Servers
+## Overview
 
-### Tavily (Web Search)
+This repository now ships a project-level `opencode.json` that selects OpenRouter as the default Opencode provider surface for agent work. The checked-in file does two things only:
 
-Provides web search capability to agents via the `tavily-mcp` server.
+- sets the default model to `openrouter/moonshotai/kimi-k2.6`
+- registers three named OpenRouter models under `provider.openrouter.models`
 
-**Prerequisites:** A [Tavily API key](https://app.tavily.com/).
+User-specific credentials and user-level MCP servers still stay outside the repository. Add those entries to `~/.config/opencode/opencode.json` and authenticate OpenRouter locally.
 
-Add to `~/.config/opencode/opencode.json`:
+## Project-Level Configuration
+
+The checked-in `opencode.json` keeps project runtime settings minimal:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "openrouter/moonshotai/kimi-k2.6",
+  "instructions": ["AGENTS.md"],
+  "plugin": ["opencode-rules@latest"],
+  "provider": {
+    "openrouter": {
+      "models": {
+        "moonshotai/kimi-k2.6": {
+          "name": "MoonshotAI: Kimi K2.6"
+        },
+        "qwen/qwen3.6-plus": {
+          "name": "Qwen: Qwen3.6 Plus"
+        },
+        "z-ai/glm-5.1": {
+          "name": "Z.ai: GLM 5.1"
+        }
+      }
+    }
+  }
+}
+```
+
+This file does not contain Tavily or Context7 entries. Those MCP servers remain developer-local by design.
+
+## OpenRouter Authentication
+
+Authenticate Opencode against OpenRouter in one of these supported ways:
+
+1. Set `OPENROUTER_API_KEY` in your shell profile before launching Opencode.
+2. Run `/connect` inside an Opencode session, choose `OpenRouter`, and paste your API key.
+
+Opencode stores `/connect` credentials in `~/.local/share/opencode/auth.json`. The checked-in `opencode.json` does not hardcode `baseURL` or credentials; Opencode resolves the native `openrouter` provider itself.
+
+## Confirmed Model IDs
+
+Task 2 confirmed these OpenRouter model slugs and Opencode model identifiers:
+
+| Display name | OpenRouter slug | Opencode model ID |
+|---|---|---|
+| `MoonshotAI: Kimi K2.6` | `moonshotai/kimi-k2.6` | `openrouter/moonshotai/kimi-k2.6` |
+| `Qwen: Qwen3.6 Plus` | `qwen/qwen3.6-plus` | `openrouter/qwen/qwen3.6-plus` |
+| `Z.ai: GLM 5.1` | `z-ai/glm-5.1` | `openrouter/z-ai/glm-5.1` |
+
+The canonical mapping note lives in `../../.github/notes/opencode-provider-mapping.md`.
+
+## User-Level MCP Servers
+
+### Tavily
+
+Add Tavily only to your personal Opencode config. It is not committed to the repository.
 
 ```json
 {
@@ -27,11 +83,9 @@ Add to `~/.config/opencode/opencode.json`:
 }
 ```
 
-### Context7 (Library Documentation)
+### Context7
 
-Provides up-to-date library documentation lookup via the `@upstash/context7-mcp` server.
-
-Add to `~/.config/opencode/opencode.json`:
+Add Context7 only to your personal Opencode config.
 
 ```json
 {
@@ -45,13 +99,22 @@ Add to `~/.config/opencode/opencode.json`:
 }
 ```
 
-## OpenRouter
+Both snippets belong in `~/.config/opencode/opencode.json`, not the repository root.
 
-Authentication for the OpenRouter provider (used for Kimi K2.6, Qwen3.6 Plus, and GLM 5.1) can be set via:
+## Verification
 
-1. **Environment variable** — set `OPENROUTER_API_KEY` in your shell profile.
-2. **TUI connect command** — run `/connect` inside an Opencode session, search for "OpenRouter", and paste your API key.
+Once `OPENROUTER_API_KEY` is available, verify model resolution locally:
 
-Your API key is stored at `~/.local/share/opencode/auth.json` after using `/connect`.
+```bash
+opencode run "hello" --model openrouter/moonshotai/kimi-k2.6
+opencode run "hello" --model openrouter/qwen/qwen3.6-plus
+opencode run "hello" --model openrouter/z-ai/glm-5.1
+```
 
-> This file is a stub. Task 10 of the Copilot-to-Opencode migration will expand it with full runtime validation instructions and dual-run configuration.
+If you rely on Tavily, verify that `TAVILY_API_KEY` is exported before starting Opencode.
+
+## Related
+
+- [Documentation Index](../README.md)
+- [ADR 009: Opencode as Primary Agent Runtime](../planning/adr/009-opencode-as-primary-agent-runtime.md)
+- [Migration Tasks](../planning/copilot-to-opencode-migration/tasks.md)

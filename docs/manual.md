@@ -133,6 +133,12 @@ models:
 
 The `openai-compat://` prefix routes to the configured OpenAI-compatible API. Override `model_api_base` in `infrastructure:` to change the endpoint (default: `http://127.0.0.1:1234/v1`).
 
+### 3.4 Opencode Agent Runtime Setup
+
+The Python story-generation runtime above is separate from the Opencode agent runtime used for the Copilot-to-Opencode migration work. That migration config lives in the repository root `opencode.json`, where the default model is now `openrouter/moonshotai/kimi-k2.6` and the OpenRouter provider registry includes Kimi K2.6, Qwen3.6 Plus, and GLM 5.1.
+
+Developer-local credentials and user-level MCP servers are not committed to the repository. Configure `OPENROUTER_API_KEY`, Tavily, and Context7 in your personal Opencode config instead. See [Opencode Runtime Configuration](./features/opencode-runtime.md) for the exact setup and confirmed model IDs.
+
 ---
 
 ## 4. Configuration
