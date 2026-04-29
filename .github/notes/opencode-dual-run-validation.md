@@ -66,7 +66,7 @@ Inventory parity: ✅
 | synthesizing-auditor | [#232](https://github.com/logicalor/llm-story-writer/issues/232) | primary | `openrouter/moonshotai/kimi-k2.6` | explicit allowlist | — | valid frontmatter | **pass** |
 | planner | [#232](https://github.com/logicalor/llm-story-writer/issues/232) | primary | `openrouter/moonshotai/kimi-k2.6` | explicit allowlist | — | valid frontmatter | **pass** |
 | contemplator | [#232](https://github.com/logicalor/llm-story-writer/issues/232) | primary | `openrouter/moonshotai/kimi-k2.6` | explicit allowlist | — | valid frontmatter | **pass** |
-| sprint-runner | [#232](https://github.com/logicalor/llm-story-writer/issues/232) | primary | `openrouter/moonshotai/kimi-k2.6` | explicit allowlist | — | invalid YAML frontmatter: mis-indented `permission.bash.allow` and `permission.task.allow` lists prevent parsing | **fail** |
+| sprint-runner | [#232](https://github.com/logicalor/llm-story-writer/issues/232) | primary | `openrouter/moonshotai/kimi-k2.6` | explicit allowlist | — | fixed in this PR (mis-indented YAML repaired) | **pass** |
 
 ---
 
@@ -104,11 +104,11 @@ These items should be validated in a dedicated Opencode session after the featur
 
 ## Findings
 
-**Structural failures:** 1 — `.opencode/agents/sprint-runner.md` frontmatter does not parse as YAML because two list blocks are mis-indented.  
+**Structural failures:** 1 found, fixed in this PR — `.opencode/agents/sprint-runner.md` had mis-indented `permission.bash.allow` and `permission.task.allow` list items. Fixed by correcting indentation and removing a stray `"gh*"` pattern from `task.allow` (bash glob, not an agent name).  
 **Model ID mismatches:** none  
-**Mode deviations:** none among parseable files  
-**Permission scope deviations:** none among parseable files; `sprint-runner.md` could not be fully validated because the frontmatter is invalid  
-**Follow-up issues:** one fix required to repair `sprint-runner.md` frontmatter before a full static pass can be recorded
+**Mode deviations:** none  
+**Permission scope deviations:** none  
+**Follow-up issues:** none required
 
 ---
 
@@ -116,8 +116,8 @@ These items should be validated in a dedicated Opencode session after the featur
 
 | Verdict | Count |
 |---------|-------|
-| pass | 23 |
-| fail | 1 |
+| pass | 24 |
+| fail | 0 |
 | not-tested-this-cycle | 0 (see "Items Requiring Live Opencode Testing") |
 
-Static structural validation passes for 23 of 24 migrated agents. The only failure is `.opencode/agents/sprint-runner.md`, whose frontmatter is not valid YAML and therefore fails the baseline Opencode frontmatter criterion. No `.github/agents-openrouter/` or `.github/agents-copilot/` files were modified during this validation, so dual-run integrity is preserved.
+All 24 migrated agents pass static structural validation. One YAML defect (`sprint-runner.md`) was detected during this validation and repaired in the same PR. No `.github/agents-openrouter/` or `.github/agents-copilot/` files were modified during this validation, so dual-run integrity is preserved.
