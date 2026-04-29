@@ -27,7 +27,7 @@ Tools are **Python scripts** in `src/tools/` that implement deterministic domain
 
 Story generation agent prompt files are defined in `prompts/agents/` and loaded via `src/infrastructure/prompts/agent_prompt_loader.py`. The primary agent is `story-orchestrator`, which coordinates the full generation pipeline. Subagents (`outline-planner`, `character-sheet-generator`, `chapter-writer`, `wiki-maintainer`, `quality-reviewer`) handle specialised creative tasks.
 
-Migration work also uses Opencode agent files under `.opencode/agents/`. The migration inventory is now complete: 24 Markdown agent files covering `orchestrator-v3`, the specialist sub-agents, the reviewer family, the researcher family, the auditor family, and the standalone agents `pr-reviewer`, `planner`, `contemplator`, and `sprint-runner`. The researcher family depends on developer-local Tavily and Context7 MCP servers configured in `~/.config/opencode/opencode.json`; the checked-in `opencode.json` keeps only project-level runtime settings plus Chroma.
+Migration work also uses Opencode agent files under `.opencode/agents/`. The migration inventory is now complete: 24 Markdown agent files covering `orchestrator-v3`, the specialist sub-agents, the reviewer family, the researcher family, the auditor family, and the standalone agents `pr-reviewer`, `planner`, `contemplator`, and `sprint-runner`. The researcher family and the auditor family (`auditor.md`, `auditor-kimi.md`, `auditor-qwen.md`, `auditor-glm.md`) depend on developer-local Tavily and Context7 MCP servers configured in `~/.config/opencode/opencode.json`; the checked-in `opencode.json` keeps only project-level runtime settings plus Chroma.
 
 ### Runtimes
 
