@@ -79,7 +79,7 @@ Produce the final **Synthesized Review Report** (format below). This is the auth
 
 ### Step 5 — Write Review Notes
 
-Write the review summary to `.github/notes/reviews/YYYY-MM-DD-pr{N}-synthesis.md`.
+Write the review summary to `.github/notes/reviews/YYYY-MM-DD-pr{N}-synthesis.md` (where `{N}` is the PR number, provided by the Orchestrator in the dispatch prompt).
 
 ---
 
