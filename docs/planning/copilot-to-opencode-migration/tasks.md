@@ -234,6 +234,7 @@ Special migration rules:
 **Type:** backend (agent prompts)
 **Estimated scope:** small
 **Dependencies:** Task 4
+**Status:** Completed via PR #242
 
 **Description:**
 
@@ -255,10 +256,10 @@ The standalone `researcher.md` is the simpler single-model variant; it has `perm
 
 **Acceptance Criteria:**
 
-- [ ] All five files exist with valid frontmatter and correct model IDs.
-- [ ] Tavily and Context7 MCP tool scoping is configured per agent.
-- [ ] Synthesizing Researcher's `permission.task` is an explicit allowlist of the three sub-researcher names.
-- [ ] A multi-model research run reproduces the file-persisted pattern (or returns reports in-memory for synthesis, matching the existing Copilot behaviour).
+- [x] All five files exist with valid frontmatter and correct model IDs.
+- [x] Tavily and Context7 MCP tool scoping is configured per agent.
+- [x] Synthesizing Researcher's `permission.task` is an explicit allowlist of the three sub-researcher names.
+- [x] A multi-model research run reproduces the file-persisted pattern (or returns reports in-memory for synthesis, matching the existing Copilot behaviour).
 
 **Key Files:**
 
