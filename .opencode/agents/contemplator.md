@@ -44,7 +44,7 @@ You have direct access to:
 - Shell commands — for git log, dependency checks, route lists
 - GitHub API — for issue/PR activity
 - Web/Context7 — for external documentation research
-- File editing — for `.github/notes/` only
+- File editing — read-only; cannot create or modify files
 - `todo` — track contemplation progress
 
 ## Repository Identity

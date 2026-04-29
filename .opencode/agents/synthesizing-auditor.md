@@ -52,9 +52,9 @@ Dispatch all three audit sub-agents **sequentially** — invoke each one and wai
 
 Invoke each sub-agent in order, waiting for completion before proceeding to the next:
 
-- **Auditor (Claude)** — provide the audit prompt
-- **Auditor (GPT)** — provide the audit prompt
-- **Auditor (Gemini)** — provide the audit prompt
+- **Auditor Kimi** — provide the audit prompt
+- **Auditor Qwen** — provide the audit prompt
+- **Auditor Glm** — provide the audit prompt
 
 Collect each report without modification — preserve the raw output from each model.
 

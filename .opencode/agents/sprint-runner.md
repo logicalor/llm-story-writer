@@ -11,11 +11,17 @@ permission:
       - "grep*"
       - "find*"
       - "ls*"
+         - "git fetch*"
+         - "git checkout*"
+         - "git pull*"
+         - "git rev-parse*"
+         - "git branch*"
       - "cat*"
       - "echo*"
     deny: []
   task:
     allow:
+         - "gh*"
       - "Orchestrator V3"
 tools:
   chroma/*: allow
