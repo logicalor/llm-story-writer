@@ -72,9 +72,9 @@ Dispatch all three research sub-agents **sequentially** — invoke each one and 
 
 Invoke each sub-agent in order, waiting for completion before proceeding to the next:
 
-- **Researcher (Kimi)** — provide the research prompt
-- **Researcher (Qwen)** — provide the research prompt
-- **Researcher (GLM)** — provide the research prompt
+- **Researcher Kimi** — provide the research prompt
+- **Researcher Qwen** — provide the research prompt
+- **Researcher Glm** — provide the research prompt
 
 Collect each report without modification — preserve the raw output from each model.
 
