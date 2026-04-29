@@ -27,6 +27,8 @@ Tools are **Python scripts** in `src/tools/` that implement deterministic domain
 
 Story generation agent prompt files are defined in `prompts/agents/` and loaded via `src/infrastructure/prompts/agent_prompt_loader.py`. The primary agent is `story-orchestrator`, which coordinates the full generation pipeline. Subagents (`outline-planner`, `character-sheet-generator`, `chapter-writer`, `wiki-maintainer`, `quality-reviewer`) handle specialised creative tasks.
 
+Migration work also uses Opencode agent files under `.opencode/agents/`. Current migrated families include `orchestrator-v3`, the specialist sub-agents, the reviewer family, `pr-reviewer`, and the researcher family (`researcher`, `researcher-kimi`, `researcher-qwen`, `researcher-glm`, `synthesizing-researcher`). The researcher family depends on developer-local Tavily and Context7 MCP servers configured in `~/.config/opencode/opencode.json`; the checked-in `opencode.json` keeps only project-level runtime settings plus Chroma.
+
 ### Skills
 
 Story generation skills are defined in `prompts/skills/`. The `story-pipeline` skill provides the pipeline reference (phases, quality gates, savepoints, config settings).
