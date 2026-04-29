@@ -2,7 +2,7 @@
 date: 2026-04-29
 issue: "233"
 method: static-structural
-migration-issues: "229, 230, 231, 232"
+migration-issues: "228, 229, 230, 231, 232"
 ---
 
 # Opencode Dual-Run Validation Report
@@ -107,8 +107,8 @@ These items should be validated in a dedicated Opencode session after the featur
 **Structural failures:** 1 found, fixed in this PR — `.opencode/agents/sprint-runner.md` had mis-indented `permission.bash.allow` and `permission.task.allow` list items. Fixed by correcting indentation and removing a stray `"gh*"` pattern from `task.allow` (bash glob, not an agent name).  
 **Model ID mismatches:** none  
 **Mode deviations:** none  
-**Permission scope deviations:** none  
-**Follow-up issues:** none required
+**Permission scope deviations:** 1 pre-existing, tracked in follow-up — `sprint-runner.md` body calls `github/list_issues`, `github/list_pull_requests`, and `github/issue_read` (Copilot MCP format) but no GitHub MCP tool is declared in `tools:`. The correct fix is to replace these with `gh` CLI equivalents (per tasks.md Task 4 migration rule). This was not introduced by this PR. Tracked in [#245](https://github.com/logicalor/llm-story-writer/issues/245).  
+**Follow-up issues:** [#245](https://github.com/logicalor/llm-story-writer/issues/245) — sprint-runner: update body to use gh CLI instead of github/* MCP tools
 
 ---
 
