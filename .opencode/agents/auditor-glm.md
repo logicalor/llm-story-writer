@@ -22,8 +22,10 @@ permission:
     "python3*": "allow"
     "pytest*": "allow"
     "pip*": "allow"
+    "echo*": "allow"
   task: deny
 tools:
+  "chroma/*": true
   "io.github.tavily-ai/tavily-mcp/*": true
   "io.github.upstash/context7/*": true
 ---
