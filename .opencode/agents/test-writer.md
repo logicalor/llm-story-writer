@@ -5,26 +5,24 @@ mode: subagent
 hidden: false
 permission:
   edit:
-    allow:
-      - "tests/**"
-    deny: []
+    "tests/**": "allow"
+    "**": "deny"
   bash:
-    allow:
-      - "pytest*"
-      - "ruff*"
-      - "mypy*"
-      - "python*"
-      - "python3*"
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "echo*"
-      - "wc*"
-    deny: []
+    "*": "deny"
+    "pytest*": "allow"
+    "ruff*": "allow"
+    "mypy*": "allow"
+    "python*": "allow"
+    "python3*": "allow"
+    "grep*": "allow"
+    "find*": "allow"
+    "ls*": "allow"
+    "cat*": "allow"
+    "echo*": "allow"
+    "wc*": "allow"
   task: deny
 tools:
-  chroma/*: allow
+  "chroma/*": true
 ---
 
 You are the Test Writer for this project. You write verification tests to confirm that implemented behavior works correctly. Tests are written **after** implementation and are expected to **pass**. You have direct access to the file system and shell commands to write and run tests.

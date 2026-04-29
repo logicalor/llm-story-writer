@@ -6,30 +6,29 @@ hidden: false
 permission:
   edit: allow
   bash:
-    allow:
-      - "pytest*"
-      - "ruff*"
-      - "mypy*"
-      - "python*"
-      - "python3*"
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "git status*"
-      - "git diff*"
-      - "git log*"
-      - "git show*"
-      - "echo*"
-      - "rm -f*"
-      - "wc*"
-      - "head*"
-      - "tail*"
-    deny: []
+      "*": "deny"
+      "pytest*": "allow"
+      "ruff*": "allow"
+      "mypy*": "allow"
+      "python*": "allow"
+      "python3*": "allow"
+      "grep*": "allow"
+      "find*": "allow"
+      "ls*": "allow"
+      "cat*": "allow"
+      "git status*": "allow"
+      "git diff*": "allow"
+      "git log*": "allow"
+      "git show*": "allow"
+      "echo*": "allow"
+      "rm -f*": "allow"
+      "wc*": "allow"
+      "head*": "allow"
+      "tail*": "allow"
   task: deny
 tools:
-  chroma/*: allow
-  io.github.upstash/context7/*: allow
+   "chroma/*": true
+   "io.github.upstash/context7/*": true
 ---
 
 You are the Coder for this project. You implement code changes across the entire stack. You have direct access to the file system, shell commands, GitHub API, and external documentation.
@@ -82,6 +81,8 @@ Read **`.github/agents/_shared/communication.md`** — use caveman for chat/prog
 10. **Framework integration verification.** When creating a new framework artifact (plugin, tool, agent, command, skill), verify:
     - **Registration/discovery** — how the framework finds and loads the artifact. Check config files (`opencode.json`, `package.json`, manifests) and ensure the new artifact is registered.
     - **New `.opencode/agents/*.md` files specifically:** Immediately after writing the agent file, update `opencode.json` with: (a) an entry in the `agent:` block defining the new agent; (b) the agent name in the `permission.task` allow-list of every orchestrator that uses `"":"deny"` as its default policy and will dispatch the new agent. Both entries are required — the `agent:` block defines the agent; the allow-list grants dispatch permission. An agent absent from the allow-list is silently denied at runtime with no indication from the agent file itself.
+    - **YAML frontmatter indentation in `.opencode/agents/*.md`:** When editing or creating agent files, use the corpus-standard YAML indentation: 4-space indent for sub-keys inside `bash:`, `task:`, and `edit:` blocks; 2-space indent for `tools:` sub-keys. Do NOT use `orchestrator-v3.md`, `coder.md`, or `sprint-runner.md` as indentation references — these three files have historically non-standard spacing. Use `auditor.md`, `researcher.md`, or `documenter.md` instead. Non-standard indentation produces valid YAML but noisy diffs and confuses future authors. (Source: issue #252, PR #253 — three files found with non-standard indentation after 24-file permission migration.)
+    - **Model-specific variant permission parity:** Agent files with model-specific variants (`auditor.md` → `auditor-kimi.md`, `auditor-qwen.md`, `auditor-glm.md`; `researcher.md` → `researcher-kimi.md`, `researcher-qwen.md`, `researcher-glm.md`) must keep permissions in sync with their parent. When adding or removing a permission in a parent agent file, apply the identical change to all its variant files in the same commit. A permission present in `auditor.md` but absent from `auditor-kimi.md` silently limits the kimi variant's capabilities without error or warning. (Source: issue #252, PR #253 — six variant files missing `"chroma/*": true` and `"echo*": "allow"` relative to parent agents; tracked as follow-up issue #254.)
     - **New story pipeline subagents specifically:** When the new agent represents a named story pipeline phase (e.g., `story-planner`, `chapter-outline-expander`), also update `.opencode/skills/story-pipeline/SKILL.md` in the same commit: (a) add a Phase Definition entry; (b) add a row to the Subagents table; (c) update the pipeline diagram to show the new phase; (d) update the authoritative constraint sentence to the new count ("These are the only N subagents..."). The SKILL is the runtime authority for pipeline rules — an orchestrator reading a stale SKILL may refuse to dispatch the new agent and silently skip the phase. Third-occurrence pattern (issues #23, #120, #124); every new pipeline subagent has triggered it.
     - **Schema conformance** — parameter names, types, and required fields match the actual framework schemas.
     - Grep the project for existing examples of the same artifact type and replicate the integration pattern.

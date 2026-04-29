@@ -5,21 +5,20 @@ mode: primary
 permission:
   edit: allow
   bash:
-    allow:
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "wc*"
-      - "head*"
-      - "tail*"
-      - "echo*"
-    deny: []
+    "*": "deny"
+    "grep*": "allow"
+    "find*": "allow"
+    "ls*": "allow"
+    "cat*": "allow"
+    "wc*": "allow"
+    "head*": "allow"
+    "tail*": "allow"
+    "echo*": "allow"
   task: deny
 tools:
-  io.github.tavily-ai/tavily-mcp/*: allow
-  io.github.upstash/context7/*: allow
-  chroma/*: allow
+  "io.github.tavily-ai/tavily-mcp/*": true
+  "io.github.upstash/context7/*": true
+  "chroma/*": true
 ---
 
 You are the Research agent for this project. You perform focused web research — searching for information, extracting content from documentation and pages, mapping site structures, and retrieving library API references. You **never write production code, tests, or configuration files**.

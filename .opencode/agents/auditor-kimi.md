@@ -5,28 +5,27 @@ mode: subagent
 permission:
   edit: deny
   bash:
-    allow:
-      - "git diff*"
-      - "git log*"
-      - "git show*"
-      - "git status*"
-      - "git branch*"
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "wc*"
-      - "head*"
-      - "tail*"
-      - "python*"
-      - "python3*"
-      - "pytest*"
-      - "pip*"
-    deny: []
+    "*": "deny"
+    "git diff*": "allow"
+    "git log*": "allow"
+    "git show*": "allow"
+    "git status*": "allow"
+    "git branch*": "allow"
+    "grep*": "allow"
+    "find*": "allow"
+    "ls*": "allow"
+    "cat*": "allow"
+    "wc*": "allow"
+    "head*": "allow"
+    "tail*": "allow"
+    "python*": "allow"
+    "python3*": "allow"
+    "pytest*": "allow"
+    "pip*": "allow"
   task: deny
 tools:
-  io.github.tavily-ai/tavily-mcp/*: allow
-  io.github.upstash/context7/*: allow
+  "io.github.tavily-ai/tavily-mcp/*": true
+  "io.github.upstash/context7/*": true
 ---
 
 > **Sync note:** This file is one of three identical auditor sub-agent files (`auditor-kimi.md`, `auditor-qwen.md`, `auditor-glm.md`). They differ only in `model:` and `description:` frontmatter fields. Any change to this body text **must be applied to all three files in lockstep**.

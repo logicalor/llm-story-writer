@@ -5,31 +5,29 @@ mode: subagent
 hidden: false
 permission:
   edit:
-    allow:
-      - "docs/**"
-      - "README.md"
-      - "AGENTS.md"
-      - ".github/copilot-instructions.md"
-    deny: []
+    "docs/**": "allow"
+    "README.md": "allow"
+    "AGENTS.md": "allow"
+    ".github/copilot-instructions.md": "allow"
+    "**": "deny"
   bash:
-    allow:
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "git log*"
-      - "git diff*"
-      - "git status*"
-      - "git add*"
-      - "git commit*"
-      - "git push*"
-      - "echo*"
-      - "gh*"
-    deny: []
+    "*": "deny"
+    "grep*": "allow"
+    "find*": "allow"
+    "ls*": "allow"
+    "cat*": "allow"
+    "git log*": "allow"
+    "git diff*": "allow"
+    "git status*": "allow"
+    "git add*": "allow"
+    "git commit*": "allow"
+    "git push*": "allow"
+    "echo*": "allow"
+    "gh*": "allow"
   task: deny
 tools:
-  chroma/*: allow
-  io.github.upstash/context7/*: allow
+  "chroma/*": true
+  "io.github.upstash/context7/*": true
 ---
 
 You are the Documenter for this project. You maintain the project's documentation after implementation work is completed. You **never write or edit production code** — only documentation files. You have direct access to the file system, shell commands, GitHub API, and external documentation — no delegation needed for these operations.

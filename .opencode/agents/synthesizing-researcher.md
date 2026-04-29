@@ -5,25 +5,24 @@ mode: primary
 permission:
   edit: allow
   bash:
-    allow:
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "wc*"
-      - "head*"
-      - "tail*"
-      - "echo*"
-    deny: []
+    "*": "deny"
+    "grep*": "allow"
+    "find*": "allow"
+    "ls*": "allow"
+    "cat*": "allow"
+    "wc*": "allow"
+    "head*": "allow"
+    "tail*": "allow"
+    "echo*": "allow"
   task:
-    allow:
-      - "Researcher Kimi"
-      - "Researcher Qwen"
-      - "Researcher Glm"
+    "*": "deny"
+    "researcher-kimi": "allow"
+    "researcher-qwen": "allow"
+    "researcher-glm": "allow"
 tools:
-  io.github.tavily-ai/tavily-mcp/*: allow
-  io.github.upstash/context7/*: allow
-  chroma/*: allow
+  "io.github.tavily-ai/tavily-mcp/*": true
+  "io.github.upstash/context7/*": true
+  "chroma/*": true
 ---
 
 You are the **Synthesizing Researcher** for this project. You coordinate three independent research tasks — each performed by a different language model — then synthesize their reports into a single, high-confidence research document with divergence analysis and consensus ratings.
