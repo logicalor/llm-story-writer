@@ -60,8 +60,9 @@ Before starting, read and internalise these shared files:
 
 1. Fetch open issues using the `gh` CLI:
    ```bash
-   gh issue list --repo OWNER/REPO --state open --json number,title,labels,assignees,createdAt,pull_request
+   gh issue list --repo OWNER/REPO --state open --json number,title,labels,assignees,createdAt
    ```
+   > Note: `gh issue list` returns only issues — pull request filtering is not required.
 
 2. For each issue, extract: **number**, **title**, **labels**, **assignees**, and **created date**.
 
@@ -72,9 +73,7 @@ Before starting, read and internalise these shared files:
    - `duplicate`
    - `question`
 
-4. Exclude pull requests (the `list_issues` endpoint may include PRs — filter by checking for the absence of a `pull_request` key).
-
-5. Check for any issues already assigned to an open PR:
+4. Check for any issues already assigned to an open PR:
    - Run `gh pr list --repo OWNER/REPO --state open --base development --json number,body`.
    - Parse PR bodies for `Closes #N` / `Fixes #N` references.
    - Mark those issue numbers as **in-progress** and exclude them from the dispatch list.
@@ -122,7 +121,7 @@ For each approved issue, in order:
 
 3. **Ensure on `development` branch** — run:
    ```bash
-   git checkout development && git pull origin development
+   git checkout development && git pull origin development || exit 1
    ```
 
 4. **Dispatch Orchestrator V3** with a detailed prompt:
@@ -144,7 +143,7 @@ For each approved issue, in order:
 
 6. **Return to `development`** before dispatching the next issue:
    ```bash
-   git checkout development && git pull origin development
+   git checkout development && git pull origin development || exit 1
    ```
 
 7. Proceed to the next issue.
