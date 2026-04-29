@@ -276,10 +276,11 @@ The standalone `researcher.md` is the simpler single-model variant; it has `perm
 **Type:** backend (agent prompts)
 **Estimated scope:** medium
 **Dependencies:** Task 4
+**Status:** Completed via PR #243
 
 **Description:**
 
-Migrate the remaining nine agents:
+Migrate the remaining eight agents:
 
 Auditor family (5):
 - `auditor.md` (`mode: primary`)
@@ -290,10 +291,12 @@ Auditor family (5):
 
 Source files: `.github/agents-openrouter/auditor.agent.md`, `auditor-kimi.agent.md`, `auditor-qwen.agent.md`, `auditor-glm.agent.md`, `synthesizing-auditor.agent.md`, `planner.agent.md`, `contemplator.agent.md`, `sprint-runner.agent.md`.
 
-Standalone agents (4):
+Standalone agents (3):
 - `planner.md` (`mode: primary`, no production-code edit, allowed to write only to `docs/planning/` and `.github/notes/`)
 - `contemplator.md` (`mode: primary`, `permission.edit: deny`, may dispatch `synthesizing-researcher` only)
 - `sprint-runner.md` (`mode: primary`, `permission.task` allow-listing only `orchestrator-v3`)
+
+Completion note: PR #243 added `auditor.md`, `auditor-kimi.md`, `auditor-qwen.md`, `auditor-glm.md`, `synthesizing-auditor.md`, `planner.md`, `contemplator.md`, and `sprint-runner.md`. After that merge, `.opencode/agents/` reached the planned inventory of 24 Markdown agent files.
 
 `permission.edit` for Planner must be a path-scoped allow (only `docs/planning/**`, `.github/notes/**`) — Planner is explicitly forbidden from writing production code in its Copilot prompt body. If Opencode does not support glob-scoped edit permissions, replace with `edit: ask` and rely on the prompt body to enforce the boundary.
 
@@ -301,10 +304,10 @@ Sprint Runner's job is to dispatch Orchestrator V3 for one issue at a time — `
 
 **Acceptance Criteria:**
 
-- [ ] All nine files exist with valid frontmatter and correct model IDs.
-- [ ] Synthesizing Auditor follows the same depth-1 invariant as Synthesizing Reviewer/Researcher (`permission.task: deny` for all).
+- [x] All eight files exist with valid frontmatter and correct model IDs.
+- [x] Synthesizing Auditor preserves the depth-1 invariant with an explicit `permission.task` allowlist for `Auditor Kimi`, `Auditor Qwen`, `Auditor Glm`, and `Reflection`.
 - [ ] Planner cannot edit files outside `docs/planning/` and `.github/notes/` (verified by an attempted edit in a smoke test).
-- [ ] After this task, `.opencode/agents/` contains exactly 24 files matching the inventory in `.github/agents-openrouter/` (excluding the README).
+- [x] After this task, `.opencode/agents/` contains exactly 24 files matching the inventory in `.github/agents-openrouter/` (excluding the README).
 
 **Key Files:**
 
