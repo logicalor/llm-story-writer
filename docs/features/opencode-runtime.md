@@ -69,19 +69,22 @@ Task 2 confirmed these OpenRouter model slugs and Opencode model identifiers:
 
 The canonical mapping note lives in [../../.github/notes/opencode-provider-mapping.md](../../.github/notes/opencode-provider-mapping.md).
 
-## Researcher Agent Family
+## Migrated Agent Inventory
 
-Task 7 adds five migration-only Opencode agents under `.opencode/agents/` for web research and library documentation lookup:
+The Opencode runtime migration is now complete. `.opencode/agents/` contains exactly 24 Markdown agent files: the full migrated inventory from `.github/agents-openrouter/`, excluding that directory's README.
 
-| Agent file | Mode | Model | Dispatch policy | Tool scope |
-|---|---|---|---|---|
-| `researcher.md` | `primary` | `openrouter/moonshotai/kimi-k2.6` | `permission.task: deny` | Tavily, Context7, Chroma |
-| `researcher-kimi.md` | `subagent` | `openrouter/moonshotai/kimi-k2.6` | `permission.task: deny` | Tavily, Context7 |
-| `researcher-qwen.md` | `subagent` | `openrouter/qwen/qwen3.6-plus` | `permission.task: deny` | Tavily, Context7 |
-| `researcher-glm.md` | `subagent` | `openrouter/z-ai/glm-5.1` | `permission.task: deny` | Tavily, Context7 |
-| `synthesizing-researcher.md` | `primary` | `openrouter/moonshotai/kimi-k2.6` | `permission.task` allowlist: `Researcher Kimi`, `Researcher Qwen`, `Researcher Glm` | Tavily, Context7, Chroma |
+| Family | Files |
+|---|---|
+| Orchestrator | `orchestrator-v3.md` |
+| Specialist sub-agents | `browser.md`, `coder.md`, `documenter.md`, `reflection.md`, `test-writer.md` |
+| Reviewer family | `reviewer-kimi.md`, `reviewer-qwen.md`, `reviewer-glm.md`, `synthesizing-reviewer.md`, `pr-reviewer.md` |
+| Researcher family | `researcher.md`, `researcher-kimi.md`, `researcher-qwen.md`, `researcher-glm.md`, `synthesizing-researcher.md` |
+| Auditor family | `auditor.md`, `auditor-kimi.md`, `auditor-qwen.md`, `auditor-glm.md`, `synthesizing-auditor.md` |
+| Standalone planning and dispatch agents | `planner.md`, `contemplator.md`, `sprint-runner.md` |
 
-The standalone `researcher.md` is the direct single-model entry point. The three model-specific files are sequential dispatch targets for `synthesizing-researcher.md`, which synthesizes their reports into one higher-confidence research result. All five files rely on developer-local Tavily and Context7 MCP servers being present in `~/.config/opencode/opencode.json`; the repository root `opencode.json` still carries only the project-level Chroma configuration.
+Task 7 migrated the researcher family. Task 8 finished the remaining eight files: the auditor family plus `planner.md`, `contemplator.md`, and `sprint-runner.md`. With those files landed, the Opencode runtime now has full parity with the migrated OpenRouter agent set tracked in the Copilot-to-Opencode migration plan.
+
+The researcher family still has the only developer-local MCP dependency in the agent inventory. `researcher.md`, `researcher-kimi.md`, `researcher-qwen.md`, `researcher-glm.md`, and `synthesizing-researcher.md` rely on Tavily and Context7 being present in `~/.config/opencode/opencode.json`; the repository root `opencode.json` still carries only the project-level Chroma configuration.
 
 ## User-Level MCP Servers
 

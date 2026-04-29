@@ -35,7 +35,7 @@ The active runtime is intentionally small and Python-native:
 - **Interactive Textual TUI**: `src/presentation/tui/app.py` adds `StoryWriterApp`, a three-panel terminal UI with live token streaming, wiki context, and approval gates launched through `story-writer tui`
 - **Repository cleanup**: the temporary `legacy/` archive, duplicate root helper scripts, and obsolete root markdown summaries were removed after migration cleanup, so current documentation should point only to active files under `docs/`, `prompts/`, `src/`, and `tests/`
 
-The repository also carries a project-level Opencode configuration for migration work. That agent runtime uses OpenRouter model IDs in `opencode.json`, while developer-specific OpenRouter credentials plus Tavily and Context7 MCP entries stay in user-level Opencode config. See [Opencode Runtime Configuration](./features/opencode-runtime.md).
+The repository also carries a project-level Opencode configuration for migration work. That agent runtime now has a full 24-agent migrated inventory in `.opencode/agents/`, uses OpenRouter model IDs in `opencode.json`, and keeps developer-specific OpenRouter credentials plus Tavily and Context7 MCP entries in user-level Opencode config. See [Opencode Runtime Configuration](./features/opencode-runtime.md).
 
 See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the full before/after summary and maintenance guidance.
 
@@ -50,7 +50,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 
 ## Features
 
-- [Opencode Runtime Configuration](./features/opencode-runtime.md) — Project-level OpenRouter model registry plus developer-local OpenRouter, Tavily, and Context7 setup for migration tasks
+- [Opencode Runtime Configuration](./features/opencode-runtime.md) — Project-level OpenRouter model registry, complete 24-agent migration inventory, and developer-local OpenRouter, Tavily, and Context7 setup
 - [OpenAI Async Provider](./features/openai-async-provider.md) — AsyncOpenAI-backed streaming `ModelProvider`, dependency requirements, and migration relationship to the existing sync provider
 - [Python-Native Foundation](./features/python-native-foundation.md) — Agent prompt relocation, frontmatter-stripping loader, typed pipeline handoff dataclasses, and the `story-writer` CLI packaging/dispatch path for Issues #158, #161, and #162
 - [Pipeline Primitives](./features/pipeline-primitives.md) — Transport-agnostic approval gates plus token and wiki context event buses for the Python-native orchestrator
@@ -68,7 +68,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 
 - [PRD: Python-Native Orchestration and TUI](./planning/python-native-migration/prd.md) — Product requirements and current implementation status for the Python-native migration
 - [PRD: OpenCode Migration](./planning/opencode-migration/prd.md) — Full product requirements for the agentic architecture migration
-- [Migration Tasks](./planning/opencode-migration/tasks.md) — Task breakdown and completion status
+- [Migration Tasks](./planning/copilot-to-opencode-migration/tasks.md) — Task breakdown and completion status for the Copilot-to-Opencode agent migration
 
 ### Architecture Decision Records
 
