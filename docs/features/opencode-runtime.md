@@ -194,7 +194,7 @@ The three independent reviewer sub-agents remain intentionally triplicated becau
 
 Task 7 migrated the researcher family. Task 8 finished the remaining eight files: the auditor family plus `planner.md`, `contemplator.md`, and `sprint-runner.md`. With those files landed, the Opencode runtime now has full parity with the migrated OpenRouter agent set tracked in the Copilot-to-Opencode migration plan.
 
-The researcher family still has the only developer-local MCP dependency in the agent inventory. `researcher.md`, `researcher-kimi.md`, `researcher-qwen.md`, `researcher-glm.md`, and `synthesizing-researcher.md` rely on Tavily and Context7 being present in `~/.config/opencode/opencode.json`; the repository root `opencode.json` still carries only the project-level Chroma configuration.
+The researcher and auditor families still carry the developer-local MCP dependencies in the agent inventory. `researcher.md`, `researcher-kimi.md`, `researcher-qwen.md`, `researcher-glm.md`, and `synthesizing-researcher.md`, plus the independent auditor sub-agents `auditor-kimi.md`, `auditor-qwen.md`, and `auditor-glm.md`, rely on Tavily and Context7 being present in `~/.config/opencode/opencode.json`; the repository root `opencode.json` still carries only the project-level Chroma configuration.
 
 ## Runtime Directories and Preserved Artefacts
 
