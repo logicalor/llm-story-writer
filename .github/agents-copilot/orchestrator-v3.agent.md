@@ -5,6 +5,7 @@ model: Claude Sonnet 4.6 (copilot)
 agents:
   - Test Writer
   - Coder
+    - Researcher
   - Reviewer (Claude)
   - Reviewer (GPT)
   - Reviewer (Gemini)

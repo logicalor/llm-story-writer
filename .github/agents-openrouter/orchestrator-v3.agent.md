@@ -5,6 +5,7 @@ model: MoonshotAI: Kimi K2.6 (openrouter)
 agents:
   - Test Writer
   - Coder
+    - Researcher
   - Reviewer (Qwen)
   - Reviewer (Kimi)
   - Reviewer (GLM)
