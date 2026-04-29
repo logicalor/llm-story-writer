@@ -30,7 +30,7 @@ Read **`.github/agents/_shared/communication.md`** — use caveman for chat/prog
 
 You have direct access to:
 
-- **Read** — all files in `.github/agents/`, `.github/skills/`, `.github/instructions/`, `.github/notes/`
+- **Read** — all files in `.opencode/agents/`, `.github/agents-openrouter/`, `.github/agents/_shared/`, `.github/skills/`, `.github/instructions/`, `.github/notes/`
 - **Edit** — agent files, skill files, instruction files, notes directories (including `reflections/` and main `.github/notes/`)
 
 You hand off to:
@@ -87,7 +87,8 @@ When in doubt, classify as **major** — it's better to ask than to break someth
 
 | Type             | Path                                     | Example                                                    |
 | ---------------- | ---------------------------------------- | ---------------------------------------------------------- |
-| Agents           | `.github/agents/*.agent.md`              | `.github/agents/planner.agent.md`                          |
+| Agents (OpenCode) | `.opencode/agents/*.md`                   | `.opencode/agents/coder.md`                                |
+| Agents (Copilot)  | `.github/agents-openrouter/*.agent.md`    | `.github/agents-openrouter/coder.agent.md`                 |
 | Skills           | `.github/skills/*/SKILL.md`              | `.github/skills/chromadb-ops/SKILL.md`                     |
 | Instructions     | `.github/instructions/*.instructions.md` | `.github/instructions/chromadb.instructions.md`            |
 | Reflection notes | `.github/notes/reflections/*.md`         | `.github/notes/reflections/issue-42.md`                    |

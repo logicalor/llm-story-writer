@@ -4,9 +4,15 @@ model: openrouter/moonshotai/kimi-k2.6
 mode: subagent
 hidden: false
 permission:
+  edit:
+    allow:
+      - "tests/e2e/**"
+    deny: []
   bash:
     allow:
       - "agent-browser*"
+      - "npx*"
+      - "npm run test*"
     deny: []
   task: deny
 ---
