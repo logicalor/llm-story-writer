@@ -5,17 +5,16 @@ mode: subagent
 permission:
   edit: allow
   bash:
-    allow:
-      - "git diff*"
-      - "git log*"
-      - "git show*"
-      - "git status*"
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "wc*"
-    deny: []
+    "*": "deny"
+    "git diff*": "allow"
+    "git log*": "allow"
+    "git show*": "allow"
+    "git status*": "allow"
+    "grep*": "allow"
+    "find*": "allow"
+    "ls*": "allow"
+    "cat*": "allow"
+    "wc*": "allow"
   task: deny
 ---
 

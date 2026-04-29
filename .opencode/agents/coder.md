@@ -6,30 +6,29 @@ hidden: false
 permission:
   edit: allow
   bash:
-    allow:
-      - "pytest*"
-      - "ruff*"
-      - "mypy*"
-      - "python*"
-      - "python3*"
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "git status*"
-      - "git diff*"
-      - "git log*"
-      - "git show*"
-      - "echo*"
-      - "rm -f*"
-      - "wc*"
-      - "head*"
-      - "tail*"
-    deny: []
+      "*": "deny"
+      "pytest*": "allow"
+      "ruff*": "allow"
+      "mypy*": "allow"
+      "python*": "allow"
+      "python3*": "allow"
+      "grep*": "allow"
+      "find*": "allow"
+      "ls*": "allow"
+      "cat*": "allow"
+      "git status*": "allow"
+      "git diff*": "allow"
+      "git log*": "allow"
+      "git show*": "allow"
+      "echo*": "allow"
+      "rm -f*": "allow"
+      "wc*": "allow"
+      "head*": "allow"
+      "tail*": "allow"
   task: deny
 tools:
-  chroma/*: allow
-  io.github.upstash/context7/*: allow
+   "chroma/*": true
+   "io.github.upstash/context7/*": true
 ---
 
 You are the Coder for this project. You implement code changes across the entire stack. You have direct access to the file system, shell commands, GitHub API, and external documentation.

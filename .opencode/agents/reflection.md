@@ -6,16 +6,15 @@ hidden: false
 permission:
   edit: allow
   bash:
-    allow:
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "echo*"
-    deny: []
+    "*": "deny"
+    "grep*": "allow"
+    "find*": "allow"
+    "ls*": "allow"
+    "cat*": "allow"
+    "echo*": "allow"
   task: deny
 tools:
-  chroma/*: allow
+  "chroma/*": true
 ---
 
 You are the Reflection agent for this project. You capture improvement notes for the agent system itself — agents, skills, and instructions — and apply or propose improvements based on real-world usage patterns.

@@ -5,21 +5,20 @@ mode: primary
 permission:
   edit: allow
   bash:
-    allow:
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "echo*"
-    deny: []
+    "*": "deny"
+    "grep*": "allow"
+    "find*": "allow"
+    "ls*": "allow"
+    "cat*": "allow"
+    "echo*": "allow"
   task:
-    allow:
-      - "Auditor Kimi"
-      - "Auditor Qwen"
-      - "Auditor Glm"
-      - "Reflection"
+    "*": "deny"
+    "auditor-kimi": "allow"
+    "auditor-qwen": "allow"
+    "auditor-glm": "allow"
+    "reflection": "allow"
 tools:
-  chroma/*: allow
+  "chroma/*": true
 ---
 
 You are the **Synthesizing Auditor** for this project. You coordinate three independent audits — each performed by a different language model — then synthesize their reports into a single, high-confidence audit document with divergence analysis and consensus ratings.
