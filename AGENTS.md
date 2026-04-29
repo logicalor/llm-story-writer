@@ -29,6 +29,15 @@ Story generation agent prompt files are defined in `prompts/agents/` and loaded 
 
 Migration work also uses Opencode agent files under `.opencode/agents/`. The migration inventory is now complete: 24 Markdown agent files covering `orchestrator-v3`, the specialist sub-agents, the reviewer family, the researcher family, the auditor family, and the standalone agents `pr-reviewer`, `planner`, `contemplator`, and `sprint-runner`. The researcher family depends on developer-local Tavily and Context7 MCP servers configured in `~/.config/opencode/opencode.json`; the checked-in `opencode.json` keeps only project-level runtime settings plus Chroma.
 
+### Runtimes
+
+Two agent runtimes are active during the migration transition period:
+
+- **Opencode** (active development surface): agents in `.opencode/agents/` invoked via `opencode run @agent-name`. Uses OpenRouter-backed models (Kimi K2.6, Qwen3.6 Plus, GLM 5.1) via the project-level `opencode.json`.
+- **GitHub Copilot** (preserved artefacts): agents in `.github/agents-copilot/` invoked via the `@agent-name` syntax in VS Code Chat. Uses native Copilot model selection.
+
+**Dual-run policy:** Any change to an agent's behaviour must be applied to both runtimes during the transition. The canonical source will be designated in a future decision. See [Opencode Runtime Configuration](docs/features/opencode-runtime.md) for the full dual-run policy and the agent migration mapping table.
+
 ### Skills
 
 Story generation skills are defined in `prompts/skills/`. The `story-pipeline` skill provides the pipeline reference (phases, quality gates, savepoints, config settings).
@@ -47,7 +56,7 @@ Codex-native development workflows live in `.agents/skills/`. These are the cano
 - `documentation-maintenance` — docs, ADR, README, and companion-file updates
 - `web-research` — current external research with Tavily, Context7, and primary sources
 
-Older VS Code/GitHub Copilot agent definitions remain under `.github/agents/` for reference and Copilot use. Do not treat their `tools:` frontmatter or `github/...` tool names as directly callable by Codex; translate through the Codex workflow skills first.
+Older VS Code/GitHub Copilot agent definitions remain under `.github/agents-copilot/` for reference and Copilot use. Do not treat their `tools:` frontmatter or `github/...` tool names as directly callable by Codex; translate through the Codex workflow skills first.
 
 ### Storage
 
