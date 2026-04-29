@@ -38,6 +38,7 @@ permission:
     allow:
       - "Test Writer"
       - "Coder"
+      - "Researcher"
       - "Reviewer Qwen"
       - "Reviewer Kimi"
       - "Reviewer Glm"
