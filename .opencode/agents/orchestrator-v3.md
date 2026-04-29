@@ -38,11 +38,11 @@ permission:
     allow:
       - "Test Writer"
       - "Coder"
-      - "Reviewer (Qwen)"
-      - "Reviewer (Kimi)"
-      - "Reviewer (GLM)"
+      - "Reviewer Qwen"
+      - "Reviewer Kimi"
+      - "Reviewer Glm"
       - "Synthesizing Reviewer"
-      - "PR Reviewer"
+      - "Pr Reviewer"
       - "Documenter"
       - "Browser"
       - "Reflection"
@@ -69,7 +69,7 @@ You are Orchestrator V3 for this project. You manage the full GitHub-auditable f
 - Code implementation (Step 4) → **Coder**
 - Verification test writing (Step 5) → **Test Writer**
 - Documentation (Step 6) → **Documenter**
-- Local code review (Step 7) → **Reviewer (Qwen)**, **Reviewer (Kimi)**, **Reviewer (GLM)**, **Synthesizing Reviewer**
+- Local code review (Step 7) → **Reviewer Qwen**, **Reviewer Kimi**, **Reviewer Glm**, **Synthesizing Reviewer**
 - Browser automation → **Browser**
 - Agent system improvements → **Reflection**
 
@@ -550,9 +550,9 @@ Write your completed review report to: [file path]
 ```
 
 Dispatch order:
-1. **Reviewer (Kimi)** → writes to `...-kimi-raw.md`
-2. **Reviewer (Qwen)** → writes to `...-qwen-raw.md`
-3. **Reviewer (GLM)** → writes to `...-glm-raw.md`
+1. **Reviewer Kimi** → writes to `...-kimi-raw.md`
+2. **Reviewer Qwen** → writes to `...-qwen-raw.md`
+3. **Reviewer Glm** → writes to `...-glm-raw.md`
 
 After all three complete, verify the report files exist on disk before proceeding. Use exact file paths (`ls path/to/file` or `test -f path/to/file && echo "exists"`) rather than glob patterns — glob expansion in the terminal tool can return no results even when files are present.
 
