@@ -28,6 +28,8 @@ permission:
       - "cat*"
       - "wc*"
       - "rm -f*"
+    - "rm *"
+    - "echo *"
       - "test -f*"
       - "mkdir*"
       - "pwd*"
@@ -415,7 +417,7 @@ Commit and push the implementation:
 git add -A && git commit -m "feat(scope): implement X (#N)" && git push origin {branch-name}
 ```
 
-> **Never use `mcp_github_push_files` to create commits.** All commits must go through the local working tree to ensure pre-commit hooks run.
+> **Never push files directly via the GitHub API to create commits.** All commits must go through the local working tree to ensure pre-commit hooks run.
 
 If pre-commit hooks auto-modify files (e.g. ruff formatting), stage and amend: `git add -A && git commit --amend --no-edit`, then push again.
 
@@ -530,9 +532,9 @@ Dispatch all three reviewer sub-agents **sequentially** — invoke each one and 
 Determine file paths for the raw reports using today's date and the PR number:
 
 ```
-.github/notes/reviews/YYYY-MM-DD-pr{N}-claude-raw.md
-.github/notes/reviews/YYYY-MM-DD-pr{N}-gpt-raw.md
-.github/notes/reviews/YYYY-MM-DD-pr{N}-gemini-raw.md
+.github/notes/reviews/YYYY-MM-DD-pr{N}-kimi-raw.md
+.github/notes/reviews/YYYY-MM-DD-pr{N}-qwen-raw.md
+.github/notes/reviews/YYYY-MM-DD-pr{N}-glm-raw.md
 ```
 
 Use this prompt template for each reviewer (substitute the actual values):
@@ -548,9 +550,9 @@ Write your completed review report to: [file path]
 ```
 
 Dispatch order:
-1. **Reviewer (Claude)** → writes to `...-claude-raw.md`
-2. **Reviewer (GPT)** → writes to `...-gpt-raw.md`
-3. **Reviewer (Gemini)** → writes to `...-gemini-raw.md`
+1. **Reviewer (Kimi)** → writes to `...-kimi-raw.md`
+2. **Reviewer (Qwen)** → writes to `...-qwen-raw.md`
+3. **Reviewer (GLM)** → writes to `...-glm-raw.md`
 
 After all three complete, verify the report files exist on disk before proceeding. Use exact file paths (`ls path/to/file` or `test -f path/to/file && echo "exists"`) rather than glob patterns — glob expansion in the terminal tool can return no results even when files are present.
 
@@ -564,9 +566,9 @@ Use this prompt:
 Three independent code review reports have been written to disk. Read them, cross-reference findings, and produce a Synthesized Review Report with consensus classification and divergence analysis.
 
 Raw report files:
-- .github/notes/reviews/YYYY-MM-DD-pr{N}-claude-raw.md
-- .github/notes/reviews/YYYY-MM-DD-pr{N}-gpt-raw.md
-- .github/notes/reviews/YYYY-MM-DD-pr{N}-gemini-raw.md
+- .github/notes/reviews/YYYY-MM-DD-pr{N}-kimi-raw.md
+- .github/notes/reviews/YYYY-MM-DD-pr{N}-qwen-raw.md
+- .github/notes/reviews/YYYY-MM-DD-pr{N}-glm-raw.md
 
 Write the synthesis to: .github/notes/reviews/YYYY-MM-DD-pr{N}-synthesis.md
 ```
