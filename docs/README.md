@@ -35,7 +35,7 @@ The active runtime is intentionally small and Python-native:
 - **Interactive Textual TUI**: `src/presentation/tui/app.py` adds `StoryWriterApp`, a three-panel terminal UI with live token streaming, wiki context, and approval gates launched through `story-writer tui`
 - **Repository cleanup**: the temporary `legacy/` archive, duplicate root helper scripts, and obsolete root markdown summaries were removed after migration cleanup, so current documentation should point only to active files under `docs/`, `prompts/`, `src/`, and `tests/`
 
-The repository also carries a project-level Opencode configuration for migration work. That agent runtime now has a full 24-agent migrated inventory in `.opencode/agents/`, uses OpenRouter model IDs in `opencode.json`, and keeps developer-specific OpenRouter credentials plus Tavily and Context7 MCP entries in user-level Opencode config. See [Opencode Runtime Configuration](./features/opencode-runtime.md).
+The repository also carries a project-level Opencode configuration for migration work. That agent runtime now has a full 24-agent migrated inventory in `.opencode/agents/`, uses OpenRouter model IDs in `opencode.json`, and keeps developer-specific OpenRouter credentials plus Tavily and Context7 MCP entries in user-level Opencode config. The original Copilot agent definitions are preserved in `.github/agents-copilot/` and the intermediate OpenRouter migration set in `.github/agents-openrouter/`; neither directory was deleted. See [Opencode Runtime Configuration](./features/opencode-runtime.md).
 
 See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the full before/after summary and maintenance guidance.
 
