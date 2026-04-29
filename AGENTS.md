@@ -56,7 +56,7 @@ Codex-native development workflows live in `.agents/skills/`. These are the cano
 - `documentation-maintenance` — docs, ADR, README, and companion-file updates
 - `web-research` — current external research with Tavily, Context7, and primary sources
 
-Older VS Code/GitHub Copilot agent definitions remain under `.github/agents/` for reference and Copilot use. Do not treat their `tools:` frontmatter or `github/...` tool names as directly callable by Codex; translate through the Codex workflow skills first.
+Older VS Code/GitHub Copilot agent definitions remain under `.github/agents-copilot/` for reference and Copilot use. Do not treat their `tools:` frontmatter or `github/...` tool names as directly callable by Codex; translate through the Codex workflow skills first.
 
 ### Storage
 
