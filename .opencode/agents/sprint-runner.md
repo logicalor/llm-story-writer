@@ -18,6 +18,7 @@ permission:
          - "git branch*"
          - "cat*"
          - "echo*"
+         - "gh*"
       deny: []
    task:
       allow:
@@ -57,10 +58,11 @@ Before starting, read and internalise these shared files:
 
 ### Phase 2 — Collate Open Issues
 
-1. Fetch open issues using `github/list_issues`:
+1. Fetch open issues using the `gh` CLI:
+   ```bash
+   gh issue list --repo OWNER/REPO --state open --json number,title,labels,assignees,createdAt
    ```
-   github/list_issues  owner: OWNER, repo: REPO, state: "open"
-   ```
+   > Note: `gh issue list` returns only issues — pull request filtering is not required.
 
 2. For each issue, extract: **number**, **title**, **labels**, **assignees**, and **created date**.
 
@@ -71,10 +73,8 @@ Before starting, read and internalise these shared files:
    - `duplicate`
    - `question`
 
-4. Exclude pull requests (the `list_issues` endpoint may include PRs — filter by checking for the absence of a `pull_request` key).
-
-5. Check for any issues already assigned to an open PR:
-   - Run `github/list_pull_requests` with `state: "open"` and `base: "development"`.
+4. Check for any issues already assigned to an open PR:
+   - Run `gh pr list --repo OWNER/REPO --state open --base development --json number,body`.
    - Parse PR bodies for `Closes #N` / `Fixes #N` references.
    - Mark those issue numbers as **in-progress** and exclude them from the dispatch list.
 
@@ -92,7 +92,7 @@ Before starting, read and internalise these shared files:
 2. If any issues were excluded (blocked, in-progress), list them separately with reasons.
 
 3. **Detect potential dependencies** between the candidate issues:
-   - For each issue, read its body using `github/issue_read` (method: `"get"`).
+   - For each issue, read its body using `gh issue view N --repo OWNER/REPO --json number,title,body`.
    - Scan the title and body for references to other issue numbers (`#N`), phrases like "depends on", "requires", "blocked by", "after #N", or "builds on".
    - If issue A references issue B and both are in the candidate list, flag a **potential dependency**.
    - Present flagged pairs to the user with a warning:
@@ -121,7 +121,7 @@ For each approved issue, in order:
 
 3. **Ensure on `development` branch** — run:
    ```bash
-   git checkout development && git pull origin development
+   git checkout development && git pull origin development || exit 1
    ```
 
 4. **Dispatch Orchestrator V3** with a detailed prompt:
@@ -143,7 +143,7 @@ For each approved issue, in order:
 
 6. **Return to `development`** before dispatching the next issue:
    ```bash
-   git checkout development && git pull origin development
+   git checkout development && git pull origin development || exit 1
    ```
 
 7. Proceed to the next issue.
