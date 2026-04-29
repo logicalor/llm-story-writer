@@ -26,8 +26,8 @@ permission:
   task: deny
 tools:
   "chroma/*": true
-  "io.github.tavily-ai/tavily-mcp/*": true
   "io.github.upstash/context7/*": true
+  "io.github.tavily-ai/tavily-mcp/*": true
 ---
 
 > **Sync note:** This file is one of three identical auditor sub-agent files (`auditor-kimi.md`, `auditor-qwen.md`, `auditor-glm.md`). They differ only in `model:` and `description:` frontmatter fields. Any change to this body text or other frontmatter **must be applied to all three files in lockstep**.
