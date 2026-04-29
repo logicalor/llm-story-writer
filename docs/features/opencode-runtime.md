@@ -141,6 +141,8 @@ The Opencode runtime migration is now complete. `.opencode/agents/` contains exa
 | Auditor family | `auditor.md`, `auditor-kimi.md`, `auditor-qwen.md`, `auditor-glm.md`, `synthesizing-auditor.md` |
 | Standalone planning and dispatch agents | `planner.md`, `contemplator.md`, `sprint-runner.md` |
 
+The three independent reviewer sub-agents remain intentionally triplicated because Opencode does not provide a native `extends` or `include` mechanism for shared agent bodies. Each file now carries an embedded sync notice at the top of its body stating that `reviewer-kimi.md`, `reviewer-qwen.md`, and `reviewer-glm.md` differ only in `model:` and `description:` frontmatter fields, and that any body-text change must be applied to all three files in lockstep.
+
 Task 7 migrated the researcher family. Task 8 finished the remaining eight files: the auditor family plus `planner.md`, `contemplator.md`, and `sprint-runner.md`. With those files landed, the Opencode runtime now has full parity with the migrated OpenRouter agent set tracked in the Copilot-to-Opencode migration plan.
 
 The researcher family still has the only developer-local MCP dependency in the agent inventory. `researcher.md`, `researcher-kimi.md`, `researcher-qwen.md`, `researcher-glm.md`, and `synthesizing-researcher.md` rely on Tavily and Context7 being present in `~/.config/opencode/opencode.json`; the repository root `opencode.json` still carries only the project-level Chroma configuration.
