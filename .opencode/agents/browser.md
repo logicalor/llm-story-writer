@@ -5,15 +5,13 @@ mode: subagent
 hidden: false
 permission:
   edit:
-    allow:
-      - "tests/e2e/**"
-    deny: []
+    "tests/e2e/**": "allow"
+    "**": "deny"
   bash:
-    allow:
-      - "agent-browser*"
-      - "npx*"
-      - "npm run test*"
-    deny: []
+    "*": "deny"
+    "agent-browser*": "allow"
+    "npx*": "allow"
+    "npm run test*": "allow"
   task: deny
 ---
 

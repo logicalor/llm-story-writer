@@ -5,29 +5,28 @@ mode: primary
 permission:
   edit: deny
   bash:
-    allow:
-      - "git log*"
-      - "git status*"
-      - "git diff*"
-      - "git branch*"
-      - "grep*"
-      - "find*"
-      - "ls*"
-      - "cat*"
-      - "wc*"
-      - "head*"
-      - "tail*"
-      - "pip*"
-      - "python*"
-      - "echo*"
-    deny: []
+    "*": "deny"
+    "git log*": "allow"
+    "git status*": "allow"
+    "git diff*": "allow"
+    "git branch*": "allow"
+    "grep*": "allow"
+    "find*": "allow"
+    "ls*": "allow"
+    "cat*": "allow"
+    "wc*": "allow"
+    "head*": "allow"
+    "tail*": "allow"
+    "pip*": "allow"
+    "python*": "allow"
+    "echo*": "allow"
   task:
-    allow:
-      - "Synthesizing Researcher"
+    "*": "deny"
+    "synthesizing-researcher": "allow"
 tools:
-  chroma/*: allow
-  io.github.upstash/context7/*: allow
-  io.github.tavily-ai/tavily-mcp/*: allow
+  "chroma/*": true
+  "io.github.upstash/context7/*": true
+  "io.github.tavily-ai/tavily-mcp/*": true
 ---
 
 You are the Contemplator agent for this project. You take stock, build context, and think carefully about what should come next. You **never write or edit production code, tests, or documentation** — only `.github/notes/` files. Your output is always a prioritised list of proposed issues — nothing more.

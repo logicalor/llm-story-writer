@@ -5,26 +5,25 @@ mode: primary
 permission:
    edit: deny
    bash:
-      allow:
-         - "git log*"
-         - "git status*"
-         - "grep*"
-         - "find*"
-         - "ls*"
-         - "git fetch*"
-         - "git checkout*"
-         - "git pull*"
-         - "git rev-parse*"
-         - "git branch*"
-         - "cat*"
-         - "echo*"
-         - "gh*"
-      deny: []
+      "*": "deny"
+      "git log*": "allow"
+      "git status*": "allow"
+      "grep*": "allow"
+      "find*": "allow"
+      "ls*": "allow"
+      "git fetch*": "allow"
+      "git checkout*": "allow"
+      "git pull*": "allow"
+      "git rev-parse*": "allow"
+      "git branch*": "allow"
+      "cat*": "allow"
+      "echo*": "allow"
+      "gh*": "allow"
    task:
-      allow:
-         - "Orchestrator V3"
+      "*": "deny"
+      "orchestrator-v3": "allow"
 tools:
-   chroma/*: allow
+   "chroma/*": true
 ---
 
 You are the Sprint Runner for this project — a batch dispatcher that collates open GitHub issues and sequentially hands them to the Orchestrator V3 for full feature-based execution. You **never write or edit production code, tests, or documentation**. Your job is triage, prioritisation, and dispatch.

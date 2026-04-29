@@ -4,21 +4,30 @@
 
 ## Overview
 
-This repository now ships a project-level `opencode.json` that selects OpenRouter as the default Opencode provider surface for agent work. The checked-in file does two things only:
-
-- sets the default model to `openrouter/moonshotai/kimi-k2.6`
-- registers three named OpenRouter models under `provider.openrouter.models`
+This repository now ships a project-level `opencode.json` that selects OpenRouter as the default Opencode provider surface for agent work. The checked-in file sets the primary model, default agent, and small-model route used by the Opencode runtime, and it registers three named OpenRouter models under `provider.openrouter.models`.
 
 User-specific credentials and user-level MCP servers still stay outside the repository. Add those entries to `~/.config/opencode/opencode.json` and authenticate OpenRouter locally.
 
 ## Project-Level Configuration
 
-The checked-in `opencode.json` contents in full:
+The checked-in `opencode.json` keeps project runtime settings minimal. It currently does all of the following:
+
+- sets `model` to `openrouter/moonshotai/kimi-k2.6`
+- sets `default_agent` to `orchestrator-v3` so raw Opencode prompts route through the main workflow agent by default
+- sets `small_model` to `openrouter/qwen/qwen3.6-plus` for lower-cost background work that Opencode can route to the cheaper model tier
+- loads `AGENTS.md` through the `instructions` array
+- enables `opencode-rules@latest`
+- registers three named OpenRouter models under `provider.openrouter.models`
+- configures the project-local Chroma MCP server
+
+The full file is:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "model": "openrouter/moonshotai/kimi-k2.6",
+  "default_agent": "orchestrator-v3",
+  "small_model": "openrouter/qwen/qwen3.6-plus",
   "instructions": ["AGENTS.md"],
   "plugin": ["opencode-rules@latest"],
   "provider": {
@@ -50,11 +59,13 @@ This file does not contain Tavily or Context7 entries. Those MCP servers remain 
 
 ## Installation
 
-Install Opencode globally before using the migrated agent runtime:
+Install or update Opencode to a current `v1.14.x` release before using the migrated agent runtime:
 
 ```bash
-npm install -g opencode-ai
+npm install -g opencode-ai@^1.14.0
 ```
+
+`v1.14.x` is the minimum supported release line for this repository's Opencode setup. The live audit for issue #252 / PR #253 confirmed that this line includes the patch for `CVE-2026-22812` (CVSS 8.8) and the other 2026 localhost/web-ui advisories discussed in the audit report.
 
 Then confirm the CLI is available:
 
@@ -62,7 +73,45 @@ Then confirm the CLI is available:
 opencode --version
 ```
 
+Do not run pre-`v1.14.x` builds in this repository. If `opencode --version` reports an older release, update before using `.opencode/agents/` or the checked-in `opencode.json`.
+
 If your environment uses a different Node.js package manager policy, install the same `opencode-ai` package through that tool and keep the `opencode` CLI on your `PATH`.
+
+## Agent Frontmatter Format
+
+Opencode agent files in `.opencode/agents/` use the current object-map permission schema. Do not use the older array-style `allow:` / `deny:` lists that appeared in earlier migration drafts.
+
+Correct pattern:
+
+```yaml
+permission:
+  bash:
+    "*": "deny"
+    "pytest*": "allow"
+  task:
+    "*": "deny"
+    "agent-file-id": "allow"
+```
+
+Rules:
+
+- `permission.bash` keys are command globs. Start from `"*": "deny"`, then allow only the exact command families the agent needs.
+- `permission.task` keys are agent IDs derived from the filename without `.md`. Use `test-writer`, not `"Test Writer"`; use `synthesizing-reviewer`, not `"Synthesizing Reviewer"`.
+- Scalar forms such as `task: deny` remain valid when an agent must never dispatch subagents, but any allow-list must use the object-map form shown above.
+
+## MCP Tool Scoping In Agent Frontmatter
+
+The `tools:` block is still used for per-agent MCP scoping. Its values are booleans, not permission strings.
+
+Correct pattern:
+
+```yaml
+tools:
+  "chroma/*": true
+  "io.github.tavily-ai/tavily-mcp/*": false
+```
+
+Use `true` / `false`, not `"allow"` / `"deny"`. Treat this block as MCP tool exposure control only; command execution permissions still belong under `permission:`.
 
 ## Directory Layout
 

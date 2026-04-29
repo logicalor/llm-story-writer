@@ -1341,3 +1341,46 @@ The `opencode-rules` package is registered under the **`plugin`** key (singular)
 This affects all tasks that add `.opencode/rules/` files — the rules are inert until the plugin is correctly registered under the singular key.
 
 ChromaDB ID: `gotcha-opencode-rules-plugin-key-singular-037`
+
+---
+
+### 038 — opencode agent `permission` blocks use object-map format, not arrays
+
+**Source:** issue #252, PR #253
+**Severity:** warning
+
+Opencode agent `permission.bash`, `permission.task`, and `permission.edit` blocks must use the **object-map** format with explicit defaults and pattern-specific overrides. The array format (listing allowed patterns as a list) is silently accepted by some Opencode versions but is undocumented and unreliable.
+
+**Wrong (array format — undocumented, unreliable):**
+```yaml
+permission:
+  bash:
+    - "pytest*"
+    - "ruff*"
+  task:
+    - "Coder"
+    - "Test Writer"
+```
+
+**Right (object-map format — documented):**
+```yaml
+permission:
+  bash:
+    "*": "deny"
+    "pytest*": "allow"
+    "ruff*": "allow"
+  task:
+    "*": "deny"
+    "coder": "allow"
+    "test-writer": "allow"
+  tools:
+    "chroma/*": true
+```
+
+Three additional format rules apply:
+
+1. **`permission.task` values are agent file IDs** — the filename without `.md` (e.g., `"coder"` for `coder.md`), not display names (e.g., not `"Coder"` or `"Code Writer"`). Wrong IDs cause silent dispatch failure.
+2. **`tools:` entries use boolean `true`**, not string `"allow"`. String values are silently ignored.
+3. **`tools:` sub-keys use 2-space indent; `bash:`, `task:`, `edit:` sub-keys use 4-space indent** relative to the block key. The corpus standard (21 of 24 files) uses this spacing. Do not copy from `orchestrator-v3.md`, `coder.md`, or `sprint-runner.md` — those three files have historically non-standard indentation.
+
+ChromaDB ID: `gotcha-opencode-permission-object-map-format-038`
