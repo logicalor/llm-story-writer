@@ -5,6 +5,7 @@ mode: subagent
 hidden: false
 permission:
   edit: allow
+  deletee: allow
   bash:
     "*": "deny"
     "grep*": "allow"
