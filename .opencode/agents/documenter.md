@@ -4,13 +4,7 @@ model: openrouter/moonshotai/kimi-k2.6
 mode: subagent
 hidden: false
 permission:
-  edit:
-    "docs/**": "allow"
-    "README.md": "allow"
-    "AGENTS.md": "allow"
-    ".github/copilot-instructions.md": "allow"
-    ".opencode/agents/**": "allow"
-    "**": "deny"
+  edit: allow
   bash:
     "*": "deny"
     "grep*": "allow"

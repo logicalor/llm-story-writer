@@ -60,6 +60,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 - [Textual TUI](./features/textual-tui.md) — Interactive `StoryWriterApp` terminal UI, thread bridge architecture, layout, keybindings, and approval flow
 - [Chapter Outline Expander](./features/chapter-outline-expander.md) — Phase 7a subagent that expands all chapter outlines and carries structured handoff continuity between chapters
 - [Prose Quality Passes](./features/prose-quality-passes.md) — `prose-scrubber` and `final-editor` pipeline stages, config flags, scope constraints, and tool usage
+- [Direct-Generation Prompts](./features/direct-generation-prompts.md) — Tool-free prompt templates and agent integration for Python-native creative generation
 - [Wiki Maintainer](./features/wiki-maintainer.md) — Wiki maintenance subagent: tool-delegated extraction via `wiki-extract`, confidence scoring, detail levels, alias identification, and chapter boundary procedures
 - [Custom Commands](./features/custom-commands.md) — Historical note on the retired OpenCode slash-command surface; reusable `continue` and `regenerate` prompt bodies were preserved under `prompts/agents/`
 - [Compaction Plugin](./features/compaction-plugin.md) — Historical note on the removed OpenCode session-compaction plugin
