@@ -72,7 +72,7 @@ Read **`.github/agents/_shared/communication.md`** — use caveman for chat/prog
    - **Scope-limited commands:** Run formatters and linters only on the files you have modified, not repo-wide. Use `ruff format path/to/file.py` (or a specific directory) rather than `ruff format .`. Repo-wide runs silently format unrelated files, inflating the diff with non-functional changes.
    - **Pre-commit scope audit:** Before committing, run `git diff --name-only` (or `git diff --cached --name-only` after staging) to confirm the changed file list matches your task scope. If `ruff format .` ran and touched out-of-scope files, revert them with `git checkout -- path/to/out-of-scope-file` before committing. (Source: issue #162, PR #172 — `ruff format .` touched `tests/unit/test_openai_async_provider.py` during a review-fix cycle; required manual revert with `git checkout`.)
 9. **Security: subprocess, path, and input validation.**
-    - **Subprocess invocation:** Never use `execSync()` or `exec()` with string concatenation for subprocess calls. Use `execFileSync()` or `spawnSync()` with explicit argument arrays — these bypass the shell and prevent command injection (CWE-78).
+    - **Subprocess invocation:** For Python, never use `os.system()` or `subprocess.call()` with string concatenation for subprocess calls. Use `subprocess.run()` with an explicit argument list (`args=[...]`) and `shell=False` — these bypass the shell and prevent command injection (CWE-78). For any shell-escaping needs, use `shlex.quote()`.
    - **Python tools with file paths:** When resolving user-provided names to file paths, always validate the resolved absolute path starts with the intended base directory using `resolved.resolve()` and `.is_relative_to(base)`. Reject any path that traverses outside the base (CWE-22).
    - **Boundary validation depth:** When validating data at system boundaries (LLM output, file reads, API responses), validate both the container type *and* the element types. E.g., checking `isinstance(result, list)` is insufficient — also verify each element matches the expected type (e.g., `all(isinstance(el, str) for el in result)`).
    - **Shared utility path components:** When writing shared functions (e.g., `_wiki.py`, `_io.py`) that accept parameters used as directory names, glob patterns, or path segments, validate each component individually — not just the final resolved path. Reject `..`, `/`, and characters outside the expected set (e.g., `^[a-z0-9_-]+$` for slugs). Apply `is_relative_to()` as a belt-and-suspenders final check.
@@ -120,7 +120,7 @@ When implementing a feature that spans multiple layers:
 
 1. **Python domain logic first** — entities, value objects, services, strategies in `src/`
 2. **Python tools second** — CLI-callable scripts in `src/tools/`
-3. **TypeScript wrappers third** — This step is retired per ADR 007; all tools are Python-native in `src/tools/`.
+3. **Retired step (was TypeScript wrappers)** — This step is retired per ADR 007; all tools are Python-native in `src/tools/`.
 4. **Prompt templates last** — Jinja2/text templates in `src/infrastructure/prompts/`
 
 This ensures each layer's dependencies exist before it references them.
