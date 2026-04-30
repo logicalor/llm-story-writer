@@ -9,6 +9,7 @@ permission:
     "README.md": "allow"
     "AGENTS.md": "allow"
     ".github/copilot-instructions.md": "allow"
+    ".opencode/agents/**": "allow"
     "**": "deny"
   bash:
     "*": "deny"
@@ -63,7 +64,7 @@ The `docs/` directory should be organised as follows:
 | `docs/setup.md`            | Local development setup instructions                                    |
 | `docs/testing.md`          | Testing guide — test patterns, verification workflow, coverage expectations |
 | `docs/wiki-system.md`      | Wiki memory system — page format, YAML frontmatter, wikilinks             |
-| `docs/tools.md`            | OpenCode tool reference — TypeScript wrappers and Python scripts           |
+| `docs/tools.md`            | OpenCode tool reference — Python scripts           |
 | `docs/features/`           | Feature-specific documentation (one file per major feature)                 |
 | `docs/planning/`           | PRDs, task breakdowns, and planning artefacts                               |
 | `docs/planning/adr/`       | Architecture Decision Records                                               |
@@ -128,7 +129,7 @@ Replace `<old-term>` with the retired, introduced, or renamed layer, component, 
 > - For relative links: test they resolve from the doc's directory (e.g., from `docs/` to `.github/` requires `../`).
 > - For tool output formats: read the Python tool's `cmd_*` functions to verify the exact JSON structure returned (dict vs array, field names, status codes).
 > - For file extensions: check the Python tool's save/load logic to verify the actual file format used on disk — do not infer from the domain name.
-> - For inventory tables (tools, collections, agents, categories): cross-check table entries against the actual source of truth on disk (e.g., `ls .opencode/tools/` for tool tables, `ls src/tools/` for script tables). Verify both that every row has a matching file AND that every file has a matching row — pre-existing missing entries compound with new additions to produce wrong counts.
+> - For inventory tables (tools, collections, agents, categories): cross-check table entries against the actual source of truth on disk (e.g., `ls src/tools/` for tool and script tables). Verify both that every row has a matching file AND that every file has a matching row — pre-existing missing entries compound with new additions to produce wrong counts.
 > - For agent family enumerations in prose (e.g., "the researcher family comprises…", "the auditor family and its sub-agents…"): run `ls .opencode/agents/ | grep <family-prefix>` to enumerate all family members before writing the list. A named family includes the parent agent (e.g., `auditor.md`), all model-specific sub-agents (e.g., `auditor-kimi.md`, `auditor-qwen.md`, `auditor-glm.md`), and the synthesizing agent (e.g., `synthesizing-auditor.md`). Do not rely on memory — enumerate from disk. (Source: issue #257, PR #259 — initial doc fix listed only the three auditor sub-agent variants and omitted `auditor.md`.)
 > - No hardcoded URLs — reference the project's routing conventions instead.
 > - Scan the entire file for `TODO`, `[placeholder]`, `...` stubs, and trivially short sections (3 lines or fewer where substance is expected). Remove or complete them before committing.
@@ -188,7 +189,6 @@ Related: [Architecture Overview](./architecture.md#data-model)
 ### Key Files
 
 - `src/tools/tool_name.py` — Python tool script
-- `.opencode/tools/tool-name.ts` — TypeScript OpenCode wrapper
 
 ### Data
 

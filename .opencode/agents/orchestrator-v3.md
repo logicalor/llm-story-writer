@@ -248,7 +248,7 @@ Follow the project notes protocol from **`.github/agents/_shared/repo-context.md
 Dispatch a **Researcher** subagent with a prompt that includes:
 
 - The issue title, requirements, and acceptance criteria
-- A list of areas to investigate (relevant to the project's architecture — Python domain logic in `src/`, TypeScript OpenCode tool wrappers in `.opencode/tools/`, wiki system in `stories/*/wiki/`, prompt templates in `src/infrastructure/prompts/`, ChromaDB collections, existing tests in `tests/`)
+- A list of areas to investigate (relevant to the project's architecture — Python domain logic in `src/`, Python tools in `src/tools/`, wiki system in `stories/*/wiki/`, prompt templates in `src/infrastructure/prompts/`, ChromaDB collections, existing tests in `tests/`)
 - Instructions to return a compact summary: file paths found, naming conventions observed, patterns to follow, test patterns, any risks
 
 The Researcher agent returns a research summary. Use it to synthesise the plan — **do not re-read the files yourself**.
@@ -267,12 +267,12 @@ From the research summary, produce:
 
 **Summary** — One paragraph describing the feature/fix, scope, and integration points.
 
-**Affected Areas** — `Python domain logic` / `TypeScript tool wrappers` / `Wiki system` / `Prompt templates` / `Full-stack`; `ChromaDB schema change: yes/no`
+**Affected Areas** — `Python domain logic` / `Python tools` / `Wiki system` / `Prompt templates` / `Full-stack`; `ChromaDB schema change: yes/no`
 
 **Task Checklist (ordered by dependency)**:
 
 - **Infrastructure** (if needed): ChromaDB collection changes, wiki page templates
-- **Implementation**: Python tools, TypeScript wrappers, domain services, prompt templates
+- **Implementation**: Python tools, domain services, prompt templates
 - **Verification tests**: Test file path + list of test methods to write
 
 **Execution Order**: Implementation → Verification tests → Confirm all pass
