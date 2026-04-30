@@ -97,9 +97,9 @@ Brief (3–5 sentence) summary of each model's audit, highlighting what each emp
 
 | Model  | Overall Assessment | Unique Focus Areas | Critical Count | Warning Count |
 | ------ | ------------------ | ------------------ | -------------- | ------------- |
-| Claude | ...                | ...                | N              | N             |
-| GPT    | ...                | ...                | N              | N             |
-| Gemini | ...                | ...                | N              | N             |
+| Kimi   | ...                | ...                | N              | N             |
+| Qwen   | ...                | ...                | N              | N             |
+| GLM    | ...                | ...                | N              | N             |
 
 ### Development Stage (Consensus)
 
@@ -123,7 +123,7 @@ These are the highest-confidence findings. Act on these first.
 Severity: Critical | Warning | Info
 Category: Code Quality | Architecture | Schema | Build | Tests | Documentation
 Detail: Synthesised description incorporating insights from all three models
-Models: Claude ✓ GPT ✓ Gemini ✓
+Models: Kimi ✓ Qwen ✓ GLM ✓
 Impact: Why this matters
 ```
 
@@ -136,7 +136,7 @@ These are medium-confidence findings. Worth investigating.
 Severity: Critical | Warning | Info
 Category: ...
 Detail: ...
-Models: Claude ✓ GPT ✓ Gemini ✗ (or other combination)
+Models: Kimi ✓ Qwen ✓ GLM ✗ (or other combination)
 Dissenting view: What the minority models said (or didn't say) and why
 Impact: ...
 ```
@@ -150,7 +150,7 @@ These are lower-confidence findings. May be genuine insights or false positives.
 Severity: Critical | Warning | Info
 Category: ...
 Detail: ...
-Model: Claude (or GPT or Gemini)
+Model: Kimi (or Qwen or GLM)
 Assessment: Why this might be a genuine finding / why it might be a false positive
 ```
 
@@ -160,9 +160,9 @@ A dedicated section documenting where the models disagreed and your assessment:
 
 ```
 [D-01] Topic: [area of disagreement]
-Claude says: ...
-GPT says: ...
-Gemini says: ...
+Kimi says: ...
+Qwen says: ...
+GLM says: ...
 Assessment: Which view is most likely correct (with evidence)
 Resolution: How this should be treated in the final findings
 ```
@@ -201,7 +201,7 @@ After completing the synthesis, write a summary to `.github/notes/audits/YYYY-MM
 ```markdown
 ## Synthesized Audit — YYYY-MM-DD
 
-**Audit Type:** Multi-model synthesis (Claude, GPT, Gemini)
+**Audit Type:** Multi-model synthesis (Kimi, Qwen, GLM)
 **Model Agreement Score:** X/10
 **Overall Health:** [Healthy | Needs Attention | At Risk]
 **Development Stage:** Phase X — Y% complete
