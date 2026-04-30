@@ -7,7 +7,8 @@ from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
 from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.agent_prompt_loader import load_agent_prompt
+from infrastructure.prompts.agent_prompt_loader import load_agent_prompt  # noqa: F401
+from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
     TokenStreamBus,
     WikiContextBus,
@@ -45,6 +46,23 @@ def _extract_consistency_result(text: str) -> dict[str, Any]:
 
     issues: list[dict[str, Any]] = []
 
+    # New direct-generation format
+    if isinstance(data.get("issues"), list):
+        for item in data["issues"]:
+            if not isinstance(item, dict):
+                continue
+            issues.append(
+                {
+                    "type": item.get("type", "continuity"),
+                    "description": item.get("description", ""),
+                    "severity": item.get("severity", "info"),
+                    "location": item.get("location", ""),
+                }
+            )
+        passed = not data.get("has_critical_findings", False)
+        return {"issues": issues, "passed": passed}
+
+    # Legacy format fallback
     lint = data.get("wiki_lint_findings") or {}
     for contradiction in lint.get("contradictions", []):
         issues.append(
@@ -113,7 +131,10 @@ class ConsistencyCheckerAgent:
 
     def _get_system_prompt(self) -> str:
         if self._system_prompt is None:
-            self._system_prompt = load_agent_prompt("consistency-checker")
+            loader = PromptLoader(prompts_dir="prompts")
+            self._system_prompt = loader.load_prompt(
+                "chapter_review/consistency_check_direct"
+            )
         return self._system_prompt
 
     async def run(
@@ -134,20 +155,25 @@ class ConsistencyCheckerAgent:
             )
         )
 
+        loader = PromptLoader(prompts_dir="prompts")
+        system_prompt = loader.load_prompt(
+            "chapter_review/consistency_check_direct",
+            variables={
+                "chapter_content": chapter_content,
+                "story_name": story_name,
+                "chapter_number": str(chapter_number),
+                "outline": "",
+            },
+        )
+
         model_config = _build_model_config(
             self.config,
             "checker_model",
             "openai-compat://default",
         )
         messages = [
-            {"role": "system", "content": self._get_system_prompt()},
-            {
-                "role": "user",
-                "content": (
-                    f"Story: {story_name}\nChapter: {chapter_number}\n"
-                    f"Chapter Content:\n{chapter_content[:4000]}"
-                ),
-            },
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "Return the JSON consistency report."},
         ]
 
         full_text = ""

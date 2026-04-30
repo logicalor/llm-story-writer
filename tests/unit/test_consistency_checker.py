@@ -162,7 +162,7 @@ async def test_run_emits_tokens_and_returns_parsed_result() -> None:
     )
 
     with patch(
-        "presentation.agents.consistency_checker.load_agent_prompt",
+        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
         return_value="system prompt",
     ):
         result = await agent.run("test-story", 7, "Chapter body")

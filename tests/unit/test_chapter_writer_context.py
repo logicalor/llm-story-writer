@@ -62,18 +62,17 @@ async def test_chapter_writer_includes_character_context(tmp_path: Path) -> None
     }
 
     agent = ChapterWriterAgent(provider, config, bus, wiki_bus)
-    with (
-        patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
-        patch.object(agent, "_get_system_prompt", return_value="system"),
-    ):
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
         draft = await agent.run("test-story", 1, _outline_result(), _settings())
 
     assert draft is not None
-    user_prompt = next(
-        message["content"] for message in captured_messages if message["role"] == "user"
+    system_prompt = next(
+        message["content"]
+        for message in captured_messages
+        if message["role"] == "system"
     )
-    assert "Alice" in user_prompt
-    assert "Brave protagonist" in user_prompt
+    assert "Alice" in system_prompt
+    assert "Brave protagonist" in system_prompt
 
 
 @pytest.mark.asyncio
@@ -108,18 +107,17 @@ async def test_chapter_writer_includes_setting_context(tmp_path: Path) -> None:
     }
 
     agent = ChapterWriterAgent(provider, config, bus, wiki_bus)
-    with (
-        patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
-        patch.object(agent, "_get_system_prompt", return_value="system"),
-    ):
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
         draft = await agent.run("test-story", 1, _outline_result(), _settings())
 
     assert draft is not None
-    user_prompt = next(
-        message["content"] for message in captured_messages if message["role"] == "user"
+    system_prompt = next(
+        message["content"]
+        for message in captured_messages
+        if message["role"] == "system"
     )
-    assert "The Citadel" in user_prompt
-    assert "Fortified hilltop city" in user_prompt
+    assert "The Citadel" in system_prompt
+    assert "Fortified hilltop city" in system_prompt
 
 
 @pytest.mark.asyncio
@@ -141,15 +139,14 @@ async def test_chapter_writer_no_context_when_no_sheets(tmp_path: Path) -> None:
     }
 
     agent = ChapterWriterAgent(provider, config, bus, wiki_bus)
-    with (
-        patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
-        patch.object(agent, "_get_system_prompt", return_value="system"),
-    ):
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
         draft = await agent.run("test-story", 1, _outline_result(), _settings())
 
     assert draft is not None
-    user_prompt = next(
-        message["content"] for message in captured_messages if message["role"] == "user"
+    system_prompt = next(
+        message["content"]
+        for message in captured_messages
+        if message["role"] == "system"
     )
-    assert "## Characters" not in user_prompt
-    assert "## Settings" not in user_prompt
+    assert "## Characters" not in system_prompt
+    assert "## Settings" not in system_prompt

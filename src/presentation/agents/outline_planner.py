@@ -9,7 +9,8 @@ from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import OutlineResult
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.agent_prompt_loader import load_agent_prompt
+from infrastructure.prompts.agent_prompt_loader import load_agent_prompt  # noqa: F401
+from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
     TokenStreamBus,
     WikiContextBus,
@@ -120,7 +121,8 @@ class OutlinePlannerAgent:
 
     def _get_system_prompt(self) -> str:
         if self._system_prompt is None:
-            self._system_prompt = load_agent_prompt("outline-planner")
+            loader = PromptLoader(prompts_dir="prompts")
+            self._system_prompt = loader.load_prompt("outline/create_direct")
         return self._system_prompt
 
     async def run(
@@ -147,14 +149,39 @@ class OutlinePlannerAgent:
             )
         )
 
+        desired_chapters = settings.wanted_chapters
+        early_chapters = max(1, int(desired_chapters * 0.25))
+        rising_start = early_chapters + 1
+        rising_end = max(rising_start, int(desired_chapters * 0.75))
+        climax_start = max(rising_end + 1, int(desired_chapters * 0.75) + 1)
+        climax_end = max(climax_start, int(desired_chapters * 0.90))
+        resolution_start = climax_end + 1
+
+        loader = PromptLoader(prompts_dir="prompts")
+        system_prompt = loader.load_prompt(
+            "outline/create_direct",
+            variables={
+                "prompt": prompt,
+                "desired_chapters": str(desired_chapters),
+                "story_elements": "",
+                "base_context": "",
+                "early_chapters": str(early_chapters),
+                "rising_start": str(rising_start),
+                "rising_end": str(rising_end),
+                "climax_start": str(climax_start),
+                "climax_end": str(climax_end),
+                "resolution_start": str(resolution_start),
+            },
+        )
+
         model_config = _build_model_config(
             self.config,
             "initial_outline_writer",
             "openai-compat://default",
         )
         messages = [
-            {"role": "system", "content": self._get_system_prompt()},
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "Please generate the complete outline."},
         ]
 
         full_text = ""

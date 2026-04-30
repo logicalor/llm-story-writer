@@ -8,7 +8,8 @@ from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import ChapterDraft, FinalEditResult
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.agent_prompt_loader import load_agent_prompt
+from infrastructure.prompts.agent_prompt_loader import load_agent_prompt  # noqa: F401
+from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
     TokenStreamBus,
     WikiContextBus,
@@ -38,7 +39,8 @@ class FinalEditorAgent:
 
     def _get_system_prompt(self) -> str:
         if self._system_prompt is None:
-            self._system_prompt = load_agent_prompt("final-editor")
+            loader = PromptLoader(prompts_dir="prompts")
+            self._system_prompt = loader.load_prompt("final_edit/edit_chapter_direct")
         return self._system_prompt
 
     async def run(
@@ -56,8 +58,14 @@ class FinalEditorAgent:
         model_config = _build_model_config(
             self.config, "chapter_writer", "openai-compat://default"
         )
-        system_prompt = self._get_system_prompt()
         edited_chapters: list[ChapterDraft] = []
+
+        prior_summaries: list[str] = []
+        for draft in approved_chapters:
+            prior_summaries.append(
+                f"Chapter {draft.chapter_number}: {draft.title} — "
+                f"{draft.content[:200].replace(chr(10), ' ')}..."
+            )
 
         for draft in approved_chapters:
             await self.wiki_bus.emit(
@@ -68,15 +76,26 @@ class FinalEditorAgent:
                 )
             )
 
+            prior_chapters_summary = "\n".join(
+                s
+                for s in prior_summaries
+                if not s.startswith(f"Chapter {draft.chapter_number}:")
+            )
+
+            loader = PromptLoader(prompts_dir="prompts")
+            system_prompt = loader.load_prompt(
+                "final_edit/edit_chapter_direct",
+                variables={
+                    "chapter_text": draft.content,
+                    "chapter_number": str(draft.chapter_number),
+                    "chapter_title": draft.title,
+                    "prior_chapters_summary": prior_chapters_summary,
+                },
+            )
+
             messages = [
                 {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": (
-                        f"## Chapter {draft.chapter_number}: {draft.title}\n\n"
-                        f"{draft.content}"
-                    ),
-                },
+                {"role": "user", "content": "Return the polished chapter."},
             ]
 
             full_text = ""
