@@ -64,7 +64,7 @@ The `docs/` directory should be organised as follows:
 | `docs/setup.md`            | Local development setup instructions                                    |
 | `docs/testing.md`          | Testing guide — test patterns, verification workflow, coverage expectations |
 | `docs/wiki-system.md`      | Wiki memory system — page format, YAML frontmatter, wikilinks             |
-| `docs/tools.md`            | OpenCode tool reference — TypeScript wrappers and Python scripts           |
+| `docs/tools.md`            | OpenCode tool reference — Python scripts           |
 | `docs/features/`           | Feature-specific documentation (one file per major feature)                 |
 | `docs/planning/`           | PRDs, task breakdowns, and planning artefacts                               |
 | `docs/planning/adr/`       | Architecture Decision Records                                               |

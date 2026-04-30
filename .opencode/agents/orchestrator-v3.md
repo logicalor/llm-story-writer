@@ -267,12 +267,12 @@ From the research summary, produce:
 
 **Summary** — One paragraph describing the feature/fix, scope, and integration points.
 
-**Affected Areas** — `Python domain logic` / `TypeScript tool wrappers` / `Wiki system` / `Prompt templates` / `Full-stack`; `ChromaDB schema change: yes/no`
+**Affected Areas** — `Python domain logic` / `Python tools` / `Wiki system` / `Prompt templates` / `Full-stack`; `ChromaDB schema change: yes/no`
 
 **Task Checklist (ordered by dependency)**:
 
 - **Infrastructure** (if needed): ChromaDB collection changes, wiki page templates
-- **Implementation**: Python tools, TypeScript wrappers, domain services, prompt templates
+- **Implementation**: Python tools, domain services, prompt templates
 - **Verification tests**: Test file path + list of test methods to write
 
 **Execution Order**: Implementation → Verification tests → Confirm all pass
