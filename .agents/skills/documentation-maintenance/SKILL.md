@@ -9,18 +9,22 @@ Update existing docs before creating new ones. Documentation must describe imple
 
 ## Workflow
 
-1. Load `project-memory`.
-2. Read the issue, PR, diff, or implementation files that define the actual behavior.
-3. Find existing docs with `rg`.
-4. Update docs and indexes together.
-5. Verify paths, links, commands, examples, and behavior claims against the repo. Scan the full file for every occurrence of changed terms; don't assume a single-section edit is sufficient.
-6. When files are renamed or ADR numbers change, verify all internal markdown links still resolve.
-7. Run relevant markdown and code validation where available.
-7. Add `.github/notes/` entries for gotchas or architectural learnings that should be remembered.
+1. **Trivial-change short-circuit.** If the PR changes only agent instructions, skill files, config files, or documentation itself (no `.py` or `.ts` code), skip to output — no separate `docs/` update is needed. The changed files are self-documenting.
+2. Load `project-memory`.
+3. Read the issue, PR, diff, or implementation files that define the actual behavior.
+4. Find existing docs with `rg`.
+5. Update docs and indexes together.
+6. Verify paths, links, commands, examples, and behavior claims against the repo. The depth of verification depends on PR type:
+   - **Code-heavy PRs** (new features, API changes): verify routes, signatures, DB schemas, tool outputs against actual source.
+   - **Config/agent/docs-only PRs** (no code changes): verify file paths, links, and prose consistency only. Skip code-specific checks.
+7. When files are renamed or ADR numbers change, verify all internal markdown links still resolve.
+8. Run relevant markdown and code validation where available.
+9. Add `.github/notes/` entries for gotchas or architectural learnings that should be remembered.
+10. **ChromaDB embedding:** If `mcp__chroma__` is available, embed updated docs. If unavailable, skip silently — do not retry.
 
 ## Companion Sweeps
 
-For architecture changes, ADRs, layer renames, tool changes, or workflow changes, sweep:
+For architecture changes, ADRs, layer renames, tool changes, or workflow changes, sweep all of the following — do not stop at the first match:
 
 - `AGENTS.md`
 - `.github/copilot-instructions.md`
@@ -30,6 +34,8 @@ For architecture changes, ADRs, layer renames, tool changes, or workflow changes
 - `.github/notes/gotchas.md`
 - `.agents/skills/`
 - `.github/agents/` if the Copilot system remains in use
+
+**Maximum files modified per dispatch: 5.** If the sweep identifies more than 5 files needing updates, apply the 5 most critical and defer the rest.
 
 ## Rules
 
