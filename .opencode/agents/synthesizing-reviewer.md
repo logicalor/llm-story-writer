@@ -84,6 +84,35 @@ Write the review summary to `.github/notes/reviews/YYYY-MM-DD-pr{N}-synthesis.md
 
 ## Output Format
 
+### Clean Short-Circuit
+
+If **all three reviewers return zero findings** (0 Critical, 0 Warning, 0 Suggestion), produce a minimal synthesis:
+
+```markdown
+## Synthesized Code Review — YYYY-MM-DD
+
+**Review Type:** Multi-model synthesis (Qwen + Kimi + GLM)
+**Branch:** [branch-name]
+**Model Agreement Score:** 10/10
+**Overall Assessment:** Clean
+
+### Finding Counts by Consensus
+
+| Consensus         | Critical | Warning | Suggestion |
+| ----------------- | -------- | ------- | ---------- |
+| ★★★ Unanimous     | 0        | 0       | 0          |
+| ★★☆ Majority      | 0        | 0       | 0          |
+| ★☆☆ Singular      | 0        | 0       | 0          |
+
+**All three reviewers agree: no findings. Divergence: none. Recommended action: proceed to merge.**
+```
+
+Do NOT produce Individual Report Summaries, Consensus Findings, Divergence Analysis, or Recommended Actions sections for a clean review. Write the minimal report to the file and return.
+
+---
+
+### Full Report (when findings exist)
+
 Produce a **Synthesized Review Report** with the following structure:
 
 ---

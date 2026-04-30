@@ -19,9 +19,9 @@ Different LLMs have different strengths, blind spots, and reasoning biases. By r
 
 | Role suffix | Model | Provider |
 | ----------- | ----- | -------- |
-| (Claude)    | Claude Opus 4.6 | Copilot |
-| (GPT)       | GPT 5.4 | Copilot |
-| (Gemini)    | Gemini 3.1 Pro (Preview) | Copilot |
+| (Kimi)      | Kimi K2.6 | OpenRouter |
+| (Qwen)      | Qwen3.6 Plus | OpenRouter |
+| (GLM)       | GLM 5.1 | OpenRouter |
 
 ---
 
@@ -105,7 +105,7 @@ Produce the final report (format defined in the calling agent) incorporating the
 Severity: Critical | Warning | Suggestion
 Category: Security | Correctness | Performance | Style | Testing | Documentation | Architecture
 Detail: Synthesised description incorporating insights from all three models
-Models: Claude ✓ GPT ✓ Gemini ✓
+Models: Kimi ✓ Qwen ✓ GLM ✓
 Suggestion: How to fix it
 ```
 
@@ -117,9 +117,9 @@ For non-unanimous findings, include `Dissenting view: What the minority models s
 
 | Model | Overall Assessment | Unique Focus Areas | [Domain] Count |
 | ----- | ------------------ | ------------------ | -------------- |
-| Claude | ... | ... | N |
-| GPT | ... | ... | N |
-| Gemini | ... | ... | N |
+| Kimi | ... | ... | N |
+| Qwen | ... | ... | N |
+| GLM | ... | ... | N |
 
 ---
 
@@ -127,8 +127,8 @@ For non-unanimous findings, include `Dissenting view: What the minority models s
 
 ```
 [D-01] Topic: [area of disagreement]
-Claude says: ...
-GPT says: ...
-Gemini says: ...
+Kimi says: ...
+Qwen says: ...
+GLM says: ...
 Assessment: Which view is most likely correct (with evidence)
 ```

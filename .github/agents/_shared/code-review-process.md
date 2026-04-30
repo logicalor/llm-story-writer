@@ -15,18 +15,28 @@ Before reviewing:
 
 ### Pre-Computed Package Mode
 
-When dispatched by the **Synthesizing Reviewer**, your prompt includes a **Review Package** (delimited by `== REVIEW PACKAGE ==` / `== END REVIEW PACKAGE ==`) containing the branch name, commit log, changed file list, full diff, and full file contents — all pre-collected by the synthesizer.
+When dispatched by the **Orchestrator** with a pre-computed Review Package, your prompt includes a **Review Package** (delimited by `== REVIEW PACKAGE ==` / `== END REVIEW PACKAGE ==`) containing the branch name, commit log, changed file list, full diff, and full file contents.
 
-In this mode:
-
-- **Skip Prerequisites 1–4** — the data is already in the package
-- Use the package data for all review phases
+**In this mode, the Pre-Computed Package takes precedence over Prerequisites 1–4 above.** Do NOT re-run `git diff`, `git log`, `git diff --name-only`, or `read` on changed files — the data is already in the package. Use the package data for all review phases.
 - You may still run **targeted** commands for specific verification (e.g., checking if a file referenced in the code exists on disk, grepping for a specific pattern across the workspace) — but do not re-run the bulk data collection commands
 - **For documentation files (`.md`, `.rst`, `.txt` prose)** — verify claims against the **Full File Contents** section of the review package, not the diff excerpt. Diff whitespace (leading `+`/`-` markers, indentation shifts) and hunk context lines are a known source of false positives on prose files.
 
 This eliminates redundant I/O when multiple reviewer models are dispatched against the same branch.
 
 ---
+
+## PR-Type Scoping
+
+Before starting Phase 1, determine the PR type from the changed files and commit messages:
+
+| PR Type | Files Changed | Phases to Run | Phases to Skip |
+|---|---|---|---|
+| Documentation-only | `.md`, `.rst`, `.txt` prose only; no `.py`, `.ts`, `.js` | Phase 1 (structural), Phase 7 (docs) | Phases 2–6 |
+| Config/agent/skill-only | `.opencode/agents/*.md`, `.github/agents/*.md`, `.github/skills/*.md`, `.github/instructions/*.md` | Phase 1 (structural), Phase 7 (docs) | Phases 2–6 |
+| Code change | `.py`, `.ts`, `.js`, or any source file | All phases 1–7 | None |
+| Mixed | Both code and docs/config | All phases 1–7 | None |
+
+**Maximum findings per reviewer: 10.** Stop producing new findings once you reach 10. If you find 3 or more Critical findings, stop immediately after the third Critical and report — do not continue searching for lower-severity issues.
 
 ## Review Phases
 
