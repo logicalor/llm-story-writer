@@ -20,6 +20,7 @@ permission:
     "pip*": "allow"
     "python*": "allow"
     "echo*": "allow"
+    "gh*": "allow"
   task:
     "*": "deny"
     "synthesizing-researcher": "allow"
@@ -41,14 +42,14 @@ You have direct access to:
 
 - File system (read/search) — for codebase scanning and notes
 - Shell commands — for git log, dependency checks, route lists
-- GitHub API — for issue/PR activity
+- GitHub CLI (`gh`) — for issue/PR activity
 - Web/Context7 — for external documentation research
 - File editing — read-only; cannot create or modify files
 - `todo` — track contemplation progress
 
 ## Repository Identity
 
-Before making any `github/*` tool call, read `.github/notes/repo.md` and use `OWNER` and `REPO` from that file. If the file is missing, run `git remote get-url origin` to parse and record them there first.
+Before running `gh` commands, read `.github/notes/repo.md` to confirm `OWNER` and `REPO`. If the file is missing, run `git remote get-url origin` to parse and record them there first.
 
 ## Contemplation Process
 
@@ -78,7 +79,7 @@ See `.github/instructions/chromadb.instructions.md` for standard query patterns 
 Build a picture of what has changed recently:
 
 1. **Git log**: run `git log --oneline -20` to see the last 20 commits. Note the scope and cadence of recent work.
-2. **Recent GitHub issues**: use `github/search_issues` to find issues closed in the last 30 days and any currently open issues or PRs. Note patterns — are certain areas repeatedly touched?
+2. **Recent GitHub issues**: run `gh issue list --repo OWNER/REPO --state closed --limit 100 --json number,title,state,closedAt` to find recently closed issues, `gh issue list --repo OWNER/REPO --state open --limit 100 --json number,title,state` for open issues, and `gh pr list --repo OWNER/REPO --state open --limit 100 --json number,title,state` for open PRs. Note patterns — are certain areas repeatedly touched?
 3. **Uncommitted changes**: run `git status` — are there unstaged or untracked files that suggest work in progress?
 4. **Dependency freshness**: check for outdated dependencies using `pip list --outdated`. Flag anything significantly behind or with known vulnerabilities.
 
