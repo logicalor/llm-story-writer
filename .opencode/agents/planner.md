@@ -3,6 +3,7 @@ description: "Product-level planning agent. Takes a vague idea or feature concep
 model: openrouter/moonshotai/kimi-k2.6
 mode: primary
 permission:
+  write: allow
   edit:
     "docs/planning/**": "allow"
     ".github/notes/**": "allow"

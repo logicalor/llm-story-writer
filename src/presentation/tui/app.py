@@ -107,6 +107,7 @@ class StoryWriterApp(App[None]):
         self._gate: TUIApprovalGate | None = None
         self._wiki_visible = False
         self._completed_phases: list[str] = []
+        self._token_buffer: list[str] = []
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -115,7 +116,7 @@ class StoryWriterApp(App[None]):
                 yield Label("Phases", id="phase-title")
                 for phase in PIPELINE_PHASES:
                     yield Label(f"- {phase}", id=f"phase-{phase}", classes="phase-item")
-            yield RichLog(id="output-log", highlight=True, markup=False, wrap=True)
+            yield RichLog(id="output-log", highlight=False, markup=False, wrap=True)
             with Vertical(id="wiki-panel"):
                 yield Label("Wiki Context", id="wiki-title")
                 yield RichLog(id="wiki-log", highlight=False, markup=False, wrap=True)
@@ -133,9 +134,21 @@ class StoryWriterApp(App[None]):
         self._update_phase("outline")
         self._run_pipeline(self.story_name, self.resume, self.savepoint_name)
 
+    def _flush_token_buffer(self) -> None:
+        """Write buffered tokens as a single RichLog line."""
+        if not self._token_buffer:
+            return
+        text = "".join(self._token_buffer)
+        self._token_buffer.clear()
+        self.query_one("#output-log", RichLog).write(text)
+
     def _append_token(self, delta: str) -> None:
-        """Append a token delta to the output log."""
-        self.query_one("#output-log", RichLog).write(delta)
+        """Buffer token deltas and flush on newlines or buffer size."""
+        self._token_buffer.append(delta)
+        # Flush immediately if we hit a newline so markdown structure
+        # (headers, blank lines, lists) stays on its own log line.
+        if "\n" in delta or len(self._token_buffer) > 120:
+            self._flush_token_buffer()
 
     def _append_wiki_event(self, event: WikiContextEvent) -> None:
         """Append a wiki context event to the wiki panel."""
@@ -146,6 +159,7 @@ class StoryWriterApp(App[None]):
 
     def _append_error(self, message: str) -> None:
         """Append a pipeline error to the output log."""
+        self._flush_token_buffer()
         self.query_one("#output-log", RichLog).write(f"\nPipeline error: {message}\n")
 
     def _normalize_phase(self, phase: str) -> str:
@@ -177,6 +191,7 @@ class StoryWriterApp(App[None]):
 
     def _show_approval_input(self) -> None:
         """Reveal the approval input widget."""
+        self._flush_token_buffer()
         input_widget = self.query_one("#approval-input", Input)
         input_widget.display = True
         input_widget.focus()
@@ -192,6 +207,7 @@ class StoryWriterApp(App[None]):
 
     def _on_pipeline_complete(self, status: str) -> None:
         """Update the UI when the pipeline finishes."""
+        self._flush_token_buffer()
         if status == "error":
             self.sub_title = f"Failed - {status}"
             self.query_one("#output-log", RichLog).write(
