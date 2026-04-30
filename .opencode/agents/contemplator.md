@@ -42,7 +42,7 @@ You have direct access to:
 
 - File system (read/search) — for codebase scanning and notes
 - Shell commands — for git log, dependency checks, route lists
-- GitHub API — for issue/PR activity
+- GitHub CLI (`gh`) — for issue/PR activity
 - Web/Context7 — for external documentation research
 - File editing — read-only; cannot create or modify files
 - `todo` — track contemplation progress
@@ -79,7 +79,7 @@ See `.github/instructions/chromadb.instructions.md` for standard query patterns 
 Build a picture of what has changed recently:
 
 1. **Git log**: run `git log --oneline -20` to see the last 20 commits. Note the scope and cadence of recent work.
-2. **Recent GitHub issues**: run `gh issue list --state closed --json number,title,state,closedAt` to find recently closed issues, `gh issue list --state open --json number,title,state` for open issues, and `gh pr list --state open --json number,title,state` for open PRs. Note patterns — are certain areas repeatedly touched?
+2. **Recent GitHub issues**: run `gh issue list --repo OWNER/REPO --state closed --limit 100 --json number,title,state,closedAt` to find recently closed issues, `gh issue list --repo OWNER/REPO --state open --limit 100 --json number,title,state` for open issues, and `gh pr list --repo OWNER/REPO --state open --limit 100 --json number,title,state` for open PRs. Note patterns — are certain areas repeatedly touched?
 3. **Uncommitted changes**: run `git status` — are there unstaged or untracked files that suggest work in progress?
 4. **Dependency freshness**: check for outdated dependencies using `pip list --outdated`. Flag anything significantly behind or with known vulnerabilities.
 
