@@ -112,9 +112,9 @@ Available subcommands:
 
 | Command | Current behavior |
 |---------|------------------|
-| `story-writer tui --story <name>` | Lazy-imports `StoryWriterApp` and launches the interactive Textual TUI; if `textual` is missing, exits with an install hint |
-| `story-writer run --story <name> [--batch]` | Runs the headless orchestrator via `run_pipeline()` |
-| `story-writer resume --story <name> [--savepoint <name>]` | Resumes via `resume_pipeline()` from the latest persisted state. `--savepoint` validates the name exists but does not restore an older snapshot. |
+| `story-writer tui --story <name> [--prompt <path>]` | Lazy-imports `StoryWriterApp` and launches the interactive Textual TUI; `--prompt` auto-initialises the story and loads the prompt file. If `textual` is missing, exits with an install hint |
+| `story-writer run --story <name> [--prompt <path>] [--batch]` | Runs the headless orchestrator via `run_pipeline()`; `--prompt` auto-initialises the story and loads the prompt file |
+| `story-writer resume --story <name> [--prompt <path>] [--savepoint <name>]` | Resumes via `resume_pipeline()` from the latest persisted state. `--prompt` overwrites the existing story prompt. `--savepoint` validates the name exists but does not restore an older snapshot. |
 
 Implementation note: `run` currently always uses `NullApprovalGate`, so it is headless even without `--batch`. The flag remains in the parser for CLI compatibility while the broader TUI work lands.
 

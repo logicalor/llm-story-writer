@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -15,7 +16,42 @@ if str(_src_dir) not in sys.path:
     sys.path.insert(0, str(_src_dir))
 
 
-def _cmd_tui(story: str, *, resume: bool = False, savepoint: str | None = None) -> None:
+def _apply_prompt(story: str, prompt_path: str) -> None:
+    """Read a prompt file, initialise the story if needed, and write the prompt to state."""
+    from tools.story_state import cmd_init, cmd_write
+
+    prompt_file = Path(prompt_path)
+    if not prompt_file.exists():
+        print(f"Error: prompt file not found: {prompt_path}", file=sys.stderr)
+        raise SystemExit(1)
+
+    story_text = prompt_file.read_text(encoding="utf-8")
+    story_dir = Path("stories") / story
+
+    # Auto-init if the story does not yet exist
+    if not (story_dir / "state.json").exists():
+        try:
+            cmd_init(story)
+        except SystemExit:
+            # If init failed for a reason other than "already exists", re-raise
+            if (story_dir / "state.json").exists():
+                pass
+            else:
+                raise
+
+    cmd_write(story, "story_prompt", json.dumps(story_text))
+
+
+def _cmd_tui(
+    story: str,
+    *,
+    resume: bool = False,
+    savepoint: str | None = None,
+    prompt: str | None = None,
+) -> None:
+    if prompt:
+        _apply_prompt(story, prompt)
+
     try:
         from presentation.tui.app import StoryWriterApp  # type: ignore[import-not-found]
     except ImportError:
@@ -30,7 +66,10 @@ def _cmd_tui(story: str, *, resume: bool = False, savepoint: str | None = None) 
     app.run()
 
 
-def _cmd_run(story: str, *, batch: bool = False) -> None:
+def _cmd_run(story: str, *, batch: bool = False, prompt: str | None = None) -> None:
+    if prompt:
+        _apply_prompt(story, prompt)
+
     from presentation.orchestrator import run_pipeline
     from presentation.pipeline_primitives import (
         NullApprovalGate,
@@ -50,7 +89,12 @@ def _cmd_run(story: str, *, batch: bool = False) -> None:
     print(f"Pipeline complete: status={state.status}")
 
 
-def _cmd_resume(story: str, savepoint: str | None) -> None:
+def _cmd_resume(
+    story: str, savepoint: str | None, prompt: str | None = None
+) -> None:
+    if prompt:
+        _apply_prompt(story, prompt)
+
     from presentation.orchestrator import resume_pipeline
     from presentation.pipeline_primitives import (
         NullApprovalGate,
@@ -74,11 +118,16 @@ def main() -> None:
     if args.subcommand == "tui":
         if getattr(args, "savepoint", None) and not args.resume:
             parser.error("--savepoint requires --resume")
-        _cmd_tui(args.story, resume=args.resume, savepoint=args.savepoint)
+        _cmd_tui(
+            args.story,
+            resume=args.resume,
+            savepoint=args.savepoint,
+            prompt=args.prompt,
+        )
     elif args.subcommand == "run":
-        _cmd_run(args.story, batch=args.batch)
+        _cmd_run(args.story, batch=args.batch, prompt=args.prompt)
     elif args.subcommand == "resume":
-        _cmd_resume(args.story, args.savepoint)
+        _cmd_resume(args.story, args.savepoint, prompt=args.prompt)
     else:
         parser.print_help()
         raise SystemExit(1)

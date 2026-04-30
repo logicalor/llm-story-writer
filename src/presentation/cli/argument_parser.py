@@ -16,6 +16,12 @@ def build_parser() -> argparse.ArgumentParser:
     tui_p = sub.add_parser("tui", help="Launch the interactive Textual TUI.")
     tui_p.add_argument("--story", required=True, metavar="NAME", help="Story name.")
     tui_p.add_argument(
+        "--prompt",
+        default=None,
+        metavar="PATH",
+        help="Path to a prompt file (.txt or .md). If the story does not exist it is auto-initialised and the prompt is written to story state.",
+    )
+    tui_p.add_argument(
         "--resume",
         action="store_true",
         default=False,
@@ -31,6 +37,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_p = sub.add_parser("run", help="Run the full pipeline headlessly.")
     run_p.add_argument("--story", required=True, metavar="NAME", help="Story name.")
     run_p.add_argument(
+        "--prompt",
+        default=None,
+        metavar="PATH",
+        help="Path to a prompt file (.txt or .md). If the story does not exist it is auto-initialised and the prompt is written to story state.",
+    )
+    run_p.add_argument(
         "--batch",
         action="store_true",
         help="Run headlessly (non-interactive). NOTE: story-writer run is always headless; this flag is reserved for future interactive mode.",
@@ -38,6 +50,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     resume_p = sub.add_parser("resume", help="Resume from latest savepoint.")
     resume_p.add_argument("--story", required=True, metavar="NAME", help="Story name.")
+    resume_p.add_argument(
+        "--prompt",
+        default=None,
+        metavar="PATH",
+        help="Path to a prompt file (.txt or .md). Overwrites the existing story prompt in state.",
+    )
     resume_p.add_argument(
         "--savepoint",
         default=None,

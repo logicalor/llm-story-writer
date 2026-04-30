@@ -65,26 +65,26 @@ pip install -e .
 ### Interactive TUI (recommended)
 
 ```bash
-story-writer tui --story <story-name>
+story-writer tui --story <story-name> --prompt <path-to-prompt.md>
 ```
 
-Opens the three-panel Textual TUI with live token streaming, wiki context panel, and interactive approval gates. Keybindings: `Ctrl+W` (toggle wiki panel), `Ctrl+C` (cancel and preserve latest completed-phase savepoint).
+Opens the three-panel Textual TUI with live token streaming, wiki context panel, and interactive approval gates. `--prompt` auto-initialises the story and loads the prompt file. Keybindings: `Ctrl+W` (toggle wiki panel), `Ctrl+C` (cancel and preserve latest completed-phase savepoint).
 
 ### Headless Batch Mode
 
 ```bash
-story-writer run --story <story-name> --batch
+story-writer run --story <story-name> --prompt <path-to-prompt.md> --batch
 ```
 
-Runs the full generation pipeline headlessly with no interactive prompts.
+Runs the full generation pipeline headlessly with no interactive prompts. `--prompt` auto-initialises the story and loads the prompt file.
 
 ### Resume from Savepoint
 
 ```bash
-story-writer resume --story <story-name>
+story-writer resume --story <story-name> [--prompt <path-to-new-prompt.md>]
 ```
 
-Resumes the pipeline from the most recent persisted savepoint.
+Resumes the pipeline from the most recent persisted savepoint. `--prompt` overwrites the existing story prompt before resuming.
 
 ## 🧰 Configuration
 

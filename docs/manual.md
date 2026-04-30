@@ -1,8 +1,8 @@
 # AI Story Writer — Comprehensive Manual
 
-**Version:** 1.1
+**Version:** 1.2
 **Last Updated:** April 2026
-**Stack:** Python 3.10+ · Textual · ChromaDB · OpenAI-compatible local LLM (LM Studio default)
+**Stack:** Python 3.10+ · Textual TUI · ChromaDB · OpenAI-compatible local LLM (LM Studio default)
 
 ---
 
@@ -22,11 +22,12 @@
 12. [Agents & Tools](#12-agents--tools)
 13. [Strategies](#13-strategies)
 14. [Working with Savepoints](#14-working-with-savepoints)
-15. [Troubleshooting](#15-troubleshooting)
-16. [Prompt Writing Tips](#16-prompt-writing-tips)
-17. [Testing](#17-testing)
-18. [Development](#18-development)
-19. [Quick Reference](#19-quick-reference)
+15. [General Operation](#15-general-operation)
+16. [Troubleshooting](#16-troubleshooting)
+17. [Prompt Writing Tips](#17-prompt-writing-tips)
+18. [Testing](#18-testing)
+19. [Development](#19-development)
+20. [Quick Reference](#20-quick-reference)
 
 ---
 
@@ -38,8 +39,9 @@ AI Story Writer is an AI-powered long-form story generation system. It produces 
 - Generate full-length novels from prompt files
 - Progressive wiki memory for consistency tracking
 - Per-story semantic search via ChromaDB
-- Multiple writing strategies (outline-then-chapter vs stream-of-consciousness)
+- Multiple writing strategies (`outline-chapter` vs `stream-of-consciousness`)
 - Savepoint/resume system for long generation runs
+- Scene-by-scene generation pipeline with configurable scene counts
 - Local-only inference (LM Studio, Ollama, llama.cpp — any OpenAI-compatible server)
 
 ---
@@ -62,6 +64,16 @@ Before starting, ensure you have:
 ### 2.2 One-Command Startup
 
 After installation (see [Installation & Setup](#6-installation--setup)):
+
+**With a prompt file (recommended):**
+
+```bash
+story-writer tui --story test_story --prompt /tmp/prompt.txt
+```
+
+This single command initialises the story directory, writes the prompt into state, and launches the TUI.
+
+**Manual multi-step (equivalent):**
 
 ```bash
 # 1. Initialize the story directory
@@ -105,7 +117,7 @@ When you launch the TUI, you will see:
 If running headless:
 
 ```bash
-story-writer run --story test_story
+story-writer run --story test_story --batch
 ```
 
 You will see a headless notice, then streaming progress in the terminal, ending with:
@@ -226,6 +238,24 @@ python -m src.tools.story_state --operation init --name my-first-story
 python -c "import json,sys; print(json.dumps(sys.stdin.read()))" < ~/prompts/my-story.txt | \
   python -m src.tools.story_state --operation write --name my-first-story \
   --field story_prompt --value -
+```
+
+**Alternative — use `--prompt` (simpler):**
+
+Both `tui` and `run` accept a `--prompt <path>` argument that automatically initialises the story (if it does not exist) and loads the prompt file into state:
+
+```bash
+# Interactive mode with prompt file
+story-writer tui --story my-first-story --prompt ~/prompts/my-story.txt
+
+# Headless mode with prompt file
+story-writer run --story my-first-story --prompt ~/prompts/my-story.txt --batch
+```
+
+You can also use `--prompt` with `resume` to overwrite the existing prompt before continuing:
+
+```bash
+story-writer resume --story my-first-story --prompt ~/prompts/revised-prompt.txt
 ```
 
 **Alternative:** You can also edit `stories/my-first-story/state.json` directly and add a `story_prompt` field containing your prompt text.
@@ -364,7 +394,9 @@ stories/my-first-story/
 
 ## 4. Understanding the Pipeline Phases
 
-The story generation pipeline is divided into nine primary phases. Each phase writes a savepoint on completion, so you can resume after any interruption.
+The story generation pipeline is divided into primary phases. Each phase writes a savepoint on completion, so you can resume after any interruption.
+
+> **Note:** The active orchestrator (`src/presentation/orchestrator.py`) runs a *reduced slice* of the full spec. Phases marked ⏳ below are defined but **not yet wired** into the active orchestrator. See [Story Pipeline Skill](../prompts/skills/story-pipeline/SKILL.md) for the complete specification.
 
 ### ASCII Flow Diagram
 
@@ -373,36 +405,36 @@ The story generation pipeline is divided into nine primary phases. Each phase wr
 │  Init   │────▶│ Outline  │────▶│ Outline Approval│
 │ (setup) │     │(generate)│     │   (user gate)   │
 └─────────┘     └──────────┘     └─────────────────┘
-                                        │
-                    ┌───────────────────┘
-                    ▼
-           ┌─────────────────┐
-           │ Narrative Arc   │
-           │   Analysis      │
-           └─────────────────┘
-                    │
-    ┌───────────────┼───────────────┐
-    ▼               ▼               ▼
-┌─────────┐   ┌──────────┐   ┌───────────┐
-│Characters│   │ Settings │   │ Wiki Init │
-│(sheets)  │   │ (sheets) │   │(idempotent)│
-└─────────┘   └──────────┘   └───────────┘
-    │               │               │
-    └───────────────┴───────────────┘
-                    │
-                    ▼
-         ┌──────────────────┐
-         │   Chapter Loop   │
-         │ (generate → gate │
-         │  → approve → wiki│
-         │  → repeat)       │
-         └──────────────────┘
-                    │
-                    ▼
-         ┌──────────────────┐     ┌──────────┐
-         │   Final Edit     │────▶│ Assembly │
-         │ (conditional)    │     │ (manuscript)
-         └──────────────────┘     └──────────┘
+                                         │
+                     ┌───────────────────┘
+                     ▼
+            ┌─────────────────┐
+            │ Narrative Arc   │
+            │   Analysis      │
+            └─────────────────┘
+                     │
+     ┌───────────────┼───────────────┐
+     ▼               ▼               ▼
+┌──────────┐   ┌──────────┐   ┌───────────┐
+│  Wiki    │   │Characters│   │ Settings  │
+│  Init    │   │(sheets)  │   │ (sheets)  │
+└──────────┘   └──────────┘   └───────────┘
+     │               │               │
+     └───────────────┴───────────────┘
+                     │
+                     ▼
+          ┌──────────────────┐
+          │   Chapter Loop   │
+          │ (generate → gate │
+          │  → approve → wiki│
+          │  → repeat)       │
+          └──────────────────┘
+                     │
+                     ▼
+          ┌──────────────────┐     ┌──────────┐
+          │   Final Edit     │────▶│ Assembly │
+          │ (conditional)    │     │ (manuscript)
+          └──────────────────┘     └──────────┘
 ```
 
 ### Phase 1: Init
@@ -456,38 +488,19 @@ The story generation pipeline is divided into nine primary phases. Each phase wr
 
 **Approximate duration:** 2–5 minutes
 
-### Phase 3: Characters
+### Phase 3: Outline Approval
 
 **What the system does:**
-- Extracts character names from the approved outline
-- Generates one JSON sheet per character via the `character_manager`
-- Each sheet contains: `name`, `sheet` (full text), `chunks` (segmented details), `summary`, `updated_at`
-- If name extraction returns invalid JSON, the phase degrades gracefully and the pipeline continues
+- Presents the outline and arc analysis for human review
+- Waits for an approval signal or revision feedback
+- If rejected, the outline re-enters Phase 2 with feedback injected
 
-**Artefacts produced:**
-- `stories/<name>/savepoints/characters_complete`
-- `stories/<name>/characters/<slug>.json` (one per character)
+**User action needed:**
+- `approve` / `reject` / `revise <feedback>`
 
-**User action needed:** None
+**Approximate duration:** Variable (depends on user)
 
-**Approximate duration:** 2–10 minutes (scales with character count)
-
-### Phase 4: Settings
-
-**What the system does:**
-- Extracts setting/location names from the outline
-- Generates one JSON sheet per setting
-- Same JSON schema as characters: `name`, `sheet`, `chunks`, `summary`, `updated_at`
-
-**Artefacts produced:**
-- `stories/<name>/savepoints/settings_complete`
-- `stories/<name>/settings/<slug>.json` (one per setting)
-
-**User action needed:** None
-
-**Approximate duration:** 2–5 minutes
-
-### Phase 5: Wiki Initialization
+### Phase 4: Wiki Initialization
 
 **What the system does:**
 - Idempotently ensures the `stories/<name>/wiki/` directory structure exists
@@ -505,17 +518,47 @@ The story generation pipeline is divided into nine primary phases. Each phase wr
 
 **Approximate duration:** < 1 second
 
-### Phase 6: Chapter Loop
+### Phase 5: Characters & Settings
+
+**What the system does:**
+- Extracts character and setting/location names from the approved outline
+- Generates one JSON sheet per entity via the `character-sheet-generator` subagent
+- Each sheet contains: `name`, `sheet` (full text), `chunks` (segmented details), `summary`, `updated_at`
+- If name extraction returns invalid JSON, the phase degrades gracefully and the pipeline continues
+
+**Artefacts produced:**
+- `stories/<name>/savepoints/characters_complete`
+- `stories/<name>/savepoints/settings_complete`
+- `stories/<name>/characters/<slug>.json` (one per character)
+- `stories/<name>/settings/<slug>.json` (one per setting)
+
+**User action needed:** None
+
+**Approximate duration:** 2–10 minutes (scales with entity count)
+
+### Phase 6: Wiki Population (⏳ not yet wired)
+
+> **Not yet implemented in the active orchestrator.** Wiki directory is initialised in Phase 4, but the full initial-populate pass from outline + character/setting sheets is not wired.
+
+When implemented, this phase will:
+- Populate wiki with entity pages from the outline and character/setting sheets
+- Create pages for characters, locations, events, factions, items, plot threads, world rules, themes, relationships, and timeline
+- Generate L1/L2/L3 detail levels per page
+- Establish wikilinks between related entities
+
+**Savepoint:** `wiki_populated`
+
+### Phase 7: Chapter Loop
 
 **What the system does:**
 - For each chapter (1 to `wanted_chapters`):
-  1. Loads abridged character and setting sheet context
-  2. Generates chapter text via the `chapter-writer` agent
-  3. Presents the chapter for approval (gate)
-  4. On approval, writes `stories/<name>/chapters/chapter_{N}.md`
-  5. Calls `wiki_maintainer` to extract structured data and persist wiki pages
-  6. Runs `consistency_checker` (streams findings but does not block persistence)
-  7. Saves a chapter-level savepoint (`chapter_{N}_complete`)
+  1. **Scene Generation (7b)** — Loads abridged character and setting sheet context; generates chapter text via the `chapter-writer` agent. If `scene_generation_pipeline: true`, scenes are generated sequentially with wiki context. Otherwise, the full chapter is generated in one LLM call.
+  2. **Approval Gate** — Presents the chapter for user approval (interactive mode only)
+  3. **Wiki Update (7c)** — On approval, calls `wiki_maintainer` to extract structured data and persist wiki pages
+  4. **Consistency Check (7e)** — Runs `consistency_checker` (streams findings but does not block persistence)
+  5. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter_{N}_complete`)
+
+> **Future work (not yet wired):** Phase 7a (chapter-outline-expander), Phase 7d (recap generation), Phase 7f (quality-reviewer / critique-revision loop), Phase 7.5 (prose-scrubber), Phase 7g (handoff artifact generation).
 
 **Artefacts produced:**
 - `stories/<name>/chapters/chapter_1.md` through `chapter_{N}.md`
@@ -527,24 +570,6 @@ The story generation pipeline is divided into nine primary phases. Each phase wr
 - None in headless mode (auto-approves all chapters)
 
 **Approximate duration:** 5–20 minutes per chapter (depending on model speed, scene count, and revisions)
-
-### Phase 7: Final Edit (conditional)
-
-**What the system does:**
-- Enabled unless `generation.enable_final_edit` is explicitly set to `false`
-- Loads `prompts/agents/final-editor.md`
-- Streams one editing pass per approved chapter (voice consistency, pacing, prose polish)
-- Falls back to original chapter content if the model returns empty output
-- Writes the edited manuscript to `stories/<name>/output/story_edited.md`
-- Persists `final_edit_complete`
-
-**Artefacts produced:**
-- `stories/<name>/output/story_edited.md`
-- `stories/<name>/savepoints/final_edit_complete`
-
-**User action needed:** None
-
-**Approximate duration:** 10–20 minutes total (scales with chapter count)
 
 ### Phase 8: Assembly
 
@@ -562,6 +587,24 @@ The story generation pipeline is divided into nine primary phases. Each phase wr
 **User action needed:** None
 
 **Approximate duration:** < 1 second
+
+### Phase 9: Final Edit (conditional)
+
+**What the system does:**
+- Enabled only if `generation.enable_final_edit` is explicitly set to `true` in `config.yml` (default is `false`)
+- Loads `prompts/agents/final-editor.md`
+- Streams one editing pass per approved chapter (voice consistency, pacing, prose polish)
+- Falls back to original chapter content if the model returns empty output
+- Writes the edited manuscript to `stories/<name>/output/story_edited.md`
+- Persists `final_edit_complete`
+
+**Artefacts produced:**
+- `stories/<name>/output/story_edited.md`
+- `stories/<name>/savepoints/final_edit_complete`
+
+**User action needed:** None
+
+**Approximate duration:** 10–20 minutes total (scales with chapter count)
 
 ---
 
@@ -606,11 +649,12 @@ story-writer CLI / orchestrator
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
-│  Domain layer (entities, services, strategies) │
+│  Domain layer (entities, services, strategies)│
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
-│  Infrastructure (OpenAI-compatible LLM, ChromaDB, disk) │
+│  Infrastructure (OpenAI-compatible LLM,       │
+│  ChromaDB, disk)                              │
 └─────────────────────────────────────────────┘
     ↓
 stories/<name>/  (chapters, wiki, savepoints)
@@ -661,11 +705,15 @@ models:
 
 The `openai-compat://` prefix routes to the configured OpenAI-compatible API. Override `model_api_base` in `infrastructure:` to change the endpoint (default: `http://127.0.0.1:1234/v1`).
 
-### 6.4 Opencode Agent Runtime Setup
+### 6.4 Opencode Agent Runtime Setup (Development Only)
 
-The Python story-generation runtime above is separate from the Opencode agent runtime used for the Copilot-to-Opencode migration work. That migration config lives in the repository root `opencode.json`, where the default model is now `openrouter/moonshotai/kimi-k2.6` and the OpenRouter provider registry includes Kimi K2.6, Qwen3.6 Plus, and GLM 5.1.
+The Python story-generation runtime above is separate from the Opencode agent runtime used for development and migration work (e.g., Copilot-to-Opencode migration). That development runtime config lives in the repository root `opencode.json`, where the default model is `openrouter/moonshotai/kimi-k2.6` and the OpenRouter provider registry includes Kimi K2.6, Qwen3.6 Plus, and GLM 5.1.
 
-Developer-local credentials and user-level MCP servers are not committed to the repository. Configure `OPENROUTER_API_KEY`, Tavily, and Context7 in your personal Opencode config instead. See [Opencode Runtime Configuration](./features/opencode-runtime.md) for the exact setup and confirmed model IDs.
+Developer-local credentials and user-level MCP servers are not committed to the repository. Configure `OPENROUTER_API_KEY`, Tavily, and Context7 in your personal Opencode config (`~/.config/opencode/opencode.json`) instead. See [Opencode Runtime Configuration](./features/opencode-runtime.md) for the exact setup and confirmed model IDs.
+
+**Do not confuse the two runtimes:**
+- **Story generation runtime** — Python-native, uses `config.yml`, runs via `story-writer` CLI
+- **Development agent runtime** — Opencode, uses `opencode.json`, runs via `opencode run @agent-name`
 
 ---
 
@@ -683,15 +731,21 @@ All configuration lives in `config.yml` in the repository root. No secrets are r
 | `outline_max_revisions` | 3 | Max outline revision passes |
 | `chapter_max_revisions` | 3 | Max chapter revision passes |
 | `enable_chapter_revisions` | true | Enable chapter revision loop |
-| `enable_final_edit` | true* | Run final polish pass |
-| `enable_scrubbing` | true | Remove redundant/phrases |
+| `enable_final_edit` | false | Run final polish pass |
+| `enable_scrubbing` | true | Remove redundant phrases |
 | `strategy` | "outline-chapter" | Writing strategy |
 | `use_chunked_outline_generation` | true | Generate outline in chunks |
 | `outline_chunk_size` | 10 | Chapters per outline chunk |
+| `expand_outline` | true | Expand outline into scene-level detail |
+| `scene_generation_pipeline` | true | Use scene-by-scene generation |
+| `scenes_per_chapter_min` | 8 | Minimum scenes per chapter (when scene expansion is enabled) |
+| `scenes_per_chapter_max` | 16 | Maximum scenes per chapter (when scene expansion is enabled) |
+| `scene_expansion_enabled` | true | Enable scene expansion in Phase 7a (when wired) |
 | `stream` | true | Stream LLM output |
 | `debug` | true | Enable debug logging |
-
-\* `enable_final_edit` defaults to `true` in the orchestrator. It is only disabled if you explicitly set `generation.enable_final_edit: false` in `config.yml`.
+| `log_prompt_inputs` | false | Log full prompt inputs to console |
+| `use_improved_recap_sanitizer` | true | Use improved recap generation |
+| `use_multi_stage_recap_sanitizer` | true | Use multi-stage recap sanitizer |
 
 ### 7.2 Infrastructure Settings
 
@@ -699,12 +753,15 @@ All configuration lives in `config.yml` in the repository root. No secrets are r
 |---------|---------|-------------|
 | `output_dir` | — | Where to write final story files |
 | `savepoint_dir` | — | Where to store savepoints |
+| `logs_dir` | "Logs" | Where to write log files |
 | `model_api_base` | `http://127.0.0.1:1234/v1` | LLM API endpoint |
 | `context_length` | 16384 | Context window size |
 | `embedding_model` | `nomic-embed-text` | Embedding model for ChromaDB |
 | `vector_dimensions` | 1536 | Embedding vector dimensions |
 | `similarity_threshold` | 0.7 | ChromaDB similarity threshold |
 | `max_context_chunks` | 20 | Max RAG chunks per scene |
+| `max_chunk_size` | 1000 | Max chunk size in characters |
+| `overlap_size` | 200 | Overlap between chunks in characters |
 
 ### 7.3 Model Role Assignments
 
@@ -716,9 +773,15 @@ Each phase of the pipeline uses a specific model:
 | Chapter outline | `chapter_outline_writer` |
 | Chapter content (stage 1–4) | `chapter_stage1_writer` … `chapter_stage4_writer` |
 | Chapter revision | `chapter_revision_writer` |
+| Scene writing | `scene_writer` |
+| Creative generation | `creative_model` |
 | Critique/eval | `eval_model`, `revision_model` |
 | Info extraction | `info_model` |
 | Wiki maintenance | `info_model` (separate agent) |
+| Scrubbing | `scrub_model` |
+| Sanity checking | `sanity_model` |
+| Logical operations | `logical_model` |
+| Translation | `translator_model` |
 | Embedding | `embedding_model` |
 
 ---
@@ -840,9 +903,9 @@ Available subcommands:
 
 | Command | Description |
 |---------|-------------|
-| `story-writer tui --story <name> [--resume] [--savepoint <name>]` | Launch the interactive Textual TUI for a fresh run or resume an existing run |
-| `story-writer run --story <name> [--batch]` | Run the headless Python-native pipeline |
-| `story-writer resume --story <name> [--savepoint <name>]` | Resume from the latest persisted pipeline state. `--savepoint` validates the name exists but does not restore an older snapshot. |
+| `story-writer tui --story <name> [--prompt <path>] [--resume] [--savepoint <name>]` | Launch the interactive Textual TUI. `--prompt` auto-initialises the story and writes the prompt file to state. |
+| `story-writer run --story <name> [--prompt <path>] [--batch]` | Run the headless Python-native pipeline. `--prompt` auto-initialises the story and writes the prompt file to state. |
+| `story-writer resume --story <name> [--prompt <path>] [--savepoint <name>]` | Resume from the latest persisted pipeline state. `--prompt` overwrites the existing story prompt. `--savepoint` validates the name exists but does not restore an older snapshot. |
 
 `run` always uses `NullApprovalGate` internally, so it behaves headlessly even when `--batch` is omitted. When you omit `--batch`, the CLI prints a headless notice before starting the run. The flag remains for forward compatibility with later interactive surfaces.
 
@@ -871,11 +934,14 @@ See [Textual TUI](./features/textual-tui.md) for the thread model, approval-gate
 
 ### 9.2 Prompt Asset Locations
 
-Issue #164 removed the remaining OpenCode runtime artefacts from the repository. Reusable prompt content that still matters to the Python-native pipeline now lives in these locations:
+Reusable prompt content used by the Python-native pipeline lives in these locations:
 
-- `prompts/agents/continue.md`
-- `prompts/agents/regenerate.md`
-- `prompts/skills/` — relocated skill reference material used by prompt-defined phases
+- `prompts/agents/` — Prompt-defined pipeline phase instructions (story-orchestrator, outline-planner, chapter-writer, wiki-maintainer, final-editor, etc.)
+- `prompts/skills/` — Reusable skill reference material (story-pipeline, wiki-conventions, wiki-maintenance, outline-structure, narrative-arc, etc.)
+- `prompts/chapters/` — Chapter generation prompts
+- `prompts/scenes/` — Scene generation prompts
+- `prompts/characters/` — Character sheet prompts
+- `prompts/settings/` — Setting/location prompts
 
 ### 9.3 Story Generation Pipeline
 
@@ -890,52 +956,49 @@ Phase 2: Outline
   → Stream outline generation
   → Persist `OutlineResult`
 
-Phase 2 Gate: Outline Approval
-  → Wait for injected approval gate
-  → Reject halts cleanly; revise reruns outline with feedback
-
 Phase 2.5: Narrative Arc Analysis
   → Delegate to story-planner subagent
-  → Load `prompts/agents/story-planner.md`
   → Stream one advisory arc assessment from approved outline content
   → Persist `state.arc_result` and write `arc_analysis_complete`
   → On agent error, emit skip message and continue
 
-Phase 3: Characters
-  → Extract character names from outline
-  → Orchestrator helper functions generate markdown sheets via prompts/characters and prompts/settings
-  → Write per-entity JSON sheets to `stories/<name>/characters/`
-  → If name extraction returns invalid JSON, phase degrades gracefully and pipeline continues
+Phase 3: Outline Approval
+  → Wait for injected approval gate
+  → Reject halts cleanly; revise reruns outline with feedback
 
-Phase 4: Settings
-  → Extract setting names from outline
-  → Generate one JSON sheet per extracted setting
-  → Write per-entity JSON sheets to `stories/<name>/settings/`
-
-Phase 5: Wiki Initialization
+Phase 4: Wiki Initialization
   → Idempotently ensure `stories/<name>/wiki/` directory structure exists
   → Creates subdirectories, index, log, and schema template if missing
   → Safe to rerun on resume; skips creation if wiki already present
 
-Phase 6: Chapter Loop
+Phase 5: Characters & Settings
+  → Extract character and setting names from outline
+  → Generate one JSON sheet per entity
+  → Write per-entity JSON sheets to `stories/<name>/characters/` and `settings/`
+  → If name extraction returns invalid JSON, phase degrades gracefully
+
+Phase 6: Wiki Population ⏳
+  → Not yet wired in active orchestrator
+
+Phase 7: Chapter Loop
   → Per chapter: chapter-writer loads abridged character/setting sheet context, then generates chapter text
   → Wait for chapter approval gate; revise reruns chapter with feedback
-  → After chapter approval, orchestrator writes stories/<name>/chapters/chapter_{N}.md
-  → wiki-maintainer calls `update_wiki_from_chapter()` to extract structured JSON, persist wiki pages through `run_batch()`, and emit created/updated page events
+  → After chapter approval, orchestrator writes `stories/<name>/chapters/chapter_{N}.md`
+  → wiki-maintainer calls `update_wiki_from_chapter()` to extract structured JSON, persist wiki pages
   → consistency-checker streams findings but does not block persistence
-
-Phase 7: Final Edit (conditional)
-  → Enabled unless `generation.enable_final_edit` is explicitly `false`
-  → final-editor loads `prompts/agents/final-editor.md`
-  → Stream one editing pass per approved chapter
-  → Fall back to original chapter content if the model returns empty output
-  → Write `stories/<name>/output/story_edited.md`
-  → Persist `final_edit_complete`
 
 Phase 8: Assembly
   → Assemble final manuscript from the current `state.approved_chapters`
   → Write `stories/<name>/output/story.md`
   → Raises `StoryGenerationError` if no approved chapter content is found
+
+Phase 9: Final Edit (conditional)
+  → Enabled only if `generation.enable_final_edit` is explicitly `true`
+  → final-editor loads `prompts/agents/final-editor.md`
+  → Stream one editing pass per approved chapter
+  → Fall back to original chapter content if the model returns empty output
+  → Write `stories/<name>/output/story_edited.md`
+  → Persist `final_edit_complete`
 ```
 
 Current implementation note: the PRD's initial wiki population pass, chapter-outline-expander, quality-reviewer, and prose-scrubber are not yet wired into `src/presentation/orchestrator.py`. Wiki directory initialization is now handled idempotently before the chapter loop.
@@ -957,7 +1020,6 @@ llm-story-writer/
 │   │   ├── repositories/     # Repository interfaces
 │   │   └── exceptions.py     # Domain exceptions
 │   ├── application/
-│   │   ├── services/         # Application services
 │   │   ├── interfaces/       # Abstract interfaces
 │   │   └── strategies/       # Writing strategies
 │   │       ├── outline_chapter/
@@ -973,16 +1035,27 @@ llm-story-writer/
 │   └── tools/                # Python tool implementations
 │       ├── prompt_loader.py
 │       ├── story_state.py
+│       ├── story_assembler.py
 │       ├── wiki_*.py         # Wiki operations
 │       ├── savepoint_manager.py
 │       ├── character_manager.py
+│       ├── setting_manager.py
 │       ├── scene_writer.py
+│       ├── critique_runner.py
+│       ├── recap_manager.py
+│       ├── rag_query.py
 │       └── ...
 │
-├── prompts/                  # 132+ prompt templates
+├── prompts/                  # 100+ prompt templates
 │   ├── agents/               # Prompt-defined pipeline phase instructions
 │   │   ├── story-orchestrator.md
 │   │   ├── outline-planner.md
+│   │   ├── chapter-writer.md
+│   │   ├── wiki-maintainer.md
+│   │   ├── final-editor.md
+│   │   ├── quality-reviewer.md
+│   │   ├── consistency-checker.md
+│   │   ├── prose-scrubber.md
 │   │   ├── continue.md
 │   │   ├── regenerate.md
 │   │   └── ...
@@ -990,6 +1063,8 @@ llm-story-writer/
 │   │   ├── story-pipeline/
 │   │   ├── wiki-conventions/
 │   │   ├── wiki-maintenance/
+│   │   ├── outline-structure/
+│   │   ├── narrative-arc/
 │   │   └── ...
 │   ├── chapters/             # Chapter generation prompts
 │   ├── characters/          # Character sheet prompts
@@ -1023,11 +1098,12 @@ llm-story-writer/
 │   └── integration/        # Integration tests (live LLM)
 │
 ├── docs/
+│   ├── manual.md            # This file
 │   ├── README.md
 │   ├── tools.md            # Tools reference
-│   ├── features/
+│   ├── features/            # Feature documentation
 │   ├── planning/
-│   │   ├── adr/           # Architecture decision records
+│   │   ├── adr/            # Architecture decision records
 │   │   └── opencode-migration/
 │   └── testing/
 │
@@ -1088,7 +1164,7 @@ Wiki pages support three hierarchical summary levels:
 
 ### 11.5 Wiki Update Lifecycle
 
-1. **Initial population** (before chapter generation): `wiki-extract` reads the outline plus character and setting sheets, creates the first wiki page set, and writes retrieval-ready L1/L2/L3 detail levels
+1. **Initial population** (Phase 6, ⏳ not yet wired): `wiki-extract` reads the outline plus character and setting sheets, creates the first wiki page set, and writes retrieval-ready L1/L2/L3 detail levels
 2. **Post-chapter persistence** (after each accepted chapter): `wiki-maintainer` calls `update_wiki_from_chapter()`, the `wiki/extract_from_chapter` prompt returns structured JSON, and `run_batch()` persists new pages, state changes, aliases, and timeline events under `stories/<name>/wiki/`
 3. **Chapter-level lint** (after each chapter): `wiki-lint` checks consistency against the ConStory-Bench error taxonomy
 4. **Pre-generation snapshot** (before each scene): `wiki-snapshot` assembles a token-budgeted world state snapshot from the current wiki
@@ -1109,16 +1185,25 @@ Wiki pages cross-reference each other using `[[wikilink]]` syntax:
 
 ### 12.1 Agents
 
-Agent system prompts now live in `prompts/agents/` as Markdown files. `src/infrastructure/prompts/agent_prompt_loader.py` reads those prompt bodies directly and strips YAML frontmatter before returning the reusable instruction text.
+Agent system prompts live in `prompts/agents/` as Markdown files. `src/infrastructure/prompts/agent_prompt_loader.py` reads those prompt bodies directly and strips YAML frontmatter before returning the reusable instruction text.
 
-| Agent | Role |
-|-------|------|
-| `story-orchestrator` | Primary pipeline controller; drives the full generation lifecycle |
-| `outline-planner` | Generates and refines the story outline |
-| `chapter-writer` | Writes individual chapter content |
-| `wiki-maintainer` | Persists wiki page updates after each accepted chapter and reports changed page slugs |
+The orchestrator may dispatch exactly these subagents for creative work:
 
-**Orchestrator Pipeline Phases:** Init → Outline → Approval → Narrative Arc → Characters → Settings → Wiki Init → Chapter Loop → Final Edit → Assembly
+| Agent | Role | Invoked In |
+|-------|------|------------|
+| `story-orchestrator` | Primary pipeline controller; drives the full generation lifecycle | — |
+| `outline-planner` | Generates and refines the story outline | Phase 2 |
+| `story-planner` | Evaluates dramatic arc quality (promise/payoff, tension, pacing) | Phase 2.5 |
+| `character-sheet-generator` | Generates character and setting sheets from the outline | Phase 5 |
+| `chapter-outline-expander` | Expands all chapter outlines with scene-level detail and continuity threading | Phase 7a ⏳ |
+| `chapter-writer` | Writes individual chapter content | Phase 7b |
+| `wiki-maintainer` | Persists wiki page updates after each accepted chapter | Phase 7c |
+| `consistency-checker` | Runs three-layer consistency analysis (wiki-lint + semantic + RAG) | Phase 7e |
+| `quality-reviewer` | Runs critique/revision loop for a single chapter | Phase 7f ⏳ |
+| `prose-scrubber` | Sentence/paragraph-level prose cleanup | Phase 7.5 ⏳ |
+| `final-editor` | Post-assembly voice, pacing, and coherence pass | Phase 9 |
+
+**Orchestrator Pipeline Phases:** Init → Outline → Approval → Narrative Arc → Wiki Init → Characters & Settings → Chapter Loop → Assembly → Final Edit
 
 ### 12.2 Tools
 
@@ -1129,11 +1214,17 @@ Tools are Python modules under `src/tools/`. The runtime imports them directly o
 | Tool | Purpose |
 |------|---------|
 | `prompt_loader.py` | Load and render prompt templates with variable substitution |
-| `story_state.py` | Initialize and update story state JSON |
-| `savepoint_manager.py` | Create, inspect, and load savepoints (`list` = names only, `list-full` = full payloads) |
+| `story_state.py` | Initialize and update story state JSON (`--operation init/read/write/list`) |
+| `story_assembler.py` | Assemble approved chapters into a single manuscript |
+| `savepoint_manager.py` | Create, inspect, and load savepoints (`list`, `list-full`, `next-phase`, `clear`) |
 | `character_manager.py` | Extract and manage character sheets |
 | `setting_manager.py` | Extract and manage setting sheets |
 | `recap_manager.py` | Generate and manage chapter recaps |
+| `scene_writer.py` | Generate scene-level content |
+| `critique_runner.py` | Run quality critique on outline or chapter |
+| `critique_parser.py` | Parse critique output into structured scores and feedback |
+| `rag_query.py` | Query ChromaDB for relevant story content chunks |
+| `outline_generator.py` | Generate and expand story outlines |
 
 #### Wiki Tools
 
@@ -1147,17 +1238,13 @@ Tools are Python modules under `src/tools/`. The runtime imports them directly o
 | `wiki_extract.py` | Run initial-populate and post-chapter extraction flows, generate detail levels, and persist batch-ready wiki payloads |
 | `wiki_lint.py` | Check wiki page format and consistency compliance |
 
-#### RAG Tools
+#### Shared Modules
 
-| Tool | Purpose |
-|------|---------|
-| `rag_query.py` | Query ChromaDB for relevant story content chunks |
-
-#### Critique Tools
-
-| Tool | Purpose |
-|------|---------|
-| `critique_runner.py` | Run quality critique on outline or chapter |
+| Module | Purpose |
+|--------|---------|
+| `_io.py` | Shared I/O helpers for tools |
+| `_llm.py` | Shared LLM provider helpers for tools |
+| `_wiki.py` / `_wiki_api.py` | Internal wiki data structures and API helpers |
 
 ### 12.3 Tool Architecture
 
@@ -1340,7 +1427,178 @@ story-writer tui --story my-story
 
 ---
 
-## 15. Troubleshooting
+## 15. General Operation
+
+This section covers day-to-day workflows after you are familiar with the basics.
+
+### 15.1 Inspecting Story State
+
+Use `story_state` to read or modify story metadata without running the full pipeline:
+
+```bash
+# Read the entire state file
+python -m src.tools.story_state --operation read --name my-story
+
+# Read a specific field (dot notation)
+python -m src.tools.story_state --operation read --name my-story --field generation.wanted_chapters
+
+# Update a field
+python -m src.tools.story_state --operation write --name my-story \
+  --field generation.wanted_chapters --value 30
+
+# List all stories
+python -m src.tools.story_state --operation list
+```
+
+### 15.2 Browsing the Wiki
+
+The wiki is a collection of Markdown files with YAML frontmatter. You can browse it with any text editor or with Obsidian:
+
+```bash
+# Open the wiki directory in your file manager
+open stories/my-story/wiki/
+```
+
+Common wiki operations:
+
+```bash
+# Search wiki pages
+python -m src.tools.wiki_search --story my-story --query "ancient AI"
+
+# Read a page at a specific detail level
+python -m src.tools.wiki_read --story my-story --page character:yuki-tanaka-oduya --level L2
+
+# Assemble a token-budgeted snapshot for a scene
+python -m src.tools.wiki_snapshot --story my-story --budget 2000
+```
+
+### 15.3 Manual Manuscript Assembly
+
+If you want to assemble chapters without running the full pipeline (e.g., after manually editing chapter files):
+
+```bash
+python -m src.tools.story_assembler assemble --story-name my-story
+```
+
+This reads all `chapter_*.md` files in `stories/my-story/chapters/` and writes `stories/my-story/output/story.md`.
+
+### 15.4 Changing Configuration Mid-Story
+
+You can edit `config.yml` at any time, but only some changes take effect on resume:
+
+| Change | Effect on Resume |
+|--------|-----------------|
+| `wanted_chapters` | Increases/decreases target; resume continues from last chapter |
+| `model_api_base` | Takes effect immediately (next LLM call) |
+| `enable_chapter_revisions` | Takes effect for next chapter |
+| `chapter_quality` / `outline_quality` | Takes effect for next quality gate |
+| `scene_generation_pipeline` | Takes effect for next chapter |
+
+Changes to already-completed phases (e.g., outline chunk size) have no retroactive effect.
+
+### 15.5 Cleaning Up Old Stories
+
+```bash
+# Remove a story and all its data (destructive)
+rm -rf stories/old-story
+rm -rf .chromadb/old-story
+
+# Or selectively clear savepoints to restart while keeping chapters
+python -m src.tools.savepoint_manager --operation clear --name old-story
+```
+
+### 15.6 Switching Between TUI and Headless
+
+You can start a story in the TUI, approve the outline, then switch to headless for overnight chapter generation:
+
+```bash
+# 1. Run in TUI, approve the outline, then press Ctrl+C after character/settings finish
+story-writer tui --story my-story
+
+# 2. Resume headlessly
+story-writer resume --story my-story
+```
+
+Conversely, you can run headlessly and then switch to TUI for manual review:
+
+```bash
+# 1. Run headlessly until completion
+story-writer run --story my-story --batch
+
+# 2. Later, launch TUI to review (the story is already complete)
+story-writer tui --story my-story
+```
+
+### 15.7 Working with Character and Setting Sheets
+
+Character and setting sheets are JSON files that can be edited manually:
+
+```bash
+# Edit a character sheet
+vim stories/my-story/characters/yuki-tanaka-oduya.json
+
+# Edit a setting sheet
+vim stories/my-story/settings/europa-research-base.json
+```
+
+Each sheet follows this schema:
+
+```json
+{
+  "name": "Yuki Tanaka-Oduya",
+  "sheet": "Full multi-paragraph description...",
+  "chunks": {
+    "appearance": "...",
+    "personality": "...",
+    "background": "...",
+    "motivations": "...",
+    "relationships": "..."
+  },
+  "summary": "One-paragraph summary...",
+  "updated_at": "2026-04-30T12:00:00Z"
+}
+```
+
+After manual edits, the next chapter generation will pick up the updated sheets automatically.
+
+### 15.8 Common Daily Workflows
+
+**Morning start:**
+```bash
+# Check which stories exist and their status
+python -m src.tools.story_state --operation list
+python -m src.tools.savepoint_manager --operation next-phase --name my-story
+
+# Resume generation
+story-writer resume --story my-story
+```
+
+**Reviewing last night's output:**
+```bash
+# Read the latest chapter
+cat stories/my-story/chapters/chapter_12.md
+
+# Check wiki updates
+ls stories/my-story/wiki/events/
+
+# Search for a character mention
+python -m src.tools.wiki_search --story my-story --query "commander voss"
+```
+
+**Iterating on a prompt:**
+```bash
+# Edit the prompt in state.json
+python -m src.tools.story_state --operation write --name my-story \
+  --field story_prompt --value "$(cat ~/new-prompt.txt | python -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
+
+# Clear savepoints to restart from outline
+python -m src.tools.savepoint_manager --operation clear --name my-story
+story-writer tui --story my-story
+```
+
+---
+
+## 16. Troubleshooting
 
 ### LLM endpoint not responding
 
@@ -1377,6 +1635,7 @@ curl http://127.0.0.1:1234/v1/models
 - Reduce `max_context_chunks` in `config.yml`
 - Lower `outline_chunk_size` if using chunked outline generation
 - Enable `use_chunked_outline_generation: true` to reduce prompt sizes
+- Reduce `scenes_per_chapter_max` if using the scene generation pipeline
 
 ### "The outline looks wrong"
 
@@ -1418,19 +1677,19 @@ The pipeline resumes from the last completed phase savepoint. If chapter 7 was h
 2. Enable `enable_scrubbing: true` to remove redundant phrases
 3. Enable `enable_chapter_revisions: true` and provide feedback like `revise Vary sentence openings; avoid starting three consecutive paragraphs with "She"`
 
-### "Context window overflow"
+### Scene generation pipeline issues
 
-**Symptoms:** LLM server returns 413 or truncation errors; output cuts off mid-sentence.
+**Symptoms:** Chapters are too short, scenes feel disconnected, or scene count is wrong.
 
 **Fix:**
-1. Reduce `max_context_chunks` (try 10 instead of 20)
-2. Reduce `outline_chunk_size` (try 5 instead of 10)
-3. Enable `use_chunked_outline_generation: true` if not already enabled
-4. If using a model with a small context window (e.g., 4K), consider switching to a model with at least 8K context
+1. Adjust `scenes_per_chapter_min` and `scenes_per_chapter_max` in `config.yml`
+2. Ensure `scene_expansion_enabled: true` if you want scene-level expansion
+3. Set `scene_generation_pipeline: true` to enable the per-scene generation path
+4. If scenes are too fragmented, increase `scenes_per_chapter_min` and reduce `scenes_per_chapter_max` to a narrow range
 
 ---
 
-## 16. Prompt Writing Tips
+## 17. Prompt Writing Tips
 
 ### What Makes a Good Story Prompt
 
@@ -1546,9 +1805,9 @@ Desired length: ~20 chapters, ~70,000 words
 
 ---
 
-## 17. Testing
+## 18. Testing
 
-### 17.1 Test Structure
+### 18.1 Test Structure
 
 ```
 tests/
@@ -1561,7 +1820,7 @@ tests/
   └── test_wiki_read_integration.py
 ```
 
-### 17.2 Running Tests
+### 18.2 Running Tests
 
 ```bash
 # Unit tests only (default discovery target)
@@ -1583,7 +1842,7 @@ pytest tests/unit/test_prompt_loader.py -v
 pytest --cov=src tests/unit tests/integration
 ```
 
-### 17.3 Integration Test Setup
+### 18.3 Integration Test Setup
 
 Integration tests exercise the full pipeline against a live OpenAI-compatible LLM endpoint. Most integration files use `LLM_API_BASE` and default to `http://127.0.0.1:1234/v1`. The headless batch E2E test currently probes LM Studio directly at that same local address and skips when it is unavailable. The `slow` marker identifies integration coverage that may take multiple minutes.
 
@@ -1591,9 +1850,9 @@ See [docs/testing/integration-tests.md](testing/integration-tests.md) for detail
 
 ---
 
-## 18. Development
+## 19. Development
 
-### 18.1 Code Style
+### 19.1 Code Style
 
 | Language | Tool | Config |
 |----------|------|--------|
@@ -1603,7 +1862,7 @@ See [docs/testing/integration-tests.md](testing/integration-tests.md) for detail
 
 **Naming:** `snake_case` for Python.
 
-### 18.2 Commands
+### 19.2 Commands
 
 ```bash
 # Lint and auto-fix
@@ -1619,7 +1878,7 @@ mypy src/
 ruff check --fix . && ruff format . && mypy src/
 ```
 
-### 18.3 Feature-Based Workflow
+### 19.3 Feature-Based Workflow
 
 1. **Implement the feature** — write production code
 2. **Lint and type check** — fix all errors
@@ -1627,7 +1886,7 @@ ruff check --fix . && ruff format . && mypy src/
 4. **Confirm tests pass** — before committing
 5. **Refactor only after tests pass**
 
-### 18.4 Architecture Decision Records
+### 19.4 Architecture Decision Records
 
 Significant architectural decisions are documented in `docs/planning/adr/`:
 
@@ -1639,13 +1898,28 @@ Significant architectural decisions are documented in `docs/planning/adr/`:
 | 004 | Progressive wiki memory system |
 | 005 | Hybrid wiki context retrieval pipeline |
 | 006 | OpenAI-compatible provider |
+| 007 | Python-native orchestration |
+| 008 | Retire application services layer |
+| 009 | Opencode as primary agent runtime |
 
 ---
 
-## 19. Quick Reference
+## 20. Quick Reference
 
 ```bash
 # Start your local LLM server (e.g. LM Studio, or `ollama serve`)
+
+# Quick one-command start with prompt file
+story-writer tui --story test_story --prompt prompts/sample-story.md
+story-writer run --story test_story --prompt prompts/sample-story.md --batch
+
+# Or do it manually step-by-step:
+
+# Quick one-command start with prompt file
+story-writer tui --story test_story --prompt prompts/sample-story.md
+story-writer run --story test_story --prompt prompts/sample-story.md --batch
+
+# Or do it manually step-by-step:
 
 # Initialize a new story
 python -m src.tools.story_state --operation init --name test_story
@@ -1673,6 +1947,12 @@ python -m src.tools.savepoint_manager --operation next-phase --name story-name
 
 # Assemble manuscript manually
 python -m src.tools.story_assembler assemble --story-name story-name
+
+# Search the wiki
+python -m src.tools.wiki_search --story story-name --query "ancient AI"
+
+# Read a wiki page
+python -m src.tools.wiki_read --story story-name --page character:yuki --level L2
 
 # Lint + format + type check
 ruff check --fix . && ruff format . && mypy src/
