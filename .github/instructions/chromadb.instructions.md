@@ -76,11 +76,11 @@ ChromaDB is a **derived semantic index** over the authoritative Markdown knowled
 
 ## Per-Story Collections
 
-Each story has a dedicated ChromaDB collection named `stories-{story_name}` (e.g. `stories-my-story`). These collections are created automatically by `rag-query` on first index.
+Each story has a dedicated ChromaDB collection named `wiki-{story_name}` (e.g. `wiki-the-silence-between-stars`). These collections are created automatically by `rag-query` on first index.
 
 | Collection | Name Pattern | Managed By |
 |------------|-------------|------------|
-| **Per-story RAG** | `stories-{story_name}` | `rag-query` tool (story-orchestrator, wiki-maintainer) |
+| **Per-story RAG** | `wiki-{story_name}` | `rag-query` tool (story-orchestrator, wiki-maintainer) |
 
 ### Per-Story Collection Metadata Schema
 
