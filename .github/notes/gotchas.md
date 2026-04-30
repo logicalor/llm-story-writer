@@ -1384,3 +1384,36 @@ Three additional format rules apply:
 3. **`tools:` sub-keys use 2-space indent; `bash:`, `task:`, `edit:` sub-keys use 4-space indent** relative to the block key. The corpus standard (21 of 24 files) uses this spacing. Do not copy from `orchestrator-v3.md`, `coder.md`, or `sprint-runner.md` — those three files have historically non-standard indentation.
 
 ChromaDB ID: `gotcha-opencode-permission-object-map-format-038`
+
+---
+
+### 039 — opencode permission rules: catch-all `"**": "deny"` must come FIRST, not last
+
+**Source:** observed denial of `edit` calls in orchestrator-v3 / planner / test-writer / browser agents (May 2026)
+**Severity:** critical
+
+Per [opencode permissions docs](https://opencode.ai/docs/permissions/): *"Rules are evaluated by pattern match, with the **last matching rule winning**. A common pattern is to put the catch-all `*` rule first, and more specific rules after it."*
+
+Putting the catch-all deny LAST silently disables all the allow rules above it, because every concrete path also matches `**` and the later rule wins.
+
+**Wrong (every edit blocked):**
+```yaml
+permission:
+  edit:
+    "docs/**": "allow"
+    ".github/notes/**": "allow"
+    "**": "deny"
+```
+
+**Right (allows are honoured):**
+```yaml
+permission:
+  edit:
+    "**": "deny"
+    "docs/**": "allow"
+    ".github/notes/**": "allow"
+```
+
+Same rule applies to `bash`, `task`, `read`, etc. — any object-map permission. When auditing an agent, scan for `"**": "deny"` or `"*": "deny"` and verify it appears as the FIRST entry in its block.
+
+ChromaDB ID: `gotcha-opencode-permission-rule-order-039`

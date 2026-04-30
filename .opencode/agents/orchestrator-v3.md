@@ -4,12 +4,12 @@ model: openrouter/moonshotai/kimi-k2.6
 mode: primary
 permission:
   edit:
+    "**": "deny"
     "docs/**": "allow"
     "README.md": "allow"
     "AGENTS.md": "allow"
     ".github/copilot-instructions.md": "allow"
     ".github/notes/**": "allow"
-    "**": "deny"
   bash:
         "*": "deny"
         "pytest*": "allow"

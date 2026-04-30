@@ -5,8 +5,8 @@ mode: subagent
 hidden: false
 permission:
   edit:
-    "tests/e2e/**": "allow"
     "**": "deny"
+    "tests/e2e/**": "allow"
   bash:
     "*": "deny"
     "agent-browser*": "allow"
