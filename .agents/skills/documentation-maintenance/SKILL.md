@@ -34,6 +34,7 @@ For architecture changes, ADRs, layer renames, tool changes, or workflow changes
 - `.github/notes/gotchas.md`
 - `.agents/skills/`
 - `.github/agents/` if the Copilot system remains in use
+- `.opencode/agents/` if the OpenCode system remains in use
 
 **Maximum files modified per dispatch: 5.** If the sweep identifies more than 5 files needing updates, apply the 5 most critical and defer the rest.
 
