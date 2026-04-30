@@ -42,10 +42,10 @@ Reflect near the end of GitHub workflow tasks by checking active notes in `.gith
 4. Classify each improvement:
    - `minor`: typos, clarifications, missing examples, broken links, formatting, or narrow instruction corrections.
    - `major`: new workflow steps, structural changes, new skills or agents, tool changes, policy changes, or anything with unclear blast radius.
-5. Apply minor improvements precisely and record the exact action in the note.
+5. Apply minor improvements **to at most 3 target files per session**. Record the exact action in the note.
 6. Propose major improvements with target paths, rationale, expected impact, and the intended edit. Wait for user approval unless the current user request already explicitly asks for that change.
-7. Add ChromaDB entries after the note exists when `mcp__chroma__` is available. If Chroma is unavailable, keep the file note as the source of truth.
-8. Archive processed notes by moving them to `.github/notes/reflections/archive/` with a date suffix. Do not delete archived notes. Remove the active copy only after the archive copy exists.
+7. If ChromaDB is unavailable (tool not present or connection fails), **skip embedding silently** — the file note is the source of truth. Do not retry ChromaDB operations.
+8. Archive only newly processed notes by moving them to `.github/notes/reflections/archive/` with a date suffix. Do not archive notes that are already `status: archived` or already in the archive. Remove the active copy only after the archive copy exists.
 
 ## Chroma Guidance
 
@@ -64,6 +64,7 @@ Use `mcp__chroma__.chroma_add_documents` for new reflection entries. Include met
 
 ## Constraints
 
+- **Bounded scope.** In task-end mode, read ONLY notes with `status: active` (or no status set). Skip `status: archived` notes and the `archive/` directory entirely. Apply at most 3 minor improvements, then stop. If zero active notes exist, return immediately.
 - Do not use reflection as a dumping ground for transient logs or ordinary task notes.
 - Do not silently change workflow behavior. Summarize any applied minor improvement.
 - Preserve the style and structure of the target file.

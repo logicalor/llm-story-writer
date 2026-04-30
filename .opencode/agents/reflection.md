@@ -50,24 +50,26 @@ The Orchestrator encounters a problem, friction point, or unexpected behaviour d
 
 Your job is to:
 
-1. Record the observation in `.github/notes/reflections/issue-N.md`
-2. Classify the severity (minor/major)
-3. If minor: apply the improvement immediately, then return to Orchestrator
-4. If major: propose the improvement for approval, then return to Orchestrator
+1. Record the observation in `.github/notes/reflections/issue-N.md` using the canonical template. If no issue number exists, use `general-short-slug.md`.
+2. Classify the severity (minor/major).
+3. If minor: apply the improvement immediately to **at most ONE target file**, then return to Orchestrator. Do not scope-creep to other files.
+4. If major: propose the improvement for approval, then return to Orchestrator.
+5. **Return immediately after step 3 or 4.** Do not archive, do not collate, do not query ChromaDB in mid-task mode.
 
 ### 2. Task-end Collation (automatic)
 
 After the Orchestrator completes Step 8 (Finalise), it dispatches to you for collation. Your job is to:
 
-1. Read all reflection notes in `.github/notes/reflections/`
-2. **Query `reflections` ChromaDB collection** for recurring themes across past issues
-3. Group related improvements by target (agent/skill/instruction)
-4. Classify each as minor or major
-5. Apply all minor improvements
-6. Propose all major improvements with clear rationale
-7. **Embed all new reflections** into the `reflections` ChromaDB collection
-8. Archive processed notes to `reflections/archive/`
-9. Return to Orchestrator with a summary
+1. **Read ONLY active reflection notes** in `.github/notes/reflections/` — files where frontmatter `status` is `active` or absent. Skip any file with `status: archived`. Ignore the `archive/` subdirectory entirely.
+2. If there are zero active notes: stop immediately. Return to Orchestrator. **Do not scan archived notes, do not create new notes.**
+3. **Query `reflections` ChromaDB collection** for recurring themes across past issues. If ChromaDB is unavailable (connection error, missing collection), skip this step silently — do not retry.
+4. Group related improvements by target (agent/skill/instruction).
+5. Classify each as minor or major.
+6. **Apply minor improvements — MAXIMUM 3 per dispatch.** Stop at 3 even if more remain. Record each applied change.
+7. Propose all major improvements with clear rationale — do not apply them.
+8. **Embed all new reflections** into the `reflections` ChromaDB collection. If Chroma is unavailable, skip — the file note is the source of truth.
+9. **Move processed active notes** to `reflections/archive/` with a date suffix (e.g., `issue-42-2026-04-30.md`). After confirming the copy exists in `archive/`, delete the active copy. Do not archive notes that are already `status: archived`.
+10. Return to Orchestrator with a summary.
 
 ---
 
@@ -218,6 +220,7 @@ See `.github/notes/reflections/TEMPLATE.md` for the canonical template and `.git
 
 1. **Never break existing workflows** — if unsure whether a change is safe, classify as major
 2. **Preserve formatting** — match the existing style of each file type
-3. **Append-only notes** — never delete reflection notes from the archive. "Archiving" means **move** the active note to `archive/` (copy, then delete the active copy). Once a note exists in the archive, the active copy is a stale duplicate and must be removed.
-4. **One improvement per edit** — make targeted changes, not wholesale rewrites
-5. **Test mentally** — before applying, trace through how the change affects agent behaviour
+3. **Bounded scope** — task-end collation: read ONLY active notes (skip `archive/` and notes with `status: archived`); apply at most 3 minor improvements; stop immediately when no active notes remain
+4. **Append-only notes** — never delete reflection notes from the archive. "Archiving" means **move** the active note to `archive/` (copy, then delete the active copy). Once a note exists in the archive, the active copy is a stale duplicate and must be removed. Do NOT move notes that are already archived.
+5. **One improvement per edit** — make targeted changes, not wholesale rewrites
+6. **Test mentally** — before applying, trace through how the change affects agent behaviour
