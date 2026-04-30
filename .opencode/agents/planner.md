@@ -101,7 +101,7 @@ Build a concrete understanding of the current state:
 
 #### OpenCode Tools (if applicable)
 
-- **TypeScript wrappers**: existing tool definitions in `.opencode/tools/`
+- **Python tools**: existing tool scripts in `src/tools/`
 - **Tool conventions**: naming, parameter patterns, subprocess invocation
 
 #### Wiki System
@@ -232,7 +232,7 @@ Produce an ordered task list to `docs/planning/[feature-slug]/tasks.md`:
 **Key Files:**
 
 - `src/domain/entities/entity.py` — [what changes]
-- `.opencode/tools/tool-name.ts` — [what changes]
+- `src/tools/tool_name.py` — [what changes]
 
 ---
 
@@ -244,7 +244,7 @@ Produce an ordered task list to `docs/planning/[feature-slug]/tasks.md`:
 **Task ordering rules:**
 
 1. Infrastructure/schema changes first (ChromaDB collections, wiki page templates)
-2. Python domain logic before TypeScript wrappers (domain services need to exist before tools can call them)
+2. Python domain logic before tool CLI scripts (domain services need to exist before tools can call them)
 3. Small, independently testable units — each task should be one Orchestrator dispatch
 4. Each task must have acceptance criteria that map directly to test methods
 
