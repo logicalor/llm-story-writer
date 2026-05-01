@@ -122,7 +122,7 @@ Each of the five direct-generation prompts is loaded by a specific Python-native
 - **Computed variables:**
   - `chapter_content` — the raw chapter text
   - `story_name`, `chapter_number` — story identifier and chapter index
-  - `outline` — currently empty string (reserved for future use)
+  - `outline` — populated by `_extract_outline_text(outline_result, chapter_number)`: prefers `chapter_details[N-1]` (JSON-serialised), falls back to `chapter_outlines[N-1]`, returns `""` when neither is present
 - **User message:** `{"role": "user", "content": "Return the JSON consistency report."}`
 - **Output parsing:** `_extract_consistency_result()` first attempts the new direct-generation JSON format (`{"issues": [...], "has_critical_findings": bool}`), then falls back to the legacy format (`wiki_lint_findings`, `semantic_findings`, `cross_chapter_findings`). It also strips JSON markdown fences automatically.
 - **Returns:** A dict with `issues` (list) and `passed` (bool).
