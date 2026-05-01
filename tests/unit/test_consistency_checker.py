@@ -13,6 +13,7 @@ from presentation.agents.consistency_checker import (
     ConsistencyCheckerAgent,
     _extract_consistency_result,
 )
+from application.pipeline.handoffs import OutlineResult
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
 
 
@@ -269,3 +270,161 @@ async def test_run_does_not_truncate_chapter_content() -> None:
 
     assert captured["chapter_content"] == long_chapter
     assert len(captured["chapter_content"]) == 20_000
+
+
+@pytest.mark.asyncio
+async def test_consistency_checker_outline_plumbed() -> None:
+    captured: dict[str, str] = {}
+    outline_result = OutlineResult(
+        story_name="test-story",
+        chapter_outlines=[{"chapter": 1, "summary": "The hero departs"}],
+        summary="summary",
+        genre="fantasy",
+        themes=["courage"],
+    )
+
+    def capture_prompt(name: str, variables: dict | None = None) -> str:
+        if variables is not None:
+            captured["outline"] = variables["outline"]
+        return "system prompt"
+
+    response = '{"has_critical_findings": false, "issues": []}'
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = ConsistencyCheckerAgent(
+        provider=_ProviderStub([response]),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    with patch(
+        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+        side_effect=capture_prompt,
+    ):
+        await agent.run(
+            "test-story",
+            1,
+            "chapter content",
+            outline_result=outline_result,
+        )
+
+    bus.close()
+
+    assert captured["outline"] != ""
+
+
+@pytest.mark.asyncio
+async def test_consistency_checker_outline_prefers_chapter_details() -> None:
+    captured: dict[str, str] = {}
+    outline_result = OutlineResult(
+        story_name="test-story",
+        chapter_outlines=[{"summary": "fallback"}],
+        summary="summary",
+        genre="fantasy",
+        themes=["courage"],
+        chapter_details=[{"detail": "hero fights dragon"}],
+    )
+
+    def capture_prompt(name: str, variables: dict | None = None) -> str:
+        if variables is not None:
+            captured["outline"] = variables["outline"]
+        return "system prompt"
+
+    response = '{"has_critical_findings": false, "issues": []}'
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = ConsistencyCheckerAgent(
+        provider=_ProviderStub([response]),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    with patch(
+        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+        side_effect=capture_prompt,
+    ):
+        await agent.run(
+            "test-story",
+            1,
+            "chapter content",
+            outline_result=outline_result,
+        )
+
+    bus.close()
+
+    assert "hero fights dragon" in captured["outline"]
+
+
+@pytest.mark.asyncio
+async def test_consistency_checker_outline_fallback_when_no_details() -> None:
+    captured: dict[str, str] = {}
+    outline_result = OutlineResult(
+        story_name="test-story",
+        chapter_outlines=[{"summary": "fallback text"}],
+        summary="summary",
+        genre="fantasy",
+        themes=["courage"],
+        chapter_details=[],
+    )
+
+    def capture_prompt(name: str, variables: dict | None = None) -> str:
+        if variables is not None:
+            captured["outline"] = variables["outline"]
+        return "system prompt"
+
+    response = '{"has_critical_findings": false, "issues": []}'
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = ConsistencyCheckerAgent(
+        provider=_ProviderStub([response]),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    with patch(
+        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+        side_effect=capture_prompt,
+    ):
+        await agent.run(
+            "test-story",
+            1,
+            "chapter content",
+            outline_result=outline_result,
+        )
+
+    bus.close()
+
+    assert "fallback text" in captured["outline"]
+
+
+@pytest.mark.asyncio
+async def test_consistency_checker_outline_empty_when_no_outline_result() -> None:
+    captured: dict[str, str] = {}
+
+    def capture_prompt(name: str, variables: dict | None = None) -> str:
+        if variables is not None:
+            captured["outline"] = variables["outline"]
+        return "system prompt"
+
+    response = '{"has_critical_findings": false, "issues": []}'
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = ConsistencyCheckerAgent(
+        provider=_ProviderStub([response]),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    with patch(
+        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+        side_effect=capture_prompt,
+    ):
+        await agent.run("test-story", 1, "chapter content")
+
+    bus.close()
+
+    assert captured["outline"] == ""
