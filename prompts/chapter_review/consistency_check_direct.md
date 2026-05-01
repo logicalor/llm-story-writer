@@ -47,7 +47,6 @@ Evaluate the chapter against these criteria:
 ## OUTPUT FORMAT
 Return **only** a JSON object with this exact shape — no preamble, no markdown fences, no commentary:
 
-```json
 {
   "issues": [
     {
@@ -59,7 +58,6 @@ Return **only** a JSON object with this exact shape — no preamble, no markdown
   ],
   "has_critical_findings": true|false
 }
-```
 
 Severity definitions:
 - **critical:** The issue would confuse readers, break immersion, or contradict established facts in a way that undermines the story.
@@ -67,8 +65,6 @@ Severity definitions:
 - **info:** A subtle inconsistency or a suggestion for tighter continuity.
 
 If no issues are found, return:
-```json
 {"issues": [], "has_critical_findings": false}
-```
 
 Return **only** the JSON object. Do not wrap it in markdown code blocks. Do not add any text before or after.

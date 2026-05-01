@@ -6,7 +6,7 @@ category: instruction
 targets:
   - ".github/agents/_shared/review-checklist.md"
 severity: major
-status: active
+status: applied
 ---
 
 ## Retired TypeScript Wrapper Concepts Still Present in Review Checklist
@@ -35,4 +35,4 @@ Replace all TypeScript/Zod references in `review-checklist.md` with Python-nativ
 
 ### Action Taken
 
-Proposed for approval: This is a structural change to the shared review checklist used by all reviewer agents. Requires human review before applying to ensure the replacement language is accurate for Python-native tools.
+Applied: All TypeScript/Zod references were already removed from `review-checklist.md` in a prior update. Verified current file contains no `.opencode/tools/*.ts`, `Zod`, `.describe()`, or `.optional()` references.

@@ -13,6 +13,7 @@ permission:
     "ls*": "allow"
     "cat*": "allow"
     "echo*": "allow"
+    "rm*": "allow"
   task: deny
 tools:
   "chroma/*": true

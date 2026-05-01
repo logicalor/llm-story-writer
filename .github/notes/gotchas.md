@@ -1389,7 +1389,7 @@ ChromaDB ID: `gotcha-opencode-permission-object-map-format-038`
 
 ### 039 — opencode permission rules: catch-all `"**": "deny"` must come FIRST, not last
 
-**Source:** observed denial of `edit` calls in orchestrator-v3 / planner / test-writer / browser agents (May 2026)
+**Source:** issue #276, PR #280 (permission-order fix for orchestrator-v3 / planner / test-writer / browser / documenter agents, May 2026)
 **Severity:** critical
 
 Per [opencode permissions docs](https://opencode.ai/docs/permissions/): *"Rules are evaluated by pattern match, with the **last matching rule winning**. A common pattern is to put the catch-all `*` rule first, and more specific rules after it."*
