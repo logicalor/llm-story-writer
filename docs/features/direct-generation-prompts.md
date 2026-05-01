@@ -102,7 +102,7 @@ Each active direct-generation prompt is loaded by a specific Python-native agent
 - **Computed variables:**
   - `chapter_number`, `chapter_title`, `chapter_summary` — from the current chapter outline
   - `story_name` — the story identifier
-  - `character_context` — aggregated from JSON sheets in `stories/{story}/characters/*.json` (reads `name` and `summary` fields, falling back to first 300 chars of `sheet`)
+  - `character_context` — aggregated from JSON sheets in `stories/{story}/characters/*.json` (reads `name`, prefers `abridged`, falls back to `summary`, then falls back to the first 300 chars of `sheet`)
   - `setting_context` — aggregated from JSON sheets in `stories/{story}/settings/*.json` (same logic as characters)
   - `base_context` — combined `## Characters` and `## Settings` sections
   - `previous_chapter_summary`, `next_chapter_summary` — from adjacent chapter outlines

@@ -94,18 +94,20 @@ Several runtime artefacts are written by the Python-native orchestrator and then
 
 | Path | Producer | Consumer | Notes |
 |------|----------|----------|-------|
-| `stories/<story>/savepoints/pipeline_state.json` | `src/presentation/orchestrator.py` across all implemented phases | `resume_pipeline()`, later phases, debugging workflows | JSON snapshot of `PipelineState`, including `OutlineResult` foundation fields, completed phases, and savepoint labels |
+| `stories/<story>/savepoints/pipeline_state.json` | `src/presentation/orchestrator.py` across all implemented phases | `resume_pipeline()`, later phases, debugging workflows | JSON snapshot of `PipelineState`, including `OutlineResult` foundation fields, `recaps`, `evolved_sheets`, completed phases, and savepoint labels |
 | `stories/<story>/outline/skeleton.md` | `src/presentation/agents/outline_planner.py` when `generation.expand_outline` is `true` | Outline review, resume-safe per-chapter expansion, debugging workflows | Skeleton outline generated from `outline/create_skeleton`; paired with `OutlineResult.chapter_skeletons` |
 | `stories/<story>/outline/details/chapter_{N}.md` | `src/presentation/agents/outline_planner.py` when `generation.expand_outline` is `true` | Chapter drafting, consistency checks, resume-safe outline expansion | One expanded chapter detail block per chapter. Existing files are read back instead of regenerated on resumed runs |
-| `stories/<story>/characters/<slug>.json` | `src/presentation/orchestrator.py` characters phase | `src/presentation/agents/chapter_writer.py`, character-management workflows | JSON document with `name`, full markdown `sheet`, `chunks`, `summary`, and `updated_at` |
-| `stories/<story>/settings/<slug>.json` | `src/presentation/orchestrator.py` settings phase | `src/presentation/agents/chapter_writer.py`, setting-management workflows | Same JSON shape as character sheets |
+| `stories/<story>/characters/<slug>.json` | `src/presentation/orchestrator.py` characters phase | `src/presentation/agents/chapter_writer.py`, `src/presentation/agents/character_evolver.py`, character-management workflows | JSON document with `name`, full markdown `sheet`, `chunks`, `abridged`, `summary`, and `updated_at` |
+| `stories/<story>/settings/<slug>.json` | `src/presentation/orchestrator.py` settings phase | `src/presentation/agents/chapter_writer.py`, `src/presentation/agents/setting_evolver.py`, setting-management workflows | Same JSON shape as character sheets |
 | `stories/<story>/chapters/chapter_{N}.md` | `src/presentation/orchestrator.py` chapter loop | `src/tools/story_assembler.py`, downstream review flows | Approved chapter manuscript |
 | `stories/<story>/chapters/chapter_{N}_recap.json` | `src/presentation/orchestrator.py` after `src/presentation/agents/recap_writer.py` returns a recap result | later chapter-loop continuity context, manual inspection, debugging workflows | JSON document with `events`, `compact`, and `sanitised` fields; the same object is also stored in `PipelineState.recaps[str(N)]` |
 | `stories/<story>/output/story.md` | `src/presentation/orchestrator.py` assembly phase | Manual export and downstream editing | Concatenated final manuscript |
 
 Characters and settings files are generated from prompt templates in `prompts/characters/` and `prompts/settings/`. Filenames are slugified from the extracted entity names, and writes are atomic so later phases never read a half-written JSON file.
 
-`ChapterWriterAgent` reads both directories opportunistically. It prefers each sheet's stored `summary`; if that field is empty, it falls back to the first 300 characters of the `sheet` body. Missing directories, malformed JSON files, or individual read failures are skipped instead of aborting chapter generation.
+`ChapterWriterAgent` reads both directories opportunistically. It prefers each sheet's stored `abridged` text, then falls back to `summary`, then falls back to the first 300 characters of the `sheet` body. Missing directories, malformed JSON files, or individual read failures are skipped instead of aborting chapter generation.
+
+After each approved chapter, `CharacterEvolverAgent` and `SettingEvolverAgent` may rewrite the `sheet` field in those same JSON files based on chapter events. The orchestrator records the per-chapter `updated` or `unchanged` status map in `PipelineState.evolved_sheets[str(chapter_number)]`.
 
 `src/tools/wiki_extract.py` now exposes two programmatic entry points used by the runtime. `bootstrap_wiki_from_story(story_name, *, model=None)` seeds the wiki from the approved outline savepoint plus character and setting JSON sheets, deduplicates extracted entities, skips already-existing slugs for idempotent upsert behavior, applies the batch through `run_batch()`, and returns `{created, skipped, entity_counts}`. `update_wiki_from_chapter(story_name, chapter_number, chapter_text, *, model=None)` handles the later incremental chapter updates.
 
