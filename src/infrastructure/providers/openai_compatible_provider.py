@@ -59,7 +59,7 @@ class OpenAICompatibleProvider(ModelProvider):
         except ImportError as exc:
             raise RuntimeError(
                 "Package 'requests' is required for OpenAICompatibleProvider. "
-                "Install dependencies from requirements.txt before running."
+                "Install dependencies from pyproject.toml (pip install -e .) before running."
             ) from exc
 
     def _resolve_base_url(self, model_config: ModelConfig) -> str:

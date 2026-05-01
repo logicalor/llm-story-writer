@@ -168,11 +168,11 @@ def test_pyproject_has_required_dependencies() -> None:
     assert "openai>=1.0" in pyproject_text
 
 
-def test_requirements_txt_textual_version() -> None:
-    requirements_text = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
+def test_pyproject_has_textual_version() -> None:
+    pyproject_text = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
-    assert "textual>=6.0,<7.0" in requirements_text
-    assert "textual>=0.85.0,<1.0.0" not in requirements_text
+    assert "textual>=6.0,<7.0" in pyproject_text
+    assert "textual>=0.85.0,<1.0.0" not in pyproject_text
 
 
 def test_no_stale_opencode_refs_in_agent_prompts() -> None:

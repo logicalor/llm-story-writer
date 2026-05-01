@@ -20,7 +20,7 @@ The current dependency split is deliberate.
 
 | Surface | Current implementation | Notes |
 |---------|------------------------|-------|
-| Core runtime | `requirements.txt` | Single dependency manifest for the active project; runtime depends on `requests`, `chromadb`, `pyyaml`, and `llm-output-parser`, with test packages grouped in the same file |
+| Core runtime | `pyproject.toml` | Single dependency manifest for the active project; runtime depends on `requests`, `chromadb`, `pyyaml`, and `llm-output-parser`, with test packages grouped in the same file |
 | LLM access | OpenAI-compatible `/v1` APIs | Ollama, LM Studio, llama.cpp server, vLLM, and similar servers work through the same provider contract |
 | Tool orchestration | Python-native orchestrator + Python tool modules | Runtime calls stay in-process; the former `.opencode/` wrapper layer is gone |
 | Retrieval path | `rag-query` tool + ChromaDB collections | Active code no longer exposes a reusable application-layer `RAGService`; configuration is ChromaDB-only with no PostgreSQL or pgvector settings |
@@ -45,7 +45,7 @@ Do not restore these components as part of routine feature work. If you need beh
 
 ### Dependency Changes
 
-When updating dependencies, treat `requirements.txt` as the source of truth for actively imported runtime packages. Add a package only when code in the active tree requires it.
+When updating dependencies, treat `pyproject.toml` as the source of truth for actively imported runtime packages. Add a package only when code in the active tree requires it.
 
 Use these guardrails:
 
@@ -53,7 +53,7 @@ Use these guardrails:
 - Keep provider integrations compatible with OpenAI-style `/v1` APIs unless there is a demonstrated need for a vendor-specific path
 - Do not reintroduce provider keys that route only through archived integrations; `google`, `openrouter`, `openai`, and `anthropic` are intentionally unsupported in the active runtime
 - Add retrieval behaviour through `rag-query` and related tools, not through a resurrected shared RAG service layer
-- Treat `requirements.txt` as the only supported install target; do not add a second requirements file for active runtime setup
+- Treat `pyproject.toml` as the only supported install target; do not add a second requirements file for active runtime setup
 - Keep setup and config documentation ChromaDB-only; do not document PostgreSQL or pgvector keys that no longer exist in active configuration loaders
 - Do not thread unused placeholder dependencies through constructors or factories after a service has been retired from the active runtime
 - Wire runtime objects explicitly inside tools or entry points; do not reintroduce a global DI container
