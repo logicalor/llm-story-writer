@@ -19,6 +19,7 @@ from application.pipeline.handoffs import (
     FinalEditResult,
     OutlineResult,
     PipelineState,
+    StoryMetadataResult,
     WikiUpdateBatch,
 )
 from domain.exceptions import StoryGenerationError
@@ -70,6 +71,15 @@ def _chapter_draft() -> ChapterDraft:
         title="Chapter 1",
         content="Draft content",
         word_count=2,
+    )
+
+
+def _story_metadata_result() -> StoryMetadataResult:
+    return StoryMetadataResult(
+        story_name="test-story",
+        title="Title",
+        summary="Summary",
+        tags=["tag"],
     )
 
 
@@ -815,6 +825,7 @@ async def test_characters_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
         patch("tools._io.STORIES_DIR", tmp_path),
         patch("presentation.orchestrator.StoryFoundationAgent") as foundation_cls,
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
@@ -825,6 +836,7 @@ async def test_characters_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
     ):
         foundation_cls.return_value.run = AsyncMock(return_value=_outline_result())
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
         consistency_cls.return_value.run = AsyncMock(
@@ -877,6 +889,7 @@ async def test_characters_phase_skips_failed_sheet_generation(tmp_path: Path) ->
         patch("tools._io.STORIES_DIR", tmp_path),
         patch("presentation.orchestrator.StoryFoundationAgent") as foundation_cls,
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
@@ -887,6 +900,7 @@ async def test_characters_phase_skips_failed_sheet_generation(tmp_path: Path) ->
     ):
         foundation_cls.return_value.run = AsyncMock(return_value=_outline_result())
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
         consistency_cls.return_value.run = AsyncMock(
@@ -941,6 +955,7 @@ async def test_settings_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
         patch("tools._io.STORIES_DIR", tmp_path),
         patch("presentation.orchestrator.StoryFoundationAgent") as foundation_cls,
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
@@ -951,6 +966,7 @@ async def test_settings_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
     ):
         foundation_cls.return_value.run = AsyncMock(return_value=_outline_result())
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
         consistency_cls.return_value.run = AsyncMock(

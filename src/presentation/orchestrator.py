@@ -34,6 +34,7 @@ from presentation.agents.final_editor import FinalEditorAgent
 from presentation.agents.outline_planner import OutlinePlannerAgent
 from presentation.agents.setting_evolver import SettingEvolverAgent
 from presentation.agents.story_foundation import StoryFoundationAgent
+from presentation.agents.story_metadata import StoryMetadataAgent
 from presentation.agents.story_planner import StoryPlannerAgent
 from presentation.agents.wiki_maintainer import WikiMaintainerAgent
 from presentation.pipeline_primitives import (
@@ -121,6 +122,20 @@ def _write_chapter_file(story_dir: Path, chapter_number: int, content: str) -> N
     (chapters_dir / f"chapter_{chapter_number}.md").write_text(
         content, encoding="utf-8"
     )
+
+
+def _write_story_metadata(
+    story_dir: Path, title: str, summary: str, tags: list[str]
+) -> None:
+    """Write story metadata to disk."""
+    metadata = {
+        "title": title,
+        "summary": summary,
+        "tags": tags,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    metadata_path = story_dir / "metadata.json"
+    _atomic_write(metadata_path, json.dumps(metadata, indent=2, ensure_ascii=False))
 
 
 def _backfill_missing_chapter_files(
@@ -590,6 +605,39 @@ async def _continue_pipeline(
                 return state
             await _mark_phase_complete(state, "outline", "outline")
 
+        if "metadata-outline" not in state.completed_phases:
+            state.current_phase = "metadata-outline"
+            if state.outline_result is not None:
+                try:
+                    metadata_agent = StoryMetadataAgent(
+                        resolved_provider, resolved_config, bus, wiki_bus
+                    )
+                    outline_text = _build_story_elements(state.outline_result)
+                    metadata_result = await metadata_agent.run(
+                        state.story_name,
+                        outline_text,
+                        "",
+                        settings,
+                    )
+                    state.outline_result.title = metadata_result.title
+                    state.outline_result.tags = metadata_result.tags
+                    _write_story_metadata(
+                        story_dir,
+                        metadata_result.title,
+                        metadata_result.summary,
+                        metadata_result.tags,
+                    )
+                    await _write_savepoint(state)
+                except Exception as exc:
+                    await bus.emit(
+                        f"\n[Metadata] outline metadata skipped ({type(exc).__name__}: {exc})\n"
+                    )
+            await _mark_phase_complete(
+                state,
+                "metadata-outline",
+                "metadata_outline_complete",
+            )
+
         if "narrative-arc" not in state.completed_phases:
             state.current_phase = "narrative-arc"
             if state.outline_result is not None:
@@ -839,6 +887,38 @@ async def _continue_pipeline(
                         f"\n[Recap] chapter {chapter_number} recap skipped "
                         f"({type(exc).__name__}: {exc})\n"
                     )
+                if (
+                    chapter_number == 1
+                    and "metadata-chapter-1" not in state.completed_phases
+                ):
+                    if state.outline_result is not None:
+                        try:
+                            metadata_agent_ch1 = StoryMetadataAgent(
+                                resolved_provider, resolved_config, bus, wiki_bus
+                            )
+                            outline_text_ch1 = _build_story_elements(
+                                state.outline_result
+                            )
+                            metadata_result_ch1 = await metadata_agent_ch1.run(
+                                state.story_name,
+                                outline_text_ch1,
+                                draft.content,
+                                settings,
+                            )
+                            state.outline_result.title = metadata_result_ch1.title
+                            state.outline_result.tags = metadata_result_ch1.tags
+                            _write_story_metadata(
+                                story_dir,
+                                metadata_result_ch1.title,
+                                metadata_result_ch1.summary,
+                                metadata_result_ch1.tags,
+                            )
+                            state.completed_phases.append("metadata-chapter-1")
+                            await _write_savepoint(state)
+                        except Exception as exc:
+                            await bus.emit(
+                                f"\n[Metadata] chapter-1 metadata skipped ({type(exc).__name__}: {exc})\n"
+                            )
                 await _mark_phase_complete(
                     state,
                     f"chapter-{chapter_number}",
@@ -880,6 +960,46 @@ async def _continue_pipeline(
                         f"\n[Final Edit] final edit skipped ({type(exc).__name__}: {exc})\n"
                     )
             await _mark_phase_complete(state, "final-edit", "final_edit_complete")
+
+        if "metadata-final" not in state.completed_phases:
+            state.current_phase = "metadata-final"
+            if state.outline_result is not None and state.approved_chapters:
+                try:
+                    metadata_agent_final = StoryMetadataAgent(
+                        resolved_provider, resolved_config, bus, wiki_bus
+                    )
+                    outline_text_final = _build_story_elements(state.outline_result)
+                    chapter_1_final = next(
+                        (
+                            chapter.content
+                            for chapter in state.approved_chapters
+                            if chapter.chapter_number == 1
+                        ),
+                        "",
+                    )
+                    metadata_result_final = await metadata_agent_final.run(
+                        state.story_name,
+                        outline_text_final,
+                        chapter_1_final,
+                        settings,
+                    )
+                    state.outline_result.title = metadata_result_final.title
+                    state.outline_result.tags = metadata_result_final.tags
+                    _write_story_metadata(
+                        story_dir,
+                        metadata_result_final.title,
+                        metadata_result_final.summary,
+                        metadata_result_final.tags,
+                    )
+                except Exception as exc:
+                    await bus.emit(
+                        f"\n[Metadata] final metadata skipped ({type(exc).__name__}: {exc})\n"
+                    )
+            await _mark_phase_complete(
+                state,
+                "metadata-final",
+                "metadata_final_complete",
+            )
 
         state.current_phase = "assembly"
         if "assembly" not in state.completed_phases:

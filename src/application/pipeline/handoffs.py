@@ -13,6 +13,16 @@ from typing import Any
 
 
 @dataclass
+class StoryMetadataResult:
+    """Metadata generated from outline + chapter content."""
+
+    story_name: str
+    title: str
+    summary: str
+    tags: list[str] = field(default_factory=list)
+
+
+@dataclass
 class OutlineResult:
     """Structured outline produced by the Outline phase.
 
