@@ -340,6 +340,7 @@ If `enable_scrubbing: false`: skip this phase.
 
 If `enable_final_edit: true` in config:
 - Dispatch `final-editor` with: `story_name`, `chapter_numbers` (all assembled), `config`
+- When `config.generation.enable_scrubbing` is `true`, `final-editor` runs Stage 1a prose-scrub diagnostics and Stage 1b voice-consistency diagnostics before each chapter edit; findings are injected into the Stage 2 polish pass
 - `final-editor` returns: `chapters_processed`, `total_issues_found`, `total_revisions_made`
 - Log result
 
