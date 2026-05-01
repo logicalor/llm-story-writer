@@ -10,7 +10,7 @@ from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import ArcAnalysisResult, OutlineResult
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.agent_prompt_loader import load_agent_prompt
+from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
     TokenStreamBus,
     WikiContextBus,
@@ -52,12 +52,7 @@ class StoryPlannerAgent:
         self.config = config
         self.bus = bus
         self.wiki_bus = wiki_bus
-        self._system_prompt: str | None = None
-
-    def _get_system_prompt(self) -> str:
-        if self._system_prompt is None:
-            self._system_prompt = load_agent_prompt("story-planner")
-        return self._system_prompt
+        self._loader = PromptLoader(prompts_dir="prompts")
 
     async def run(
         self,
@@ -83,20 +78,23 @@ class StoryPlannerAgent:
                 outline_result.chapter_outlines, ensure_ascii=False, indent=2
             )
 
+        loader = self._loader
+        system_prompt = loader.load_prompt(
+            "outline/arc_assessment_direct",
+            variables={
+                "outline": outline_text,
+                "critic_summary": "",
+                "arc_distribution": "",
+                "promise_payoff": "",
+            },
+        )
+
         model_config = _build_model_config(
             self.config, "initial_outline_writer", "openai-compat://default"
         )
         messages = [
-            {"role": "system", "content": self._get_system_prompt()},
-            {
-                "role": "user",
-                "content": (
-                    f"Story: {story_name}\n\n"
-                    "Analyse the dramatic arc of the following outline and return a "
-                    "structured assessment:\n\n"
-                    f"{outline_text}"
-                ),
-            },
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "Provide your assessment."},
         ]
 
         full_text = ""

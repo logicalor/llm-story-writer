@@ -6,7 +6,6 @@ category: skill
 targets:
   - ".agents/skills/documentation-maintenance/SKILL.md"
 severity: minor
-status: applied
 ---
 
 ## Documenter Skill Missing `.opencode/agents/` in Companion Sweep

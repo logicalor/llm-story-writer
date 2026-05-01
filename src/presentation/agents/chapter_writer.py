@@ -9,13 +9,13 @@ from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import ChapterDraft, OutlineResult
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.agent_prompt_loader import load_agent_prompt
+from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
     TokenStreamBus,
     WikiContextBus,
     WikiContextEvent,
 )
-from tools._io import STORIES_DIR
+from tools._io import STORIES_DIR, _validate_story_name
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -36,12 +36,7 @@ class ChapterWriterAgent:
         self.config = config
         self.bus = bus
         self.wiki_bus = wiki_bus
-        self._system_prompt: str | None = None
-
-    def _get_system_prompt(self) -> str:
-        if self._system_prompt is None:
-            self._system_prompt = load_agent_prompt("chapter-writer")
-        return self._system_prompt
+        self._loader = PromptLoader(prompts_dir="prompts")
 
     async def run(
         self,
@@ -65,29 +60,18 @@ class ChapterWriterAgent:
             )
             title = str(chapter_outline.get("title") or title)
 
-        prompt = (
-            f"Story: {story_name}\n"
-            f"Chapter Number: {chapter_number}\n"
-            f"Chapter Title: {title}\n"
-            f"Outline Summary:\n{chapter_summary}"
-        )
-        if feedback:
-            prompt = f"{prompt}\n\n## Revision Feedback\n{feedback}"
+        _validate_story_name(story_name)
 
-        # Guard against path traversal
-        if ".." in story_name or "/" in story_name or "\\" in story_name:
-            raise ValueError(f"Invalid story_name: {story_name!r}")
-
-        context_parts: list[str] = []
+        character_context_parts: list[str] = []
+        setting_context_parts: list[str] = []
         story_dir = STORIES_DIR / story_name
-        for entity_type, label in (
-            ("characters", "Character"),
-            ("settings", "Setting"),
+        for entity_type, label, target_list in (
+            ("characters", "Character", character_context_parts),
+            ("settings", "Setting", setting_context_parts),
         ):
             entity_dir = story_dir / entity_type
             if not entity_dir.exists():
                 continue
-            sheets: list[str] = []
             for sheet_path in sorted(entity_dir.glob("*.json")):
                 try:
                     data = json.loads(sheet_path.read_text(encoding="utf-8"))
@@ -103,13 +87,34 @@ class ChapterWriterAgent:
                     sheet_text = data.get("sheet", "")
                     summary = sheet_text[:300].strip() if sheet_text else ""
                 if summary:
-                    sheets.append(f"- {name}: {summary}")
+                    target_list.append(f"- {name}: {summary}")
 
-            if sheets:
-                context_parts.append(f"## {label}s\n" + "\n".join(sheets))
+        base_context_parts: list[str] = []
+        if character_context_parts:
+            base_context_parts.append(
+                "## Characters\n" + "\n".join(character_context_parts)
+            )
+        if setting_context_parts:
+            base_context_parts.append(
+                "## Settings\n" + "\n".join(setting_context_parts)
+            )
+        base_context = "\n\n".join(base_context_parts)
 
-        if context_parts:
-            prompt = prompt + "\n\n" + "\n\n".join(context_parts)
+        previous_chapter_summary = ""
+        if chapter_number > 1 and outline_result.chapter_outlines:
+            prev_outline = outline_result.chapter_outlines[chapter_number - 2]
+            if isinstance(prev_outline, dict):
+                previous_chapter_summary = str(
+                    prev_outline.get("summary") or prev_outline.get("content") or ""
+                )
+
+        next_chapter_summary = ""
+        if chapter_number < len(outline_result.chapter_outlines):
+            next_outline = outline_result.chapter_outlines[chapter_number]
+            if isinstance(next_outline, dict):
+                next_chapter_summary = str(
+                    next_outline.get("summary") or next_outline.get("content") or ""
+                )
 
         await self.wiki_bus.emit(
             WikiContextEvent(
@@ -119,14 +124,33 @@ class ChapterWriterAgent:
             )
         )
 
+        loader = self._loader
+        system_prompt = loader.load_prompt(
+            "chapters/write_chapter_direct",
+            variables={
+                "chapter_number": str(chapter_number),
+                "chapter_title": title,
+                "chapter_summary": chapter_summary,
+                "story_name": story_name,
+                "base_context": base_context,
+                "story_elements": "",
+                "previous_chapter_summary": previous_chapter_summary,
+                "next_chapter_summary": next_chapter_summary,
+                "character_context": "\n".join(character_context_parts),
+                "setting_context": "\n".join(setting_context_parts),
+            },
+        )
+        if feedback:
+            system_prompt = f"{system_prompt}\n\n## Revision Feedback\n{feedback}"
+
         model_config = _build_model_config(
             self.config,
             "chapter_writer",
             "openai-compat://default",
         )
         messages = [
-            {"role": "system", "content": self._get_system_prompt()},
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "Write the chapter now."},
         ]
 
         full_text = ""

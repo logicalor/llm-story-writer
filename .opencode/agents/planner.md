@@ -5,9 +5,9 @@ mode: primary
 permission:
   write: allow
   edit:
+    "**": "deny"
     "docs/planning/**": "allow"
     ".github/notes/**": "allow"
-    "**": "deny"
   bash:
     "*": "deny"
     "git log*": "allow"

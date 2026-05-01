@@ -5,8 +5,8 @@ mode: subagent
 hidden: false
 permission:
   edit:
-    "tests/**": "allow"
     "**": "deny"
+    "tests/**": "allow"
   bash:
     "*": "deny"
     "pytest*": "allow"
