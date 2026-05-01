@@ -236,3 +236,36 @@ async def test_run_emits_tokens_and_returns_parsed_result() -> None:
 
     assert emitted_tokens == tokens
     assert result == {"issues": [], "passed": True}
+
+
+@pytest.mark.asyncio
+async def test_run_does_not_truncate_chapter_content() -> None:
+    """Regression: chapter content must be passed in full, not truncated to 8000."""
+    long_chapter = "x" * 20_000
+    captured: dict[str, str] = {}
+
+    def capture_prompt(name: str, variables: dict | None = None) -> str:
+        if variables and "chapter_content" in variables:
+            captured["chapter_content"] = variables["chapter_content"]
+        return "system prompt"
+
+    response = '{"has_critical_findings": false, "issues": []}'
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = ConsistencyCheckerAgent(
+        provider=_ProviderStub([response]),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    with patch(
+        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+        side_effect=capture_prompt,
+    ):
+        await agent.run("test-story", 1, long_chapter)
+
+    bus.close()
+
+    assert captured["chapter_content"] == long_chapter
+    assert len(captured["chapter_content"]) == 20_000

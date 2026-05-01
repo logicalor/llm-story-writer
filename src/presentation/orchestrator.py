@@ -104,7 +104,8 @@ async def _mark_phase_complete(
         state.completed_phases.append(phase_name)
     state.savepoint_id = savepoint_name
     state.current_phase = phase_name
-    state.savepoints.append(savepoint_name)
+    if savepoint_name not in state.savepoints:
+        state.savepoints.append(savepoint_name)
     await _write_savepoint(state)
 
 
@@ -159,9 +160,6 @@ async def _await_outline_approval(
             settings,
             feedback=decision.feedback,
         )
-        state.savepoint_id = "outline"
-        if "outline" not in state.savepoints:
-            state.savepoints.append("outline")
         await _write_savepoint(state)
 
 
@@ -190,9 +188,6 @@ async def _generate_chapter_with_gate(
             settings,
             feedback=decision.feedback,
         )
-        state.savepoint_id = f"chapter-{chapter_number}"
-        if f"chapter-{chapter_number}" not in state.savepoints:
-            state.savepoints.append(f"chapter-{chapter_number}")
         await _write_savepoint(state)
 
 
@@ -382,7 +377,10 @@ async def _continue_pipeline(
                 story_prompt,
                 settings,
             )
-            await _mark_phase_complete(state, "outline", "outline")
+            # Persist generated outline before approval so a crash mid-gate
+            # preserves it. The phase is only marked complete on approval.
+            state.savepoint_id = "outline"
+            await _write_savepoint(state)
 
             state = await _await_outline_approval(
                 state,
@@ -394,6 +392,7 @@ async def _continue_pipeline(
             )
             if state.status == "rejected":
                 return state
+            await _mark_phase_complete(state, "outline", "outline")
 
         if "narrative-arc" not in state.completed_phases:
             state.current_phase = "narrative-arc"
@@ -522,10 +521,19 @@ async def _continue_pipeline(
                         )
                 state.approved_chapters.append(draft)
                 _write_chapter_file(story_dir, chapter_number, draft.content)
-                wiki_batch = await wiki_agent.run(
-                    state.story_name, chapter_number, draft.content
-                )
-                state.wiki_batches.append(wiki_batch)
+                try:
+                    wiki_batch = await wiki_agent.run(
+                        state.story_name, chapter_number, draft.content
+                    )
+                    state.wiki_batches.append(wiki_batch)
+                except Exception as exc:
+                    # Wiki updates are advisory; a failure must not lose the
+                    # approved chapter or block the loop. Persist the chapter
+                    # savepoint and continue so the run can complete.
+                    await bus.emit(
+                        f"\n[Wiki] chapter {chapter_number} wiki update skipped "
+                        f"({type(exc).__name__}: {exc})\n"
+                    )
                 await _mark_phase_complete(
                     state,
                     f"chapter-{chapter_number}",

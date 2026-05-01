@@ -157,6 +157,63 @@ async def test_run_pipeline_happy_path(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_wiki_update_failure_does_not_abort_chapter_loop(
+    tmp_path: Path,
+) -> None:
+    """Regression: wiki update failures must not lose the approved chapter or
+    stop the chapter loop. The chapter remains in approved_chapters and the
+    pipeline continues to completion."""
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(
+            side_effect=RuntimeError("wiki backend down")
+        )
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+
+        state = await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    assert len(state.approved_chapters) == 1
+    # No wiki batch persisted because the update failed, but pipeline finished.
+    assert state.wiki_batches == []
+
+
+@pytest.mark.asyncio
 async def test_chapter_files_written_during_chapter_loop(tmp_path: Path) -> None:
     provider = MagicMock()
     bus = TokenStreamBus()
@@ -294,6 +351,89 @@ async def test_run_pipeline_outline_rejection(tmp_path: Path) -> None:
     assert state.status == "rejected"
     assert "init" in state.completed_phases
     assert "chapter-loop" not in state.completed_phases
+    # Rejected outline must NOT be marked complete, otherwise resume would
+    # bypass the approval gate.
+    assert "outline" not in state.completed_phases
+
+
+@pytest.mark.asyncio
+async def test_outline_revision_does_not_duplicate_savepoint(tmp_path: Path) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    gate = SequenceApprovalGate(
+        [
+            ApprovalDecision(approved=False, feedback="tighten the hook"),
+            ApprovalDecision(approved=True),
+            ApprovalDecision(approved=True),
+        ]
+    )
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.StoryPlannerAgent") as arc_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch("presentation.orchestrator.FinalEditorAgent") as final_cls,
+        patch(
+            "presentation.orchestrator._generate_character_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._generate_setting_sheets",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "presentation.orchestrator._init_wiki_for_story",
+            return_value={"status": "ok"},
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(
+            side_effect=[_outline_result(), _outline_result()]
+        )
+        arc_cls.return_value.run = AsyncMock(
+            return_value=ArcAnalysisResult(
+                story_name="test-story",
+                arc_assessment="Strong arc",
+                verdict_code="strong",
+                overall_score=80.0,
+            )
+        )
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+        final_cls.return_value.run = AsyncMock(
+            return_value=FinalEditResult(
+                story_name="test-story",
+                chapters_processed=1,
+                total_issues_found=0,
+                total_revisions_made=0,
+                edited_chapters=[_chapter_draft()],
+            )
+        )
+
+        state = await run_pipeline(
+            "test-story",
+            gate,
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    assert state.savepoints.count("outline") == 1
 
 
 @pytest.mark.asyncio

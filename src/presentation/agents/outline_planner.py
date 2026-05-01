@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
@@ -46,27 +47,49 @@ def _parse_chapter_outlines(text: str, wanted_chapters: int) -> list[dict[str, A
                 return [entry for entry in payload if isinstance(entry, dict)]
 
     chapter_outlines: list[dict[str, Any]] = []
-    for index, line in enumerate(text.splitlines(), start=1):
-        normalized = line.strip()
-        if not normalized:
+    # Match headings like "### Chapter 3: Linguistic Shadows", "## Chapter 3 - Title",
+    # "Chapter 3: Title", or bold "**Chapter 3:**" forms.
+    heading_re = re.compile(
+        r"^\s*(?:#{1,6}\s*|\*{1,3}\s*)?chapter\s+(\d+)\b\s*[:\-\u2013\u2014.)]?\s*(.*?)(?:\*{1,3})?\s*$",
+        re.IGNORECASE,
+    )
+
+    current: dict[str, Any] | None = None
+    body_lines: list[str] = []
+
+    def _flush() -> None:
+        if current is None:
+            return
+        summary = "\n".join(body_lines).strip()
+        if summary:
+            current["summary"] = summary
+        chapter_outlines.append(current)
+
+    for line in text.splitlines():
+        match = heading_re.match(line)
+        if match:
+            _flush()
+            number = int(match.group(1))
+            title_part = match.group(2).strip().rstrip("*").strip()
+            title = (
+                f"Chapter {number}: {title_part}" if title_part else f"Chapter {number}"
+            )
+            current = {
+                "chapter_number": number,
+                "title": title,
+                "summary": "",
+            }
+            body_lines = []
             continue
-        lowered = normalized.lower()
-        if lowered.startswith("chapter"):
-            title = normalized.split(":", 1)[0].strip()
-            summary = (
-                normalized.split(":", 1)[1].strip() if ":" in normalized else normalized
-            )
-            chapter_outlines.append(
-                {
-                    "chapter_number": index,
-                    "title": title,
-                    "summary": summary,
-                }
-            )
-        if len(chapter_outlines) >= wanted_chapters:
-            break
+        if current is not None:
+            body_lines.append(line)
+
+    _flush()
 
     if chapter_outlines:
+        # Trim to wanted_chapters when the model produced more than requested.
+        if len(chapter_outlines) > wanted_chapters:
+            chapter_outlines = chapter_outlines[:wanted_chapters]
         return chapter_outlines
 
     summary = stripped[:500]
@@ -195,7 +218,7 @@ class OutlinePlannerAgent:
         return OutlineResult(
             story_name=story_name,
             chapter_outlines=chapter_outlines,
-            summary=full_text[:1000],
+            summary=full_text,
             genre=_extract_genre(full_text),
             themes=_extract_themes(full_text),
         )

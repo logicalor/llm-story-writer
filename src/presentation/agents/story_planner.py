@@ -108,7 +108,7 @@ class StoryPlannerAgent:
 
         return ArcAnalysisResult(
             story_name=story_name,
-            arc_assessment=full_text[:1000],
+            arc_assessment=full_text,
             verdict_code=_parse_verdict(full_text),
             overall_score=0.0,
         )

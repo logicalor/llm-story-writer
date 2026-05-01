@@ -28,7 +28,9 @@ from infrastructure.providers.openai_compatible_provider import OpenAICompatible
 
 LM_STUDIO_URL = os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1")
 
-DEFAULT_MODEL_NAME = os.environ.get("LM_STUDIO_MODEL", "gemma-4-26b-a4b-it-heretic-guff")
+DEFAULT_MODEL_NAME = os.environ.get(
+    "LM_STUDIO_MODEL", "gemma-4-26b-a4b-it-heretic-guff"
+)
 
 FORBIDDEN_STRINGS = [
     "outline-generator",

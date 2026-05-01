@@ -54,9 +54,15 @@ class FinalEditorAgent:
         edited_chapters: list[ChapterDraft] = []
         loader = self._loader
 
-        prior_summaries: list[str] = []
+        # Pre-build a per-chapter prior summary so chapter N only sees
+        # chapters 1..N-1 (no leakage of later chapters into the edit pass).
+        per_chapter_prior_summary: dict[int, str] = {}
+        running_summaries: list[str] = []
         for draft in approved_chapters:
-            prior_summaries.append(
+            per_chapter_prior_summary[draft.chapter_number] = "\n".join(
+                running_summaries
+            )
+            running_summaries.append(
                 f"Chapter {draft.chapter_number}: {draft.title} — "
                 f"{draft.content[:200].replace(chr(10), ' ')}..."
             )
@@ -70,10 +76,8 @@ class FinalEditorAgent:
                 )
             )
 
-            prior_chapters_summary = "\n".join(
-                s
-                for s in prior_summaries
-                if not s.startswith(f"Chapter {draft.chapter_number}:")
+            prior_chapters_summary = per_chapter_prior_summary.get(
+                draft.chapter_number, ""
             )
 
             system_prompt = loader.load_prompt(

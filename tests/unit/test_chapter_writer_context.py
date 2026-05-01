@@ -29,7 +29,12 @@ def _outline_result() -> OutlineResult:
 
 
 def _settings() -> GenerationSettings:
-    return GenerationSettings(wanted_chapters=1, seed=42)
+    # These tests exercise the single-shot (direct) drafting path, so the
+    # multi-stage scene pipeline is disabled to keep the captured prompts
+    # focused on entity-context injection.
+    return GenerationSettings(
+        wanted_chapters=1, seed=42, scene_generation_pipeline=False
+    )
 
 
 @pytest.mark.asyncio
