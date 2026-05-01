@@ -1,0 +1,29 @@
+# Prompt Rules
+
+## Rule 1: `prompts/agents/` are workflow specifications
+
+`prompts/agents/*.md` files are OpenCode/Copilot workflow specifications. They must **NEVER** be loaded as LLM system prompts by Python-native agents.
+
+## Rule 2: Use `PromptLoader` with direct-generation prompts
+
+Python-native agents must use `PromptLoader` with direct-generation prompts from `prompts/outline/`, `prompts/chapters/`, `prompts/final_edit/`, `prompts/chapter_review/`, or other direct-generation directories.
+
+## Rule 3: New agents must use direct-generation prompts
+
+Any new Python agent must use a direct-generation prompt, not a workflow specification from `prompts/agents/`.
+
+## Rule 4: Create new prompts in domain directories
+
+If an agent needs a new prompt, create it under the appropriate `prompts/<domain>/` directory as a direct-generation template, not under `prompts/agents/`.
+
+## Migration Reference
+
+The following agents were migrated from workflow prompts to direct-generation prompts in issue #277:
+
+| Agent | Old Workflow Prompt (DO NOT USE) | New Direct-Generation Prompt |
+|---|---|---|
+| `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `prompts/outline/create_direct.md` |
+| `StoryPlannerAgent` | `prompts/agents/story-planner.md` | `prompts/outline/arc_assessment_direct.md` |
+| `ChapterWriterAgent` | `prompts/agents/chapter-writer.md` | `prompts/chapters/write_chapter_direct.md` |
+| `FinalEditorAgent` | `prompts/agents/final-editor.md` | `prompts/final_edit/edit_chapter_direct.md` |
+| `ConsistencyCheckerAgent` | `prompts/agents/consistency-checker.md` | `prompts/chapter_review/consistency_check_direct.md` |
