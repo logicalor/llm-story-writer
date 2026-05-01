@@ -1552,3 +1552,91 @@ mypy src/ 2>&1 | grep -v "Duplicate module named \"_io\""
 **Long-term fix:** Consolidate the dual import roots by ensuring all consumers use `from src.tools._io import ...` and removing the root-level `tools/` import path from `mypy.ini` or `pyproject.toml`. Track as a separate issue.
 
 ChromaDB ID: `gotcha-preexisting-tools-io-double-import-mypy-044`
+
+---
+
+### 045 — Advisory pipeline phases: mock slot consumption is conditional on provider type
+
+**Source:** issue #299, PR #311
+**Severity:** warning
+
+Advisory pipeline phases (phases wrapped entirely in `try/except Exception`) still consume `provider.generate_text` mock slots when they run — but the impact depends on how the test configures the provider.
+
+**Two test configurations; two outcomes:**
+
+| Provider configuration | Advisory phase behaviour | Patch required? |
+|------------------------|--------------------------|-----------------|
+| `provider = MagicMock()` | Phase attempts to `await` a `MagicMock` (not a coroutine) → `TypeError` raised → caught by advisory `try/except` → phase silently skipped | **No** — failure is absorbed |
+| `provider.generate_text = AsyncMock(side_effect=[...])` | Phase successfully calls the mock, consuming N entries from the list → downstream phases receive shifted responses or `StopIteration` | **Yes** — must patch agent class |
+
+`StoryMetadataAgent` (introduced PR #311) runs as three advisory phases and makes **3 LLM calls each** (title, summary, tags) = up to 9 calls total. Any test that sets an explicit `side_effect` list and exercises the full pipeline must patch `StoryMetadataAgent` to avoid consuming 9 slots before reaching the phases under test.
+
+**Fix — patch the agent class (identical to gotcha #040 pattern):**
+
+```python
+with (
+    patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
+    patch("presentation.orchestrator.CharacterSheetAgent") as char_cls,
+    ...
+):
+    metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
+    ...
+```
+
+**Advisory phases in the codebase (as of PR #311):**
+- `narrative-arc` (`StoryPlannerAgent`) — 1 LLM call
+- `metadata-outline` (`StoryMetadataAgent`) — 3 LLM calls
+- `metadata-chapter-1` (`StoryMetadataAgent`) — 3 LLM calls  
+- `metadata-final` (`StoryMetadataAgent`) — 3 LLM calls
+
+New advisory phases added in future PRs should be listed here.
+
+**Relation to gotcha #040 / #043:** #040 covers structural insertion (new phase before existing phases). #043 covers internal expansion (existing function gains more LLM calls). #045 covers advisory phases specifically — phases where the failure is silently absorbed, making the mock slot consumption invisible unless the provider uses an explicit `side_effect` list.
+
+ChromaDB ID: `gotcha-advisory-phase-mock-slot-conditional-immunity-045`
+
+---
+
+### 046 — Advisory phase completion semantics: `_mark_phase_complete` vs in-try-block append
+
+**Source:** issue #299, PR #311
+**Severity:** info
+
+Advisory pipeline phases in `_continue_pipeline` use two distinct patterns for marking completion. The pattern determines **resume behaviour** when the phase previously failed.
+
+**Pattern A — unconditional (`_mark_phase_complete` called after try/except):**
+
+```python
+if "metadata-outline" not in state.completed_phases:
+    try:
+        # ... generate metadata ...
+    except Exception as exc:
+        await bus.emit(f"[Metadata] skipped: {exc}")
+    await _mark_phase_complete(state, "metadata-outline", "metadata_outline_complete")
+    #     ^^^^^^^^^^^^^^^^^^^^ always called, even on failure
+```
+
+Phase is always marked complete. On pipeline resume, this phase is **not retried** — even if it failed during the original run.
+
+**Pattern B — conditional (append inside try block):**
+
+```python
+if chapter_number == 1 and "metadata-chapter-1" not in state.completed_phases:
+    try:
+        # ... generate metadata ...
+        state.completed_phases.append("metadata-chapter-1")
+        await _write_savepoint(state)
+        # ^^^ only reached on success
+    except Exception as exc:
+        await bus.emit(f"[Metadata] skipped: {exc}")
+```
+
+Phase is only marked complete on success. On pipeline resume, this phase **is retried** if it previously failed.
+
+**Which pattern to use when adding a new advisory phase:**
+- Use Pattern A if the phase is fire-and-forget and retry on resume is undesirable (most advisory phases).
+- Use Pattern B if the phase provides the highest-quality output and retrying with the full available state on resume is acceptable/desirable (e.g. `metadata-chapter-1` runs after real chapter prose is available — retrying it on resume with the actual chapter content is intentional).
+
+Document the intent with a comment when choosing Pattern B.
+
+ChromaDB ID: `gotcha-advisory-phase-completion-semantics-046`
