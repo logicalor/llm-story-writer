@@ -660,6 +660,28 @@ story-writer CLI / orchestrator
 stories/<name>/  (chapters, wiki, savepoints)
 ```
 
+### 5.4 Prompt Architecture
+
+The project maintains two distinct categories of prompt files. Confusing them caused bugs #276 and #277, so the distinction is enforced here.
+
+**1. Agent workflow prompts** (`prompts/agents/*.md`)
+These are OpenCode/Copilot runtime specifications. They describe agent behaviour, tool usage, and workflow steps. They are **NOT** loaded as LLM system prompts by the Python-native runtime.
+
+**2. Direct generation prompts** (`prompts/outline/`, `prompts/chapters/`, `prompts/final_edit/`, `prompts/chapter_review/`, etc.)
+These are LLM system/user prompts loaded by `PromptLoader` at runtime by Python-native agents. They contain instructions, templates, and variable placeholders for direct LLM invocation.
+
+**Migration reference:** The following agents were migrated from workflow prompts to direct-generation prompts in issue #277:
+
+| Agent | Old Workflow Prompt (DO NOT USE) | New Direct-Generation Prompt |
+|---|---|---|
+| `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `prompts/outline/create_direct.md` |
+| `StoryPlannerAgent` | `prompts/agents/story-planner.md` | `prompts/outline/arc_assessment_direct.md` |
+| `ChapterWriterAgent` | `prompts/agents/chapter-writer.md` | `prompts/chapters/write_chapter_direct.md` |
+| `FinalEditorAgent` | `prompts/agents/final-editor.md` | `prompts/final_edit/edit_chapter_direct.md` |
+| `ConsistencyCheckerAgent` | `prompts/agents/consistency-checker.md` | `prompts/chapter_review/consistency_check_direct.md` |
+
+**Rule:** Python agents must **NEVER** load `prompts/agents/*.md` as system prompts. Use `PromptLoader.load_prompt('path/to/direct_prompt', variables={...})` instead.
+
 ---
 
 ## 6. Installation & Setup
@@ -935,12 +957,16 @@ See [Textual TUI](./features/textual-tui.md) for the thread model, approval-gate
 
 Reusable prompt content used by the Python-native pipeline lives in these locations:
 
-- `prompts/agents/` — Agent runtime workflow specifications for OpenCode and Copilot (story-orchestrator, outline-planner, chapter-writer, wiki-maintainer, final-editor, etc.). Not loaded by the Python-native runtime.
-- `prompts/skills/` — Reusable skill reference material (story-pipeline, wiki-conventions, wiki-maintenance, outline-structure, narrative-arc, etc.)
-- `prompts/chapters/` — Chapter generation prompts
-- `prompts/scenes/` — Scene generation prompts
-- `prompts/characters/` — Character sheet prompts
-- `prompts/settings/` — Setting/location prompts
+- `prompts/agents/` — OpenCode/Copilot workflow specifications. **NOT for Python-native LLM loading.**
+- `prompts/outline/` — Outline and arc assessment direct-generation prompts
+- `prompts/chapters/` — Chapter writing and scene direct-generation prompts
+- `prompts/final_edit/` — Final editing direct-generation prompts
+- `prompts/chapter_review/` — Consistency checking and review direct-generation prompts
+- `prompts/skills/` — Reusable skill reference material
+- `prompts/characters/` — Character sheet direct-generation prompts
+- `prompts/settings/` — Setting/location direct-generation prompts
+- `prompts/scenes/` — Scene generation direct-generation prompts
+- `prompts/wiki/` — Wiki extraction and maintenance direct-generation prompts
 
 ### 9.3 Story Generation Pipeline
 
@@ -1183,7 +1209,7 @@ Wiki pages cross-reference each other using `[[wikilink]]` syntax:
 
 ### 12.1 Agents
 
-Agent workflow specifications for OpenCode and Copilot runtimes live in `prompts/agents/` as Markdown files. These are agent runtime instructions, not direct LLM prompts.
+Agent workflow specifications for OpenCode and Copilot runtimes live in `prompts/agents/` as Markdown files. These are agent runtime instructions, not direct LLM prompts. See [Prompt Architecture](#54-prompt-architecture) for the full distinction between workflow prompts and direct-generation prompts.
 
 Python-native agents in `src/presentation/agents/` load direct-generation prompts via `PromptLoader` from `src/infrastructure/prompts/prompt_loader.py`. `PromptLoader` supports variable substitution and caches loaded bodies for the process lifetime.
 
