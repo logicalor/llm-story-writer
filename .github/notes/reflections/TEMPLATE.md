@@ -6,7 +6,6 @@ category: agent | skill | instruction
 targets:
   - ".github/path/to/target"
 severity: minor | major
-status: active
 ---
 
 ## [Short descriptive title]

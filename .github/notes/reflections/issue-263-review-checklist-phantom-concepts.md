@@ -6,7 +6,6 @@ category: instruction
 targets:
   - ".github/agents/_shared/review-checklist.md"
 severity: major
-status: applied
 ---
 
 ## Retired TypeScript Wrapper Concepts Still Present in Review Checklist

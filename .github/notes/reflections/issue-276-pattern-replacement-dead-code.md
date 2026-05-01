@@ -7,7 +7,6 @@ targets:
   - ".opencode/agents/coder.md"
   - ".github/notes/gotchas.md"
 severity: minor
-status: applied
 ---
 
 ## Prompt Template Refactoring Leaves Dead Code and Loses Runtime Guards
