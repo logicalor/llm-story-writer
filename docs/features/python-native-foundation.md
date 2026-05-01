@@ -69,24 +69,31 @@ The same cleanup also relocates reusable skill reference material from `.opencod
 
 ## Typed Pipeline Handoffs
 
-`src/application/pipeline/` is now a dedicated package for Python-native pipeline coordination primitives. Its first module, `src/application/pipeline/handoffs.py`, defines five stdlib `@dataclass` payload types.
+`src/application/pipeline/` is now a dedicated package for Python-native pipeline coordination primitives. Its first module, `src/application/pipeline/handoffs.py`, started with five stdlib `@dataclass` payload types and now carries the expanded handoff surface used by the current orchestrator.
 
 | Type | Produced By | Consumed By | Purpose |
 |------|-------------|-------------|---------|
 | `OutlineResult` | Outline phase | Narrative arc analysis, character generation, settings generation | Carries the structured outline plus summary metadata |
 | `ChapterDraft` | Chapter loop | Quality review, final edit | Carries one drafted chapter and its savepoint metadata |
 | `WikiUpdateBatch` | Wiki maintainer | Wiki storage layer | Carries page-update batches written after chapter generation |
+| `ArcAnalysisResult` | Story planner phase | Orchestrator | Carries advisory narrative-arc analysis |
+| `FinalEditResult` | Final edit phase | Orchestrator | Carries edited chapter replacements plus summary counts |
 | `ApprovalDecision` | Approval gate | Orchestrator | Carries approve/revise/reject decisions, optional feedback, and batch-mode auto-approval state |
 | `PipelineState` | Orchestrator | Savepoint system and later phases | Carries the persisted run state across the full pipeline |
 
 `PipelineState` is the persistence boundary for the new package. It supports `to_dict()` and `from_dict()` so savepoints can store and restore nested dataclass state without custom serializers. `to_json()` emits formatted JSON for debugging or persistence helpers.
 
-Issue #161 extends `PipelineState` with two orchestrator-facing fields used by the headless runner in `src/presentation/orchestrator.py`:
+Issue #292 extends these dataclasses for the story-foundation phase and later pipeline substeps while preserving backward compatibility with older savepoints. `OutlineResult` now has safe-default fields for `base_context`, `story_start_date`, `story_elements`, `chapter_skeletons`, `chapter_details`, `enrichment_suggestions`, `title`, and `tags`. `ChapterDraft` now also carries `synopsis`, `scene_definitions`, `recap`, `consistency_findings`, and `critic_findings`. `PipelineState` adds reserved persisted fields for `critic_summary`, `recaps`, and `evolved_sheets`, all defaulting cleanly when `from_dict()` loads older snapshots.
+
+Issue #161 extends `PipelineState` with two orchestrator-facing fields used by the headless runner in `src/presentation/orchestrator.py`, and Issue #292 adds three more reserved persistence fields for later restored pipeline stages:
 
 | Field | Type | Purpose |
 |------|------|---------|
 | `savepoints` | `list[str]` | Ordered list of savepoint labels written during the run |
 | `status` | `str` | Lifecycle status for the persisted run; starts as `running`, then becomes `rejected` or `complete` |
+| `critic_summary` | `str` | Reserved summary field for later outline-critique synthesis |
+| `recaps` | `dict[str, Any]` | Reserved recap storage for later chapter-loop substeps |
+| `evolved_sheets` | `dict[str, Any]` | Reserved sheet-evolution storage for later character and setting updates |
 
 Those fields are part of the JSON round-trip contract and are now required for resume behavior.
 
@@ -131,11 +138,13 @@ The practical effect is simple:
 - `src/infrastructure/prompts/prompt_loader.py` — `PromptLoader` with variable substitution and in-memory cache (replaced the removed `agent_prompt_loader.py` in PR #284)
 - `src/application/pipeline/__init__.py` — pipeline package marker
 - `src/application/pipeline/handoffs.py` — typed phase payload dataclasses and `PipelineState` persistence helpers
+- `src/presentation/agents/story_foundation.py` — pre-outline extraction of foundation fields into `OutlineResult`
 - `src/presentation/cli/argument_parser.py` — packaged `story-writer` argparse surface
 - `src/presentation/cli/main.py` — CLI dispatch into the Python-native orchestrator
 - `pyproject.toml` — `story-writer` console script definition
 - `tests/unit/test_prompt_loader_tool.py` — `PromptLoader` behaviour and cache coverage
 - `tests/unit/test_pipeline_handoffs.py` — dataclass round-trip and JSON serialisation coverage
+- `tests/unit/test_story_foundation_agent.py` — story-foundation extraction and failure-tolerance coverage
 - `tests/unit/test_prompt_relocation.py` — prompt-tree relocation baseline check updated for `prompts/agents/`
 - `tests/unit/test_cli_main.py` — parser and dispatch coverage for the new console entry point
 
@@ -144,7 +153,8 @@ The practical effect is simple:
 Issue #158 added dedicated unit coverage for both new modules:
 
 - `test_prompt_loader_tool.py` verifies template loading, variable substitution, missing-file handling, and cache behaviour for the current `PromptLoader`
-- `test_pipeline_handoffs.py` verifies nested `PipelineState` round-trips, `ApprovalDecision` defaults, JSON serialisation, and package importability
+- `test_pipeline_handoffs.py` verifies nested `PipelineState` round-trips, `ApprovalDecision` defaults, JSON serialisation, new defaulted fields, and package importability
+- `test_story_foundation_agent.py` verifies the new pre-outline extraction agent, including partial-failure fallback to empty strings
 - `test_prompt_relocation.py` now treats the prompt tree as a growing set and asserts a minimum Markdown file count so the additional agent prompts do not break the relocation baseline
 - `test_cli_main.py` verifies subcommand parsing for `tui`, `run`, and `resume`, plus dispatch coverage for the packaged CLI entry point
 
