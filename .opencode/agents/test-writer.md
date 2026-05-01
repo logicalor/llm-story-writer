@@ -113,6 +113,19 @@ Note: `.stdout` and `.stderr` on the exception are `bytes | None` when `capture_
 
 **Stale documentation sweep when deleting test files.** When your dispatch includes deleting an existing test file (removing a legacy test suite, an OpenCode-era test, or an orphaned helper test), grep `docs/` for the deleted file's name before finishing: `grep -r "deleted_filename" docs/`. Integration test documentation (`docs/testing/integration-tests.md`) and user-facing manuals (`docs/manual.md`) frequently name test files explicitly — these references become stale immediately on deletion and are not caught by lint or type checks. Update all matches in the same pass as the deletion. (Source: issue #186, PR #199 — deleting `test_e2e_opencode.py` and `test_generate_with_retry.py` left stale references in both docs; caught in review, required follow-up commit.)
 
+**Function-internal LLM call multiplier:** Before sizing a `side_effect` list for any test that exercises an orchestrator phase or a function that makes multiple LLM calls, grep the implementation for `generate_text` call sites within that function:
+
+```bash
+grep -n "generate_text\|await.*generate" src/presentation/orchestrator.py | grep -C2 "character\|setting"
+```
+
+A function that previously made 1 LLM call may now make N calls per entity (e.g. full sheet + chunk prompts + abridged + summary = 10 calls per entity after issue #298). A `side_effect` list sized for the old call count will raise `StopIteration` or silently return `MagicMock()` on later calls, producing confusing assertion failures. Two mitigations:
+
+1. **Patch the agent class (preferred)** — `patch("src.presentation.orchestrator.CharacterSheetAgent")` bypasses all internal LLM calls; use this when the test exercises downstream logic rather than the sheet generation itself.
+2. **Annotated side_effect list** — if the test must exercise real internals, size the list to the exact call count and add a comment documenting the per-entity call multiplier (e.g. `# 1 list + 10 per entity × 2 entities = 21 total`).
+
+(Source: issue #298, PR #310 — two orchestrator tests failed after `_generate_character_sheets` grew from 1 to 10 LLM calls per entity; companion to `gotchas.md` #043.)
+
 After writing each test, run the project's test command (see `copilot-instructions.md`).
 
 ### 3. Classify Results

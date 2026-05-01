@@ -1482,3 +1482,73 @@ When a pipeline stage is optional and a short-circuit path exists, the short-cir
 The generalised rule: a short-circuit path that bypasses stages A→B→C must write the last available intermediate result to the same output field that C writes its result to. Naming the short-circuit output after its content (e.g. `data.format_output`) instead of the interface slot (`data.compact`) breaks all callers silently.
 
 ChromaDB ID: `gotcha-short-circuit-output-interface-slot-naming-042`
+
+---
+
+### 043 — Function-internal LLM call expansion exhausts orchestrator test mock slots
+
+**Source:** issue #298, PR #310
+**Severity:** warning
+
+When an existing function that previously made **one** LLM call is extended to make **N** sequential LLM calls internally (e.g. `_generate_character_sheets` grew from 1 call to 10 calls per entity: full sheet + 7 chunk prompts + abridged + summary), every orchestrator-level test that includes a code path through that function has its `side_effect` list silently under-provisioned.
+
+This is a companion to gotcha #040 ("new pipeline phase consumes mock slots"), which covers insertion of a new agent before existing agents. **Gotcha #040's trigger is structural** (new agent/phase inserted in pipeline order). **Gotcha #043's trigger is internal** (existing function gains more LLM call sites).
+
+**Pattern:** Test `side_effect=[one_response, ...]` was sized when the function made 1 LLM call. After the extension it makes N calls; the list runs out at call 2+, raising `StopIteration` or returning `MagicMock()` silently.
+
+**Fix option 1 — patch agent class (preferred):** Mirror the gotcha #040 prescription. Patch the entire agent class (`patch("src.presentation.orchestrator.CharacterSheetAgent")`) rather than supplying responses for its internal calls. The patched class returns a `MagicMock()` result without making any LLM calls, leaving the `side_effect` list for the phases the test actually exercises.
+
+**Fix option 2 — annotated side_effect list:** If the test must exercise the real internals, size the list to the exact call count and add a comment documenting the multiplier:
+
+```python
+provider.generate_text = AsyncMock(
+    side_effect=[
+        '["Alice", "Bob"]',           # list phase
+        "# Alice\nHero.",              # full-sheet — 1 call
+        *["chunk"] * 7,               # chunk phase — 7 calls
+        "Alice abridged",              # abridged — 1 call
+        "Alice summary",               # summary — 1 call
+        # repeat × 2 for Bob
+        "# Bob\nSidekick.",
+        *["chunk"] * 7,
+        "Bob abridged",
+        "Bob summary",
+    ]
+    # Total: 1 (list) + 10 (Alice) + 10 (Bob) = 21 calls
+)
+```
+
+**How to discover the current call count:** grep the implementation for `generate_text` calls within the target function before sizing the mock list:
+
+```bash
+grep -n "generate_text" src/presentation/orchestrator.py | grep -A2 -B2 "character"
+```
+
+ChromaDB ID: `gotcha-function-internal-llm-call-expansion-mock-slots-043`
+
+---
+
+### 044 — Pre-existing `tools._io` double-import causes spurious `mypy src/` error
+
+**Source:** issue #298, PR #310
+**Severity:** info
+
+Running `mypy src/` fails with:
+
+```
+src/tools/_io.py: error: Duplicate module named "_io" (also at "./tools/_io.py")
+```
+
+This is a **pre-existing baseline error** caused by the project having two import roots (`src/` and the repo root) both resolving `tools/_io.py`. It is unrelated to any feature branch changes.
+
+**Impact:** Without knowing this baseline, contributors may attribute the error to their PR and waste time investigating a false alarm — or worse, dismiss all `mypy` output as unreliable and miss genuine type errors introduced by their changes.
+
+**Workaround when checking for PR-introduced type errors:**
+
+```bash
+mypy src/ 2>&1 | grep -v "Duplicate module named \"_io\""
+```
+
+**Long-term fix:** Consolidate the dual import roots by ensuring all consumers use `from src.tools._io import ...` and removing the root-level `tools/` import path from `mypy.ini` or `pyproject.toml`. Track as a separate issue.
+
+ChromaDB ID: `gotcha-preexisting-tools-io-double-import-mypy-044`

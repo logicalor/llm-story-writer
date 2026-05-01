@@ -355,7 +355,7 @@ stories/my-first-story/
 │   ├── story.md                  # Final assembled manuscript
 │   └── story_edited.md           # Post-final-edit manuscript (optional)
 ├── characters/
-│   ├── yuki-tanaka-oduya.json    # Character sheet (name, sheet, chunks, summary, updated_at)
+│   ├── yuki-tanaka-oduya.json    # Character sheet (name, sheet, chunks, abridged, summary, updated_at)
 │   ├── commander-voss.json
 │   └── ...
 ├── settings/
@@ -561,8 +561,9 @@ What this phase does:
   3. **Consistency Check (7e)** — Runs `consistency_checker`; findings stream to the token bus but do not block chapter persistence
   4. **Chapter Persistence** — Appends the approved draft to `state.approved_chapters` and writes `stories/<name>/chapters/chapter_<N>.md`
   5. **Wiki Update (7c)** — Calls `WikiMaintainerAgent` to extract structured data and persist wiki pages; failures are logged and do not block the loop
-  6. **Recap Generation (7d)** — Calls `RecapWriterAgent` after the wiki step. The default path runs six LLM stages (`extract_chapter_events` → `recap/assign_event_timing` → `recap/enrich_event_details` → `recap/format_json` → `recap/compact_events` → optional `recap/sanitize`). When `use_multi_stage_recap_sanitizer: false`, the agent takes the short path (`extract_chapter_events` → `recap/format_json`). Recap failures are advisory and do not block later chapters.
-  7. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
+  6. **Sheet Evolution** — Calls `CharacterEvolverAgent` and `SettingEvolverAgent` after the wiki step. Each agent runs `extract_from_chapter` → `analyze_changes` → `update` over the existing sheet files, rewrites `sheet` when a change is needed, and records per-entity `updated` or `unchanged` results in `state.evolved_sheets[str(N)]`.
+  7. **Recap Generation (7d)** — Calls `RecapWriterAgent` after sheet evolution. The default path runs six LLM stages (`extract_chapter_events` → `recap/assign_event_timing` → `recap/enrich_event_details` → `recap/format_json` → `recap/compact_events` → optional `recap/sanitize`). When `use_multi_stage_recap_sanitizer: false`, the agent takes the short path (`extract_chapter_events` → `recap/format_json`). Recap failures are advisory and do not block later chapters.
+  8. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
 
 > **Future work (not yet wired):** Phase 7a (chapter-outline-expander), Phase 7f (quality-reviewer / critique-revision loop), Phase 7.5 (prose-scrubber), Phase 7g (handoff artifact generation).
 
@@ -1004,7 +1005,7 @@ Phase 4: Narrative Arc Analysis
 
 Phase 5: Characters & Settings
   → Extract character and setting names from outline
-  → Generate one JSON sheet per entity
+  → Generate one JSON sheet per entity, then enrich it with `summary`, `abridged`, and per-aspect `chunks`
   → Write per-entity JSON sheets to `stories/<name>/characters/` and `settings/`
   → If name extraction returns invalid JSON, phase degrades gracefully
 
@@ -1020,7 +1021,7 @@ Phase 7: Wiki Bootstrap
   → Mark `wiki_populated` even if bootstrap raises, then continue pipeline
 
 Phase 8: Chapter Loop
-  → Generate approved chapters one at a time, then run wiki maintenance and consistency checks
+  → Generate approved chapters one at a time, then run wiki maintenance, sheet evolution, recap generation, and consistency checks
 
 Phase 9: Final Edit
   → Conditionally edit approved chapters before assembly
@@ -1577,18 +1578,23 @@ Each sheet follows this schema:
   "name": "Yuki Tanaka-Oduya",
   "sheet": "Full multi-paragraph description...",
   "chunks": {
-    "appearance": "...",
+    "backstory": "...",
     "personality": "...",
-    "background": "...",
-    "motivations": "...",
-    "relationships": "..."
+    "motivation": "...",
+    "relationships": "...",
+    "skills": "...",
+    "arc": "...",
+    "current_state": "..."
   },
+  "abridged": "Short prompt-safe version used for chapter context...",
   "summary": "One-paragraph summary...",
   "updated_at": "2026-04-30T12:00:00Z"
 }
 ```
 
-After manual edits, the next chapter generation will pick up the updated sheets automatically.
+Setting sheets use the same top-level shape but different chunk keys: `physical_description`, `atmosphere_mood`, `function_purpose`, `history_background`, `connections_relationships`, and `rules_constraints`.
+
+After manual edits, the next chapter generation will pick up the updated sheets automatically. Chapter prompts prefer `abridged`, then `summary`, then the first 300 characters of `sheet` when building character and setting context.
 
 ### 15.8 Common Daily Workflows
 

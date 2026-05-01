@@ -792,7 +792,13 @@ async def test_characters_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
         side_effect=[
             '["Alice", "Bob"]',
             "# Alice\nHero of the story.",
+            *["chunk response"] * 7,
+            "Alice abridged",
+            "Alice summary",
             "# Bob\nSidekick.",
+            *["chunk response"] * 7,
+            "Bob abridged",
+            "Bob summary",
         ]
     )
     bus = TokenStreamBus()
@@ -852,6 +858,9 @@ async def test_characters_phase_skips_failed_sheet_generation(tmp_path: Path) ->
             '["Alice", "Bob"]',
             RuntimeError("LLM error"),
             "# Bob\nSidekick.",
+            *["chunk response"] * 7,
+            "Bob abridged",
+            "Bob summary",
         ]
     )
     bus = TokenStreamBus()
@@ -909,7 +918,13 @@ async def test_settings_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
         side_effect=[
             '["The Citadel", "Dark Forest"]',
             "# The Citadel\nA fortified city.",
+            *["chunk response"] * 6,
+            "The Citadel abridged",
+            "The Citadel summary",
             "# Dark Forest\nA mysterious woodland.",
+            *["chunk response"] * 6,
+            "Dark Forest abridged",
+            "Dark Forest summary",
         ]
     )
     bus = TokenStreamBus()

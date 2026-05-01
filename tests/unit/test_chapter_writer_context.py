@@ -155,3 +155,94 @@ async def test_chapter_writer_no_context_when_no_sheets(tmp_path: Path) -> None:
     )
     assert "## Characters" not in system_prompt
     assert "## Settings" not in system_prompt
+
+
+@pytest.mark.asyncio
+async def test_build_entity_context_prefers_abridged_over_summary(
+    tmp_path: Path,
+) -> None:
+    """Character context prefers abridged text when both fields exist."""
+    characters_dir = tmp_path / "test-story" / "characters"
+    characters_dir.mkdir(parents=True)
+    sheet_data = {
+        "name": "Alice",
+        "sheet": "# Alice\nThe protagonist.",
+        "chunks": {},
+        "abridged": "Abridged character snapshot",
+        "summary": "Summary fallback text",
+        "updated_at": "2026-01-01T00:00:00Z",
+    }
+    (characters_dir / "alice.json").write_text(json.dumps(sheet_data), encoding="utf-8")
+
+    provider = MagicMock()
+    captured_messages: list[dict[str, str]] = []
+
+    async def fake_stream(messages, model_config, seed=None):
+        captured_messages.extend(messages)
+        yield "Generated chapter content."
+
+    provider.stream_text = fake_stream
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    config = {
+        "models": {"chapter_writer": "openai-compat://test-model"},
+        "model_api_base": "http://localhost:1234/v1",
+    }
+
+    agent = ChapterWriterAgent(provider, config, bus, wiki_bus)
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run("test-story", 1, _outline_result(), _settings())
+
+    assert draft is not None
+    system_prompt = next(
+        message["content"]
+        for message in captured_messages
+        if message["role"] == "system"
+    )
+    assert "Abridged character snapshot" in system_prompt
+    assert "Summary fallback text" not in system_prompt
+
+
+@pytest.mark.asyncio
+async def test_build_entity_context_falls_back_to_summary_when_no_abridged(
+    tmp_path: Path,
+) -> None:
+    """Character context falls back to summary when abridged is empty."""
+    characters_dir = tmp_path / "test-story" / "characters"
+    characters_dir.mkdir(parents=True)
+    sheet_data = {
+        "name": "Alice",
+        "sheet": "# Alice\nThe protagonist.",
+        "chunks": {},
+        "abridged": "",
+        "summary": "Summary fallback text",
+        "updated_at": "2026-01-01T00:00:00Z",
+    }
+    (characters_dir / "alice.json").write_text(json.dumps(sheet_data), encoding="utf-8")
+
+    provider = MagicMock()
+    captured_messages: list[dict[str, str]] = []
+
+    async def fake_stream(messages, model_config, seed=None):
+        captured_messages.extend(messages)
+        yield "Generated chapter content."
+
+    provider.stream_text = fake_stream
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    config = {
+        "models": {"chapter_writer": "openai-compat://test-model"},
+        "model_api_base": "http://localhost:1234/v1",
+    }
+
+    agent = ChapterWriterAgent(provider, config, bus, wiki_bus)
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run("test-story", 1, _outline_result(), _settings())
+
+    assert draft is not None
+    system_prompt = next(
+        message["content"]
+        for message in captured_messages
+        if message["role"] == "system"
+    )
+    assert "Summary fallback text" in system_prompt
