@@ -23,9 +23,10 @@ The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) th
 |------|---------|
 | `prompts/skills/wiki-maintenance/SKILL.md` | Skill reference — entity schemas, confidence taxonomy, output formats, error taxonomy |
 | `prompts/skills/wiki-conventions/SKILL.md` | Skill reference — page type schemas, YAML frontmatter specs, wikilink conventions, naming rules |
-| `src/tools/wiki_extract.py` | Extraction pipeline and programmatic `update_wiki_from_chapter()` API used after each chapter |
+| `src/tools/wiki_extract.py` | Extraction pipeline and programmatic APIs: `bootstrap_wiki_from_story()` for initial wiki seeding and `update_wiki_from_chapter()` for post-chapter incremental updates |
 | `src/presentation/agents/wiki_maintainer.py` | Agent wrapper that invokes the extraction pipeline on a worker thread and emits wiki context events |
 | `tests/unit/test_wiki_maintainer.py` | Unit coverage for populated slug lists, emitted wiki events, and non-streaming execution |
+| `tests/unit/test_wiki_bootstrap.py` | Unit coverage for `bootstrap_wiki_from_story()` — outline extraction, sheet extraction, idempotent skipping, empty-outline short-circuit |
 
 ## Tools
 
