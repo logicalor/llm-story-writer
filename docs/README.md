@@ -25,7 +25,7 @@ See [ADR 003: ChromaDB Replaces pgvector](./planning/adr/003-chromadb-replaces-p
 
 The active runtime is intentionally small and Python-native:
 
-- **Python runtime**: install from `requirements.txt`; it is the only supported dependency manifest for the active project and includes `requests`, `openai`, `chromadb`, `pyyaml`, and `llm-output-parser`
+- **Python runtime**: install from `pyproject.toml`; dependencies are declared there and include `requests`, `openai`, `chromadb`, `pyyaml`, and `llm-output-parser`
 - **LLM integration**: Supported provider keys are `openai_compatible` and `openai_async`; all runtime traffic goes through OpenAI-compatible `/v1` endpoints rather than LangChain-specific adapters
 - **Async provider path**: `src/infrastructure/providers/openai_async_provider.py` adds an `AsyncOpenAI`-backed `ModelProvider` implementation for Python-native streaming flows, while `OpenAICompatibleProvider` remains in place for existing synchronous paths
 - **Tool wiring**: the Python-native orchestrator and tool modules now run in-process with no `.opencode/` or Node.js wrapper layer remaining in the repository

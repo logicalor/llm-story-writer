@@ -8,7 +8,6 @@ from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import ChapterDraft, FinalEditResult
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.agent_prompt_loader import load_agent_prompt  # noqa: F401
 from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
     TokenStreamBus,
@@ -35,13 +34,7 @@ class FinalEditorAgent:
         self.config = config
         self.bus = bus
         self.wiki_bus = wiki_bus
-        self._system_prompt: str | None = None
-
-    def _get_system_prompt(self) -> str:
-        if self._system_prompt is None:
-            loader = PromptLoader(prompts_dir="prompts")
-            self._system_prompt = loader.load_prompt("final_edit/edit_chapter_direct")
-        return self._system_prompt
+        self._loader = PromptLoader(prompts_dir="prompts")
 
     async def run(
         self,
@@ -59,6 +52,7 @@ class FinalEditorAgent:
             self.config, "chapter_writer", "openai-compat://default"
         )
         edited_chapters: list[ChapterDraft] = []
+        loader = self._loader
 
         prior_summaries: list[str] = []
         for draft in approved_chapters:
@@ -82,7 +76,6 @@ class FinalEditorAgent:
                 if not s.startswith(f"Chapter {draft.chapter_number}:")
             )
 
-            loader = PromptLoader(prompts_dir="prompts")
             system_prompt = loader.load_prompt(
                 "final_edit/edit_chapter_direct",
                 variables={

@@ -9,14 +9,13 @@ from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import ChapterDraft, OutlineResult
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.agent_prompt_loader import load_agent_prompt  # noqa: F401
 from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
     TokenStreamBus,
     WikiContextBus,
     WikiContextEvent,
 )
-from tools._io import STORIES_DIR
+from tools._io import STORIES_DIR, _validate_story_name
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -37,13 +36,7 @@ class ChapterWriterAgent:
         self.config = config
         self.bus = bus
         self.wiki_bus = wiki_bus
-        self._system_prompt: str | None = None
-
-    def _get_system_prompt(self) -> str:
-        if self._system_prompt is None:
-            loader = PromptLoader(prompts_dir="prompts")
-            self._system_prompt = loader.load_prompt("chapters/write_chapter_direct")
-        return self._system_prompt
+        self._loader = PromptLoader(prompts_dir="prompts")
 
     async def run(
         self,
@@ -67,9 +60,7 @@ class ChapterWriterAgent:
             )
             title = str(chapter_outline.get("title") or title)
 
-        # Guard against path traversal
-        if ".." in story_name or "/" in story_name or "\\" in story_name:
-            raise ValueError(f"Invalid story_name: {story_name!r}")
+        _validate_story_name(story_name)
 
         character_context_parts: list[str] = []
         setting_context_parts: list[str] = []
@@ -133,7 +124,7 @@ class ChapterWriterAgent:
             )
         )
 
-        loader = PromptLoader(prompts_dir="prompts")
+        loader = self._loader
         system_prompt = loader.load_prompt(
             "chapters/write_chapter_direct",
             variables={

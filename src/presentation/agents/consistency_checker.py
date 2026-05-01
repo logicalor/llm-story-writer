@@ -7,7 +7,6 @@ from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
 from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.agent_prompt_loader import load_agent_prompt  # noqa: F401
 from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
     TokenStreamBus,
@@ -46,8 +45,10 @@ def _extract_consistency_result(text: str) -> dict[str, Any]:
 
     issues: list[dict[str, Any]] = []
 
+    # Supports both new direct-generation format (has "issues" list and "has_critical_findings")
+    # and legacy format (has "wiki_lint_findings", "semantic_findings", etc.).
     # New direct-generation format
-    if isinstance(data.get("issues"), list):
+    if isinstance(data.get("issues"), list) and "has_critical_findings" in data:
         for item in data["issues"]:
             if not isinstance(item, dict):
                 continue
@@ -127,15 +128,7 @@ class ConsistencyCheckerAgent:
         self.config = config
         self.bus = bus
         self.wiki_bus = wiki_bus
-        self._system_prompt: str | None = None
-
-    def _get_system_prompt(self) -> str:
-        if self._system_prompt is None:
-            loader = PromptLoader(prompts_dir="prompts")
-            self._system_prompt = loader.load_prompt(
-                "chapter_review/consistency_check_direct"
-            )
-        return self._system_prompt
+        self._loader = PromptLoader(prompts_dir="prompts")
 
     async def run(
         self,
@@ -155,11 +148,11 @@ class ConsistencyCheckerAgent:
             )
         )
 
-        loader = PromptLoader(prompts_dir="prompts")
+        loader = self._loader
         system_prompt = loader.load_prompt(
             "chapter_review/consistency_check_direct",
             variables={
-                "chapter_content": chapter_content,
+                "chapter_content": chapter_content[:8000],  # Guard against local-model context overflow; ~8000 chars ≈ 2000 tokens.
                 "story_name": story_name,
                 "chapter_number": str(chapter_number),
                 "outline": "",

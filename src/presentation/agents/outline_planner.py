@@ -9,7 +9,6 @@ from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import OutlineResult
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.agent_prompt_loader import load_agent_prompt  # noqa: F401
 from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
     TokenStreamBus,
@@ -117,13 +116,7 @@ class OutlinePlannerAgent:
         self.config = config
         self.bus = bus
         self.wiki_bus = wiki_bus
-        self._system_prompt: str | None = None
-
-    def _get_system_prompt(self) -> str:
-        if self._system_prompt is None:
-            loader = PromptLoader(prompts_dir="prompts")
-            self._system_prompt = loader.load_prompt("outline/create_direct")
-        return self._system_prompt
+        self._loader = PromptLoader(prompts_dir="prompts")
 
     async def run(
         self,
@@ -157,7 +150,7 @@ class OutlinePlannerAgent:
         climax_end = max(climax_start, int(desired_chapters * 0.90))
         resolution_start = climax_end + 1
 
-        loader = PromptLoader(prompts_dir="prompts")
+        loader = self._loader
         system_prompt = loader.load_prompt(
             "outline/create_direct",
             variables={
