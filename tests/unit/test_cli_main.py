@@ -115,6 +115,18 @@ class TestMainDispatch:
 
         mock_cmd_run.assert_called_once_with("my_story", batch=False, prompt=None)
 
+    def test_run_with_prompt_dispatches_cmd_run_with_prompt(self) -> None:
+        original_argv = sys.argv[:]
+
+        try:
+            sys.argv = ["story-writer", "run", "--story", "my_story", "--prompt", "prompts/sample-story.md"]
+            with patch("src.presentation.cli.main._cmd_run") as mock_cmd_run:
+                main()
+        finally:
+            sys.argv = original_argv
+
+        mock_cmd_run.assert_called_once_with("my_story", batch=False, prompt="prompts/sample-story.md")
+
     def test_tui_dispatches_cmd_tui(self) -> None:
         original_argv = sys.argv[:]
 

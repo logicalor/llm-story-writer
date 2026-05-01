@@ -10,11 +10,10 @@ Run with:
 from __future__ import annotations
 
 import asyncio
-import importlib.util
+import os
 import sys
 from pathlib import Path
 
-import httpx
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -24,30 +23,12 @@ if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
 from domain.value_objects.model_config import ModelConfig
+from infrastructure.prompts.prompt_loader import PromptLoader
+from infrastructure.providers.openai_compatible_provider import OpenAICompatibleProvider
 
-_prompt_loader_spec = importlib.util.spec_from_file_location(
-    "prompt_loader_module",
-    PROJECT_ROOT / "src" / "infrastructure" / "prompts" / "prompt_loader.py",
-)
-assert _prompt_loader_spec is not None and _prompt_loader_spec.loader is not None
-_prompt_loader_module = importlib.util.module_from_spec(_prompt_loader_spec)
-_prompt_loader_spec.loader.exec_module(_prompt_loader_module)
-PromptLoader = _prompt_loader_module.PromptLoader
+LM_STUDIO_URL = os.environ.get("LLM_API_BASE", "http://127.0.0.1:1234/v1")
 
-_provider_spec = importlib.util.spec_from_file_location(
-    "openai_compatible_provider_module",
-    PROJECT_ROOT
-    / "src"
-    / "infrastructure"
-    / "providers"
-    / "openai_compatible_provider.py",
-)
-assert _provider_spec is not None and _provider_spec.loader is not None
-_provider_module = importlib.util.module_from_spec(_provider_spec)
-_provider_spec.loader.exec_module(_provider_module)
-OpenAICompatibleProvider = _provider_module.OpenAICompatibleProvider
-
-LM_STUDIO_URL = "http://127.0.0.1:1234/v1"
+DEFAULT_MODEL_NAME = os.environ.get("LM_STUDIO_MODEL", "gemma-4-26b-a4b-it-heretic-guff")
 
 FORBIDDEN_STRINGS = [
     "outline-generator",
@@ -69,17 +50,6 @@ FORBIDDEN_STRINGS = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def require_lm_studio() -> None:
-    """Skip test if LM Studio is not running."""
-    try:
-        response = httpx.get(f"{LM_STUDIO_URL}/models", timeout=3)
-    except (httpx.ConnectError, httpx.TimeoutException):
-        pytest.skip("LM Studio not running - skipping integration test")
-    if response.status_code != 200:
-        pytest.skip("LM Studio not responding correctly - skipping integration test")
-
-
 def _assert_no_tool_calling(response_text: str, prompt_name: str) -> None:
     lower = response_text.lower()
     for forbidden in FORBIDDEN_STRINGS:
@@ -90,6 +60,7 @@ def _assert_no_tool_calling(response_text: str, prompt_name: str) -> None:
         )
 
 
+@pytest.mark.usefixtures("llm_available")
 @pytest.mark.integration
 @pytest.mark.slow
 class TestPromptVerification:
@@ -117,7 +88,7 @@ class TestPromptVerification:
         ]
         provider = OpenAICompatibleProvider()
         model_config = ModelConfig(
-            name="gemma-4-26b-a4b-it-heretic-guff",
+            name=DEFAULT_MODEL_NAME,
             provider="openai_compatible",
             parameters={"temperature": 0.7, "max_tokens": 600},
         )
@@ -151,7 +122,7 @@ class TestPromptVerification:
         ]
         provider = OpenAICompatibleProvider()
         model_config = ModelConfig(
-            name="gemma-4-26b-a4b-it-heretic-guff",
+            name=DEFAULT_MODEL_NAME,
             provider="openai_compatible",
             parameters={"temperature": 0.7, "max_tokens": 600},
         )
@@ -186,7 +157,7 @@ class TestPromptVerification:
         ]
         provider = OpenAICompatibleProvider()
         model_config = ModelConfig(
-            name="gemma-4-26b-a4b-it-heretic-guff",
+            name=DEFAULT_MODEL_NAME,
             provider="openai_compatible",
             parameters={"temperature": 0.7, "max_tokens": 600},
         )
@@ -219,7 +190,7 @@ class TestPromptVerification:
         ]
         provider = OpenAICompatibleProvider()
         model_config = ModelConfig(
-            name="gemma-4-26b-a4b-it-heretic-guff",
+            name=DEFAULT_MODEL_NAME,
             provider="openai_compatible",
             parameters={"temperature": 0.7, "max_tokens": 600},
         )
@@ -251,7 +222,7 @@ class TestPromptVerification:
         ]
         provider = OpenAICompatibleProvider()
         model_config = ModelConfig(
-            name="gemma-4-26b-a4b-it-heretic-guff",
+            name=DEFAULT_MODEL_NAME,
             provider="openai_compatible",
             parameters={"temperature": 0.7, "max_tokens": 600},
         )
