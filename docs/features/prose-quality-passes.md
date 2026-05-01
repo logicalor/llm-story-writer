@@ -53,7 +53,7 @@ Because the active orchestrator never calls this pass, do not document `chapter_
 
 Operational details:
 
-- Loads `prompts/agents/final-editor.md` lazily through `load_agent_prompt("final-editor")`
+- Loads `prompts/final_edit/edit_chapter_direct.md` via `PromptLoader.load_prompt()`
 - Uses the `chapter_writer` model role for the streaming edit pass
 - Emits one `WikiContextEvent` per chapter with phase `final-edit`
 - Sends one user message containing the chapter title and full chapter content
@@ -68,7 +68,7 @@ Operational details:
 
 | Agent | Tool | Purpose |
 |-------|------|---------|
-| `final-editor` | `agent_prompt_loader` | Load `prompts/agents/final-editor.md` |
+| `final-editor` | `PromptLoader` | Load `prompts/final_edit/edit_chapter_direct.md` |
 | `final-editor` | `ModelProvider.stream_text(...)` | Run one streamed edit pass per approved chapter |
 | `final-editor` | `TokenStreamBus` | Surface editing output tokens live |
 | `final-editor` | `WikiContextBus` | Emit one phase event per chapter |
@@ -84,7 +84,8 @@ The current implementation relies on agent prompt instructions rather than a sep
 
 ### Key Files
 
-- `prompts/agents/final-editor.md` — Phase 9 manuscript polish workflow
+- `prompts/final_edit/edit_chapter_direct.md` — Phase 9 direct-generation prompt for manuscript polish
+- `prompts/agents/final-editor.md` — OpenCode/Copilot workflow specification (not used by the Python-native runtime)
 - `src/presentation/agents/final_editor.py` — streaming agent implementation and empty-output fallback
 - `src/presentation/orchestrator.py` — Phase 9 wiring, config flag check, `story_edited.md` write, and `final_edit_complete` savepoint
 - `src/application/pipeline/handoffs.py` — `FinalEditResult` dataclass consumed by the orchestrator
@@ -102,7 +103,7 @@ The current Python-native path mutates `state.approved_chapters`, writes one edi
 
 `tests/unit/test_orchestrator.py` covers the active final-edit orchestration paths with `test_final_edit_phase_invokes_agent()` and `test_final_edit_phase_skipped_when_disabled()`.
 
-- `prompts/agents/final-editor.md`
+- `prompts/final_edit/edit_chapter_direct.md`
 - `src/presentation/agents/final_editor.py`
 - `src/presentation/orchestrator.py`
 

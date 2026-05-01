@@ -13,7 +13,7 @@ The phase is advisory only. It does not mutate the outline, it does not reopen t
 `story-planner` currently executes one streaming LLM call:
 
 1. Emit a `WikiContextEvent` for phase `narrative-arc`.
-2. Load `prompts/agents/story-planner.md` lazily through `load_agent_prompt("story-planner")`.
+2. Load the direct-generation prompt `prompts/outline/arc_assessment_direct.md` via `PromptLoader.load_prompt()`.
 3. Build one user prompt from `OutlineResult.summary` plus JSON-formatted `chapter_outlines` when chapter entries exist.
 4. Stream the response through `provider.stream_text(...)` using the `initial_outline_writer` model role.
 5. Accumulate the streamed text and return an `ArcAnalysisResult`.
@@ -70,7 +70,8 @@ The phase analyzes the existing outline only. It does not rewrite `OutlineResult
 
 ### Key Files
 
-- `prompts/agents/story-planner.md` — system prompt loaded by the agent
+- `prompts/outline/arc_assessment_direct.md` — direct-generation prompt loaded by the Python-native agent
+- `prompts/agents/story-planner.md` — OpenCode/Copilot workflow specification (not used by the Python-native runtime)
 - `src/presentation/agents/story_planner.py` — prompt loading, streaming call, verdict parsing, and `ArcAnalysisResult` construction
 - `src/presentation/orchestrator.py` — Phase 2.5 wiring, exception handling, token-bus summary, and savepoint persistence
 - `src/application/pipeline/handoffs.py` — `ArcAnalysisResult` and `PipelineState.arc_result`
