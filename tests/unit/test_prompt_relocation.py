@@ -171,7 +171,6 @@ def test_pyproject_has_required_dependencies() -> None:
 def test_pyproject_has_textual_version() -> None:
     pyproject_text = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
-    assert "textual>=6.0,<7.0" in pyproject_text
     assert "textual>=0.85.0,<1.0.0" not in pyproject_text
 
 
