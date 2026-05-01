@@ -79,7 +79,7 @@ Steps:
 Steps (do them in order, no skipping, no looping back):
 
 1. `ls .github/notes/reflections/*.md` — list active notes only. Ignore `archive/`. Ignore `README.md`, `TEMPLATE.md`.
-2. **If zero active notes: return immediately.** No Chroma query, no scan, nothing.
+2. **If zero active notes: return immediately.** This means the Orchestrator did not encounter any friction, confusion, or complications during the task — nothing to collate. No Chroma query, no scan, nothing.
 3. For each active note: `cat` it once, classify minor/major.
 4. Apply up to **3** minor edits total across all notes. After 3, stop applying — but still archive the rest.
 5. For each major: ensure the note's `Suggested Improvement` and `Action Taken: Proposed` are filled in. No target edits.
