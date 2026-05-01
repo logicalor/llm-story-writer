@@ -30,6 +30,8 @@ This removes the old subprocess boundary between a TypeScript wrapper and a Pyth
 
 The first in-process pipeline agent is now `StoryFoundationAgent` in `src/presentation/agents/story_foundation.py`. It runs before outline generation and extracts `base_context`, `story_start_date`, and `story_elements` into the persisted `OutlineResult` carried inside `pipeline_state.json`.
 
+Later in the chapter loop, `RecapWriterAgent` in `src/presentation/agents/recap_writer.py` runs in-process after each approved chapter. It generates recap artefacts directly through `PromptLoader` and the configured `ModelProvider`, then hands the resulting recap dict back to `src/presentation/orchestrator.py` for persistence.
+
 The orchestrator also now produces intermediate story artefacts directly in the story directory during the implemented pipeline:
 
 - `stories/<story>/savepoints/pipeline_state.json` from init onward, including story-foundation fields and later phase handoffs
@@ -37,6 +39,7 @@ The orchestrator also now produces intermediate story artefacts directly in the 
 - `stories/<story>/characters/*.json` from the characters phase
 - `stories/<story>/settings/*.json` from the settings phase
 - `stories/<story>/chapters/chapter_{N}.md` during chapter approval
+- `stories/<story>/chapters/chapter_{N}_recap.json` after each approved chapter when recap generation returns non-empty events
 - `stories/<story>/output/story.md` during final assembly
 
 ## Tool Inventory
@@ -97,6 +100,7 @@ Several runtime artefacts are written by the Python-native orchestrator and then
 | `stories/<story>/characters/<slug>.json` | `src/presentation/orchestrator.py` characters phase | `src/presentation/agents/chapter_writer.py`, character-management workflows | JSON document with `name`, full markdown `sheet`, `chunks`, `summary`, and `updated_at` |
 | `stories/<story>/settings/<slug>.json` | `src/presentation/orchestrator.py` settings phase | `src/presentation/agents/chapter_writer.py`, setting-management workflows | Same JSON shape as character sheets |
 | `stories/<story>/chapters/chapter_{N}.md` | `src/presentation/orchestrator.py` chapter loop | `src/tools/story_assembler.py`, downstream review flows | Approved chapter manuscript |
+| `stories/<story>/chapters/chapter_{N}_recap.json` | `src/presentation/orchestrator.py` after `src/presentation/agents/recap_writer.py` returns a recap result | later chapter-loop continuity context, manual inspection, debugging workflows | JSON document with `events`, `compact`, and `sanitised` fields; the same object is also stored in `PipelineState.recaps[str(N)]` |
 | `stories/<story>/output/story.md` | `src/presentation/orchestrator.py` assembly phase | Manual export and downstream editing | Concatenated final manuscript |
 
 Characters and settings files are generated from prompt templates in `prompts/characters/` and `prompts/settings/`. Filenames are slugified from the extracted entity names, and writes are atomic so later phases never read a half-written JSON file.

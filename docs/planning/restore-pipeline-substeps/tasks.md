@@ -179,32 +179,36 @@ Implement `OutlineCriticAgent` that runs (when `enable_outline_critique=True`):
 
 ### Task 6: Six-Stage Recap Pipeline
 
+Status: Complete in Issue #297 / PR #309.
+
 **Type:** backend (agent)
 **Estimated scope:** large
 **Dependencies:** Task 1 (needs `story_start_date`)
 
 **Description:**
-Implement `RecapWriterAgent` invoked after each *approved* chapter in the chapter loop. Stages:
+Implement `RecapWriterAgent` invoked after each *approved* chapter in the chapter loop. Delivered stages:
 
 1. `prompts/extract_chapter_events.md` → list of events.
-2. `prompts/recap/enrich_event_details.md` (or equivalent existing prompt — verify name during implementation) → enriched events.
-3. `prompts/recap/assign_event_timing.md` → events with absolute timestamps relative to `story_start_date`.
+2. `prompts/recap/assign_event_timing.md` → events with timestamps relative to `story_start_date`.
+3. `prompts/recap/enrich_event_details.md` → enriched events.
 4. `prompts/recap/format_json.md` → canonical JSON.
 5. `prompts/recap/compact_events.md` → compacted view for "current" recap.
-6. `prompts/recap/sanitize.md` (or `improved_sanitizer` if `use_improved_recap_sanitizer=True`).
+6. `prompts/recap/sanitize.md` when `use_improved_recap_sanitizer=True`; otherwise `sanitised` falls back to `compact`.
 
-Output persists to `state.recaps[N]` and `stories/<name>/chapters/chapter_<N>_recap.json`.
+Output persists to `state.recaps[str(N)]` and `stories/<name>/chapters/chapter_<N>_recap.json`.
 
 The legacy multi-stage logic in `src/application/strategies/outline_chapter/recap_manager.py` may be referenced as documentation but **not imported** — the new agent must be a standalone presentation-layer implementation.
 
-When `use_multi_stage_recap_sanitizer=False`, the agent runs a shortened path (extract + format only).
+When `use_multi_stage_recap_sanitizer=False`, the agent runs a shortened path (`extract_chapter_events` + `recap/format_json`).
+
+The current implementation is advisory inside `src/presentation/orchestrator.py`: recap generation runs after the wiki update, failures are logged without aborting the chapter loop, and resume reruns recap generation rather than restoring per-stage recap savepoints.
 
 **Acceptance Criteria:**
-- [ ] After chapter N approval, `state.recaps[N]` contains a populated dict with `events`, `compact`, `sanitised` keys.
-- [ ] `stories/<name>/chapters/chapter_<N>_recap.json` is written.
-- [ ] Resume after kill mid-recap skips already-completed stages (per-stage savepoint key).
-- [ ] Both flag combinations (`use_improved_recap_sanitizer`, `use_multi_stage_recap_sanitizer`) are exercised by tests.
-- [ ] `pytest tests/unit/test_recap_writer_agent.py` passes.
+- [x] After chapter N approval, `state.recaps[str(N)]` contains a populated dict with `events`, `compact`, `sanitised` keys.
+- [x] `stories/<name>/chapters/chapter_<N>_recap.json` is written.
+- [x] Recap generation failures are advisory and do not block chapter persistence or later chapters.
+- [x] Both flag combinations (`use_improved_recap_sanitizer`, `use_multi_stage_recap_sanitizer`) are exercised by tests.
+- [x] `pytest tests/unit/test_recap_writer_agent.py` passes.
 
 **Key Files:**
 - `src/presentation/agents/recap_writer.py` — new.

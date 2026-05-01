@@ -558,15 +558,18 @@ What this phase does:
 - For each chapter (1 to `wanted_chapters`):
   1. **Scene Generation (7b)** — Loads abridged character and setting sheet context; generates chapter text via the `chapter-writer` agent. If `scene_generation_pipeline: true`, scenes are generated sequentially with wiki context. Otherwise, the full chapter is generated in one LLM call.
   2. **Approval Gate** — Presents the chapter for user approval (interactive mode only)
-  3. **Wiki Update (7c)** — On approval, calls `wiki_maintainer` to extract structured data and persist wiki pages
-  4. **Consistency Check (7e)** — Runs `consistency_checker` (streams findings but does not block persistence)
-  5. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter_{N}_complete`)
+  3. **Consistency Check (7e)** — Runs `consistency_checker`; findings stream to the token bus but do not block chapter persistence
+  4. **Chapter Persistence** — Appends the approved draft to `state.approved_chapters` and writes `stories/<name>/chapters/chapter_<N>.md`
+  5. **Wiki Update (7c)** — Calls `WikiMaintainerAgent` to extract structured data and persist wiki pages; failures are logged and do not block the loop
+  6. **Recap Generation (7d)** — Calls `RecapWriterAgent` after the wiki step. The default path runs six LLM stages (`extract_chapter_events` → `recap/assign_event_timing` → `recap/enrich_event_details` → `recap/format_json` → `recap/compact_events` → optional `recap/sanitize`). When `use_multi_stage_recap_sanitizer: false`, the agent takes the short path (`extract_chapter_events` → `recap/format_json`). Recap failures are advisory and do not block later chapters.
+  7. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
 
-> **Future work (not yet wired):** Phase 7a (chapter-outline-expander), Phase 7d (recap generation), Phase 7f (quality-reviewer / critique-revision loop), Phase 7.5 (prose-scrubber), Phase 7g (handoff artifact generation).
+> **Future work (not yet wired):** Phase 7a (chapter-outline-expander), Phase 7f (quality-reviewer / critique-revision loop), Phase 7.5 (prose-scrubber), Phase 7g (handoff artifact generation).
 
 **Artefacts produced:**
 - `stories/<name>/chapters/chapter_1.md` through `chapter_{N}.md`
-- `stories/<name>/savepoints/chapter_1_complete` through `chapter_{N}_complete`
+- `stories/<name>/chapters/chapter_1_recap.json` through `chapter_{N}_recap.json`
+- `stories/<name>/savepoints/chapter-1` through `chapter-{N}` plus `chapter-loop`
 - Updated wiki pages under `stories/<name>/wiki/`
 
 **User action needed:**
@@ -769,8 +772,8 @@ All configuration lives in `config.yml` in the repository root. No secrets are r
 | `stream` | true | Stream LLM output |
 | `debug` | true | Enable debug logging |
 | `log_prompt_inputs` | false | Log full prompt inputs to console |
-| `use_improved_recap_sanitizer` | true | Use improved recap generation |
-| `use_multi_stage_recap_sanitizer` | true | Use multi-stage recap sanitizer |
+| `use_improved_recap_sanitizer` | true | In the multi-stage recap path, run the final `recap/sanitize` prompt and store its output in `sanitised`; when `false`, `sanitised` falls back to `compact` |
+| `use_multi_stage_recap_sanitizer` | true | Run the six-stage recap pipeline after each approved chapter; when `false`, use the short extract-plus-format recap path |
 
 ### 7.2 Infrastructure Settings
 

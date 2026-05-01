@@ -56,6 +56,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 - [Pipeline Primitives](./features/pipeline-primitives.md) — Transport-agnostic approval gates plus token and wiki context event buses for the Python-native orchestrator
 - [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) — Current runtime dependency model, removed migration leftovers, and guardrails for keeping the active stack lean
 - [Story Orchestrator](./features/story-orchestrator.md) — Implemented headless Python pipeline runner, narrative-arc and final-edit phases, approval-gate semantics, character/setting sheet generation, chapter prompt context loading, and `PipelineState` savepoint/status behavior
+- [Recap Writer Agent](./features/recap-writer-agent.md) — Post-approval chapter recap pipeline, recap persistence, flag-controlled short path, and advisory failure semantics
 - [Story Planner](./features/story-planner.md) — Phase 2.5 narrative-arc agent: advisory streamed assessment, `ArcAnalysisResult`, and `arc_analysis_complete` persistence
 - [Textual TUI](./features/textual-tui.md) — Interactive `StoryWriterApp` terminal UI, thread bridge architecture, layout, keybindings, and approval flow
 - [Chapter Outline Expander](./features/chapter-outline-expander.md) — Phase 7a subagent that expands all chapter outlines and carries structured handoff continuity between chapters
