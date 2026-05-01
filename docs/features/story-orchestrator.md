@@ -1,10 +1,10 @@
 # Story Orchestrator
 
-> Headless Python pipeline runner and agent-callable layer implemented in Issue #161 / PR #171, extended with characters and settings in Issue #182 / PR #194, consistency-result parsing in Issue #184 / PR #197, and narrative-arc plus final-edit execution in Issue #185 / PR #198.
+> Headless Python pipeline runner and agent-callable layer implemented in Issue #161 / PR #171, extended with characters and settings in Issue #182 / PR #194, consistency-result parsing in Issue #184 / PR #197, narrative-arc plus final-edit execution in Issue #185 / PR #198, and story-foundation handoff seeding in Issue #292 / PR #304.
 
 ## Overview
 
-Issue #161 implements the first executable Python-native orchestration slice in `src/presentation/orchestrator.py`. Issue #182 extends that slice by replacing the characters and settings stubs with real sheet-generation helpers and by teaching the chapter writer to consume those generated sheets as prompt context. Issue #185 adds the missing Phase 2.5 narrative-arc pass and replaces the Phase 9 final-edit stub with a real editing agent. The current implementation still remains smaller than the long-term PRD: it runs a headless async pipeline, persists one JSON savepoint file, and coordinates Python presentation agents plus orchestrator-local helper phases through injected transport primitives.
+Issue #161 implements the first executable Python-native orchestration slice in `src/presentation/orchestrator.py`. Issue #182 extends that slice by replacing the characters and settings stubs with real sheet-generation helpers and by teaching the chapter writer to consume those generated sheets as prompt context. Issue #185 adds the missing Phase 2.5 narrative-arc pass and replaces the Phase 9 final-edit stub with a real editing agent. Issue #292 inserts `StoryFoundationAgent` ahead of outline generation so the orchestrator can seed `OutlineResult` with `base_context`, `story_start_date`, and `story_elements` before later phases run. The current implementation still remains smaller than the long-term PRD: it runs a headless async pipeline, persists one JSON savepoint file, and coordinates Python presentation agents plus orchestrator-local helper phases through injected transport primitives.
 
 Two entry points exist:
 
@@ -18,7 +18,7 @@ This slice does not yet implement the full PRD phase map. The current code path 
 The current orchestrator runs these phases in order:
 
 ```text
-Init → Outline → [Outline Gate] → Narrative Arc → Characters → Settings
+Init → Story Foundation → Outline → [Outline Gate] → Narrative Arc → Characters → Settings
 → Wiki Init → Chapter Loop → Final Edit → Assembly
 ```
 
@@ -27,6 +27,7 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 | Phase | Controller behavior | Savepoint written |
 |------|----------------------|-------------------|
 | `init` | Create initial `PipelineState`, detect batch mode from gate type, ensure `stories/<story>/savepoints/` exists | `init` |
+| `story-foundation` | Run `StoryFoundationAgent`, extract `base_context`, `story_start_date`, and `story_elements`, seed or update `state.outline_result`, and persist those fields before outline generation | `story_foundation_complete` |
 | `outline` | Run `OutlinePlannerAgent`, persist `OutlineResult`, then wait on the outline approval gate | `outline` |
 | `narrative-arc` | If `state.outline_result` exists, run `StoryPlannerAgent`, stream the arc assessment onto `TokenStreamBus`, store `ArcAnalysisResult` in `state.arc_result`, and continue even if the agent raises | `arc_analysis_complete` |
 | `characters` | Emit a wiki-context event, build `story_elements` from the outline, extract character names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/characters/<slug>.json` | `characters` |
@@ -38,7 +39,7 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 
 Chapter count comes from `OutlineResult.chapter_outlines` when present. If the outline did not produce chapter entries, the fallback is `range(1, min(settings.wanted_chapters, 3) + 1)`.
 
-The characters and settings phases are implemented as orchestrator helpers rather than standalone presentation agents. `_build_story_elements()` derives the prompt input directly from `OutlineResult`, so these phases do not depend on a separate outline savepoint artefact.
+The characters and settings phases are implemented as orchestrator helpers rather than standalone presentation agents. `StoryFoundationAgent` is the only new pre-outline presentation agent in this slice; it does not write separate disk artefacts beyond the `PipelineState` snapshot, but its outputs are preserved on `OutlineResult` even when `OutlinePlannerAgent` returns a fresh object.
 
 ## Runtime Outputs
 
@@ -181,7 +182,7 @@ Named savepoints are **validation-only**. Resume always continues from the singl
 
 ## Agent Callable Pattern
 
-Issue #161 also adds `src/presentation/agents/__init__.py` and five Python callables under `src/presentation/agents/`. Each callable follows the same construction pattern:
+Issue #161 adds the first Python callables under `src/presentation/agents/`, and later issues extend that set. Each callable follows the same construction pattern:
 
 1. Accept `provider`, `config`, `bus`, and `wiki_bus` in `__init__`.
 2. Load the corresponding direct-generation prompt from `prompts/` via `PromptLoader.load_prompt()` on first use.
@@ -192,6 +193,7 @@ Issue #161 also adds `src/presentation/agents/__init__.py` and five Python calla
 
 | Agent | Direct-generation prompt | Return type | Current behavior |
 |------|--------------------------|-------------|------------------|
+| `StoryFoundationAgent` | `prompts/extract_base_context.md`, `prompts/extract_story_start_date.md`, `prompts/outline/create_elements.md` | `OutlineResult` | Runs before outline generation, emits a `story-foundation` wiki-context event, and returns an `OutlineResult` seeded with `base_context`, `story_start_date`, and `story_elements` |
 | `OutlinePlannerAgent` | `prompts/outline/create_direct.md` | `OutlineResult` | Streams outline text, parses chapter outlines from JSON or `Chapter:` lines, extracts `genre` and `themes` when present |
 | `StoryPlannerAgent` | `prompts/outline/arc_assessment_direct.md` | `ArcAnalysisResult` | Streams one advisory arc assessment from the approved outline, truncates stored assessment text to 1000 characters, and derives `verdict_code` heuristically from the streamed output |
 | `ChapterWriterAgent` | `prompts/chapters/write_chapter_direct.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback, with abridged character and setting context loaded from disk when available |
@@ -208,6 +210,8 @@ Each agent instantiates `PromptLoader` on demand inside `run()` and loads the di
 
 | Handoff | Purpose |
 |------|---------|
+| `OutlineResult` | Outline payload plus preserved story-foundation fields and later outline metadata |
+| `ChapterDraft` | Approved chapter payload plus synopsis, scene definitions, recap, and review findings |
 | `ArcAnalysisResult` | Advisory narrative-arc result returned by `StoryPlannerAgent` |
 | `FinalEditResult` | Final-edit summary plus replacement `edited_chapters` returned by `FinalEditorAgent` |
 
@@ -216,10 +220,13 @@ Each agent instantiates `PromptLoader` on demand inside `run()` and loads the di
 | Field | Type | Purpose |
 |------|------|---------|
 | `arc_result` | `ArcAnalysisResult | None` | Persist the latest advisory narrative-arc result into `pipeline_state.json` |
+| `critic_summary` | `str` | Reserved persisted field for later outline-critique synthesis stages; defaults to `""` for old savepoints |
+| `recaps` | `dict[str, Any]` | Reserved persisted recap map used by later pipeline stages; defaults to `{}` for old savepoints |
+| `evolved_sheets` | `dict[str, Any]` | Reserved persisted sheet-evolution map used by later pipeline stages; defaults to `{}` for old savepoints |
 | `savepoints` | `list[str]` | Ordered record of checkpoint labels written during the run |
 | `status` | `str` | Run lifecycle state: defaults to `"running"`, changes to `"rejected"` or `"complete"` |
 
-These fields round-trip through `to_dict()`, `from_dict()`, and `to_json()`. The unit tests in `tests/unit/test_orchestrator.py` assert the main behaviors built around them, including narrative-arc execution and final-edit enable/disable behavior.
+These fields round-trip through `to_dict()`, `from_dict()`, and `to_json()`. `from_dict()` supplies safe defaults so savepoints created before Issue #292 still load cleanly. The unit tests in `tests/unit/test_orchestrator.py` assert the main behaviors built around them, including story-foundation execution, narrative-arc execution, and final-edit enable/disable behavior.
 
 ## Current Scope Boundaries
 

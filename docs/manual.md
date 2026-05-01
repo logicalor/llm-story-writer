@@ -401,40 +401,39 @@ The story generation pipeline is divided into primary phases. Each phase writes 
 ### ASCII Flow Diagram
 
 ```
-┌─────────┐     ┌──────────┐     ┌─────────────────┐
-│  Init   │────▶│ Outline  │────▶│ Outline Approval│
-│ (setup) │     │(generate)│     │   (user gate)   │
-└─────────┘     └──────────┘     └─────────────────┘
-                                         │
-                     ┌───────────────────┘
-                     ▼
-            ┌─────────────────┐
-            │ Narrative Arc   │
-            │   Analysis      │
-            └─────────────────┘
-                     │
-     ┌───────────────┼───────────────┐
-     ▼               ▼               ▼
-┌──────────┐   ┌──────────┐   ┌───────────┐
-│  Wiki    │   │Characters│   │ Settings  │
-│  Init    │   │(sheets)  │   │ (sheets)  │
-└──────────┘   └──────────┘   └───────────┘
-     │               │               │
-     └───────────────┴───────────────┘
-                     │
-                     ▼
-          ┌──────────────────┐
-          │   Chapter Loop   │
-          │ (generate → gate │
-          │  → approve → wiki│
-          │  → repeat)       │
-          └──────────────────┘
-                     │
-                     ▼
-          ┌──────────────────┐     ┌──────────┐
-          │   Final Edit     │────▶│ Assembly │
-          │ (conditional)    │     │ (manuscript)
-          └──────────────────┘     └──────────┘
+┌─────────┐     ┌──────────────────┐     ┌──────────┐
+│  Init   │────▶│ Story Foundation │────▶│ Outline  │
+│ (setup) │     │ (prompt context) │     │ + gate   │
+└─────────┘     └──────────────────┘     └──────────┘
+                      │
+                      ▼
+                 ┌─────────────────┐
+                 │ Narrative Arc   │
+                 │   Analysis      │
+                 └─────────────────┘
+                      │
+          ┌─────────────────────────────┼─────────────────────────────┐
+          ▼                             ▼                             ▼
+      ┌────────────┐                ┌──────────┐                  ┌───────────┐
+      │ Characters │                │ Settings │                  │ Wiki Init │
+      │  (sheets)  │                │ (sheets) │                  │           │
+      └────────────┘                └──────────┘                  └───────────┘
+          │                             │                             │
+          └─────────────────────────────┴─────────────────────────────┘
+                      │
+                      ▼
+                 ┌──────────────────┐
+                 │   Chapter Loop   │
+                 │ (generate → gate │
+                 │  → approve → wiki│
+                 │  → repeat)       │
+                 └──────────────────┘
+                      │
+                      ▼
+                 ┌──────────────────┐     ┌──────────┐
+                 │   Final Edit     │────▶│ Assembly │
+                 │ (conditional)    │     │          │
+                 └──────────────────┘     └──────────┘
 ```
 
 ### Phase 1: Init
@@ -453,25 +452,41 @@ The story generation pipeline is divided into primary phases. Each phase writes 
 
 **Approximate duration:** < 1 second
 
-### Phase 2: Outline
+### Phase 2: Story Foundation
 
 **What the system does:**
 - Loads your story prompt from `state.json`
+- Runs `StoryFoundationAgent` before outline generation
+- Extracts three early context fields used by later phases: `base_context`, `story_start_date`, and `story_elements`
+- Seeds `PipelineState.outline_result` with those fields so later phases can preserve them across savepoints and resume
+
+**Artefacts produced:**
+- `stories/<name>/savepoints/pipeline_state.json` with `outline_result.base_context`, `outline_result.story_start_date`, and `outline_result.story_elements`
+- `stories/<name>/savepoints/story_foundation_complete`
+
+**User action needed:** None
+
+**Approximate duration:** 1–3 minutes
+
+### Phase 3: Outline
+
+**What the system does:**
 - Delegates to the `outline-planner` agent
 - Generates a detailed chapter-by-chapter outline
 - Optionally runs critique and refinement loops (if `enable_outline_critique: true`)
-- Persists the approved outline to savepoints
+- Writes the in-progress outline to `pipeline_state.json` before opening the approval gate
+- Waits for outline approval or revision feedback before marking the phase complete
 
 **Artefacts produced:**
-- `stories/<name>/savepoints/outline_complete`
-- `stories/<name>/outline.json` (structured outline data)
+- `stories/<name>/savepoints/outline`
+- `stories/<name>/savepoints/pipeline_state.json` with the latest `OutlineResult`
 
 **User action needed:**
 - Approve, reject, or revise via the approval gate (TUI) or auto-approve (headless)
 
 **Approximate duration:** 5–20 minutes (longer with critique loops)
 
-### Phase 2.5: Narrative Arc Analysis
+### Phase 4: Narrative Arc Analysis
 
 **What the system does:**
 - Loads the approved outline
@@ -482,25 +497,31 @@ The story generation pipeline is divided into primary phases. Each phase writes 
 
 **Artefacts produced:**
 - `stories/<name>/savepoints/arc_analysis_complete`
-- `stories/<name>/savepoints/arc_assessment` (detailed analysis text)
+- `stories/<name>/savepoints/pipeline_state.json` with `arc_result`
 
 **User action needed:** None (advisory only)
 
 **Approximate duration:** 2–5 minutes
 
-### Phase 3: Outline Approval
+### Phase 5: Characters & Settings
 
 **What the system does:**
-- Presents the outline and arc analysis for human review
-- Waits for an approval signal or revision feedback
-- If rejected, the outline re-enters Phase 2 with feedback injected
+- Extracts character names from the approved outline and generates one JSON sheet per character
+- Extracts setting/location names from the approved outline and generates one JSON sheet per setting
+- Uses orchestrator helpers rather than standalone character or setting presentation agents
+- If name extraction returns invalid JSON, the phase degrades gracefully and the pipeline continues
 
-**User action needed:**
-- `approve` / `reject` / `revise <feedback>`
+**Artefacts produced:**
+- `stories/<name>/savepoints/characters`
+- `stories/<name>/savepoints/settings`
+- `stories/<name>/characters/<slug>.json` (one per character)
+- `stories/<name>/settings/<slug>.json` (one per setting)
 
-**Approximate duration:** Variable (depends on user)
+**User action needed:** None
 
-### Phase 4: Wiki Initialization
+**Approximate duration:** 2–10 minutes (scales with entity count)
+
+### Phase 6: Wiki Initialization
 
 **What the system does:**
 - Idempotently ensures the `stories/<name>/wiki/` directory structure exists
@@ -518,25 +539,7 @@ The story generation pipeline is divided into primary phases. Each phase writes 
 
 **Approximate duration:** < 1 second
 
-### Phase 5: Characters & Settings
-
-**What the system does:**
-- Extracts character and setting/location names from the approved outline
-- Generates one JSON sheet per entity via the `character-sheet-generator` subagent
-- Each sheet contains: `name`, `sheet` (full text), `chunks` (segmented details), `summary`, `updated_at`
-- If name extraction returns invalid JSON, the phase degrades gracefully and the pipeline continues
-
-**Artefacts produced:**
-- `stories/<name>/savepoints/characters_complete`
-- `stories/<name>/savepoints/settings_complete`
-- `stories/<name>/characters/<slug>.json` (one per character)
-- `stories/<name>/settings/<slug>.json` (one per setting)
-
-**User action needed:** None
-
-**Approximate duration:** 2–10 minutes (scales with entity count)
-
-### Phase 6: Wiki Population (⏳ not yet wired)
+### Phase 7: Wiki Population (⏳ not yet wired)
 
 > **Not yet implemented in the active orchestrator.** Wiki directory is initialised in Phase 4, but the full initial-populate pass from outline + character/setting sheets is not wired.
 
@@ -548,7 +551,7 @@ When implemented, this phase will:
 
 **Savepoint:** `wiki_populated`
 
-### Phase 7: Chapter Loop
+### Phase 8: Chapter Loop
 
 **What the system does:**
 - For each chapter (1 to `wanted_chapters`):
@@ -571,27 +574,10 @@ When implemented, this phase will:
 
 **Approximate duration:** 5–20 minutes per chapter (depending on model speed, scene count, and revisions)
 
-### Phase 8: Assembly
-
-**What the system does:**
-- Assembles the final manuscript from the current `state.approved_chapters`
-- Writes `stories/<name>/output/story.md`
-- Raises `StoryGenerationError` if no approved chapter content is found
-- Persists the `story_complete` milestone
-
-**Artefacts produced:**
-- `stories/<name>/output/story.md`
-- `stories/<name>/savepoints/story_complete`
-- Updated `stories/<name>/savepoints/pipeline_state.json` with `status: complete`
-
-**User action needed:** None
-
-**Approximate duration:** < 1 second
-
 ### Phase 9: Final Edit (conditional)
 
 **What the system does:**
-- Enabled only if `generation.enable_final_edit` is explicitly set to `true` in `config.yml` (default is `false`)
+- Enabled unless `generation.enable_final_edit` is explicitly set to `false` in `config.yml`
 - Loads `prompts/final_edit/edit_chapter_direct.md` via `PromptLoader`
 - Streams one editing pass per approved chapter (voice consistency, pacing, prose polish)
 - Falls back to original chapter content if the model returns empty output
@@ -605,6 +591,23 @@ When implemented, this phase will:
 **User action needed:** None
 
 **Approximate duration:** 10–20 minutes total (scales with chapter count)
+
+### Phase 10: Assembly
+
+**What the system does:**
+- Assembles the final manuscript from the current `state.approved_chapters`
+- Writes `stories/<name>/output/story.md`
+- Raises `StoryGenerationError` if no approved chapter content is found
+- Marks the run complete in `pipeline_state.json`
+
+**Artefacts produced:**
+- `stories/<name>/output/story.md`
+- `stories/<name>/savepoints/assembly`
+- Updated `stories/<name>/savepoints/pipeline_state.json` with `status: complete`
+
+**User action needed:** None
+
+**Approximate duration:** < 1 second
 
 ---
 
@@ -976,25 +979,21 @@ The current Python-native orchestrator slice runs through these phases:
 Phase 1: Init
   → Load prompt, parse config, init story state, create savepoint
 
-Phase 2: Outline
+Phase 2: Story Foundation
+  → Run `StoryFoundationAgent`
+  → Extract `base_context`, `story_start_date`, and `story_elements`
+  → Seed `OutlineResult` before outline generation
+
+Phase 3: Outline
   → Delegate to outline-planner subagent
   → Stream outline generation
-  → Persist `OutlineResult`
+  → Persist `OutlineResult` and wait on approval gate
 
-Phase 2.5: Narrative Arc Analysis
+Phase 4: Narrative Arc Analysis
   → Delegate to story-planner subagent
   → Stream one advisory arc assessment from approved outline content
   → Persist `state.arc_result` and write `arc_analysis_complete`
   → On agent error, emit skip message and continue
-
-Phase 3: Outline Approval
-  → Wait for injected approval gate
-  → Reject halts cleanly; revise reruns outline with feedback
-
-Phase 4: Wiki Initialization
-  → Idempotently ensure `stories/<name>/wiki/` directory structure exists
-  → Creates subdirectories, index, log, and schema template if missing
-  → Safe to rerun on resume; skips creation if wiki already present
 
 Phase 5: Characters & Settings
   → Extract character and setting names from outline
@@ -1002,28 +1001,22 @@ Phase 5: Characters & Settings
   → Write per-entity JSON sheets to `stories/<name>/characters/` and `settings/`
   → If name extraction returns invalid JSON, phase degrades gracefully
 
-Phase 6: Wiki Population ⏳
+Phase 6: Wiki Initialization
+  → Idempotently ensure `stories/<name>/wiki/` directory structure exists
+  → Creates subdirectories, index, log, and schema template if missing
+  → Safe to rerun on resume; skips creation if wiki already present
+
+Phase 7: Wiki Population ⏳
   → Not yet wired in active orchestrator
 
-Phase 7: Chapter Loop
-  → Per chapter: chapter-writer loads abridged character/setting sheet context, then generates chapter text
-  → Wait for chapter approval gate; revise reruns chapter with feedback
-  → After chapter approval, orchestrator writes `stories/<name>/chapters/chapter_{N}.md`
-  → wiki-maintainer calls `update_wiki_from_chapter()` to extract structured JSON, persist wiki pages
-  → consistency-checker streams findings but does not block persistence
+Phase 8: Chapter Loop
+  → Generate approved chapters one at a time, then run wiki maintenance and consistency checks
 
-Phase 8: Assembly
-  → Assemble final manuscript from the current `state.approved_chapters`
-  → Write `stories/<name>/output/story.md`
-  → Raises `StoryGenerationError` if no approved chapter content is found
+Phase 9: Final Edit
+  → Conditionally edit approved chapters before assembly
 
-Phase 9: Final Edit (conditional)
-  → Enabled only if `generation.enable_final_edit` is explicitly `true`
-  → final-editor loads `prompts/final_edit/edit_chapter_direct.md` via `PromptLoader`
-  → Stream one editing pass per approved chapter
-  → Fall back to original chapter content if the model returns empty output
-  → Write `stories/<name>/output/story_edited.md`
-  → Persist `final_edit_complete`
+Phase 10: Assembly
+  → Write the final manuscript and mark the run complete
 ```
 
 Current implementation note: the PRD's initial wiki population pass, chapter-outline-expander, quality-reviewer, and prose-scrubber are not yet wired into `src/presentation/orchestrator.py`. Wiki directory initialization is now handled idempotently before the chapter loop.
@@ -1218,9 +1211,9 @@ The orchestrator may dispatch exactly these subagents for creative work:
 | Agent | Role | Invoked In |
 |-------|------|------------|
 | `story-orchestrator` | Primary pipeline controller; drives the full generation lifecycle | — |
-| `outline-planner` | Generates and refines the story outline | Phase 2 |
-| `story-planner` | Evaluates dramatic arc quality (promise/payoff, tension, pacing) | Phase 2.5 |
-| `character-sheet-generator` | Generates character and setting sheets from the outline | Phase 5 |
+| `story-foundation` | Extracts `base_context`, `story_start_date`, and `story_elements` before outline generation | Phase 2 |
+| `outline-planner` | Generates and refines the story outline | Phase 3 |
+| `story-planner` | Evaluates dramatic arc quality (promise/payoff, tension, pacing) | Phase 4 |
 | `chapter-outline-expander` | Expands all chapter outlines with scene-level detail and continuity threading | Phase 7a ⏳ |
 | `chapter-writer` | Writes individual chapter content | Phase 7b |
 | `wiki-maintainer` | Persists wiki page updates after each accepted chapter | Phase 7c |
@@ -1229,7 +1222,7 @@ The orchestrator may dispatch exactly these subagents for creative work:
 | `prose-scrubber` | Sentence/paragraph-level prose cleanup | Phase 7.5 ⏳ |
 | `final-editor` | Post-assembly voice, pacing, and coherence pass | Phase 9 |
 
-**Orchestrator Pipeline Phases:** Init → Outline → Approval → Narrative Arc → Wiki Init → Characters & Settings → Chapter Loop → Assembly → Final Edit
+**Orchestrator Pipeline Phases:** Init → Story Foundation → Outline → Narrative Arc → Characters & Settings → Wiki Init → Chapter Loop → Final Edit → Assembly
 
 ### 12.2 Tools
 

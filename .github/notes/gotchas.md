@@ -1417,3 +1417,42 @@ permission:
 Same rule applies to `bash`, `task`, `read`, etc. — any object-map permission. When auditing an agent, scan for `"**": "deny"` or `"*": "deny"` and verify it appears as the FIRST entry in its block.
 
 ChromaDB ID: `gotcha-opencode-permission-rule-order-039`
+
+---
+
+## Testing
+
+### 040 — New pipeline phase consumes mock `side_effect` slots, breaking downstream orchestrator tests
+
+**Source:** issue #292, PR #304
+**Severity:** warning
+
+When a new pipeline phase is inserted before existing phases, any test that mocks `provider.generate_text` (or equivalent) with a `side_effect=[...]` list will silently exhaust its values one entry earlier. Downstream phase assertions then receive the wrong response value — or raise `StopIteration` — without any helpful error message pointing at the new phase.
+
+**Pattern:** Existing orchestrator tests are written as `side_effect=[resp_outline, resp_chapter, ...]` where each entry corresponds to one phase's LLM call in sequence. Adding a new phase prepends an invisible LLM call that consumes `side_effect[0]`, shifting every subsequent index by 1.
+
+**Fix:** Patch the new agent **class** in affected tests rather than extending the `side_effect` list:
+
+```python
+# Wrong — extending side_effect list:
+mock_provider.generate_text.side_effect = [
+    foundation_response,   # new phase — easy to miss
+    outline_response,
+    chapter_response,
+]
+
+# Right — patch the new agent class to skip its LLM call entirely:
+with (
+    patch("src.presentation.orchestrator.StoryFoundationAgent") as foundation_cls,
+    patch("src.presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+):
+    foundation_instance = foundation_cls.return_value
+    foundation_instance.run.return_value = MagicMock()
+    ...
+```
+
+The `patch(class)` approach is strictly better: it prevents the new phase from consuming mock slots, does not require every downstream test to know the phase order, and remains valid even if the new phase makes zero or multiple LLM calls.
+
+**Context manager alias rule:** When using a multi-target `with (patch(...) as alias, ...)` block, the `as alias` binding is only valid inside the block. Placing any `alias_name.return_value = ...` line *outside* the `with (...)` block raises `NameError: name 'alias_name' is not defined`. Confirm every `foundation_cls.return_value` reference is inside the `with` block.
+
+ChromaDB ID: `gotcha-new-pipeline-phase-side-effect-exhaustion-040`

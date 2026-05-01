@@ -28,8 +28,11 @@ story-writer / orchestrator / agent
 
 This removes the old subprocess boundary between a TypeScript wrapper and a Python script. Runtime validation, error handling, and savepoint writes now happen inside one language boundary.
 
+The first in-process pipeline agent is now `StoryFoundationAgent` in `src/presentation/agents/story_foundation.py`. It runs before outline generation and extracts `base_context`, `story_start_date`, and `story_elements` into the persisted `OutlineResult` carried inside `pipeline_state.json`.
+
 The orchestrator also now produces intermediate story artefacts directly in the story directory during the implemented pipeline:
 
+- `stories/<story>/savepoints/pipeline_state.json` from init onward, including story-foundation fields and later phase handoffs
 - `stories/<story>/characters/*.json` from the characters phase
 - `stories/<story>/settings/*.json` from the settings phase
 - `stories/<story>/chapters/chapter_{N}.md` during chapter approval
@@ -87,6 +90,7 @@ Several runtime artefacts are written by the Python-native orchestrator and then
 
 | Path | Producer | Consumer | Notes |
 |------|----------|----------|-------|
+| `stories/<story>/savepoints/pipeline_state.json` | `src/presentation/orchestrator.py` across all implemented phases | `resume_pipeline()`, later phases, debugging workflows | JSON snapshot of `PipelineState`, including `OutlineResult` foundation fields, completed phases, and savepoint labels |
 | `stories/<story>/characters/<slug>.json` | `src/presentation/orchestrator.py` characters phase | `src/presentation/agents/chapter_writer.py`, character-management workflows | JSON document with `name`, full markdown `sheet`, `chunks`, `summary`, and `updated_at` |
 | `stories/<story>/settings/<slug>.json` | `src/presentation/orchestrator.py` settings phase | `src/presentation/agents/chapter_writer.py`, setting-management workflows | Same JSON shape as character sheets |
 | `stories/<story>/chapters/chapter_{N}.md` | `src/presentation/orchestrator.py` chapter loop | `src/tools/story_assembler.py`, downstream review flows | Approved chapter manuscript |
