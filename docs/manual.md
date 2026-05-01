@@ -757,7 +757,7 @@ All configuration lives in `config.yml` in the repository root. No secrets are r
 | `chapter_max_revisions` | 3 | Max chapter revision passes |
 | `enable_chapter_revisions` | true | Enable chapter revision loop |
 | `enable_final_edit` | false | Run final polish pass |
-| `enable_scrubbing` | true | Remove redundant phrases |
+| `enable_scrubbing` | true | When final edit runs, gather prose-scrub and voice-consistency diagnostics before chapter polish |
 | `strategy` | "outline-chapter" | Writing strategy |
 | `use_chunked_outline_generation` | true | Generate outline in chunks |
 | `outline_chunk_size` | 10 | Chapters per outline chunk |
@@ -871,6 +871,7 @@ generation:
 | `chapter_max_revisions` | 3 | Per-chapter quality loop |
 | `enable_outline_critique` | true | Iterative outline refinement |
 | `enable_final_edit` | true | Post-generation polish pass |
+| `enable_scrubbing` | true | Feed prose and voice diagnostics into final edit |
 | `debug` | false | Cleaner output |
 
 ### 8.3 Short Story Preset
@@ -887,7 +888,7 @@ generation:
   enable_chapter_revisions: false
   enable_outline_critique: false
   enable_final_edit: false
-  enable_scrubbing: true
+  enable_scrubbing: false
   use_chunked_outline_generation: false
   stream: true
   debug: true
@@ -897,7 +898,7 @@ generation:
 |---------|-------|-----|
 | `wanted_chapters` | 10 | Novella length |
 | `chapter_max_revisions` | 0 | No per-chapter revision loop |
-| `enable_scrubbing` | true | Still clean up redundant prose |
+| `enable_scrubbing` | false | Skip final-edit diagnostics because final edit is disabled |
 
 ### 8.4 Settings Change Summary Table
 
@@ -911,7 +912,7 @@ generation:
 | `enable_chapter_revisions` | false | true | false |
 | `enable_outline_critique` | false | true | false |
 | `enable_final_edit` | false | true | false |
-| `enable_scrubbing` | false | true | true |
+| `enable_scrubbing` | false | true | false |
 | `use_chunked_outline_generation` | false | true | false |
 
 ---
@@ -1697,7 +1698,7 @@ The pipeline resumes from the last completed phase savepoint. If chapter 7 was h
 
 **Fix:**
 1. Increase model temperature (add `?temperature=0.8` to the model URI in `config.yml`)
-2. Enable `enable_scrubbing: true` to remove redundant phrases
+2. Enable both `enable_final_edit: true` and `enable_scrubbing: true` to feed prose and voice diagnostics into the final chapter polish pass
 3. Enable `enable_chapter_revisions: true` and provide feedback like `revise Vary sentence openings; avoid starting three consecutive paragraphs with "She"`
 
 ### Scene generation pipeline issues

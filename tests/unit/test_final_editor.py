@@ -45,10 +45,10 @@ def _draft(n: int, content: str = "") -> ChapterDraft:
 @pytest.mark.asyncio
 async def test_prior_chapters_summary_excludes_future_chapters() -> None:
     """Chapter N must only see chapters 1..N-1 in prior_chapters_summary."""
-    captured: list[dict] = []
+    captured: list[tuple[str, dict]] = []
 
     def capture_prompt(name: str, variables: dict | None = None) -> str:
-        captured.append(dict(variables or {}))
+        captured.append((name, dict(variables or {})))
         return "system"
 
     bus = TokenStreamBus()
@@ -68,13 +68,18 @@ async def test_prior_chapters_summary_excludes_future_chapters() -> None:
         await agent.run("s", drafts, GenerationSettings.from_dict({}))
 
     bus.close()
+    edit_prompt_variables = [
+        variables
+        for name, variables in captured
+        if name == "final_edit/edit_chapter_direct"
+    ]
 
     # Chapter 1: no prior summaries.
-    assert captured[0]["prior_chapters_summary"] == ""
+    assert edit_prompt_variables[0]["prior_chapters_summary"] == ""
     # Chapter 2: only chapter 1.
-    assert "Chapter 1:" in captured[1]["prior_chapters_summary"]
-    assert "Chapter 3:" not in captured[1]["prior_chapters_summary"]
+    assert "Chapter 1:" in edit_prompt_variables[1]["prior_chapters_summary"]
+    assert "Chapter 3:" not in edit_prompt_variables[1]["prior_chapters_summary"]
     # Chapter 3: chapters 1 and 2 only.
-    assert "Chapter 1:" in captured[2]["prior_chapters_summary"]
-    assert "Chapter 2:" in captured[2]["prior_chapters_summary"]
-    assert "Chapter 3:" not in captured[2]["prior_chapters_summary"]
+    assert "Chapter 1:" in edit_prompt_variables[2]["prior_chapters_summary"]
+    assert "Chapter 2:" in edit_prompt_variables[2]["prior_chapters_summary"]
+    assert "Chapter 3:" not in edit_prompt_variables[2]["prior_chapters_summary"]

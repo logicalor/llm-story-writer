@@ -1,0 +1,158 @@
+"""Unit tests for FinalEditorAgent scrubbing flow."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_src_dir = str(PROJECT_ROOT / "src")
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
+from application.pipeline.handoffs import ChapterDraft
+from domain.value_objects.generation_settings import GenerationSettings
+from presentation.agents.final_editor import FinalEditorAgent
+from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
+
+
+async def _stream_tokens(tokens: list[str]):
+    for token in tokens:
+        yield token
+
+
+class _ProviderStub:
+    def __init__(self, response: str) -> None:
+        self.response = response
+
+    def stream_text(self, messages, model_config, seed=None):
+        return _stream_tokens([self.response])
+
+
+class _SequentialProviderStub:
+    def __init__(self, responses: list[str]) -> None:
+        self._responses = responses
+        self._index = 0
+
+    def stream_text(self, messages, model_config, seed=None):
+        response = self._responses[self._index]
+        self._index += 1
+        return _stream_tokens([response])
+
+
+def _draft(n: int, content: str = "") -> ChapterDraft:
+    return ChapterDraft(
+        story_name="s",
+        chapter_number=n,
+        title=f"Chapter {n}",
+        content=content or f"Chapter {n} body content",
+        word_count=4,
+    )
+
+
+@pytest.mark.asyncio
+async def test_scrubbing_enabled_invokes_prose_scrub_and_voice_pass() -> None:
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = FinalEditorAgent(
+        provider=_ProviderStub("polished"),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    with patch(
+        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+        return_value="system",
+    ) as mock_load_prompt:
+        await agent.run(
+            "s",
+            [_draft(1)],
+            GenerationSettings.from_dict({"enable_scrubbing": True}),
+        )
+
+    bus.close()
+
+    prompt_names = [call.args[0] for call in mock_load_prompt.call_args_list]
+    assert prompt_names.count("final_edit/prose_scrub") == 1
+    assert prompt_names.count("final_edit/voice_consistency_pass") == 1
+    assert prompt_names.count("final_edit/edit_chapter_direct") == 1
+
+
+@pytest.mark.asyncio
+async def test_scrubbing_enabled_passes_findings_to_edit_chapter_direct() -> None:
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = FinalEditorAgent(
+        provider=_SequentialProviderStub(
+            [
+                '{"issues":["prose finding"]}',
+                '{"issues":["voice finding"]}',
+                "polished",
+            ]
+        ),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+    captured_edit_variables: dict[str, str] = {}
+
+    def capture_prompt(name: str, variables: dict | None = None) -> str:
+        if name == "final_edit/edit_chapter_direct":
+            captured_edit_variables.update(variables or {})
+        return "system"
+
+    with patch(
+        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+        side_effect=capture_prompt,
+    ):
+        await agent.run(
+            "s",
+            [_draft(1)],
+            GenerationSettings.from_dict({"enable_scrubbing": True}),
+        )
+
+    bus.close()
+
+    assert captured_edit_variables["prose_findings"]
+    assert captured_edit_variables["voice_findings"]
+
+
+@pytest.mark.asyncio
+async def test_scrubbing_disabled_skips_stage1_calls_only_edit_chapter_direct() -> None:
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = FinalEditorAgent(
+        provider=_ProviderStub("polished"),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+    captured_edit_variables: dict[str, str] = {}
+
+    def capture_prompt(name: str, variables: dict | None = None) -> str:
+        if name == "final_edit/edit_chapter_direct":
+            captured_edit_variables.update(variables or {})
+        return "system"
+
+    with patch(
+        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+        side_effect=capture_prompt,
+    ) as mock_load_prompt:
+        await agent.run(
+            "s",
+            [_draft(1)],
+            GenerationSettings.from_dict({"enable_scrubbing": False}),
+        )
+
+    bus.close()
+
+    prompt_names = [call.args[0] for call in mock_load_prompt.call_args_list]
+    assert prompt_names.count("final_edit/edit_chapter_direct") == 1
+    assert "final_edit/prose_scrub" not in prompt_names
+    assert "final_edit/voice_consistency_pass" not in prompt_names
+    assert captured_edit_variables["prose_findings"] == ""
+    assert captured_edit_variables["voice_findings"] == ""

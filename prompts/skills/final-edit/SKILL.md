@@ -17,7 +17,7 @@ This skill defines the final prose-polish layer that runs after chapter drafting
 | Voice Consistency | Chapter | Post-assembly, per chapter | final-editor |
 | Pacing | Chapter | Post-assembly, per chapter | final-editor |
 | Cross-Chapter Coherence | Manuscript | Post-assembly | final-editor |
-| Prose Scrub | Sentence/Paragraph | Per-chapter post-generation | prose-scrubber |
+| Prose Scrub | Sentence/Paragraph | Phase 9 Stage 1a diagnostic when `enable_scrubbing: true` | `final-editor` (Stage 1a); `prose-scrubber` (Phase 7.5 standalone, not yet wired) |
 
 ## Output Format
 
