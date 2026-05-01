@@ -30,12 +30,15 @@ This removes the old subprocess boundary between a TypeScript wrapper and a Pyth
 
 The first in-process pipeline agent is now `StoryFoundationAgent` in `src/presentation/agents/story_foundation.py`. It runs before outline generation and extracts `base_context`, `story_start_date`, and `story_elements` into the persisted `OutlineResult` carried inside `pipeline_state.json`.
 
+`StoryMetadataAgent` in `src/presentation/agents/story_metadata.py` now runs at three advisory metadata checkpoints: immediately after outline approval (`metadata-outline`), after the first approved chapter (`metadata-chapter-1`), and after final edit (`metadata-final`). Each run invokes the existing `outline/create_title`, `outline/create_summary`, and `outline/create_tags` prompts, updates `OutlineResult.title` plus `OutlineResult.tags` in `pipeline_state.json` when generation succeeds, and rewrites `stories/<story>/metadata.json` with the current title, back-cover summary, and tag list.
+
 Later in the chapter loop, `RecapWriterAgent` in `src/presentation/agents/recap_writer.py` runs in-process after each approved chapter. It generates recap artefacts directly through `PromptLoader` and the configured `ModelProvider`, then hands the resulting recap dict back to `src/presentation/orchestrator.py` for persistence.
 
 The orchestrator also now produces intermediate story artefacts directly in the story directory during the implemented pipeline:
 
 - `stories/<story>/savepoints/pipeline_state.json` from init onward, including story-foundation fields and later phase handoffs
 - `stories/<story>/outline/skeleton.md` plus `stories/<story>/outline/details/chapter_{N}.md` during Phase 3 when `generation.expand_outline` is enabled
+- `stories/<story>/metadata.json` after each successful metadata checkpoint, with the latest generated title, summary, tags, and `updated_at`
 - `stories/<story>/characters/*.json` from the characters phase
 - `stories/<story>/settings/*.json` from the settings phase
 - `stories/<story>/chapters/chapter_{N}.md` during chapter approval
@@ -90,13 +93,14 @@ These modules support the public tool CLIs but are not normal top-level user com
 
 ## Story Artefacts
 
-Several runtime artefacts are written by the Python-native orchestrator and then consumed by later phases. These are not separate CLI tools, but they are part of the active tool surface because downstream code relies on their on-disk format.
+Several runtime artefacts are written by the Python-native orchestrator and then consumed by later phases or manual inspection workflows. These are not separate CLI tools, but they are part of the active tool surface because downstream code or operator workflows rely on their on-disk format.
 
 | Path | Producer | Consumer | Notes |
 |------|----------|----------|-------|
 | `stories/<story>/savepoints/pipeline_state.json` | `src/presentation/orchestrator.py` across all implemented phases | `resume_pipeline()`, later phases, debugging workflows | JSON snapshot of `PipelineState`, including `OutlineResult` foundation fields, `recaps`, `evolved_sheets`, completed phases, and savepoint labels |
 | `stories/<story>/outline/skeleton.md` | `src/presentation/agents/outline_planner.py` when `generation.expand_outline` is `true` | Outline review, resume-safe per-chapter expansion, debugging workflows | Skeleton outline generated from `outline/create_skeleton`; paired with `OutlineResult.chapter_skeletons` |
 | `stories/<story>/outline/details/chapter_{N}.md` | `src/presentation/agents/outline_planner.py` when `generation.expand_outline` is `true` | Chapter drafting, consistency checks, resume-safe outline expansion | One expanded chapter detail block per chapter. Existing files are read back instead of regenerated on resumed runs |
+| `stories/<story>/metadata.json` | `src/presentation/orchestrator.py` after `metadata-outline`, `metadata-chapter-1`, and `metadata-final` | Manual inspection, release metadata export, debugging workflows | JSON document with `title`, `summary`, `tags`, and `updated_at`. The orchestrator also mirrors `title` and `tags` into `PipelineState.outline_result`, but the summary lives on disk only |
 | `stories/<story>/characters/<slug>.json` | `src/presentation/orchestrator.py` characters phase | `src/presentation/agents/chapter_writer.py`, `src/presentation/agents/character_evolver.py`, character-management workflows | JSON document with `name`, full markdown `sheet`, `chunks`, `abridged`, `summary`, and `updated_at` |
 | `stories/<story>/settings/<slug>.json` | `src/presentation/orchestrator.py` settings phase | `src/presentation/agents/chapter_writer.py`, `src/presentation/agents/setting_evolver.py`, setting-management workflows | Same JSON shape as character sheets |
 | `stories/<story>/chapters/chapter_{N}.md` | `src/presentation/orchestrator.py` chapter loop | `src/tools/story_assembler.py`, downstream review flows | Approved chapter manuscript |

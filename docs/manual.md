@@ -398,6 +398,14 @@ The story generation pipeline is divided into primary phases. Each phase writes 
 
 > **Note:** The active orchestrator (`src/presentation/orchestrator.py`) runs a *reduced slice* of the full spec. Phases marked ⏳ below are defined but **not yet wired** into the active orchestrator. See [Story Pipeline Skill](../prompts/skills/story-pipeline/SKILL.md) for the complete specification.
 
+In addition to the primary phases, the orchestrator now runs three advisory metadata checkpoints that never block progress:
+
+| Checkpoint | Trigger | Inputs | Output |
+|------------|---------|--------|--------|
+| `metadata-outline` | Immediately after outline approval | Outline text only | First pass for story title, back-cover summary, and tags; on success writes `stories/<name>/metadata.json` and updates `OutlineResult.title` plus `OutlineResult.tags` |
+| `metadata-chapter-1` | After Chapter 1 is approved inside the chapter loop | Outline text + approved Chapter 1 prose | Refreshes `metadata.json` with stronger title and summary candidates based on real prose |
+| `metadata-final` | After final edit finishes | Outline text + edited Chapter 1 prose | Writes the final canonical metadata payload used at the end of the run |
+
 ### ASCII Flow Diagram
 
 ```
@@ -476,10 +484,12 @@ The story generation pipeline is divided into primary phases. Each phase writes 
 - Optionally runs critique and refinement loops (if `enable_outline_critique: true`)
 - Writes the in-progress outline to `pipeline_state.json` before opening the approval gate
 - Waits for outline approval or revision feedback before marking the phase complete
+- After approval, runs the advisory `metadata-outline` checkpoint to generate the first title, summary, and tag set from outline text alone
 
 **Artefacts produced:**
 - `stories/<name>/savepoints/outline`
 - `stories/<name>/savepoints/pipeline_state.json` with the latest `OutlineResult`
+- `stories/<name>/metadata.json` with the current generated title, summary, tags, and `updated_at` when metadata generation succeeds
 
 **User action needed:**
 - Approve, reject, or revise via the approval gate (TUI) or auto-approve (headless)
@@ -563,7 +573,8 @@ What this phase does:
   5. **Wiki Update (7c)** — Calls `WikiMaintainerAgent` to extract structured data and persist wiki pages; failures are logged and do not block the loop
   6. **Sheet Evolution** — Calls `CharacterEvolverAgent` and `SettingEvolverAgent` after the wiki step. Each agent runs `extract_from_chapter` → `analyze_changes` → `update` over the existing sheet files, rewrites `sheet` when a change is needed, and records per-entity `updated` or `unchanged` results in `state.evolved_sheets[str(N)]`.
   7. **Recap Generation (7d)** — Calls `RecapWriterAgent` after sheet evolution. The default path runs six LLM stages (`extract_chapter_events` → `recap/assign_event_timing` → `recap/enrich_event_details` → `recap/format_json` → `recap/compact_events` → optional `recap/sanitize`). When `use_multi_stage_recap_sanitizer: false`, the agent takes the short path (`extract_chapter_events` → `recap/format_json`). Recap failures are advisory and do not block later chapters.
-  8. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
+  8. **Metadata Refresh (`metadata-chapter-1`)** — Immediately after Chapter 1 is approved, the orchestrator re-runs `StoryMetadataAgent` with the approved Chapter 1 prose. This refresh is advisory, updates `OutlineResult.title` plus `OutlineResult.tags` on success, and rewrites `stories/<name>/metadata.json`.
+  9. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
 
 > **Future work (not yet wired):** Phase 7a (chapter-outline-expander), Phase 7f (quality-reviewer / critique-revision loop), Phase 7.5 (prose-scrubber), Phase 7g (handoff artifact generation).
 
@@ -587,6 +598,7 @@ What this phase does:
 - Streams one editing pass per approved chapter (voice consistency, pacing, prose polish)
 - Falls back to original chapter content if the model returns empty output
 - Writes the edited manuscript to `stories/<name>/output/story_edited.md`
+- Runs the advisory `metadata-final` checkpoint after editing completes, using the edited Chapter 1 prose when available to produce the final title, summary, and tag set in `stories/<name>/metadata.json`
 - Persists `final_edit_complete`
 
 **Artefacts produced:**
@@ -996,6 +1008,7 @@ Phase 3: Outline
   → Persist `stories/<name>/outline/skeleton.md` and `stories/<name>/outline/details/chapter_{N}.md`
   → Persist `OutlineResult.summary`, `chapter_skeletons`, `chapter_details`, and `enrichment_suggestions`, then wait on approval gate
   → When `expand_outline=false`, fall back to one `create_direct` outline call using the same foundation context
+  → After approval, run `metadata-outline` to write the first generated `stories/<name>/metadata.json`
 
 Phase 4: Narrative Arc Analysis
   → Delegate to story-planner subagent
@@ -1022,9 +1035,11 @@ Phase 7: Wiki Bootstrap
 
 Phase 8: Chapter Loop
   → Generate approved chapters one at a time, then run wiki maintenance, sheet evolution, recap generation, and consistency checks
+  → After Chapter 1 approval, run `metadata-chapter-1` to refresh `stories/<name>/metadata.json`
 
 Phase 9: Final Edit
   → Conditionally edit approved chapters before assembly
+  → Then run `metadata-final` to produce final title, summary, and tags from edited Chapter 1 prose
 
 Phase 10: Assembly
   → Write the final manuscript and mark the run complete
@@ -1224,6 +1239,7 @@ The orchestrator may dispatch exactly these subagents for creative work:
 | `story-orchestrator` | Primary pipeline controller; drives the full generation lifecycle | — |
 | `story-foundation` | Extracts `base_context`, `story_start_date`, and `story_elements` before outline generation | Phase 2 |
 | `outline-planner` | Generates and refines the story outline | Phase 3 |
+| `story-metadata` | Generates advisory title, summary, and tags after outline approval, after Chapter 1, and after final edit | `metadata-outline`, `metadata-chapter-1`, `metadata-final` |
 | `story-planner` | Evaluates dramatic arc quality (promise/payoff, tension, pacing) | Phase 4 |
 | `chapter-outline-expander` | Expands all chapter outlines with scene-level detail and continuity threading | Phase 7a ⏳ |
 | `chapter-writer` | Writes individual chapter content | Phase 7b |
@@ -1233,7 +1249,7 @@ The orchestrator may dispatch exactly these subagents for creative work:
 | `prose-scrubber` | Sentence/paragraph-level prose cleanup | Phase 7.5 ⏳ |
 | `final-editor` | Post-assembly voice, pacing, and coherence pass | Phase 9 |
 
-**Orchestrator Pipeline Phases:** Init → Story Foundation → Outline → Narrative Arc → Characters & Settings → Wiki Init → Chapter Loop → Final Edit → Assembly
+**Orchestrator Pipeline Phases:** Init → Story Foundation → Outline → `metadata-outline` → Narrative Arc → Characters & Settings → Wiki Init → Chapter Loop (+ `metadata-chapter-1` after the first approved chapter) → Final Edit → `metadata-final` → Assembly
 
 ### 12.2 Tools
 
@@ -1305,7 +1321,7 @@ The system supports pluggable story writing strategies via the strategy pattern.
 1. Extract story elements and context from prompt
 2. Generate detailed chapter-by-chapter outline
 3. Write each chapter based on its outline entry
-4. Generate metadata (title, summary, tags)
+4. Generate and refresh metadata (title, summary, tags) after outline approval, after Chapter 1, and after final edit
 ```
 
 **Config:** `strategy: "outline-chapter"` in `config.yml`

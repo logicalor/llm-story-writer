@@ -4,7 +4,7 @@
 
 ## Overview
 
-Issue #161 implements the first executable Python-native orchestration slice in `src/presentation/orchestrator.py`. Issue #182 extends that slice by replacing the characters and settings stubs with real sheet-generation helpers and by teaching the chapter writer to consume those generated sheets as prompt context. Issue #185 adds the missing Phase 2.5 narrative-arc pass and replaces the Phase 9 final-edit stub with a real editing agent. Issue #292 inserts `StoryFoundationAgent` ahead of outline generation so the orchestrator can seed `OutlineResult` with `base_context`, `story_start_date`, and `story_elements` before later phases run. Issue #298 deepens the character and setting phases by generating `summary`, `abridged`, and per-aspect `chunks` fields up front, then runs dedicated evolver agents after each approved chapter to keep sheets current as the manuscript changes. The current implementation still remains smaller than the long-term PRD: it runs a headless async pipeline, persists one JSON savepoint file, and coordinates Python presentation agents plus orchestrator-local helper phases through injected transport primitives.
+Issue #161 implements the first executable Python-native orchestration slice in `src/presentation/orchestrator.py`. Issue #182 extends that slice by replacing the characters and settings stubs with real sheet-generation helpers and by teaching the chapter writer to consume those generated sheets as prompt context. Issue #185 adds the missing Phase 2.5 narrative-arc pass and replaces the Phase 9 final-edit stub with a real editing agent. Issue #292 inserts `StoryFoundationAgent` ahead of outline generation so the orchestrator can seed `OutlineResult` with `base_context`, `story_start_date`, and `story_elements` before later phases run. Issue #298 deepens the character and setting phases by generating `summary`, `abridged`, and per-aspect `chunks` fields up front, then runs dedicated evolver agents after each approved chapter to keep sheets current as the manuscript changes. Issue #299 adds `StoryMetadataAgent`, an advisory three-checkpoint metadata pass that generates story title, summary, and tags after outline approval, after the first approved chapter, and after final edit. The current implementation still remains smaller than the long-term PRD: it runs a headless async pipeline, persists one JSON savepoint file, and coordinates Python presentation agents plus orchestrator-local helper phases through injected transport primitives.
 
 Two entry points exist:
 
@@ -18,8 +18,9 @@ This slice does not yet implement the full PRD phase map. The current code path 
 The current orchestrator runs these phases in order:
 
 ```text
-Init → Story Foundation → Outline → [Outline Gate] → Narrative Arc → Characters → Settings
-→ Wiki Init → Wiki Bootstrap → Chapter Loop → Final Edit → Assembly
+Init → Story Foundation → Outline → [Outline Gate] → Metadata Outline → Narrative Arc
+→ Characters → Settings → Wiki Init → Wiki Bootstrap → Chapter Loop
+→ [Metadata Chapter 1 after first approved chapter] → Final Edit → Metadata Final → Assembly
 ```
 
 The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
@@ -29,13 +30,15 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 | `init` | Create initial `PipelineState`, detect batch mode from gate type, ensure `stories/<story>/savepoints/` exists | `init` |
 | `story-foundation` | Run `StoryFoundationAgent`, extract `base_context`, `story_start_date`, and `story_elements`, seed or update `state.outline_result`, and persist those fields before outline generation | `story_foundation_complete` |
 | `outline` | Run `OutlinePlannerAgent`, passing through story-foundation context. When `expand_outline=true`, the agent writes `outline/skeleton.md`, populates per-chapter detail files under `outline/details/`, persists the enriched `OutlineResult`, then waits on the outline approval gate. Revisions reuse the same foundation fields. | `outline` |
+| `metadata-outline` | Run `StoryMetadataAgent` after outline approval using outline text only. Persist generated title and tags into `state.outline_result` when generation succeeds, write `stories/<story>/metadata.json`, and continue even if generation fails. | `metadata_outline_complete` |
 | `narrative-arc` | If `state.outline_result` exists, run `StoryPlannerAgent`, stream the arc assessment onto `TokenStreamBus`, store `ArcAnalysisResult` in `state.arc_result`, and continue even if the agent raises | `arc_analysis_complete` |
 | `characters` | Emit a wiki-context event, build `story_elements` from the outline, extract character names through the configured LLM, generate one full sheet per extracted name, then enrich each JSON file with `abridged`, `summary`, and seven `chunks` entries before the phase completes | `characters` |
 | `settings` | Emit a wiki-context event, build `story_elements` from the outline, extract setting names through the configured LLM, generate one full sheet per extracted name, then enrich each JSON file with `abridged`, `summary`, and six `chunks` entries before the phase completes | `settings` |
 | `wiki-init` | Idempotently initialise `stories/<story>/wiki/` directory structure (subdirectories, `index.md`, `log.md`, `_schema.md`, `contradictions.md`). Skips if wiki already present. Must succeed before chapter-loop wiki maintenance runs. | — (no separate savepoint) |
 | `wiki-bootstrap` | Seed wiki pages from the approved outline plus the generated character and setting sheets. Existing slugs are skipped so reruns stay idempotent, and failures are logged without aborting later phases. | `wiki_populated` |
-| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, emit any failed consistency findings to the token bus, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, run wiki maintenance, run character and setting sheet evolution, then run advisory recap generation and persist recap output when available | `chapter-{N}`, then `chapter-loop` |
+| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, emit any failed consistency findings to the token bus, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, run wiki maintenance, run character and setting sheet evolution, then run advisory recap generation and persist recap output when available. After the first approved chapter only, run `StoryMetadataAgent` again as `metadata-chapter-1` using Chapter 1 prose and persist the refreshed metadata payload. | `chapter-{N}`, then `chapter-loop` |
 | `final-edit` | Unless `generation.enable_final_edit` is explicitly `false`, run `FinalEditorAgent` once per approved chapter, replace `state.approved_chapters` with the edited drafts, and write `stories/<story>/output/story_edited.md` when edited content exists | `final_edit_complete` |
+| `metadata-final` | Run `StoryMetadataAgent` after final edit using the edited Chapter 1 prose when available. Persist generated title and tags into `state.outline_result` when generation succeeds, rewrite `stories/<story>/metadata.json`, and continue even if generation fails. | `metadata_final_complete` |
 | `assembly` | Read non-empty content from `state.approved_chapters`, write `stories/<story>/output/story.md`, and fail with `StoryGenerationError` if no approved chapter content exists | `assembly`, then `complete` |
 
 Chapter count comes from `OutlineResult.chapter_outlines` when present. If the outline did not produce chapter entries, the fallback is `range(1, min(settings.wanted_chapters, 3) + 1)`.
@@ -48,6 +51,7 @@ The current orchestrator writes these story-facing artifact groups during a succ
 
 - `stories/<story>/savepoints/pipeline_state.json` — the persisted `PipelineState` snapshot, including `arc_result`, `recaps`, and `evolved_sheets` when those phases succeed
 - `stories/<story>/outline/skeleton.md` and `stories/<story>/outline/details/chapter_{N}.md` — Phase 3 outline artifacts written when `generation.expand_outline` is enabled; existing chapter detail files are reused on resume
+- `stories/<story>/metadata.json` — advisory story metadata rewritten after successful `metadata-outline`, `metadata-chapter-1`, and `metadata-final` runs; stores `title`, `summary`, `tags`, and `updated_at`
 - `stories/<story>/characters/<slug>.json` — one JSON character sheet per extracted name
 - `stories/<story>/settings/<slug>.json` — one JSON setting sheet per extracted name
 - `stories/<story>/chapters/chapter_{N}.md` — written immediately after chapter `N` passes the approval gate and consistency check
@@ -71,6 +75,39 @@ Character and setting sheets use the same on-disk shape:
 Filenames are derived by `_slugify_name()`: lowercase, spaces converted to `-`, non-alphanumeric characters stripped except `-`, repeated dashes collapsed, and surrounding dashes trimmed.
 
 Assembly is guarded. If `state.approved_chapters` contains no non-empty content, `_continue_pipeline()` raises `StoryGenerationError` instead of writing an empty manuscript file. Because `final-edit` mutates `state.approved_chapters` before `assembly`, the assembled `story.md` reflects edited content when Phase 9 runs.
+
+## Story Metadata Behavior
+
+`StoryMetadataAgent` wraps three existing direct-generation prompts:
+
+- `prompts/outline/create_title.md`
+- `prompts/outline/create_summary.md`
+- `prompts/outline/create_tags.md`
+
+The orchestrator calls the agent at three checkpoints:
+
+1. `metadata-outline` after outline approval, passing outline text and an empty Chapter 1 string.
+2. `metadata-chapter-1` immediately after Chapter 1 is approved, passing the approved prose.
+3. `metadata-final` after final edit, passing the edited Chapter 1 prose when available.
+
+All three checkpoints are advisory. Each individual LLM call inside `StoryMetadataAgent.run()` is wrapped in `try/except`, and each checkpoint call in the orchestrator is also wrapped in `try/except`, so metadata generation can fail without blocking the rest of the pipeline.
+
+Persistence behavior is intentionally split:
+
+- `state.outline_result.title` is refreshed at each successful checkpoint.
+- `state.outline_result.tags` is refreshed at each successful checkpoint.
+- The generated summary is written to `stories/<story>/metadata.json`, not back into `OutlineResult.summary`.
+
+`metadata.json` uses this shape:
+
+```json
+{
+  "title": "Example Title",
+  "summary": "Back-cover style summary text.",
+  "tags": ["science fiction", "first contact"],
+  "updated_at": "2026-05-01T21:49:38+00:00"
+}
+```
 
 ## Narrative Arc Behavior
 
@@ -244,6 +281,7 @@ Issue #161 adds the first Python callables under `src/presentation/agents/`, and
 |------|--------------------------|-------------|------------------|
 | `StoryFoundationAgent` | `prompts/extract_base_context.md`, `prompts/extract_story_start_date.md`, `prompts/outline/create_elements.md` | `OutlineResult` | Runs before outline generation, emits a `story-foundation` wiki-context event, and returns an `OutlineResult` seeded with `base_context`, `story_start_date`, and `story_elements` |
 | `OutlinePlannerAgent` | `prompts/outline/create_skeleton.md`, `prompts/outline/expand_chapter_detail.md`, `prompts/outline/strip_elements.md`, fallback `prompts/outline/create_direct.md` | `OutlineResult` | Runs a multi-stage outline pipeline when `expand_outline=true`, persists outline artifacts under `stories/<story>/outline/`, reuses existing chapter detail files on resume, and falls back to one direct outline call when expansion is disabled |
+| `StoryMetadataAgent` | `prompts/outline/create_title.md`, `prompts/outline/create_summary.md`, `prompts/outline/create_tags.md` | `StoryMetadataResult` | Runs at `metadata-outline`, `metadata-chapter-1`, and `metadata-final`, emits advisory token-bus updates, parses JSON tag arrays, and rewrites `stories/<story>/metadata.json` without blocking the pipeline on failure |
 | `StoryPlannerAgent` | `prompts/outline/arc_assessment_direct.md` | `ArcAnalysisResult` | Streams one advisory arc assessment from the approved outline, truncates stored assessment text to 1000 characters, and derives `verdict_code` heuristically from the streamed output |
 | `ChapterWriterAgent` | `prompts/chapters/write_chapter_direct.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback, with abridged character and setting context loaded from disk when available |
 | `WikiMaintainerAgent` | none loaded at runtime | `WikiUpdateBatch` | Calls `tools.wiki_extract.update_wiki_from_chapter()` on a worker thread, persists wiki batches after each approved chapter, returns concrete `updated_pages` / `new_pages` slug lists, and emits one `WikiContextEvent` per changed page |
@@ -262,7 +300,8 @@ Each agent instantiates `PromptLoader` on demand inside `run()` and loads the di
 
 | Handoff | Purpose |
 |------|---------|
-| `OutlineResult` | Outline payload plus preserved story-foundation fields and later outline metadata |
+| `StoryMetadataResult` | Metadata payload returned by `StoryMetadataAgent`, carrying generated title, summary, and tags for on-disk persistence |
+| `OutlineResult` | Outline payload plus preserved story-foundation fields; `title` and `tags` are refreshed by metadata checkpoints while `summary` remains the structural outline summary |
 | `ChapterDraft` | Approved chapter payload plus synopsis, scene definitions, recap, and review findings |
 | `ArcAnalysisResult` | Advisory narrative-arc result returned by `StoryPlannerAgent` |
 | `FinalEditResult` | Final-edit summary plus replacement `edited_chapters` returned by `FinalEditorAgent` |
