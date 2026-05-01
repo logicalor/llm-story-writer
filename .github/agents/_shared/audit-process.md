@@ -104,7 +104,7 @@ If the project has a database:
 
 ### Phase 7 — Documentation Audit
 
-1. README.md reflects current state
+1. `docs/README.md` reflects current state
 2. Planning docs reflect actual progress
 3. ADRs cover all implemented architectural changes
 4. `.github/notes/` files are current

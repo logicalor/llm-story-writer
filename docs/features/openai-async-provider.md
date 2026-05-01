@@ -13,10 +13,10 @@ This change does not replace the existing synchronous `OpenAICompatibleProvider`
 Install the active Python dependencies before using the provider:
 
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
 
-`requirements.txt` now includes `openai>=1.0.0`. That package is required because `OpenAIAsyncProvider` constructs an `openai.AsyncOpenAI` client.
+`pyproject.toml` now includes `openai>=1.0.0`. That package is required because `OpenAIAsyncProvider` constructs an `openai.AsyncOpenAI` client.
 
 ### Basic Text Generation
 

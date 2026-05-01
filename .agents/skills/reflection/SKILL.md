@@ -17,7 +17,7 @@ Reflection targets include:
 - `.github/agents/_shared/*`
 - `.github/instructions/*`
 - `.github/notes/*`
-- `AGENTS.md`
+- `.github/copilot-instructions.md`
 
 Reflection notes live in `.github/notes/reflections/`. The `reflections` ChromaDB collection is a derived semantic index.
 

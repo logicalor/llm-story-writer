@@ -9,7 +9,7 @@ The project's agentic development workflow currently runs through GitHub Copilot
 
 The agents in `.github/agents-openrouter/` use three model families for multi-model synthesis: **Kimi K2.6** (MoonshotAI, primary model), **Qwen3.6 Plus** (Qwen, Qwen-family sub-agents), and **GLM 5.1** (Z.ai, GLM-family sub-agents). The chosen Opencode provider is **OpenRouter** (`https://openrouter.ai/api/v1`).
 
-The team wants to evaluate Opencode (https://opencode.ai), an open-source terminal-first agent runtime that supports the same fundamental abstractions — agents, skills, MCP servers, and project rules — without requiring VS Code or the Copilot subscription. Migration is feasible: the 2026-04-29 multi-model research report (`.github/research/copilot-to-opencode-migration-2026-04-29.md`) confirmed that Opencode reads `AGENTS.md` and `.agents/skills/*/SKILL.md` natively and supports near-direct equivalents for every Copilot artefact, with one gap (applyTo glob scoping) covered by a community plugin.
+The team wants to evaluate Opencode (https://opencode.ai), an open-source terminal-first agent runtime that supports the same fundamental abstractions — agents, skills, MCP servers, and project rules — without requiring VS Code or the Copilot subscription. Migration is feasible: the 2026-04-29 multi-model research report (`.github/research/copilot-to-opencode-migration-2026-04-29.md`) confirmed that Opencode reads `.github/copilot-instructions.md` and `.agents/skills/*/SKILL.md` natively and supports near-direct equivalents for every Copilot artefact, with one gap (applyTo glob scoping) covered by a community plugin.
 
 Three decisions need to be recorded together because they shape every downstream task:
 
@@ -54,4 +54,4 @@ The previously-deleted `.opencode/` tree (which contained TypeScript tool wrappe
 
 - Model identity and tool inventories per agent are unchanged. Each migrated agent uses the same model and the same conceptual capability surface; only the schema and configuration format change.
 - The shared agent rules files in `.github/agents/_shared/` are referenced by markdown reading inside agent prompts. Opencode reads markdown the same way Copilot does, so these shared files require no changes.
-- `AGENTS.md` at the project root continues to be the canonical project-rules file; both Copilot and Opencode read it.
+- `.github/copilot-instructions.md` at the project root continues to be the canonical project-rules file; both Copilot and Opencode read it.

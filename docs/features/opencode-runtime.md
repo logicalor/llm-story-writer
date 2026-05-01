@@ -15,7 +15,7 @@ The checked-in `opencode.json` keeps project runtime settings minimal. It curren
 - sets `model` to `openrouter/moonshotai/kimi-k2.6`
 - sets `default_agent` to `orchestrator-v3` so raw Opencode prompts route through the main workflow agent by default
 - sets `small_model` to `openrouter/qwen/qwen3.6-plus` for lower-cost background work that Opencode can route to the cheaper model tier
-- loads `AGENTS.md` through the `instructions` array
+- loads `.github/copilot-instructions.md` through the `instructions` array
 - enables `opencode-rules@latest`
 - registers three named OpenRouter models under `provider.openrouter.models`
 - configures the project-local Chroma MCP server
@@ -28,7 +28,7 @@ The full file is:
   "model": "openrouter/moonshotai/kimi-k2.6",
   "default_agent": "orchestrator-v3",
   "small_model": "openrouter/qwen/qwen3.6-plus",
-  "instructions": ["AGENTS.md"],
+  "instructions": [".github/copilot-instructions.md"],
   "plugin": ["opencode-rules@latest"],
   "provider": {
     "openrouter": {
@@ -300,6 +300,6 @@ If you rely on Tavily, verify that `TAVILY_API_KEY` is exported before starting 
 
 ## Related
 
-- [Documentation Index](../README.md)
+- [Documentation Index](./README.md)
 - [ADR 009: Opencode as Primary Agent Runtime](../planning/adr/009-opencode-as-primary-agent-runtime.md)
 - [Migration Tasks](../planning/copilot-to-opencode-migration/tasks.md)

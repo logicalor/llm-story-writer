@@ -3,7 +3,7 @@
   "model": "openrouter/moonshotai/kimi-k2.6",
   "default_agent": "orchestrator-v3",
   "small_model": "openrouter/qwen/qwen3.6-plus",
-  "instructions": ["AGENTS.md"],
+  "instructions": [".github/copilot-instructions.md"],
   "plugin": ["opencode-rules@latest"],
   "provider": {
     "openrouter": {

@@ -683,7 +683,6 @@ cd AIStoryWriter
 #    or:  ollama serve && ollama pull <model-name>
 
 # 3. Install Python dependencies and the console script
-pip install -r requirements.txt
 pip install -e .
 
 # 4. Copy and configure
@@ -1010,7 +1009,6 @@ Current implementation note: the PRD's initial wiki population pass, chapter-out
 ```
 llm-story-writer/
 ├── config.yml                  # All configuration (YAML)
-├── config-guide.md             # Configuration reference and examples
 ├── config.example.sh           # Shell env config template
 │
 ├── src/                       # Python domain logic
