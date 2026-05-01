@@ -74,7 +74,7 @@ After the outline approval gate resolves successfully, `_continue_pipeline()` ru
 The phase behavior is intentionally lightweight:
 
 1. Emit one `WikiContextEvent` for the `narrative-arc` phase.
-2. Load `prompts/agents/story-planner.md` lazily through `load_agent_prompt()`.
+2. Load the direct-generation prompt `prompts/outline/arc_assessment_direct.md` via `PromptLoader.load_prompt()`.
 3. Build one prompt from `OutlineResult.summary` plus JSON-formatted `chapter_outlines`.
 4. Stream the model response through `TokenStreamBus` and accumulate the full text.
 5. Store `ArcAnalysisResult(story_name, arc_assessment, verdict_code, overall_score)` in `state.arc_result`.
@@ -184,20 +184,20 @@ Named savepoints are **validation-only**. Resume always continues from the singl
 Issue #161 also adds `src/presentation/agents/__init__.py` and five Python callables under `src/presentation/agents/`. Each callable follows the same construction pattern:
 
 1. Accept `provider`, `config`, `bus`, and `wiki_bus` in `__init__`.
-2. Load the corresponding system prompt from `prompts/agents/` through `load_agent_prompt()` on first use.
+2. Load the corresponding direct-generation prompt from `prompts/` via `PromptLoader.load_prompt()` on first use.
 3. Build a `ModelConfig` from `config["models"]` for the relevant role.
 4. Emit at least one `WikiContextEvent` before generation or analysis.
 5. Stream model output through `provider.stream_text(...)` and forward every token to `TokenStreamBus.emit()`.
 6. Return a typed handoff object or small structured result.
 
-| Agent | Prompt file | Return type | Current behavior |
-|------|-------------|-------------|------------------|
-| `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `OutlineResult` | Streams outline text, parses chapter outlines from JSON or `Chapter:` lines, extracts `genre` and `themes` when present |
-| `StoryPlannerAgent` | `prompts/agents/story-planner.md` | `ArcAnalysisResult` | Streams one advisory arc assessment from the approved outline, truncates stored assessment text to 1000 characters, and derives `verdict_code` heuristically from the streamed output |
-| `ChapterWriterAgent` | `prompts/agents/chapter-writer.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback, with abridged character and setting context loaded from disk when available |
+| Agent | Direct-generation prompt | Return type | Current behavior |
+|------|--------------------------|-------------|------------------|
+| `OutlinePlannerAgent` | `prompts/outline/create_direct.md` | `OutlineResult` | Streams outline text, parses chapter outlines from JSON or `Chapter:` lines, extracts `genre` and `themes` when present |
+| `StoryPlannerAgent` | `prompts/outline/arc_assessment_direct.md` | `ArcAnalysisResult` | Streams one advisory arc assessment from the approved outline, truncates stored assessment text to 1000 characters, and derives `verdict_code` heuristically from the streamed output |
+| `ChapterWriterAgent` | `prompts/chapters/write_chapter_direct.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback, with abridged character and setting context loaded from disk when available |
 | `WikiMaintainerAgent` | none loaded at runtime | `WikiUpdateBatch` | Calls `tools.wiki_extract.update_wiki_from_chapter()` on a worker thread, persists wiki batches after each approved chapter, returns concrete `updated_pages` / `new_pages` slug lists, and emits one `WikiContextEvent` per changed page |
-| `ConsistencyCheckerAgent` | `prompts/agents/consistency-checker.md` | `dict[str, Any]` | Streams analysis text, parses JSON or fenced JSON into a flattened `issues` list, and returns `passed=False` when the LLM reports critical findings |
-| `FinalEditorAgent` | `prompts/agents/final-editor.md` | `FinalEditResult` | Streams one editing pass per approved chapter, falls back to the original chapter content on empty model output, and returns the replacement chapter list for assembly |
+| `ConsistencyCheckerAgent` | `prompts/chapter_review/consistency_check_direct.md` | `dict[str, Any]` | Streams analysis text, parses JSON or fenced JSON into a flattened `issues` list, and returns `passed=False` when the LLM reports critical findings |
+| `FinalEditorAgent` | `prompts/final_edit/edit_chapter_direct.md` | `FinalEditResult` | Streams one editing pass per approved chapter, falls back to the original chapter content on empty model output, and returns the replacement chapter list for assembly |
 | `StoryOrchestratorAgent` | none loaded | `dict[str, Any]` | Vestigial helper that returns a static phase plan; orchestration logic lives in `orchestrator.py` |
 
 The prompt load is lazy and instance-local in the current code. Despite the issue text describing import-time loading, the implementation caches the prompt the first time `_get_system_prompt()` runs.

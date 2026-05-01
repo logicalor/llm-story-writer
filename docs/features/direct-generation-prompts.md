@@ -55,7 +55,7 @@ system_prompt = loader.load_prompt(
 
 ### Legacy Loader
 
-`load_agent_prompt()` in `src/infrastructure/prompts/agent_prompt_loader.py` still exists but is no longer used by the Python-native runtime. It loads `prompts/agents/*.md` and strips YAML frontmatter. New Python-native agents should use `PromptLoader` instead.
+`load_agent_prompt()` in `src/infrastructure/prompts/agent_prompt_loader.py` was removed in PR #284 (issue #277). It originally loaded `prompts/agents/*.md` and stripped YAML frontmatter, but all Python-native agents now use `PromptLoader` from `src/infrastructure/prompts/prompt_loader.py` instead.
 
 ## Agent Integration
 
@@ -135,7 +135,7 @@ Two existing unit tests were updated to reflect the PromptLoader-based prompt lo
 
 This test verifies that character and setting context are correctly injected into the system prompt during chapter writing. The PR updated:
 
-- **Assertion target change:** Tests now inspect the `system` message content instead of the `user` message, reflecting the shift from workflow-spec prompts (loaded via `load_agent_prompt` into user messages) to direct-generation prompts (loaded via `PromptLoader` into system messages).
+- **Assertion target change:** Tests now inspect the `system` message content instead of the `user` message, reflecting the shift from workflow-spec prompts (previously loaded via `load_agent_prompt` into user messages) to direct-generation prompts (loaded via `PromptLoader` into system messages).
 - **Covered scenarios:**
   - Character sheet context injection (`test_chapter_writer_includes_character_context`)
   - Setting sheet context injection (`test_chapter_writer_includes_setting_context`)
@@ -145,7 +145,7 @@ This test verifies that character and setting context are correctly injected int
 
 This test verifies the consistency checker's JSON parsing and agent integration. The PR updated:
 
-- **Patched path change:** The test now patches `infrastructure.prompts.prompt_loader.PromptLoader.load_prompt` instead of `load_agent_prompt`, reflecting the new loader pattern used by `ConsistencyCheckerAgent`.
+- **Patched path change:** The test now patches `infrastructure.prompts.prompt_loader.PromptLoader.load_prompt` instead of the removed `load_agent_prompt`, reflecting the new loader pattern used by `ConsistencyCheckerAgent`.
 - **Covered scenarios:**
   - No-issues response parsing (`test_extract_consistency_result_no_issues`)
   - Critical findings detection (`test_extract_consistency_result_with_critical_findings`)

@@ -34,11 +34,11 @@ This directory contains:
 - `story-planner.md`
 - `wiki-maintainer.md`
 
-## Agent Prompt Loader
+## Agent Prompt Loader (Historical)
 
-`src/infrastructure/prompts/agent_prompt_loader.py` adds a small process-local loader for those prompt files.
+`src/infrastructure/prompts/agent_prompt_loader.py` originally added a small process-local loader for the relocated prompt files (added in PR #167, issue #158). It was later removed in PR #284 (issue #277) after all Python-native agents migrated to `PromptLoader` from `src/infrastructure/prompts/prompt_loader.py`.
 
-### Behaviour
+The removed loader's behaviour was:
 
 - Resolves `prompts/agents/` from the module's `__file__` path, not the current working directory
 - Loads `prompts/agents/{name}.md` by file stem
@@ -48,15 +48,17 @@ This directory contains:
 - Raises `ConfigurationError` when the named prompt file does not exist
 - Raises `ValueError` when a frontmatter block is opened but never closed
 
-### Example
+### Example (no longer valid)
 
 ```python
+# This import path was removed in PR #284.
+# Use PromptLoader from prompt_loader.py instead.
 from infrastructure.prompts.agent_prompt_loader import load_agent_prompt
 
 prompt_text = load_agent_prompt("story-orchestrator")
 ```
 
-Use `clear_agent_prompt_cache()` in tests or other situations where a fresh on-disk read is required.
+`prompts/agents/*.md` files remain in the repository as workflow specifications for OpenCode and Copilot agent runtimes, not as direct LLM prompts.
 
 Issue #164 extends the prompt relocation surface with two reusable prompt bodies that previously lived under `.opencode/commands/`:
 
@@ -126,13 +128,13 @@ The practical effect is simple:
 ### Key Files
 
 - `prompts/agents/` — canonical agent prompt location
-- `src/infrastructure/prompts/agent_prompt_loader.py` — frontmatter-stripping prompt loader with in-memory cache
+- `src/infrastructure/prompts/prompt_loader.py` — `PromptLoader` with variable substitution and in-memory cache (replaced the removed `agent_prompt_loader.py` in PR #284)
 - `src/application/pipeline/__init__.py` — pipeline package marker
 - `src/application/pipeline/handoffs.py` — typed phase payload dataclasses and `PipelineState` persistence helpers
 - `src/presentation/cli/argument_parser.py` — packaged `story-writer` argparse surface
 - `src/presentation/cli/main.py` — CLI dispatch into the Python-native orchestrator
 - `pyproject.toml` — `story-writer` console script definition
-- `tests/unit/test_agent_prompt_loader.py` — loader behaviour and cache coverage
+- `tests/unit/test_prompt_loader_tool.py` — `PromptLoader` behaviour and cache coverage
 - `tests/unit/test_pipeline_handoffs.py` — dataclass round-trip and JSON serialisation coverage
 - `tests/unit/test_prompt_relocation.py` — prompt-tree relocation baseline check updated for `prompts/agents/`
 - `tests/unit/test_cli_main.py` — parser and dispatch coverage for the new console entry point
@@ -141,7 +143,7 @@ The practical effect is simple:
 
 Issue #158 added dedicated unit coverage for both new modules:
 
-- `test_agent_prompt_loader.py` verifies frontmatter stripping, verbatim loads, missing-file handling, malformed frontmatter handling, cache hits, and cache clearing
+- `test_prompt_loader_tool.py` verifies template loading, variable substitution, missing-file handling, and cache behaviour for the current `PromptLoader`
 - `test_pipeline_handoffs.py` verifies nested `PipelineState` round-trips, `ApprovalDecision` defaults, JSON serialisation, and package importability
 - `test_prompt_relocation.py` now treats the prompt tree as a growing set and asserts a minimum Markdown file count so the additional agent prompts do not break the relocation baseline
 - `test_cli_main.py` verifies subcommand parsing for `tui`, `run`, and `resume`, plus dispatch coverage for the packaged CLI entry point

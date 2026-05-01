@@ -1183,7 +1183,9 @@ Wiki pages cross-reference each other using `[[wikilink]]` syntax:
 
 ### 12.1 Agents
 
-Agent system prompts live in `prompts/agents/` as Markdown files. `src/infrastructure/prompts/agent_prompt_loader.py` reads those prompt bodies directly and strips YAML frontmatter before returning the reusable instruction text.
+Agent workflow specifications for OpenCode and Copilot runtimes live in `prompts/agents/` as Markdown files. These are agent runtime instructions, not direct LLM prompts.
+
+Python-native agents in `src/presentation/agents/` load direct-generation prompts via `PromptLoader` from `src/infrastructure/prompts/prompt_loader.py`. `PromptLoader` supports variable substitution and caches loaded bodies for the process lifetime.
 
 The orchestrator may dispatch exactly these subagents for creative work:
 
