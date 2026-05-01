@@ -33,7 +33,7 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 | `characters` | Emit a wiki-context event, build `story_elements` from the outline, extract character names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/characters/<slug>.json` | `characters` |
 | `settings` | Emit a wiki-context event, build `story_elements` from the outline, extract setting names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/settings/<slug>.json` | `settings` |
 | `wiki-init` | Idempotently initialise `stories/<story>/wiki/` directory structure (subdirectories, `index.md`, `log.md`, `_schema.md`, `contradictions.md`). Skips if wiki already present. Must succeed before chapter-loop wiki maintenance runs. | — (no separate savepoint) |
-| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, emit any failed consistency findings to the token bus, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, then run wiki maintenance and per-chapter savepointing | `chapter-{N}`, then `chapter-loop` |
+| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, emit any failed consistency findings to the token bus, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, run wiki maintenance, then run advisory recap generation and persist recap output when available | `chapter-{N}`, then `chapter-loop` |
 | `final-edit` | Unless `generation.enable_final_edit` is explicitly `false`, run `FinalEditorAgent` once per approved chapter, replace `state.approved_chapters` with the edited drafts, and write `stories/<story>/output/story_edited.md` when edited content exists | `final_edit_complete` |
 | `assembly` | Read non-empty content from `state.approved_chapters`, write `stories/<story>/output/story.md`, and fail with `StoryGenerationError` if no approved chapter content exists | `assembly`, then `complete` |
 
@@ -50,6 +50,7 @@ The current orchestrator writes six story-facing artifact groups during a succes
 - `stories/<story>/characters/<slug>.json` — one JSON character sheet per extracted name
 - `stories/<story>/settings/<slug>.json` — one JSON setting sheet per extracted name
 - `stories/<story>/chapters/chapter_{N}.md` — written immediately after chapter `N` passes the approval gate and consistency check
+- `stories/<story>/chapters/chapter_{N}_recap.json` — written after chapter `N` recap generation returns a non-empty recap payload
 - `stories/<story>/output/story_edited.md` — written after Phase 9 when final-edit is enabled and at least one edited chapter contains non-empty content
 - `stories/<story>/output/story.md` — written during `assembly` by joining the non-empty content of `state.approved_chapters` with blank lines
 
@@ -131,6 +132,24 @@ The current implementation maps these LLM response sections into issues:
 
 The orchestrator does not currently reject or revise the chapter automatically on consistency findings. Instead, when `passed` is `false`, it emits a `[Consistency] Chapter N — issues found:` header and one line per issue onto `TokenStreamBus`, then continues with chapter persistence and wiki maintenance.
 
+## Recap Behavior
+
+After wiki maintenance completes for an approved chapter, `_continue_pipeline()` instantiates `RecapWriterAgent` and dispatches it with the approved chapter text, the best available previous recap string, the story-foundation `story_start_date`, and the active `GenerationSettings`.
+
+The orchestrator treats recap generation as advisory only:
+
+1. Read the prior recap from `PipelineState.recaps[str(N-1)]`, preferring `sanitised`, then `compact`, then `events`.
+2. Call `RecapWriterAgent.run()`.
+3. If the returned recap contains a non-empty `events` field, persist it to `PipelineState.recaps[str(N)]` and write `stories/<story>/chapters/chapter_{N}_recap.json`.
+4. If the agent raises, emit a `[Recap] chapter N recap skipped (...)` message and continue the chapter loop.
+
+Two recap modes are currently wired:
+
+- multi-stage mode when `generation.use_multi_stage_recap_sanitizer` is `true`
+- short extract-plus-format mode when that flag is `false`
+
+Within multi-stage mode, `generation.use_improved_recap_sanitizer` controls whether the final sanitize prompt runs or whether `sanitised` falls back to `compact`.
+
 ## Final Edit Behavior
 
 Phase 9 now executes real editing work through `FinalEditorAgent`.
@@ -199,6 +218,7 @@ Issue #161 adds the first Python callables under `src/presentation/agents/`, and
 | `StoryPlannerAgent` | `prompts/outline/arc_assessment_direct.md` | `ArcAnalysisResult` | Streams one advisory arc assessment from the approved outline, truncates stored assessment text to 1000 characters, and derives `verdict_code` heuristically from the streamed output |
 | `ChapterWriterAgent` | `prompts/chapters/write_chapter_direct.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback, with abridged character and setting context loaded from disk when available |
 | `WikiMaintainerAgent` | none loaded at runtime | `WikiUpdateBatch` | Calls `tools.wiki_extract.update_wiki_from_chapter()` on a worker thread, persists wiki batches after each approved chapter, returns concrete `updated_pages` / `new_pages` slug lists, and emits one `WikiContextEvent` per changed page |
+| `RecapWriterAgent` | `prompts/extract_chapter_events.md`, `prompts/recap/assign_event_timing.md`, `prompts/recap/enrich_event_details.md`, `prompts/recap/format_json.md`, `prompts/recap/compact_events.md`, optional `prompts/recap/sanitize.md` | `dict[str, str]` | Runs after wiki maintenance for each approved chapter, emits stage banners on the token bus, and returns the `events` / `compact` / `sanitised` recap payload stored in `PipelineState.recaps` |
 | `ConsistencyCheckerAgent` | `prompts/chapter_review/consistency_check_direct.md` | `dict[str, Any]` | Streams analysis text, parses JSON or fenced JSON into a flattened `issues` list, and returns `passed=False` when the LLM reports critical findings |
 | `FinalEditorAgent` | `prompts/final_edit/edit_chapter_direct.md` | `FinalEditResult` | Streams one editing pass per approved chapter, falls back to the original chapter content on empty model output, and returns the replacement chapter list for assembly |
 | `StoryOrchestratorAgent` | none loaded | `dict[str, Any]` | Vestigial helper that returns a static phase plan; orchestration logic lives in `orchestrator.py` |
@@ -222,7 +242,7 @@ Each agent instantiates `PromptLoader` on demand inside `run()` and loads the di
 |------|------|---------|
 | `arc_result` | `ArcAnalysisResult | None` | Persist the latest advisory narrative-arc result into `pipeline_state.json` |
 | `critic_summary` | `str` | Reserved persisted field for later outline-critique synthesis stages; defaults to `""` for old savepoints |
-| `recaps` | `dict[str, Any]` | Reserved persisted recap map used by later pipeline stages; defaults to `{}` for old savepoints |
+| `recaps` | `dict[str, Any]` | Persisted per-chapter recap map keyed by string chapter number; defaults to `{}` for old savepoints |
 | `evolved_sheets` | `dict[str, Any]` | Reserved persisted sheet-evolution map used by later pipeline stages; defaults to `{}` for old savepoints |
 | `savepoints` | `list[str]` | Ordered record of checkpoint labels written during the run |
 | `status` | `str` | Run lifecycle state: defaults to `"running"`, changes to `"rejected"` or `"complete"` |
@@ -233,7 +253,6 @@ These fields round-trip through `to_dict()`, `from_dict()`, and `to_json()`. `fr
 
 The long-term migration PRD still describes additional phases and UI surfaces that are not yet wired in this implementation. Notably absent from the current code path:
 
-- initial wiki population (wiki directory structure is initialised, but the full initial-populate pass that creates pages from outline and sheets is not yet wired)
 - quality-reviewer and prose-scrubber execution
 - resume-from-arbitrary-historical-savepoint behavior
 

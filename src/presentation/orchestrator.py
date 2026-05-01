@@ -631,6 +631,59 @@ async def _continue_pipeline(
                         f"\n[Wiki] chapter {chapter_number} wiki update skipped "
                         f"({type(exc).__name__}: {exc})\n"
                     )
+                # Recap generation is advisory; failure must not block the loop
+                try:
+                    from presentation.agents.recap_writer import (
+                        RecapWriterAgent,
+                    )
+
+                    recap_agent = RecapWriterAgent(
+                        resolved_provider, resolved_config, bus, wiki_bus
+                    )
+                    previous_recap_data = state.recaps.get(
+                        str(chapter_number - 1),
+                        "",
+                    )
+                    if isinstance(previous_recap_data, dict):
+                        previous_recap = (
+                            previous_recap_data.get("sanitised")
+                            or previous_recap_data.get("compact")
+                            or previous_recap_data.get("events")
+                            or ""
+                        )
+                    elif isinstance(previous_recap_data, str):
+                        previous_recap = previous_recap_data
+                    else:
+                        previous_recap = str(previous_recap_data)
+                    story_start_date = (
+                        state.outline_result.story_start_date
+                        if state.outline_result is not None
+                        else ""
+                    )
+                    recap_result = await recap_agent.run(
+                        story_name=state.story_name,
+                        chapter_number=chapter_number,
+                        chapter_content=draft.content,
+                        previous_recap=previous_recap,
+                        story_start_date=story_start_date,
+                        settings=settings,
+                    )
+                    if recap_result.get("events"):
+                        state.recaps[str(chapter_number)] = recap_result
+                        recap_path = (
+                            story_dir
+                            / "chapters"
+                            / f"chapter_{chapter_number}_recap.json"
+                        )
+                        _atomic_write(
+                            recap_path,
+                            json.dumps(recap_result, indent=2, ensure_ascii=False),
+                        )
+                except Exception as exc:
+                    await bus.emit(
+                        f"\n[Recap] chapter {chapter_number} recap skipped "
+                        f"({type(exc).__name__}: {exc})\n"
+                    )
                 await _mark_phase_complete(
                     state,
                     f"chapter-{chapter_number}",

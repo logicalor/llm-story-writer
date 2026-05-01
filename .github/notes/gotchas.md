@@ -1456,3 +1456,29 @@ The `patch(class)` approach is strictly better: it prevents the new phase from c
 **Context manager alias rule:** When using a multi-target `with (patch(...) as alias, ...)` block, the `as alias` binding is only valid inside the block. Placing any `alias_name.return_value = ...` line *outside* the `with (...)` block raises `NameError: name 'alias_name' is not defined`. Confirm every `foundation_cls.return_value` reference is inside the `with` block.
 
 ChromaDB ID: `gotcha-new-pipeline-phase-side-effect-exhaustion-040`
+
+---
+
+### 041 — `use_X=True` flag semantics: `True` means "run X", `False` means "skip X"
+
+**Source:** issue #297, PR #309
+**Severity:** info
+
+Pipeline configuration flags named `use_X` (e.g. `use_improved_recap_sanitizer`, `use_multi_stage_recap_sanitizer`) follow **positive-gate semantics**: `True` activates the behaviour; `False` skips it. This is not always self-evident — when the flag name includes a modifier word like "improved" (`use_improved_recap_sanitizer`), the modifier describes the variant being gated, not the gate direction. Read `use_X=True` as "gate open — run X" and `use_X=False` as "gate closed — skip X".
+
+Both flags in RecapWriterAgent default to `True` (feature on by default), which is the idiomatic default for `use_X` names. When adding new pipeline gates: if the feature is on by default, use `use_X` / `enable_X` and document the default in the init signature. If the feature is off by default (opt-in), prefer `skip_X=False` or document the polarity explicitly.
+
+ChromaDB ID: `gotcha-use-x-flag-positive-semantics-041`
+
+---
+
+### 042 — Short-circuit output field: named for interface slot, not content description
+
+**Source:** issue #297, PR #309
+**Severity:** info
+
+When a pipeline stage is optional and a short-circuit path exists, the short-circuit must write its output to the **same field name** that the full path uses — even if the content is different. For example: when `use_multi_stage_recap_sanitizer=False`, the RecapWriterAgent places the `format_json` output directly into the `compact` field, skipping all sanitizer stages. The field is named `compact` for interface consistency (callers always read `data.compact`), not because the content is actually compact.
+
+The generalised rule: a short-circuit path that bypasses stages A→B→C must write the last available intermediate result to the same output field that C writes its result to. Naming the short-circuit output after its content (e.g. `data.format_output`) instead of the interface slot (`data.compact`) breaks all callers silently.
+
+ChromaDB ID: `gotcha-short-circuit-output-interface-slot-naming-042`
