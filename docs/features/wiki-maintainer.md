@@ -12,8 +12,8 @@ Issue #183 completes the post-chapter persistence path. `WikiMaintainerAgent` no
 
 The agent operates in two distinct modes, mapped to pipeline phases:
 
-- **Mode 1: Initial Wiki Population** (Phase 6) — Extracts all known entities from the outline, character sheets, and setting sheets to populate the wiki before chapter generation begins.
-- **Mode 2: Post-Chapter Incremental Update** (Phase 7c) — After each assembled chapter, extracts new entities, state changes, events, and aliases from the generated text to keep the wiki current.
+- **Mode 1: Initial Wiki Population** (wiki-bootstrap phase, before Chapter 1) — Seeds the wiki from the approved outline savepoint plus character and setting sheets before chapter generation begins.
+- **Mode 2: Post-Chapter Incremental Update** (chapter loop) — After each assembled chapter, extracts new entities, state changes, events, and aliases from the generated text to keep the wiki current.
 
 The wiki maintainer runs on a smaller 7b model (`deepseek-r1-abliterated:7b`) through the project's OpenAI-compatible inference server configuration, with instructions kept concise and structured for reliable execution at that model size.
 
@@ -42,16 +42,16 @@ The wiki maintainer uses six tools to inspect and update the wiki:
 
 See [Tools Reference](../tools.md) for full documentation of each tool's arguments, operations, and CLI interface.
 
-## Workflow — Mode 1: Initial Wiki Population (Phase 6)
+## Workflow — Mode 1: Initial Wiki Population (wiki-bootstrap phase)
 
-Called once after outline and character/setting sheets are generated. The heavy extraction pass is tool-owned so the subagent does not have to carry the full outline, every sheet, every detail level, and the complete batch payload in its own context window.
+Called once after wiki initialization and character/setting sheet generation, before Chapter 1. The heavy extraction pass is tool-owned so the runtime does not have to carry the full outline, every sheet, every detail level, and the complete batch payload in agent context.
 
-1. **Run `wiki-extract initial-populate`** — The tool reads `state.json`, character sheets, and setting sheets from disk; extracts entities from each source; deduplicates them by slug; assigns `planned` confidence by default; generates L1/L2/L3 detail levels; assembles the snake_case batch payload; and applies it through `wiki-update`'s internal `run_batch()` helper. Each successful LLM call is checkpointed in `stories/<story-name>/.wiki-extract-cache.json`, so a retry after timeout resumes from the last completed step.
-2. **Review returned counts** — The agent inspects summary counts such as created page totals and `entity_counts` by type. This is the main compaction fix: the agent sees counts instead of the full payload.
-3. **Establish wikilinks** — Review created pages and add missing `[[slug]]` links where relationships, events, locations, or plot threads should cross-reference one another.
-4. **Spot-check for plausibility** — If counts or created pages look wrong, rerun with a model override or follow up with targeted `wiki-update` edits.
+1. **Run `bootstrap_wiki_from_story()`** — The tool loads the approved outline savepoint plus character and setting sheets from disk; extracts entities from each source; deduplicates them by slug; assigns `planned` confidence by default; generates L1/L2/L3 detail levels; skips already-existing slugs for idempotent reruns; assembles the batch payload; and applies it through `wiki-update`'s internal `run_batch()` helper.
+2. **Review returned counts** — The bootstrap call returns `{created, skipped, entity_counts}` so the orchestrator or operator can see how many pages were seeded versus already present.
+3. **Proceed even on failure** — The orchestrator treats this phase as non-fatal. If bootstrap raises, it logs the error, still marks `wiki_populated`, and continues into the chapter loop.
+4. **Spot-check seeded pages** — If counts or created pages look wrong, rerun with a model override or follow up with targeted `wiki-update` edits.
 
-## Workflow — Mode 2: Post-Chapter Incremental Update (Phase 7c)
+## Workflow — Mode 2: Post-Chapter Incremental Update (chapter loop)
 
 Called after each approved chapter is assembled. Updates the wiki with `verified` information from the generated text while keeping the full chapter and matched entity snapshots inside the tool boundary.
 
