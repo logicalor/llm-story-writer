@@ -80,6 +80,54 @@ class FinalEditorAgent:
                 draft.chapter_number, ""
             )
 
+            if settings.enable_scrubbing:
+                prose_prompt = loader.load_prompt(
+                    "final_edit/prose_scrub",
+                    variables={
+                        "chapter_text": draft.content,
+                        "chapter_number": str(draft.chapter_number),
+                    },
+                )
+                messages = [
+                    {"role": "system", "content": prose_prompt},
+                    {"role": "user", "content": "Return the findings JSON."},
+                ]
+                prose_findings = ""
+                stream = cast(
+                    AsyncIterator[str],
+                    self.provider.stream_text(
+                        messages, model_config, seed=settings.seed
+                    ),
+                )
+                async for token in stream:
+                    prose_findings += token
+                prose_findings = prose_findings.strip()
+
+                voice_prompt = loader.load_prompt(
+                    "final_edit/voice_consistency_pass",
+                    variables={
+                        "chapter_text": draft.content,
+                        "prior_chapters_summary": prior_chapters_summary,
+                    },
+                )
+                messages = [
+                    {"role": "system", "content": voice_prompt},
+                    {"role": "user", "content": "Return the findings JSON."},
+                ]
+                voice_findings = ""
+                stream = cast(
+                    AsyncIterator[str],
+                    self.provider.stream_text(
+                        messages, model_config, seed=settings.seed
+                    ),
+                )
+                async for token in stream:
+                    voice_findings += token
+                voice_findings = voice_findings.strip()
+            else:
+                prose_findings = ""
+                voice_findings = ""
+
             system_prompt = loader.load_prompt(
                 "final_edit/edit_chapter_direct",
                 variables={
@@ -87,6 +135,8 @@ class FinalEditorAgent:
                     "chapter_number": str(draft.chapter_number),
                     "chapter_title": draft.title,
                     "prior_chapters_summary": prior_chapters_summary,
+                    "prose_findings": prose_findings,
+                    "voice_findings": voice_findings,
                 },
             )
 

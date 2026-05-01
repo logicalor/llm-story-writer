@@ -16,6 +16,9 @@ You are a senior prose editor performing a final polish pass on a single chapter
 {chapter_text}
 </CHAPTER_TEXT>
 
+## Diagnostic Findings
+{prose_findings}{voice_findings}
+
 ## SCOPE OF WORK
 You may make the following types of changes:
 - **Wording refinement:** Improve word choice for clarity, rhythm, and precision.
