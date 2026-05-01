@@ -52,7 +52,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 
 - [Opencode Runtime Configuration](./features/opencode-runtime.md) — Project-level OpenRouter model registry, complete 24-agent migration inventory, and developer-local OpenRouter, Tavily, and Context7 setup
 - [OpenAI Async Provider](./features/openai-async-provider.md) — AsyncOpenAI-backed streaming `ModelProvider`, dependency requirements, and migration relationship to the existing sync provider
-- [Python-Native Foundation](./features/python-native-foundation.md) — Agent prompt relocation, frontmatter-stripping loader, typed pipeline handoff dataclasses, and the `story-writer` CLI packaging/dispatch path for Issues #158, #161, and #162
+- [Python-Native Foundation](./features/python-native-foundation.md) — Agent prompt relocation, `PromptLoader`-based direct-generation prompt loading, typed pipeline handoff dataclasses, and the `story-writer` CLI packaging/dispatch path for Issues #158, #161, and #162
 - [Pipeline Primitives](./features/pipeline-primitives.md) — Transport-agnostic approval gates plus token and wiki context event buses for the Python-native orchestrator
 - [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) — Current runtime dependency model, removed migration leftovers, and guardrails for keeping the active stack lean
 - [Story Orchestrator](./features/story-orchestrator.md) — Implemented headless Python pipeline runner, narrative-arc and final-edit phases, approval-gate semantics, character/setting sheet generation, chapter prompt context loading, and `PipelineState` savepoint/status behavior

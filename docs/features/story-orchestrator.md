@@ -137,7 +137,7 @@ The phase controller logic is:
 
 1. Read `generation.enable_final_edit` from the raw config dictionary.
 2. Treat the phase as enabled when the key is missing; skip only when the key is explicitly `false`.
-3. For each approved chapter, call `FinalEditorAgent.run()` with `prompts/agents/final-editor.md` as the system prompt and stream the edit pass onto `TokenStreamBus`.
+3. For each approved chapter, call `FinalEditorAgent.run()`, which loads `prompts/final_edit/edit_chapter_direct.md` via `PromptLoader.load_prompt()` as the system prompt, and stream the edit pass onto `TokenStreamBus`.
 4. Replace `state.approved_chapters` with `FinalEditResult.edited_chapters`.
 5. Write `stories/<story>/output/story_edited.md` from the edited chapter contents when at least one edited chapter is non-empty.
 6. Persist `final_edit_complete` before entering `assembly`.
@@ -200,7 +200,7 @@ Issue #161 also adds `src/presentation/agents/__init__.py` and five Python calla
 | `FinalEditorAgent` | `prompts/final_edit/edit_chapter_direct.md` | `FinalEditResult` | Streams one editing pass per approved chapter, falls back to the original chapter content on empty model output, and returns the replacement chapter list for assembly |
 | `StoryOrchestratorAgent` | none loaded | `dict[str, Any]` | Vestigial helper that returns a static phase plan; orchestration logic lives in `orchestrator.py` |
 
-The prompt load is lazy and instance-local in the current code. Despite the issue text describing import-time loading, the implementation caches the prompt the first time `_get_system_prompt()` runs.
+Each agent instantiates `PromptLoader` on demand inside `run()` and loads the direct-generation prompt with runtime variables at call time. `PromptLoader` caches loaded prompt bodies for the process lifetime, so repeated calls for the same prompt path return the cached body without disk I/O.
 
 ## PipelineState And Handoffs
 

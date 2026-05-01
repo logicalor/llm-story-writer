@@ -592,7 +592,7 @@ When implemented, this phase will:
 
 **What the system does:**
 - Enabled only if `generation.enable_final_edit` is explicitly set to `true` in `config.yml` (default is `false`)
-- Loads `prompts/agents/final-editor.md`
+- Loads `prompts/final_edit/edit_chapter_direct.md` via `PromptLoader`
 - Streams one editing pass per approved chapter (voice consistency, pacing, prose polish)
 - Falls back to original chapter content if the model returns empty output
 - Writes the edited manuscript to `stories/<name>/output/story_edited.md`
@@ -993,7 +993,7 @@ Phase 8: Assembly
 
 Phase 9: Final Edit (conditional)
   → Enabled only if `generation.enable_final_edit` is explicitly `true`
-  → final-editor loads `prompts/agents/final-editor.md`
+  → final-editor loads `prompts/final_edit/edit_chapter_direct.md` via `PromptLoader`
   → Stream one editing pass per approved chapter
   → Fall back to original chapter content if the model returns empty output
   → Write `stories/<name>/output/story_edited.md`
