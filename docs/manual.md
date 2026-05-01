@@ -678,7 +678,7 @@ These are LLM system/user prompts loaded by `PromptLoader` at runtime by Python-
 
 | Agent | Old Workflow Prompt (DO NOT USE) | New Direct-Generation Prompt |
 |---|---|---|
-| `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `prompts/outline/create_direct.md` |
+| `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `prompts/outline/create_skeleton.md`, `prompts/outline/expand_chapter_detail.md`, `prompts/outline/strip_elements.md`, fallback `prompts/outline/create_direct.md` when `expand_outline=false` |
 | `StoryPlannerAgent` | `prompts/agents/story-planner.md` | `prompts/outline/arc_assessment_direct.md` |
 | `ChapterWriterAgent` | `prompts/agents/chapter-writer.md` | `prompts/chapters/write_chapter_direct.md` |
 | `FinalEditorAgent` | `prompts/agents/final-editor.md` | `prompts/final_edit/edit_chapter_direct.md` |
@@ -761,7 +761,7 @@ All configuration lives in `config.yml` in the repository root. No secrets are r
 | `strategy` | "outline-chapter" | Writing strategy |
 | `use_chunked_outline_generation` | true | Generate outline in chunks |
 | `outline_chunk_size` | 10 | Chapters per outline chunk |
-| `expand_outline` | true | Expand outline into scene-level detail |
+| `expand_outline` | true | Switch Phase 3 to the multi-stage outline pipeline (`create_skeleton` → per-chapter detail expansion → `strip_elements`); when `false`, use one `create_direct` outline call |
 | `scene_generation_pipeline` | true | Use scene-by-scene generation |
 | `scenes_per_chapter_min` | 8 | Minimum scenes per chapter (when scene expansion is enabled) |
 | `scenes_per_chapter_max` | 16 | Maximum scenes per chapter (when scene expansion is enabled) |
@@ -988,8 +988,10 @@ Phase 2: Story Foundation
 
 Phase 3: Outline
   → Delegate to outline-planner subagent
-  → Stream outline generation
-  → Persist `OutlineResult` and wait on approval gate
+  → When `expand_outline=true`, run `create_skeleton` → per-chapter `expand_chapter_detail` → `strip_elements`
+  → Persist `stories/<name>/outline/skeleton.md` and `stories/<name>/outline/details/chapter_{N}.md`
+  → Persist `OutlineResult.summary`, `chapter_skeletons`, `chapter_details`, and `enrichment_suggestions`, then wait on approval gate
+  → When `expand_outline=false`, fall back to one `create_direct` outline call using the same foundation context
 
 Phase 4: Narrative Arc Analysis
   → Delegate to story-planner subagent

@@ -148,6 +148,8 @@ async def _await_outline_approval(
     story_name: str,
     story_prompt: str,
     settings: GenerationSettings,
+    base_context: str = "",
+    story_elements: str = "",
 ) -> PipelineState:
     while True:
         decision = await gate.await_decision()
@@ -162,6 +164,8 @@ async def _await_outline_approval(
             story_prompt,
             settings,
             feedback=decision.feedback,
+            base_context=base_context,
+            story_elements=story_elements,
         )
         await _write_savepoint(state)
 
@@ -433,6 +437,8 @@ async def _continue_pipeline(
                 state.story_name,
                 story_prompt,
                 settings,
+                base_context=_foundation_base_context,
+                story_elements=_foundation_story_elements,
             )
             if not state.outline_result.base_context:
                 state.outline_result.base_context = _foundation_base_context
@@ -452,6 +458,8 @@ async def _continue_pipeline(
                 state.story_name,
                 story_prompt,
                 settings,
+                base_context=_foundation_base_context,
+                story_elements=_foundation_story_elements,
             )
             if state.status == "rejected":
                 return state

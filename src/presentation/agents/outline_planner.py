@@ -16,12 +16,31 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
+from tools._io import STORIES_DIR, _validate_story_name
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
     models = config.get("models", {})
     model_name = models.get(role, default)
     return ModelConfig.from_string(model_name)
+
+
+def _build_outline_pacing_variables(desired_chapters: int) -> dict[str, str]:
+    early_chapters = max(1, int(desired_chapters * 0.25))
+    rising_start = early_chapters + 1
+    rising_end = max(rising_start, int(desired_chapters * 0.75))
+    climax_start = max(rising_end + 1, int(desired_chapters * 0.75) + 1)
+    climax_end = max(climax_start, int(desired_chapters * 0.90))
+    resolution_start = climax_end + 1
+    return {
+        "desired_chapters": str(desired_chapters),
+        "early_chapters": str(early_chapters),
+        "rising_start": str(rising_start),
+        "rising_end": str(rising_end),
+        "climax_start": str(climax_start),
+        "climax_end": str(climax_end),
+        "resolution_start": str(resolution_start),
+    }
 
 
 def _parse_chapter_outlines(text: str, wanted_chapters: int) -> list[dict[str, Any]]:
@@ -141,12 +160,44 @@ class OutlinePlannerAgent:
         self.wiki_bus = wiki_bus
         self._loader = PromptLoader(prompts_dir="prompts")
 
+    async def _stream_prompt(
+        self,
+        system_prompt: str,
+        user_message: str,
+        settings: GenerationSettings,
+    ) -> str:
+        model_config = _build_model_config(
+            self.config,
+            "initial_outline_writer",
+            "openai-compat://default",
+        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+
+        full_text = ""
+        stream = cast(
+            AsyncIterator[str],
+            self.provider.stream_text(
+                messages,
+                model_config,
+                seed=settings.seed,
+            ),
+        )
+        async for token in stream:
+            await self.bus.emit(token)
+            full_text += token
+        return full_text
+
     async def run(
         self,
         story_name: str,
         story_prompt: str,
         settings: GenerationSettings,
         feedback: str | None = None,
+        base_context: str = "",
+        story_elements: str = "",
     ) -> OutlineResult:
         """Generate outline for the story.
 
@@ -166,59 +217,116 @@ class OutlinePlannerAgent:
         )
 
         desired_chapters = settings.wanted_chapters
-        early_chapters = max(1, int(desired_chapters * 0.25))
-        rising_start = early_chapters + 1
-        rising_end = max(rising_start, int(desired_chapters * 0.75))
-        climax_start = max(rising_end + 1, int(desired_chapters * 0.75) + 1)
-        climax_end = max(climax_start, int(desired_chapters * 0.90))
-        resolution_start = climax_end + 1
+        pacing_variables = _build_outline_pacing_variables(desired_chapters)
 
         loader = self._loader
-        system_prompt = loader.load_prompt(
-            "outline/create_direct",
+        if not settings.expand_outline:
+            system_prompt = loader.load_prompt(
+                "outline/create_direct",
+                variables={
+                    "prompt": prompt,
+                    "story_elements": story_elements,
+                    "base_context": base_context,
+                    **pacing_variables,
+                },
+            )
+            full_text = await self._stream_prompt(
+                system_prompt,
+                "Please generate the complete outline.",
+                settings,
+            )
+            chapter_outlines = _parse_chapter_outlines(
+                full_text, settings.wanted_chapters
+            )
+            return OutlineResult(
+                story_name=story_name,
+                chapter_outlines=chapter_outlines,
+                summary=full_text,
+                genre=_extract_genre(full_text),
+                themes=_extract_themes(full_text),
+                base_context=base_context,
+                story_elements=story_elements,
+            )
+
+        story_dir = _validate_story_name(story_name, STORIES_DIR)
+        outline_dir = story_dir / "outline"
+        outline_dir.mkdir(parents=True, exist_ok=True)
+
+        skeleton_prompt = loader.load_prompt(
+            "outline/create_skeleton",
             variables={
                 "prompt": prompt,
-                "desired_chapters": str(desired_chapters),
-                "story_elements": "",
-                "base_context": "",
-                "early_chapters": str(early_chapters),
-                "rising_start": str(rising_start),
-                "rising_end": str(rising_end),
-                "climax_start": str(climax_start),
-                "climax_end": str(climax_end),
-                "resolution_start": str(resolution_start),
+                "story_elements": story_elements,
+                "base_context": base_context,
+                **pacing_variables,
             },
         )
-
-        model_config = _build_model_config(
-            self.config,
-            "initial_outline_writer",
-            "openai-compat://default",
+        skeleton_text = await self._stream_prompt(
+            skeleton_prompt,
+            "Please generate the complete outline.",
+            settings,
         )
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": "Please generate the complete outline."},
-        ]
+        (outline_dir / "skeleton.md").write_text(skeleton_text, encoding="utf-8")
 
-        full_text = ""
-        stream = cast(
-            AsyncIterator[str],
-            self.provider.stream_text(
-                messages,
-                model_config,
-                seed=settings.seed,
-            ),
+        chapter_outlines = _parse_chapter_outlines(
+            skeleton_text, settings.wanted_chapters
         )
-        async for token in stream:
-            await self.bus.emit(token)
-            full_text += token
+        chapter_skeletons = list(chapter_outlines)
 
-        chapter_outlines = _parse_chapter_outlines(full_text, settings.wanted_chapters)
+        details_dir = outline_dir / "details"
+        details_dir.mkdir(parents=True, exist_ok=True)
+        chapter_details: list[dict[str, Any]] = []
+
+        for chapter_number in range(1, settings.wanted_chapters + 1):
+            detail_file = details_dir / f"chapter_{chapter_number}.md"
+            if detail_file.exists():
+                detail_text = detail_file.read_text(encoding="utf-8")
+                chapter_details.append(
+                    {"chapter_number": chapter_number, "detail": detail_text}
+                )
+                continue
+
+            previous_detail = chapter_details[-1]["detail"] if chapter_details else ""
+            detail_prompt = loader.load_prompt(
+                "outline/expand_chapter_detail",
+                variables={
+                    "story_elements": story_elements,
+                    "base_context": base_context,
+                    "previous_chunks": skeleton_text,
+                    "continuity_summary": previous_detail,
+                    "chunk_start": str(chapter_number),
+                    "total_chapters": str(settings.wanted_chapters),
+                },
+            )
+            detail_text = await self._stream_prompt(
+                detail_prompt,
+                f"Please expand chapter {chapter_number}.",
+                settings,
+            )
+            detail_file.write_text(detail_text, encoding="utf-8")
+            chapter_details.append(
+                {"chapter_number": chapter_number, "detail": detail_text}
+            )
+
+        strip_prompt = loader.load_prompt(
+            "outline/strip_elements",
+            variables={"story_elements": skeleton_text},
+        )
+        stripped_text = await self._stream_prompt(
+            strip_prompt,
+            "Please strip the outline elements.",
+            settings,
+        )
 
         return OutlineResult(
             story_name=story_name,
             chapter_outlines=chapter_outlines,
-            summary=full_text,
-            genre=_extract_genre(full_text),
-            themes=_extract_themes(full_text),
+            summary=skeleton_text,
+            genre=_extract_genre(skeleton_text),
+            themes=_extract_themes(skeleton_text),
+            base_context=base_context,
+            story_elements=story_elements,
+            chapter_skeletons=chapter_skeletons,
+            chapter_details=chapter_details,
+            enrichment_suggestions=stripped_text,
         )

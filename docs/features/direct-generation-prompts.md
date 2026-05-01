@@ -6,7 +6,7 @@
 
 The Python-native story generation pipeline previously loaded agent workflow prompts (`prompts/agents/*.md`) directly into LLM system messages. Those files were written for OpenCode and Copilot agent runtimes — they contain tool names, phase instructions, and savepoint logic. Without a tool executor, the LLM role-played the workflow and output step-by-step narration instead of creative content.
 
-Issue #276 / PR #280 fixes this by creating five direct-generation prompts that instruct the LLM to produce creative output directly — outlines, prose, edits, and structured analysis — with no tool-calling language. Agents now load these prompts via `PromptLoader` (from `src/infrastructure/prompts/prompt_loader.py`), which supports `{variable}` substitution for dynamic context injection at runtime. Agents send minimal user messages and place all creative instruction in the system prompt, eliminating any ambiguity about the LLM's role.
+Issue #276 / PR #280 fixes this by introducing direct-generation prompts that instruct the LLM to produce creative output directly — outlines, prose, edits, and structured analysis — with no tool-calling language. Agents now load these prompts via `PromptLoader` (from `src/infrastructure/prompts/prompt_loader.py`), which supports `{variable}` substitution for dynamic context injection at runtime. Agents send minimal user messages and place all creative instruction in the system prompt, eliminating any ambiguity about the LLM's role.
 
 ## Two Prompt Paradigms
 
@@ -23,7 +23,10 @@ The repository now maintains two distinct prompt categories:
 
 | Prompt File | Purpose | Loaded By | Output |
 |---|---|---|---|
-| `prompts/outline/create_direct.md` | Chapter-by-chapter outline generation with act-structure guidance | `OutlinePlannerAgent` | Narrative outline (chapter titles + summaries) |
+| `prompts/outline/create_skeleton.md` | High-level outline skeleton generation with pacing-variable guidance | `OutlinePlannerAgent` | Skeleton outline text plus parseable chapter skeletons |
+| `prompts/outline/expand_chapter_detail.md` | Expand one chapter from the skeleton into a detailed beat block | `OutlinePlannerAgent` | Per-chapter outline detail written to disk and returned in `OutlineResult.chapter_details` |
+| `prompts/outline/strip_elements.md` | Strip scaffold elements from the skeleton for downstream enrichment notes | `OutlinePlannerAgent` | Outline cleanup text stored in `OutlineResult.enrichment_suggestions` |
+| `prompts/outline/create_direct.md` | Fallback single-call outline generation when outline expansion is disabled | `OutlinePlannerAgent` | Narrative outline (chapter titles + summaries) |
 | `prompts/outline/arc_assessment_direct.md` | Qualitative dramatic arc assessment (tension, promise/payoff, pacing) | `StoryPlannerAgent` | Structured prose assessment with verdict |
 | `prompts/chapters/write_chapter_direct.md` | Full chapter prose generation with character/setting context | `ChapterWriterAgent` | Chapter prose (~3000–5000 words) |
 | `prompts/final_edit/edit_chapter_direct.md` | Chapter-level prose polish (voice, pacing, dialogue) | `FinalEditorAgent` | Polished chapter prose |
@@ -59,20 +62,26 @@ system_prompt = loader.load_prompt(
 
 ## Agent Integration
 
-Each of the five direct-generation prompts is loaded by a specific Python-native agent in `src/presentation/agents/`. The agents compute runtime variables and inject them into the system prompt via `PromptLoader.load_prompt()`. Every agent sends a minimal user message (e.g., "Write the chapter now.") while placing all creative instruction in the system prompt.
+Each active direct-generation prompt is loaded by a specific Python-native agent in `src/presentation/agents/`. The agents compute runtime variables and inject them into the system prompt via `PromptLoader.load_prompt()`. Every agent sends a minimal user message (e.g., "Write the chapter now.") while placing all creative instruction in the system prompt.
 
 ### OutlinePlannerAgent
 
 `src/presentation/agents/outline_planner.py`
 
-- **Loads:** `outline/create_direct.md`
+- **Loads when `expand_outline=true`:** `outline/create_skeleton.md`, then `outline/expand_chapter_detail.md` once per chapter, then `outline/strip_elements.md`
+- **Loads when `expand_outline=false`:** `outline/create_direct.md`
 - **Computed variables:**
   - `prompt` — the story prompt, optionally appended with revision feedback
   - `desired_chapters` — from `GenerationSettings.wanted_chapters`
   - `early_chapters`, `rising_start`, `rising_end`, `climax_start`, `climax_end`, `resolution_start` — act-boundary values derived mathematically from `wanted_chapters`
-  - `story_elements`, `base_context` — currently empty strings (reserved for future use)
-- **User message:** `{"role": "user", "content": "Please generate the complete outline."}`
-- **Output parsing:** The LLM response is parsed by `_parse_chapter_outlines()` into a list of chapter dicts (JSON, semi-structured lines, or fallback summary). Genre and themes are also extracted from the response.
+  - `story_elements`, `base_context` — story-foundation outputs forwarded by the orchestrator into both outline modes
+  - `previous_chunks`, `continuity_summary`, `chunk_start`, `total_chapters` — per-chapter expansion variables for `expand_chapter_detail`
+- **User messages:**
+  - Skeleton stage: `{"role": "user", "content": "Please generate the complete outline."}`
+  - Detail stage: `{"role": "user", "content": "Please expand chapter N."}`
+  - Strip stage: `{"role": "user", "content": "Please strip the outline elements."}`
+- **Persistence:** Writes `stories/<story>/outline/skeleton.md` plus `stories/<story>/outline/details/chapter_{N}.md`. Existing detail files are reused so resumed runs skip already-expanded chapters.
+- **Output parsing:** The skeleton or direct output is parsed by `_parse_chapter_outlines()` into chapter dicts. The returned `OutlineResult` now carries `chapter_skeletons`, `chapter_details`, and `enrichment_suggestions` in addition to the summary, genre, and themes.
 
 ### StoryPlannerAgent
 
