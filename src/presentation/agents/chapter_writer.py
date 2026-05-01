@@ -212,12 +212,14 @@ class ChapterWriterAgent:
                     continue
 
                 name = data.get("name", sheet_path.stem)
-                summary = data.get("summary") or ""
-                if not summary:
-                    sheet_text = data.get("sheet", "")
-                    summary = sheet_text[:300].strip() if sheet_text else ""
-                if summary:
-                    target_list.append(f"- {name}: {summary}")
+                sheet_text = data.get("sheet", "")
+                context_text = (
+                    data.get("abridged")
+                    or data.get("summary")
+                    or (sheet_text[:300].strip() if sheet_text else "")
+                )
+                if context_text:
+                    target_list.append(f"- {name}: {context_text}")
 
         base_context_parts: list[str] = []
         if character_context_parts:

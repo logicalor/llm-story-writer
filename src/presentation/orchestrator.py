@@ -27,10 +27,12 @@ from domain.exceptions import StoryGenerationError
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
+from presentation.agents.character_evolver import CharacterEvolverAgent
 from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.agents.consistency_checker import ConsistencyCheckerAgent
 from presentation.agents.final_editor import FinalEditorAgent
 from presentation.agents.outline_planner import OutlinePlannerAgent
+from presentation.agents.setting_evolver import SettingEvolverAgent
 from presentation.agents.story_foundation import StoryFoundationAgent
 from presentation.agents.story_planner import StoryPlannerAgent
 from presentation.agents.wiki_maintainer import WikiMaintainerAgent
@@ -258,6 +260,15 @@ async def _generate_character_sheets(
     characters_dir = stories_dir / story_name / "characters"
     characters_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
+    chunk_prompts = {
+        "backstory": "characters/create_background_chunk",
+        "personality": "characters/create_personality_chunk",
+        "motivation": "characters/create_motivations_chunk",
+        "relationships": "characters/create_relationships_chunk",
+        "skills": "characters/create_skills_chunk",
+        "arc": "characters/create_growth_arc_chunk",
+        "current_state": "characters/create_current_state_chunk",
+    }
 
     for character_name in names:
         if not character_name.strip():
@@ -283,10 +294,63 @@ async def _generate_character_sheets(
             "sheet": sheet_text,
             "chunks": {},
             "summary": "",
+            "abridged": "",
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         char_path = characters_dir / f"{slug}.json"
         _atomic_write(char_path, json.dumps(sheet_data, indent=2, ensure_ascii=False))
+
+        try:
+            sheet_json_text = char_path.read_text(encoding="utf-8")
+            chunk_results: dict[str, str] = {}
+            for chunk_key, prompt_name in chunk_prompts.items():
+                chunk_prompt = loader.load_prompt(
+                    prompt_name,
+                    {"character_name": character_name},
+                )
+                chunk_results[chunk_key] = await provider.generate_text(
+                    [{"role": "user", "content": chunk_prompt}],
+                    model_config,
+                )
+
+            abridged_prompt = loader.load_prompt(
+                "characters/create_abridged",
+                {
+                    "story_elements": outline_result.story_elements,
+                    "character_name": character_name,
+                },
+            )
+            abridged_text = await provider.generate_text(
+                [{"role": "user", "content": abridged_prompt}],
+                model_config,
+            )
+
+            summary_prompt = loader.load_prompt(
+                "characters/create_summary",
+                {
+                    "character_name": character_name,
+                    "character_info": sheet_json_text,
+                },
+            )
+            summary_text = await provider.generate_text(
+                [{"role": "user", "content": summary_prompt}],
+                model_config,
+            )
+
+            enriched_data = json.loads(sheet_json_text)
+            if not isinstance(enriched_data, dict):
+                enriched_data = sheet_data.copy()
+            enriched_data["chunks"] = chunk_results
+            enriched_data["abridged"] = abridged_text
+            enriched_data["summary"] = summary_text
+            enriched_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+            _atomic_write(
+                char_path,
+                json.dumps(enriched_data, indent=2, ensure_ascii=False),
+            )
+        except Exception:
+            pass
+
         written.append(char_path)
 
     return written
@@ -320,6 +384,14 @@ async def _generate_setting_sheets(
     settings_dir = stories_dir / story_name / "settings"
     settings_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
+    chunk_prompts = {
+        "physical_description": "settings/create_physical_description_chunk",
+        "atmosphere_mood": "settings/create_atmosphere_mood_chunk",
+        "function_purpose": "settings/create_function_purpose_chunk",
+        "history_background": "settings/create_history_background_chunk",
+        "connections_relationships": "settings/create_connections_relationships_chunk",
+        "rules_constraints": "settings/create_rules_constraints_chunk",
+    }
 
     for setting_name in names:
         if not setting_name.strip():
@@ -345,6 +417,7 @@ async def _generate_setting_sheets(
             "sheet": sheet_text,
             "chunks": {},
             "summary": "",
+            "abridged": "",
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         setting_path = settings_dir / f"{slug}.json"
@@ -352,6 +425,58 @@ async def _generate_setting_sheets(
             setting_path,
             json.dumps(sheet_data, indent=2, ensure_ascii=False),
         )
+
+        try:
+            sheet_json_text = setting_path.read_text(encoding="utf-8")
+            chunk_results: dict[str, str] = {}
+            for chunk_key, prompt_name in chunk_prompts.items():
+                chunk_prompt = loader.load_prompt(
+                    prompt_name,
+                    {"setting_name": setting_name},
+                )
+                chunk_results[chunk_key] = await provider.generate_text(
+                    [{"role": "user", "content": chunk_prompt}],
+                    model_config,
+                )
+
+            abridged_prompt = loader.load_prompt(
+                "settings/create_abridged",
+                {
+                    "story_elements": outline_result.story_elements,
+                    "setting_name": setting_name,
+                },
+            )
+            abridged_text = await provider.generate_text(
+                [{"role": "user", "content": abridged_prompt}],
+                model_config,
+            )
+
+            summary_prompt = loader.load_prompt(
+                "settings/create_summary",
+                {
+                    "setting_name": setting_name,
+                    "setting_info": sheet_json_text,
+                },
+            )
+            summary_text = await provider.generate_text(
+                [{"role": "user", "content": summary_prompt}],
+                model_config,
+            )
+
+            enriched_data = json.loads(sheet_json_text)
+            if not isinstance(enriched_data, dict):
+                enriched_data = sheet_data.copy()
+            enriched_data["chunks"] = chunk_results
+            enriched_data["abridged"] = abridged_text
+            enriched_data["summary"] = summary_text
+            enriched_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+            _atomic_write(
+                setting_path,
+                json.dumps(enriched_data, indent=2, ensure_ascii=False),
+            )
+        except Exception:
+            pass
+
         written.append(setting_path)
 
     return written
@@ -568,6 +693,12 @@ async def _continue_pipeline(
             chapter_agent = ChapterWriterAgent(
                 resolved_provider, resolved_config, bus, wiki_bus
             )
+            char_evolver = CharacterEvolverAgent(
+                resolved_provider, resolved_config, bus, wiki_bus
+            )
+            setting_evolver = SettingEvolverAgent(
+                resolved_provider, resolved_config, bus, wiki_bus
+            )
             wiki_agent = WikiMaintainerAgent(
                 resolved_provider, resolved_config, bus, wiki_bus
             )
@@ -629,6 +760,30 @@ async def _continue_pipeline(
                     # savepoint and continue so the run can complete.
                     await bus.emit(
                         f"\n[Wiki] chapter {chapter_number} wiki update skipped "
+                        f"({type(exc).__name__}: {exc})\n"
+                    )
+                try:
+                    char_changes = await char_evolver.run(
+                        state.story_name,
+                        draft,
+                        chapter_number,
+                        settings,
+                    )
+                    setting_changes = await setting_evolver.run(
+                        state.story_name,
+                        draft,
+                        chapter_number,
+                        settings,
+                    )
+                    if char_changes or setting_changes:
+                        state.evolved_sheets[str(chapter_number)] = {
+                            "characters": char_changes,
+                            "settings": setting_changes,
+                        }
+                        await _write_savepoint(state)
+                except Exception as exc:
+                    await bus.emit(
+                        f"\n[Sheet Evolution] chapter {chapter_number} skipped "
                         f"({type(exc).__name__}: {exc})\n"
                     )
                 # Recap generation is advisory; failure must not block the loop
