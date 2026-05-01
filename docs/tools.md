@@ -100,6 +100,8 @@ Characters and settings files are generated from prompt templates in `prompts/ch
 
 `ChapterWriterAgent` reads both directories opportunistically. It prefers each sheet's stored `summary`; if that field is empty, it falls back to the first 300 characters of the `sheet` body. Missing directories, malformed JSON files, or individual read failures are skipped instead of aborting chapter generation.
 
+`src/tools/wiki_extract.py` now exposes two programmatic entry points used by the runtime. `bootstrap_wiki_from_story(story_name, *, model=None)` seeds the wiki from the approved outline savepoint plus character and setting JSON sheets, deduplicates extracted entities, skips already-existing slugs for idempotent upsert behavior, applies the batch through `run_batch()`, and returns `{created, skipped, entity_counts}`. `update_wiki_from_chapter(story_name, chapter_number, chapter_text, *, model=None)` handles the later incremental chapter updates.
+
 `WikiMaintainerAgent` now uses `src/tools/wiki_extract.py` directly for post-chapter updates. The programmatic `update_wiki_from_chapter(story_name, chapter_number, chapter_text, *, model=None)` entry point runs the `wiki/extract_from_chapter` prompt, matches existing entities from the wiki index, generates detail levels for newly created pages, applies the batch through `run_batch()`, and returns both summary counts and the concrete created or updated slug lists. That keeps wiki persistence inside one Python boundary and gives the orchestrator a typed result instead of free-form model text.
 
 ## CLI Entry Points

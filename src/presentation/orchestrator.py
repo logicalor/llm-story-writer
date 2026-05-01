@@ -7,6 +7,7 @@ both TUI and headless operation without code changes.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -41,6 +42,7 @@ from presentation.pipeline_primitives import (
     WikiContextEvent,
 )
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
+from tools.wiki_extract import bootstrap_wiki_from_story
 from tools.wiki_init import _init_wiki_for_story
 
 
@@ -521,6 +523,29 @@ async def _continue_pipeline(
                 f"Wiki initialization failed for story '{state.story_name}': "
                 f"{wiki_init_result['error']}"
             )
+
+        if "wiki-bootstrap" not in state.completed_phases:
+            state.current_phase = "wiki-bootstrap"
+            models = resolved_config.get("models", {})
+            wiki_model: str | None = models.get("chapter_writer")
+            await bus.emit(
+                "\n[Wiki Bootstrap] Seeding wiki from outline and sheets...\n"
+            )
+            try:
+                bootstrap_summary = await asyncio.to_thread(
+                    bootstrap_wiki_from_story,
+                    state.story_name,
+                    model=wiki_model,
+                )
+                await bus.emit(
+                    f"[Wiki Bootstrap] Created {bootstrap_summary['created']} pages"
+                    f", skipped {bootstrap_summary['skipped']} existing.\n"
+                )
+            except Exception as exc:
+                await bus.emit(
+                    f"[Wiki Bootstrap] bootstrap skipped ({type(exc).__name__}: {exc})\n"
+                )
+            await _mark_phase_complete(state, "wiki-bootstrap", "wiki_populated")
 
         outline_result = state.outline_result
         if outline_result is None:

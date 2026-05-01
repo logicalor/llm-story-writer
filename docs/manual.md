@@ -539,15 +539,16 @@ The story generation pipeline is divided into primary phases. Each phase writes 
 
 **Approximate duration:** < 1 second
 
-### Phase 7: Wiki Population (⏳ not yet wired)
+### Phase 7: Wiki Bootstrap
 
-> **Not yet implemented in the active orchestrator.** Wiki directory is initialised in Phase 4, but the full initial-populate pass from outline + character/setting sheets is not wired.
+Runs immediately after wiki initialization and before the chapter loop.
 
-When implemented, this phase will:
-- Populate wiki with entity pages from the outline and character/setting sheets
-- Create pages for characters, locations, events, factions, items, plot threads, world rules, themes, relationships, and timeline
-- Generate L1/L2/L3 detail levels per page
-- Establish wikilinks between related entities
+What this phase does:
+- Calls `bootstrap_wiki_from_story()` in `src/tools/wiki_extract.py`
+- Loads the approved outline savepoint plus character and setting JSON sheets
+- Extracts and deduplicates entities, then skips already-existing slugs for idempotent reruns
+- Applies the initial wiki batch and records created/skipped counts
+- Continues the pipeline even if bootstrap fails; the exception is logged but the chapter loop still runs
 
 **Savepoint:** `wiki_populated`
 
@@ -1006,8 +1007,11 @@ Phase 6: Wiki Initialization
   → Creates subdirectories, index, log, and schema template if missing
   → Safe to rerun on resume; skips creation if wiki already present
 
-Phase 7: Wiki Population ⏳
-  → Not yet wired in active orchestrator
+Phase 7: Wiki Bootstrap
+  → Call `bootstrap_wiki_from_story()` after wiki init and before chapter generation
+  → Seed wiki pages from the outline savepoint plus character and setting sheets
+  → Skip existing slugs so resume and rerun stay idempotent
+  → Mark `wiki_populated` even if bootstrap raises, then continue pipeline
 
 Phase 8: Chapter Loop
   → Generate approved chapters one at a time, then run wiki maintenance and consistency checks
@@ -1019,7 +1023,7 @@ Phase 10: Assembly
   → Write the final manuscript and mark the run complete
 ```
 
-Current implementation note: the PRD's initial wiki population pass, chapter-outline-expander, quality-reviewer, and prose-scrubber are not yet wired into `src/presentation/orchestrator.py`. Wiki directory initialization is now handled idempotently before the chapter loop.
+Current implementation note: the PRD's chapter-outline-expander, quality-reviewer, and prose-scrubber are not yet wired into `src/presentation/orchestrator.py`. Wiki directory initialization and the initial wiki bootstrap now run before the chapter loop.
 
 ---
 
@@ -1181,7 +1185,7 @@ Wiki pages support three hierarchical summary levels:
 
 ### 11.5 Wiki Update Lifecycle
 
-1. **Initial population** (Phase 6, ⏳ not yet wired): `wiki-extract` reads the outline plus character and setting sheets, creates the first wiki page set, and writes retrieval-ready L1/L2/L3 detail levels
+1. **Initial bootstrap** (Phase 7, before Chapter 1): `bootstrap_wiki_from_story()` reads the approved outline savepoint plus character and setting sheets, creates the first wiki page set, and writes retrieval-ready L1/L2/L3 detail levels
 2. **Post-chapter persistence** (after each accepted chapter): `wiki-maintainer` calls `update_wiki_from_chapter()`, the `wiki/extract_from_chapter` prompt returns structured JSON, and `run_batch()` persists new pages, state changes, aliases, and timeline events under `stories/<name>/wiki/`
 3. **Chapter-level lint** (after each chapter): `wiki-lint` checks consistency against the ConStory-Bench error taxonomy
 4. **Pre-generation snapshot** (before each scene): `wiki-snapshot` assembles a token-budgeted world state snapshot from the current wiki
