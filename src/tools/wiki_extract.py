@@ -20,6 +20,7 @@ from infrastructure.prompts.prompt_loader import PromptLoader  # noqa: E402
 from tools import _llm  # noqa: E402
 from tools._io import _atomic_write, _validate_story_name  # noqa: E402
 from tools._wiki import (  # noqa: E402
+    find_pages,
     get_wiki_dir,
     parse_frontmatter,
     slugify,
@@ -30,7 +31,7 @@ from tools._wiki_api import (  # noqa: E402
 )
 from tools.wiki_update import run_batch  # noqa: E402
 
-__all__ = ["update_wiki_from_chapter"]
+__all__ = ["bootstrap_wiki_from_story", "update_wiki_from_chapter"]
 
 
 def _load_outline_savepoint(story_dir: Path) -> str:
@@ -580,6 +581,90 @@ def _build_payload_from_entities(
         )
         creates.append(_build_create_entry(entity, detail_levels))
     return {"creates": creates, "updates": [], "timeline_events": []}
+
+
+def bootstrap_wiki_from_story(
+    story_name: str,
+    *,
+    model: str | None = None,
+) -> dict[str, Any]:
+    """Seed the wiki from the approved outline and character/setting sheets.
+
+    Idempotent: pages whose slugs already exist are skipped.
+    Returns a summary dict: {created, skipped, entity_counts}.
+    """
+    story_dir = _validate_story_name(story_name)
+    cache = _load_extract_cache(story_dir)
+
+    outline_text = _load_outline_savepoint(story_dir)
+    if not outline_text.strip():
+        return {"created": 0, "skipped": 0, "entity_counts": {}}
+
+    entities: list[dict[str, Any]] = []
+    entities.extend(
+        _extract_outline_entities(
+            outline_text,
+            story_name=story_name,
+            model=model,
+            cache=cache,
+            story_dir=story_dir,
+        )
+    )
+
+    for sheet in _read_sheet_files(story_dir / "characters"):
+        entities.extend(
+            _extract_sheet_entities(
+                sheet_text=sheet["sheet_text"],
+                sheet_type="character",
+                entity_name=sheet["name"],
+                model=model,
+                sheet_path=sheet["path"],
+                cache=cache,
+                story_dir=story_dir,
+            )
+        )
+
+    for sheet in _read_sheet_files(story_dir / "settings"):
+        entities.extend(
+            _extract_sheet_entities(
+                sheet_text=sheet["sheet_text"],
+                sheet_type="setting",
+                entity_name=sheet["name"],
+                model=model,
+                sheet_path=sheet["path"],
+                cache=cache,
+                story_dir=story_dir,
+            )
+        )
+
+    deduped = _deduplicate_entities(entities)
+    payload = _build_payload_from_entities(
+        deduped,
+        model=model,
+        cache=cache,
+        story_dir=story_dir,
+    )
+
+    wiki_dir = get_wiki_dir(story_dir)
+    new_creates = [
+        entry
+        for entry in payload["creates"]
+        if not find_pages(wiki_dir, slug=entry["slug"])
+    ]
+    skipped = len(payload["creates"]) - len(new_creates)
+    payload["creates"] = new_creates
+
+    if not new_creates:
+        _delete_extract_cache(story_dir)
+        return {"created": 0, "skipped": skipped, "entity_counts": {}}
+
+    summary = run_batch(story_name, payload)
+    _delete_extract_cache(story_dir)
+    return {
+        "created": summary.get("created", 0),
+        "skipped": skipped,
+        "entity_counts": summary.get("entity_counts", {}),
+    }
 
 
 def cmd_initial_populate(args: argparse.Namespace) -> None:
