@@ -30,6 +30,7 @@ from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.agents.consistency_checker import ConsistencyCheckerAgent
 from presentation.agents.final_editor import FinalEditorAgent
 from presentation.agents.outline_planner import OutlinePlannerAgent
+from presentation.agents.story_foundation import StoryFoundationAgent
 from presentation.agents.story_planner import StoryPlannerAgent
 from presentation.agents.wiki_maintainer import WikiMaintainerAgent
 from presentation.pipeline_primitives import (
@@ -350,6 +351,20 @@ async def _generate_setting_sheets(
     return written
 
 
+async def _run_story_foundation(
+    story_name: str,
+    story_prompt: str,
+    provider: ModelProvider,
+    config: dict[str, Any],
+    bus: TokenStreamBus,
+    wiki_bus: WikiContextBus,
+    settings: GenerationSettings,
+) -> OutlineResult:
+    """Run the Story Foundation phase to extract base_context, story_start_date, story_elements."""
+    agent = StoryFoundationAgent(provider, config, bus, wiki_bus)
+    return await agent.run(story_name, story_prompt, settings)
+
+
 async def _continue_pipeline(
     state: PipelineState,
     gate: ApprovalGate,
@@ -367,16 +382,62 @@ async def _continue_pipeline(
     story_prompt = _load_story_prompt(state.story_name)
 
     try:
+        if "story-foundation" not in state.completed_phases:
+            state.current_phase = "story-foundation"
+            foundation_result = await _run_story_foundation(
+                state.story_name,
+                story_prompt,
+                resolved_provider,
+                resolved_config,
+                bus,
+                wiki_bus,
+                settings,
+            )
+            if state.outline_result is None:
+                state.outline_result = foundation_result
+            else:
+                state.outline_result.base_context = foundation_result.base_context
+                state.outline_result.story_start_date = (
+                    foundation_result.story_start_date
+                )
+                state.outline_result.story_elements = foundation_result.story_elements
+            await _mark_phase_complete(
+                state,
+                "story-foundation",
+                "story_foundation_complete",
+            )
+
         if "outline" not in state.completed_phases:
             state.current_phase = "outline"
             outline_agent = OutlinePlannerAgent(
                 resolved_provider, resolved_config, bus, wiki_bus
+            )
+            _foundation_base_context = (
+                state.outline_result.base_context
+                if state.outline_result is not None
+                else ""
+            )
+            _foundation_story_start_date = (
+                state.outline_result.story_start_date
+                if state.outline_result is not None
+                else ""
+            )
+            _foundation_story_elements = (
+                state.outline_result.story_elements
+                if state.outline_result is not None
+                else ""
             )
             state.outline_result = await outline_agent.run(
                 state.story_name,
                 story_prompt,
                 settings,
             )
+            if not state.outline_result.base_context:
+                state.outline_result.base_context = _foundation_base_context
+            if not state.outline_result.story_start_date:
+                state.outline_result.story_start_date = _foundation_story_start_date
+            if not state.outline_result.story_elements:
+                state.outline_result.story_elements = _foundation_story_elements
             # Persist generated outline before approval so a crash mid-gate
             # preserves it. The phase is only marked complete on approval.
             state.savepoint_id = "outline"

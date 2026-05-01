@@ -25,6 +25,14 @@ class OutlineResult:
     summary: str
     genre: str
     themes: list[str]
+    base_context: str = ""
+    story_start_date: str = ""
+    story_elements: str = ""
+    chapter_skeletons: list[dict[str, Any]] = field(default_factory=list)
+    chapter_details: list[dict[str, Any]] = field(default_factory=list)
+    enrichment_suggestions: str = ""
+    title: str = ""
+    tags: list[str] = field(default_factory=list)
     savepoint_id: str | None = None
 
 
@@ -41,6 +49,11 @@ class ChapterDraft:
     title: str
     content: str
     word_count: int
+    synopsis: str = ""
+    scene_definitions: list[dict[str, Any]] = field(default_factory=list)
+    recap: dict[str, Any] = field(default_factory=dict)
+    consistency_findings: list[dict[str, Any]] = field(default_factory=list)
+    critic_findings: list[dict[str, Any]] = field(default_factory=list)
     savepoint_id: str | None = None
 
 
@@ -121,6 +134,9 @@ class PipelineState:
     batch_mode: bool = False
     savepoint_id: str | None = None
     savepoints: list[str] = field(default_factory=list)
+    critic_summary: str = ""
+    recaps: dict[str, Any] = field(default_factory=dict)
+    evolved_sheets: dict[str, Any] = field(default_factory=dict)
     status: str = "running"
 
     def to_dict(self) -> dict[str, Any]:
@@ -131,9 +147,40 @@ class PipelineState:
     def from_dict(cls, data: dict[str, Any]) -> PipelineState:
         """Reconstruct a PipelineState from a previously serialised dict."""
         outline_data = data.get("outline_result")
-        outline = OutlineResult(**outline_data) if outline_data is not None else None
+        if outline_data is not None:
+            outline = OutlineResult(
+                story_name=outline_data["story_name"],
+                chapter_outlines=outline_data.get("chapter_outlines", []),
+                summary=outline_data.get("summary", ""),
+                genre=outline_data.get("genre", ""),
+                themes=outline_data.get("themes", []),
+                base_context=outline_data.get("base_context", ""),
+                story_start_date=outline_data.get("story_start_date", ""),
+                story_elements=outline_data.get("story_elements", ""),
+                chapter_skeletons=outline_data.get("chapter_skeletons", []),
+                chapter_details=outline_data.get("chapter_details", []),
+                enrichment_suggestions=outline_data.get("enrichment_suggestions", ""),
+                title=outline_data.get("title", ""),
+                tags=outline_data.get("tags", []),
+                savepoint_id=outline_data.get("savepoint_id"),
+            )
+        else:
+            outline = None
         approved_chapters = [
-            ChapterDraft(**ch) for ch in data.get("approved_chapters", [])
+            ChapterDraft(
+                story_name=ch["story_name"],
+                chapter_number=ch["chapter_number"],
+                title=ch["title"],
+                content=ch["content"],
+                word_count=ch["word_count"],
+                synopsis=ch.get("synopsis", ""),
+                scene_definitions=ch.get("scene_definitions", []),
+                recap=ch.get("recap", {}),
+                consistency_findings=ch.get("consistency_findings", []),
+                critic_findings=ch.get("critic_findings", []),
+                savepoint_id=ch.get("savepoint_id"),
+            )
+            for ch in data.get("approved_chapters", [])
         ]
         wiki_batches = [WikiUpdateBatch(**wb) for wb in data.get("wiki_batches", [])]
         arc_data = data.get("arc_result")
@@ -149,6 +196,9 @@ class PipelineState:
             batch_mode=data.get("batch_mode", False),
             savepoint_id=data.get("savepoint_id"),
             savepoints=data.get("savepoints", []),
+            critic_summary=data.get("critic_summary", ""),
+            recaps=data.get("recaps", {}),
+            evolved_sheets=data.get("evolved_sheets", {}),
             status=data.get("status", "running"),
         )
 

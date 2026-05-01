@@ -176,6 +176,7 @@ async def test_wiki_update_failure_does_not_abort_chapter_loop(
         ),
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
         patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.StoryFoundationAgent") as foundation_cls,
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
@@ -189,6 +190,7 @@ async def test_wiki_update_failure_does_not_abort_chapter_loop(
             new=AsyncMock(return_value=[]),
         ),
     ):
+        foundation_cls.return_value.run = AsyncMock(return_value=_outline_result())
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(
@@ -277,6 +279,7 @@ async def test_assembly_writes_output_story_md(tmp_path: Path) -> None:
         ),
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
         patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.StoryFoundationAgent") as foundation_cls,
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
@@ -290,6 +293,7 @@ async def test_assembly_writes_output_story_md(tmp_path: Path) -> None:
             new=AsyncMock(return_value=[]),
         ),
     ):
+        foundation_cls.return_value.run = AsyncMock(return_value=_outline_result())
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
@@ -803,6 +807,7 @@ async def test_characters_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
         ),
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
         patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.StoryFoundationAgent") as foundation_cls,
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
@@ -812,6 +817,7 @@ async def test_characters_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
             new=AsyncMock(return_value=[]),
         ),
     ):
+        foundation_cls.return_value.run = AsyncMock(return_value=_outline_result())
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
@@ -860,6 +866,7 @@ async def test_characters_phase_skips_failed_sheet_generation(tmp_path: Path) ->
         ),
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
         patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.StoryFoundationAgent") as foundation_cls,
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
@@ -869,6 +876,7 @@ async def test_characters_phase_skips_failed_sheet_generation(tmp_path: Path) ->
             new=AsyncMock(return_value=[]),
         ),
     ):
+        foundation_cls.return_value.run = AsyncMock(return_value=_outline_result())
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
@@ -916,6 +924,7 @@ async def test_settings_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
         ),
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
         patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.StoryFoundationAgent") as foundation_cls,
         patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
@@ -925,6 +934,7 @@ async def test_settings_phase_writes_sheets_to_disk(tmp_path: Path) -> None:
             new=AsyncMock(return_value=[]),
         ),
     ):
+        foundation_cls.return_value.run = AsyncMock(return_value=_outline_result())
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
