@@ -612,7 +612,7 @@ When implemented, this phase will:
 
 ### 5.1 Python-Native Pipeline Architecture
 
-The system uses a **Python-native prompt-and-tool architecture** during active runtime. Prompt-defined pipeline phases live under `prompts/agents/`, and Python orchestration code loads those prompts directly (see [ADR 007](planning/adr/007-python-native-orchestration.md)):
+The system uses a **Python-native prompt-and-tool architecture** during active runtime. Python-native agents load direct-generation prompts from `prompts/outline/`, `prompts/chapters/`, `prompts/final_edit/`, and `prompts/chapter_review/` via `PromptLoader`. The files under `prompts/agents/` are workflow specifications for OpenCode and Copilot agent runtimes, not direct LLM prompts (see [ADR 007](planning/adr/007-python-native-orchestration.md)):
 
 | Component | Technology | Role |
 |-----------|------------|------|
@@ -935,7 +935,7 @@ See [Textual TUI](./features/textual-tui.md) for the thread model, approval-gate
 
 Reusable prompt content used by the Python-native pipeline lives in these locations:
 
-- `prompts/agents/` — Prompt-defined pipeline phase instructions (story-orchestrator, outline-planner, chapter-writer, wiki-maintainer, final-editor, etc.)
+- `prompts/agents/` — Agent runtime workflow specifications for OpenCode and Copilot (story-orchestrator, outline-planner, chapter-writer, wiki-maintainer, final-editor, etc.). Not loaded by the Python-native runtime.
 - `prompts/skills/` — Reusable skill reference material (story-pipeline, wiki-conventions, wiki-maintenance, outline-structure, narrative-arc, etc.)
 - `prompts/chapters/` — Chapter generation prompts
 - `prompts/scenes/` — Scene generation prompts
