@@ -6,6 +6,7 @@ import json
 from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
+from application.pipeline.handoffs import OutlineResult
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
@@ -116,6 +117,34 @@ def _extract_consistency_result(text: str) -> dict[str, Any]:
     return {"issues": issues, "passed": passed}
 
 
+def _extract_outline_text(
+    outline_result: OutlineResult | None,
+    chapter_number: int,
+) -> str:
+    if outline_result is None:
+        return ""
+
+    chapter_index = chapter_number - 1
+
+    try:
+        chapter_details = outline_result.chapter_details[chapter_index]
+    except IndexError:
+        chapter_details = None
+
+    if chapter_details:
+        return json.dumps(chapter_details, ensure_ascii=False, indent=2)
+
+    try:
+        chapter_outline = outline_result.chapter_outlines[chapter_index]
+    except IndexError:
+        chapter_outline = None
+
+    if chapter_outline:
+        return json.dumps(chapter_outline, ensure_ascii=False, indent=2)
+
+    return ""
+
+
 class ConsistencyCheckerAgent:
     def __init__(
         self,
@@ -135,6 +164,7 @@ class ConsistencyCheckerAgent:
         story_name: str,
         chapter_number: int,
         chapter_content: str,
+        outline_result: OutlineResult | None = None,
     ) -> dict[str, Any]:
         """Check chapter for consistency issues.
 
@@ -149,13 +179,14 @@ class ConsistencyCheckerAgent:
         )
 
         loader = self._loader
+        outline = _extract_outline_text(outline_result, chapter_number)
         system_prompt = loader.load_prompt(
             "chapter_review/consistency_check_direct",
             variables={
                 "chapter_content": chapter_content,
                 "story_name": story_name,
                 "chapter_number": str(chapter_number),
-                "outline": "",
+                "outline": outline,
             },
         )
 

@@ -562,7 +562,10 @@ async def _continue_pipeline(
                     return state
 
                 consistency_result = await consistency_agent.run(
-                    state.story_name, chapter_number, draft.content
+                    state.story_name,
+                    chapter_number,
+                    draft.content,
+                    outline_result=outline_result,
                 )
                 if not consistency_result["passed"]:
                     await bus.emit(
