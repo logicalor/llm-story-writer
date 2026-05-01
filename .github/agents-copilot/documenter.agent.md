@@ -74,9 +74,9 @@ Based on the changes, determine what documentation needs to be created or update
 | New development workflow       | Update `docs/setup.md` or `docs/testing.md`                       |
 | New OpenCode tool              | Update `docs/tools.md`                                            |
 | Wiki system change             | Update `docs/wiki-system.md`                                      |
-| Agent-family configuration change (MCP tools, permissions, developer-local dependencies) | Update the relevant `docs/features/` file **and** check `AGENTS.md` for the same claim — `AGENTS.md` carries a prose description of which agent families carry developer-local MCP dependencies and is read by agents at runtime. (Source: issue #257, PR #259.) |
+| Agent-family configuration change (MCP tools, permissions, developer-local dependencies) | Update the relevant `docs/features/` file **and** check `docs/features/opencode-runtime.md` for the same claim — it carries a prose description of which agent families carry developer-local MCP dependencies and is read by agents at runtime. (Source: issue #257, PR #259.) |
 | Bug fix with non-obvious cause | Add a note to `.github/notes/gotchas.md`                          |
-| UI-visible change (keybindings, CLI flags, subcommands, interface descriptions) | Update the relevant `docs/features/` file **and** `README.md` at the repo root — README.md is higher-traffic than any feature doc and must not carry stale keybindings or interface descriptions. (Source: issue #187, PR #200.) |
+| UI-visible change (keybindings, CLI flags, subcommands, interface descriptions) | Update the relevant `docs/features/` file **and** `docs/manual.md` — docs/manual.md is higher-traffic than any feature doc and must not carry stale keybindings or interface descriptions. (Source: issue #187, PR #200.) |
 
 #### Architecture decision companion-document sweep
 
@@ -90,7 +90,7 @@ For any **Architecture change** or **New ADR** row above, after updating the pri
 The sweep must cover both prose descriptions and table cells. Run:
 
 ```bash
-grep -rn '<old-term>' AGENTS.md .github/copilot-instructions.md docs/manual.md docs/tools.md
+grep -rn '<old-term>' .github/copilot-instructions.md docs/manual.md docs/tools.md
 ```
 
 Replace `<old-term>` with the retired, introduced, or renamed layer, component, or tool pattern. All occurrences must be updated before committing — stale references in these files take effect immediately upon merge and actively mislead agents and developers that read them at runtime. (Source: issue #188, PR #201.)

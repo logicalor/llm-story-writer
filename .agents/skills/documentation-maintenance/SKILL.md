@@ -26,7 +26,6 @@ Update existing docs before creating new ones. Documentation must describe imple
 
 For architecture changes, ADRs, layer renames, tool changes, or workflow changes, sweep all of the following — do not stop at the first match:
 
-- `AGENTS.md`
 - `.github/copilot-instructions.md`
 - `docs/manual.md`
 - `docs/tools.md`
