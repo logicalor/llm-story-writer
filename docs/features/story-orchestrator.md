@@ -28,7 +28,7 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 |------|----------------------|-------------------|
 | `init` | Create initial `PipelineState`, detect batch mode from gate type, ensure `stories/<story>/savepoints/` exists | `init` |
 | `story-foundation` | Run `StoryFoundationAgent`, extract `base_context`, `story_start_date`, and `story_elements`, seed or update `state.outline_result`, and persist those fields before outline generation | `story_foundation_complete` |
-| `outline` | Run `OutlinePlannerAgent`, persist `OutlineResult`, then wait on the outline approval gate | `outline` |
+| `outline` | Run `OutlinePlannerAgent`, passing through story-foundation context. When `expand_outline=true`, the agent writes `outline/skeleton.md`, populates per-chapter detail files under `outline/details/`, persists the enriched `OutlineResult`, then waits on the outline approval gate. Revisions reuse the same foundation fields. | `outline` |
 | `narrative-arc` | If `state.outline_result` exists, run `StoryPlannerAgent`, stream the arc assessment onto `TokenStreamBus`, store `ArcAnalysisResult` in `state.arc_result`, and continue even if the agent raises | `arc_analysis_complete` |
 | `characters` | Emit a wiki-context event, build `story_elements` from the outline, extract character names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/characters/<slug>.json` | `characters` |
 | `settings` | Emit a wiki-context event, build `story_elements` from the outline, extract setting names through the configured LLM, generate one sheet per extracted name, and atomically write `stories/<story>/settings/<slug>.json` | `settings` |
@@ -39,13 +39,14 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 
 Chapter count comes from `OutlineResult.chapter_outlines` when present. If the outline did not produce chapter entries, the fallback is `range(1, min(settings.wanted_chapters, 3) + 1)`.
 
-The characters and settings phases are implemented as orchestrator helpers rather than standalone presentation agents. `StoryFoundationAgent` is the only new pre-outline presentation agent in this slice; it does not write separate disk artefacts beyond the `PipelineState` snapshot, but its outputs are preserved on `OutlineResult` even when `OutlinePlannerAgent` returns a fresh object.
+The characters and settings phases are implemented as orchestrator helpers rather than standalone presentation agents. `StoryFoundationAgent` is the only new pre-outline presentation agent in this slice. Its outputs are forwarded into the initial outline call and the outline revision loop, then preserved on `OutlineResult` even when `OutlinePlannerAgent` returns a fresh object.
 
 ## Runtime Outputs
 
-The current orchestrator writes five story-facing artifact groups during a successful run:
+The current orchestrator writes six story-facing artifact groups during a successful run:
 
 - `stories/<story>/savepoints/pipeline_state.json` — the persisted `PipelineState` snapshot, including `arc_result` when narrative-arc succeeds
+- `stories/<story>/outline/skeleton.md` and `stories/<story>/outline/details/chapter_{N}.md` — Phase 3 outline artifacts written when `generation.expand_outline` is enabled; existing chapter detail files are reused on resume
 - `stories/<story>/characters/<slug>.json` — one JSON character sheet per extracted name
 - `stories/<story>/settings/<slug>.json` — one JSON setting sheet per extracted name
 - `stories/<story>/chapters/chapter_{N}.md` — written immediately after chapter `N` passes the approval gate and consistency check
@@ -194,7 +195,7 @@ Issue #161 adds the first Python callables under `src/presentation/agents/`, and
 | Agent | Direct-generation prompt | Return type | Current behavior |
 |------|--------------------------|-------------|------------------|
 | `StoryFoundationAgent` | `prompts/extract_base_context.md`, `prompts/extract_story_start_date.md`, `prompts/outline/create_elements.md` | `OutlineResult` | Runs before outline generation, emits a `story-foundation` wiki-context event, and returns an `OutlineResult` seeded with `base_context`, `story_start_date`, and `story_elements` |
-| `OutlinePlannerAgent` | `prompts/outline/create_direct.md` | `OutlineResult` | Streams outline text, parses chapter outlines from JSON or `Chapter:` lines, extracts `genre` and `themes` when present |
+| `OutlinePlannerAgent` | `prompts/outline/create_skeleton.md`, `prompts/outline/expand_chapter_detail.md`, `prompts/outline/strip_elements.md`, fallback `prompts/outline/create_direct.md` | `OutlineResult` | Runs a multi-stage outline pipeline when `expand_outline=true`, persists outline artifacts under `stories/<story>/outline/`, reuses existing chapter detail files on resume, and falls back to one direct outline call when expansion is disabled |
 | `StoryPlannerAgent` | `prompts/outline/arc_assessment_direct.md` | `ArcAnalysisResult` | Streams one advisory arc assessment from the approved outline, truncates stored assessment text to 1000 characters, and derives `verdict_code` heuristically from the streamed output |
 | `ChapterWriterAgent` | `prompts/chapters/write_chapter_direct.md` | `ChapterDraft` | Streams a single chapter draft from outline summary plus optional revision feedback, with abridged character and setting context loaded from disk when available |
 | `WikiMaintainerAgent` | none loaded at runtime | `WikiUpdateBatch` | Calls `tools.wiki_extract.update_wiki_from_chapter()` on a worker thread, persists wiki batches after each approved chapter, returns concrete `updated_pages` / `new_pages` slug lists, and emits one `WikiContextEvent` per changed page |

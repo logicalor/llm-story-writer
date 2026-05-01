@@ -33,6 +33,7 @@ The first in-process pipeline agent is now `StoryFoundationAgent` in `src/presen
 The orchestrator also now produces intermediate story artefacts directly in the story directory during the implemented pipeline:
 
 - `stories/<story>/savepoints/pipeline_state.json` from init onward, including story-foundation fields and later phase handoffs
+- `stories/<story>/outline/skeleton.md` plus `stories/<story>/outline/details/chapter_{N}.md` during Phase 3 when `generation.expand_outline` is enabled
 - `stories/<story>/characters/*.json` from the characters phase
 - `stories/<story>/settings/*.json` from the settings phase
 - `stories/<story>/chapters/chapter_{N}.md` during chapter approval
@@ -91,6 +92,8 @@ Several runtime artefacts are written by the Python-native orchestrator and then
 | Path | Producer | Consumer | Notes |
 |------|----------|----------|-------|
 | `stories/<story>/savepoints/pipeline_state.json` | `src/presentation/orchestrator.py` across all implemented phases | `resume_pipeline()`, later phases, debugging workflows | JSON snapshot of `PipelineState`, including `OutlineResult` foundation fields, completed phases, and savepoint labels |
+| `stories/<story>/outline/skeleton.md` | `src/presentation/agents/outline_planner.py` when `generation.expand_outline` is `true` | Outline review, resume-safe per-chapter expansion, debugging workflows | Skeleton outline generated from `outline/create_skeleton`; paired with `OutlineResult.chapter_skeletons` |
+| `stories/<story>/outline/details/chapter_{N}.md` | `src/presentation/agents/outline_planner.py` when `generation.expand_outline` is `true` | Chapter drafting, consistency checks, resume-safe outline expansion | One expanded chapter detail block per chapter. Existing files are read back instead of regenerated on resumed runs |
 | `stories/<story>/characters/<slug>.json` | `src/presentation/orchestrator.py` characters phase | `src/presentation/agents/chapter_writer.py`, character-management workflows | JSON document with `name`, full markdown `sheet`, `chunks`, `summary`, and `updated_at` |
 | `stories/<story>/settings/<slug>.json` | `src/presentation/orchestrator.py` settings phase | `src/presentation/agents/chapter_writer.py`, setting-management workflows | Same JSON shape as character sheets |
 | `stories/<story>/chapters/chapter_{N}.md` | `src/presentation/orchestrator.py` chapter loop | `src/tools/story_assembler.py`, downstream review flows | Approved chapter manuscript |
