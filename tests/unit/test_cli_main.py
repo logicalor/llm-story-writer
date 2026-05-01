@@ -113,7 +113,19 @@ class TestMainDispatch:
         finally:
             sys.argv = original_argv
 
-        mock_cmd_run.assert_called_once_with("my_story", batch=False)
+        mock_cmd_run.assert_called_once_with("my_story", batch=False, prompt=None)
+
+    def test_run_with_prompt_dispatches_cmd_run_with_prompt(self) -> None:
+        original_argv = sys.argv[:]
+
+        try:
+            sys.argv = ["story-writer", "run", "--story", "my_story", "--prompt", "prompts/sample-story.md"]
+            with patch("src.presentation.cli.main._cmd_run") as mock_cmd_run:
+                main()
+        finally:
+            sys.argv = original_argv
+
+        mock_cmd_run.assert_called_once_with("my_story", batch=False, prompt="prompts/sample-story.md")
 
     def test_tui_dispatches_cmd_tui(self) -> None:
         original_argv = sys.argv[:]
@@ -125,7 +137,9 @@ class TestMainDispatch:
         finally:
             sys.argv = original_argv
 
-        mock_cmd_tui.assert_called_once_with("my_story", resume=False, savepoint=None)
+        mock_cmd_tui.assert_called_once_with(
+            "my_story", resume=False, savepoint=None, prompt=None
+        )
 
     def test_tui_with_resume_dispatches_cmd_tui_with_resume(self) -> None:
         original_argv = sys.argv[:]
@@ -137,7 +151,9 @@ class TestMainDispatch:
         finally:
             sys.argv = original_argv
 
-        mock_cmd_tui.assert_called_once_with("my_story", resume=True, savepoint=None)
+        mock_cmd_tui.assert_called_once_with(
+            "my_story", resume=True, savepoint=None, prompt=None
+        )
 
     def test_tui_with_resume_and_savepoint_dispatches_correctly(self) -> None:
         original_argv = sys.argv[:]
@@ -157,7 +173,9 @@ class TestMainDispatch:
         finally:
             sys.argv = original_argv
 
-        mock_cmd_tui.assert_called_once_with("my_story", resume=True, savepoint="ch3")
+        mock_cmd_tui.assert_called_once_with(
+            "my_story", resume=True, savepoint="ch3", prompt=None
+        )
 
     def test_resume_dispatches_cmd_resume(self) -> None:
         original_argv = sys.argv[:]
@@ -169,7 +187,7 @@ class TestMainDispatch:
         finally:
             sys.argv = original_argv
 
-        mock_cmd_resume.assert_called_once_with("my_story", None)
+        mock_cmd_resume.assert_called_once_with("my_story", None, prompt=None)
 
 
 class TestCmdTui:

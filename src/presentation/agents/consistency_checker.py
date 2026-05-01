@@ -152,7 +152,9 @@ class ConsistencyCheckerAgent:
         system_prompt = loader.load_prompt(
             "chapter_review/consistency_check_direct",
             variables={
-                "chapter_content": chapter_content[:8000],  # Guard against local-model context overflow; ~8000 chars ≈ 2000 tokens.
+                "chapter_content": chapter_content[
+                    :8000
+                ],  # Guard against local-model context overflow; ~8000 chars ≈ 2000 tokens.
                 "story_name": story_name,
                 "chapter_number": str(chapter_number),
                 "outline": "",

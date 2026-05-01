@@ -89,9 +89,7 @@ def _cmd_run(story: str, *, batch: bool = False, prompt: str | None = None) -> N
     print(f"Pipeline complete: status={state.status}")
 
 
-def _cmd_resume(
-    story: str, savepoint: str | None, prompt: str | None = None
-) -> None:
+def _cmd_resume(story: str, savepoint: str | None, prompt: str | None = None) -> None:
     if prompt:
         _apply_prompt(story, prompt)
 

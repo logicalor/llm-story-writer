@@ -125,16 +125,19 @@ def test_agent_prompt_files_present():
         assert path.is_file(), f"Expected agent prompt {filename} in prompts/agents/"
 
 
-# --- Issue #164: OpenCode artefact removal ---
+# --- Issue #164: Stale Node.js build artefact removal ---
 
 
-def test_opencode_artefacts_deleted() -> None:
-    assert not (PROJECT_ROOT / ".opencode").exists()
-    assert not (PROJECT_ROOT / "opencode.json").exists()
+def test_stale_nodejs_build_artefacts_deleted() -> None:
     assert not (PROJECT_ROOT / "package.json").exists()
     assert not (PROJECT_ROOT / "package-lock.json").exists()
     assert not (PROJECT_ROOT / "tsconfig.json").exists()
     assert not (PROJECT_ROOT / "vitest.config.ts").exists()
+
+
+def test_opencode_development_files_exist() -> None:
+    assert (PROJECT_ROOT / ".opencode").is_dir()
+    assert (PROJECT_ROOT / "opencode.json").is_file()
 
 
 def test_commands_relocated_to_prompts_agents() -> None:
