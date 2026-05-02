@@ -25,6 +25,7 @@ if _root_path not in sys.path:
 
 from src.tools._io import _validate_story_name  # noqa: E402
 
+# Keep in sync with src/presentation/agents/outline_critic.py::OUTLINE_CRITIC_TYPES
 OUTLINE_CRITIC_TYPES = [
     "audiobook-producer",
     "book-club-moderator",

@@ -295,7 +295,7 @@ Approval required. Type: approve / reject / revise <feedback>
 
 **How the gate works:**
 - The outline quality threshold (`outline_quality`, default 87) is evaluated before the gate opens
-- If the outline scores below the threshold, the system may auto-revise up to `outline_max_revisions` times before asking you
+- If `enable_outline_critique` is `true`, the orchestrator runs `OutlineCriticAgent` before the gate opens and persists its findings into `pipeline_state.json`
 - Your `revise` feedback is injected directly into the next outline generation prompt
 - Rejecting does not delete savepoints; you can resume or inspect the generated outline at any time
 
@@ -481,14 +481,17 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
 **What the system does:**
 - Delegates to the `outline-planner` agent
 - Generates a detailed chapter-by-chapter outline
-- Optionally runs critique and refinement loops (if `enable_outline_critique: true`)
+- Optionally runs `OutlineCriticAgent` before the approval gate (if `enable_outline_critique: true`)
 - Writes the in-progress outline to `pipeline_state.json` before opening the approval gate
+- When outline critique is enabled, runs six outline critics plus three arc analytics and persists the critic artefacts before the gate opens
 - Waits for outline approval or revision feedback before marking the phase complete
 - After approval, runs the advisory `metadata-outline` checkpoint to generate the first title, summary, and tag set from outline text alone
 
 **Artefacts produced:**
 - `stories/<name>/savepoints/outline`
 - `stories/<name>/savepoints/pipeline_state.json` with the latest `OutlineResult`
+- `stories/<name>/outline/critic_summary.md` when outline critique is enabled
+- `stories/<name>/savepoints/pipeline_state.json` with `critic_summary`, `arc_distribution`, and `promise_payoff` when outline critique is enabled
 - `stories/<name>/metadata.json` with the current generated title, summary, tags, and `updated_at` when metadata generation succeeds
 
 **User action needed:**
@@ -501,6 +504,7 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
 **What the system does:**
 - Loads the approved outline
 - Delegates to the `story-planner` agent
+- Builds the assessment prompt from the approved outline plus the persisted `critic_summary`, `arc_distribution`, and `promise_payoff` fields when outline critique ran
 - Streams one advisory arc assessment (promise/payoff, tension curve, pacing)
 - Persists `state.arc_result` and writes `arc_analysis_complete`
 - On agent error, emits a skip message and continues (non-blocking)
@@ -769,8 +773,12 @@ All configuration lives in `config.yml` in the repository root. No secrets are r
 | `wanted_chapters` | 25 | Target chapter count |
 | `outline_quality` | 87 | Quality threshold for outline (0–100) |
 | `chapter_quality` | 85 | Quality threshold for chapters |
+| `outline_min_revisions` | 2 | Lower bound retained in outline revision settings |
 | `outline_max_revisions` | 3 | Max outline revision passes |
 | `chapter_max_revisions` | 3 | Max chapter revision passes |
+| `enable_outline_critique` | true | Run `OutlineCriticAgent` between outline generation and the outline approval gate |
+| `enable_concurrent_critics` | false | Run the six outline-review critics concurrently instead of sequentially |
+| `outline_critique_iterations` | 3 | Stored and validated critique-loop setting; current implementation still runs one critic pass per generated outline |
 | `enable_chapter_revisions` | true | Enable chapter revision loop |
 | `enable_final_edit` | false | Run final polish pass |
 | `enable_scrubbing` | true | When final edit runs, gather prose-scrub and voice-consistency diagnostics before chapter polish |
@@ -854,6 +862,8 @@ generation:
 | Setting | Value | Why |
 |---------|-------|-----|
 | `wanted_chapters` | 5 | Short test run |
+| `outline_min_revisions` | 0 | Do not force manual outline revision rounds |
+| `outline_max_revisions` | 1 | Keep outline retries bounded when you choose to revise |
 | `enable_chapter_revisions` | false | Skip revision loops |
 | `enable_outline_critique` | false | Skip critique phase |
 | `enable_final_edit` | false | Skip polish pass |
@@ -884,6 +894,8 @@ generation:
 | Setting | Value | Why |
 |---------|-------|-----|
 | `outline_max_revisions` | 5 | More chances to refine outline |
+| `enable_concurrent_critics` | false | Keep critic output deterministic and easier to inspect |
+| `outline_critique_iterations` | 5 | Preserve a higher critique-loop ceiling for future iteration-aware flows |
 | `chapter_max_revisions` | 3 | Per-chapter quality loop |
 | `enable_outline_critique` | true | Iterative outline refinement |
 | `enable_final_edit` | true | Post-generation polish pass |
@@ -923,10 +935,12 @@ generation:
 | `wanted_chapters` | 5 | 25 | 10 |
 | `outline_min_revisions` | 0 | 2 | 0 |
 | `outline_max_revisions` | 1 | 5 | 2 |
+| `outline_critique_iterations` | 3 | 5 | 3 |
 | `chapter_min_revisions` | 0 | 1 | 0 |
 | `chapter_max_revisions` | 1 | 3 | 0 |
 | `enable_chapter_revisions` | false | true | false |
 | `enable_outline_critique` | false | true | false |
+| `enable_concurrent_critics` | false | false | false |
 | `enable_final_edit` | false | true | false |
 | `enable_scrubbing` | false | true | false |
 | `use_chunked_outline_generation` | false | true | false |
@@ -1008,10 +1022,12 @@ Phase 3: Outline
   → Persist `stories/<name>/outline/skeleton.md` and `stories/<name>/outline/details/chapter_{N}.md`
   → Persist `OutlineResult.summary`, `chapter_skeletons`, `chapter_details`, and `enrichment_suggestions`, then wait on approval gate
   → When `expand_outline=false`, fall back to one `create_direct` outline call using the same foundation context
+  → When `enable_outline_critique=true`, run `OutlineCriticAgent` before the approval gate and persist `critic_summary.md` plus critique fields in `PipelineState`
   → After approval, run `metadata-outline` to write the first generated `stories/<name>/metadata.json`
 
 Phase 4: Narrative Arc Analysis
   → Delegate to story-planner subagent
+  → Build the assessment prompt from the approved outline plus `critic_summary`, `arc_distribution`, and `promise_payoff` when outline critique ran
   → Stream one advisory arc assessment from approved outline content
   → Persist `state.arc_result` and write `arc_analysis_complete`
   → On agent error, emit skip message and continue
@@ -1696,7 +1712,7 @@ curl http://127.0.0.1:1234/v1/models
 1. In the TUI, type `revise <specific feedback>` at the outline approval gate
 2. Example: `revise Chapter 5 needs a slower build-up. Add a scene where Elena discovers the letter before the confrontation.`
 3. The outline planner will regenerate the outline with your feedback injected
-4. If the revised outline is still wrong, repeat up to `outline_max_revisions` times
+4. If the revised outline is still wrong, repeat the approval-gate revision flow with tighter feedback or disable outline critique to inspect the raw outline first
 5. If it never improves, reject the outline, edit your prompt file to add more constraints, clear savepoints, and restart
 
 ### "A chapter feels off"

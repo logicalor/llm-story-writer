@@ -7,7 +7,7 @@ import re
 from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
-from application.pipeline.handoffs import ArcAnalysisResult, OutlineResult
+from application.pipeline.handoffs import ArcAnalysisResult, PipelineState
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
@@ -56,19 +56,22 @@ class StoryPlannerAgent:
 
     async def run(
         self,
-        story_name: str,
-        outline_result: OutlineResult,
+        state: PipelineState,
         settings: GenerationSettings,
     ) -> ArcAnalysisResult:
         """Analyse narrative arc quality of the finalised outline.
 
         This phase is advisory - callers must catch exceptions and continue.
         """
+        outline_result = state.outline_result
+        if outline_result is None:
+            raise ValueError("StoryPlannerAgent requires state.outline_result")
+
         await self.wiki_bus.emit(
             WikiContextEvent(
                 phase="narrative-arc",
                 event_type="entity_match",
-                content=f"Running narrative arc analysis for: {story_name}",
+                content=f"Running narrative arc analysis for: {state.story_name}",
             )
         )
 
@@ -83,9 +86,9 @@ class StoryPlannerAgent:
             "outline/arc_assessment_direct",
             variables={
                 "outline": outline_text,
-                "critic_summary": "",
-                "arc_distribution": "",
-                "promise_payoff": "",
+                "critic_summary": state.critic_summary,
+                "arc_distribution": state.arc_distribution,
+                "promise_payoff": state.promise_payoff,
             },
         )
 
@@ -107,7 +110,7 @@ class StoryPlannerAgent:
             full_text += token
 
         return ArcAnalysisResult(
-            story_name=story_name,
+            story_name=state.story_name,
             arc_assessment=full_text,
             verdict_code=_parse_verdict(full_text),
             overall_score=0.0,
