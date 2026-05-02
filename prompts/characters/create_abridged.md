@@ -4,7 +4,7 @@ You are a skilled character development specialist. Your task is to create a con
 
 <STORY_ELEMENTS>
 {story_elements}
-</STORY_EMENTS>
+</STORY_ELEMENTS>
 
 <CHARACTER_NAME>
 {character_name}

@@ -43,11 +43,44 @@ For each character in `character_names`, call `character-mgr`:
 - `character`: the character display name
 - `model`: the model override if provided
 
+### Phase 2 — Character Chunks
+
+For each character processed in Phase 1, call `character-mgr`:
+
+- `operation`: `"generate-chunks"`
+- `name`: story name
+- `character`: the character display name
+- `model`: the model override if provided
+
+This generates all 7 semantic chunks (`backstory`, `personality`, `motivation`, `relationships`, `skills`, `arc`, `current_state`) from the character sheet and the `story_elements` savepoint. The tool reads the sheet from disk — do not pass sheet content manually.
+
+### Phase 3 — Character Summaries
+
+For each character, call `character-mgr`:
+
+- `operation`: `"generate-summary"`
+- `name`: story name
+- `character`: the character display name
+- `model`: the model override if provided
+
+This produces a natural-language prose summary from the chunks generated in Phase 2.
+
+### Phase 4 — Character Abridged
+
+For each character, call `character-mgr`:
+
+- `operation`: `"generate-abridged"`
+- `name`: story name
+- `character`: the character display name
+- `model`: the model override if provided
+
+This produces a compact prompt-injection-ready summary using `story_elements` as context.
+
 After all characters are processed:
 
 1. Call `story-state` with `operation: "write"`, `field: "characters"`, `value`: JSON array string of processed character names. This **auto-writes the `characters_complete` savepoint** when the value is non-empty — do **not** call `savepoint-mgr save characters_complete` manually.
 
-### Phase 2 — Setting Sheets
+### Phase 6 — Setting Sheets
 
 For each setting in `setting_names`, call `setting-mgr`:
 
@@ -56,11 +89,44 @@ For each setting in `setting_names`, call `setting-mgr`:
 - `setting`: the setting display name
 - `model`: the model override if provided
 
+### Phase 7 — Setting Chunks
+
+For each setting processed in Phase 6, call `setting-mgr`:
+
+- `operation`: `"generate-chunks"`
+- `name`: story name
+- `setting`: the setting display name
+- `model`: the model override if provided
+
+This generates all 6 semantic chunks (`physical_description`, `atmosphere_mood`, `function_purpose`, `history_background`, `rules_constraints`, `connections_relationships`) from the setting sheet and the `story_elements` savepoint.
+
+### Phase 8 — Setting Summaries
+
+For each setting, call `setting-mgr`:
+
+- `operation`: `"generate-summary"`
+- `name`: story name
+- `setting`: the setting display name
+- `model`: the model override if provided
+
+This produces a natural-language prose summary from the chunks generated in Phase 7.
+
+### Phase 9 — Setting Abridged
+
+For each setting, call `setting-mgr`:
+
+- `operation`: `"generate-abridged"`
+- `name`: story name
+- `setting`: the setting display name
+- `model`: the model override if provided
+
+This produces a compact prompt-injection-ready summary using `story_elements` as context.
+
 After all settings are processed:
 
 1. Call `story-state` with `operation: "write"`, `field: "settings"`, `value`: JSON array string of processed setting names. This **auto-writes the `settings_complete` savepoint** when the value is non-empty — do **not** call `savepoint-mgr save settings_complete` manually.
 
-### Phase 3 — Return
+### Phase 10 — Return
 
 Return a compact summary to the orchestrator containing:
 - processed character names

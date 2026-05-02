@@ -1,6 +1,18 @@
 # Setting Atmosphere and Mood Chunk Generation
 
-You are tasked with extracting and focusing on the atmospheric and mood aspects of a setting from its full setting sheet. Create a focused, detailed description of the setting's emotional impact, psychological atmosphere, and the feelings it evokes.
+You are tasked with extracting and focusing on the atmospheric and mood aspects of {setting_name} from its full setting sheet. Create a focused, detailed description of the setting's emotional impact, psychological atmosphere, and the feelings it evokes.
+
+<SETTING_NAME>
+{setting_name}
+</SETTING_NAME>
+
+<SETTING_SHEET>
+{setting_sheet}
+</SETTING_SHEET>
+
+<STORY_ELEMENTS>
+{story_elements}
+</STORY_ELEMENTS>
 
 ## Input
 - **Setting Name**: The name of the setting

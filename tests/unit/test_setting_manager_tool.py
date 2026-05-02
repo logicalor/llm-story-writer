@@ -144,6 +144,7 @@ def test_load_sheet_abridged(story_env: tuple[Path, str]) -> None:
         "sheet": "Full sheet with lots of detail.",
         "chunks": {"geography": "Some geography."},
         "summary": "Short summary.",
+        "abridged": "Abridged version.",
     }
     _run_tool(
         "--operation",
@@ -170,7 +171,7 @@ def test_load_sheet_abridged(story_env: tuple[Path, str]) -> None:
     assert load_result.returncode == 0, f"stderr: {load_result.stderr}"
     loaded = json.loads(load_result.stdout)
     assert loaded["name"] == "Abridged"
-    assert loaded["summary"] == "Short summary."
+    assert loaded["abridged"] == "Abridged version."
     assert "updated_at" in loaded
     assert "sheet" not in loaded
     assert "chunks" not in loaded
@@ -224,10 +225,9 @@ def test_extract_names_parses_json(story_env: tuple[Path, str]) -> None:
     assert out == {"names": ["Whispering Forest", "Shadow Keep", "Crystal Lake"]}
 
 
-def test_generate_abridged_truncation(story_env: tuple[Path, str]) -> None:
+def test_generate_abridged_data_escape_hatch(story_env: tuple[Path, str]) -> None:
     stories_dir, name = story_env
-    long_sheet = " ".join(f"word{i}" for i in range(600))
-    sheet_data = {"sheet": long_sheet, "summary": ""}
+    sheet_data = {"sheet": "Full sheet text.", "summary": ""}
     _run_tool(
         "--operation",
         "generate-sheet",
@@ -247,8 +247,8 @@ def test_generate_abridged_truncation(story_env: tuple[Path, str]) -> None:
         name,
         "--setting",
         "Verbose",
-        "--budget",
-        "100",
+        "--data",
+        "Manually written abridged content.",
         stories_dir=stories_dir,
     )
     assert abr_result.returncode == 0, f"stderr: {abr_result.stderr}"
@@ -263,9 +263,37 @@ def test_generate_abridged_truncation(story_env: tuple[Path, str]) -> None:
         stories_dir=stories_dir,
     )
     loaded = json.loads(load_result.stdout)
-    word_count = len(loaded["summary"].split())
-    assert word_count <= 75, f"Expected ≤75 words, got {word_count}"
+    assert loaded["abridged"] == "Manually written abridged content."
 
+
+def test_generate_abridged_requires_story_elements_when_no_data(
+    story_env: tuple[Path, str],
+) -> None:
+    stories_dir, name = story_env
+    sheet_data = {"sheet": "Full sheet text.", "summary": ""}
+    _run_tool(
+        "--operation",
+        "generate-sheet",
+        "--name",
+        name,
+        "--setting",
+        "Verbose",
+        "--data",
+        json.dumps(sheet_data),
+        stories_dir=stories_dir,
+    )
+
+    abr_result = _run_tool(
+        "--operation",
+        "generate-abridged",
+        "--name",
+        name,
+        "--setting",
+        "Verbose",
+        stories_dir=stories_dir,
+    )
+    assert abr_result.returncode != 0
+    assert "story_elements" in abr_result.stderr
 
 def test_path_traversal_story_name_blocked(story_env: tuple[Path, str]) -> None:
     stories_dir, _ = story_env

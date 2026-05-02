@@ -2,6 +2,18 @@
 
 You are tasked with extracting and focusing on the background aspects of {character_name} from their full character sheet. Create a focused, detailed description of the character's history, formative experiences, and personal background.
 
+<CHARACTER_NAME>
+{character_name}
+</CHARACTER_NAME>
+
+<CHARACTER_SHEET>
+{character_sheet}
+</CHARACTER_SHEET>
+
+<STORY_ELEMENTS>
+{story_elements}
+</STORY_ELEMENTS>
+
 ## Input
 - **Character Name**: The name of the character
 - **Character Sheet**: The full character sheet containing all character information

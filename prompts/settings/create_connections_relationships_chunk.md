@@ -1,6 +1,18 @@
 # Setting Connections and Relationships Chunk Generation
 
-You are tasked with extracting and focusing on the connections and relationships aspects of a setting from its full setting sheet. Create a focused, detailed description of how the setting relates to other places, people, and elements in the world.
+You are tasked with extracting and focusing on the connections and relationships aspects of {setting_name} from its full setting sheet. Create a focused, detailed description of how the setting relates to other places, people, and elements in the world.
+
+<SETTING_NAME>
+{setting_name}
+</SETTING_NAME>
+
+<SETTING_SHEET>
+{setting_sheet}
+</SETTING_SHEET>
+
+<STORY_ELEMENTS>
+{story_elements}
+</STORY_ELEMENTS>
 
 ## Input
 - **Setting Name**: The name of the setting

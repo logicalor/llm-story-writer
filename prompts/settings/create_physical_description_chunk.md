@@ -1,6 +1,18 @@
 # Setting Physical Description Chunk Generation
 
-You are tasked with extracting and focusing on the physical description aspects of a setting from its full setting sheet. Create a focused, detailed description of the setting's visual appearance, sensory details, and physical characteristics.
+You are tasked with extracting and focusing on the physical description aspects of {setting_name} from its full setting sheet. Create a focused, detailed description of the setting's visual appearance, sensory details, and physical characteristics.
+
+<SETTING_NAME>
+{setting_name}
+</SETTING_NAME>
+
+<SETTING_SHEET>
+{setting_sheet}
+</SETTING_SHEET>
+
+<STORY_ELEMENTS>
+{story_elements}
+</STORY_ELEMENTS>
 
 ## Input
 - **Setting Name**: The name of the setting

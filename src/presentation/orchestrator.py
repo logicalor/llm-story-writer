@@ -231,6 +231,14 @@ def _slugify_name(name: str) -> str:
     return slug
 
 
+def _extract_output_content(text: str) -> str:
+    """Extract content between <output>...</output> tags, or return text stripped."""
+    match = re.search(r"<output>(.*?)</output>", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
+
+
 def _build_story_elements(outline_result: OutlineResult) -> str:
     """Build story_elements string from OutlineResult for prompt injection."""
     parts = [outline_result.summary]
@@ -329,36 +337,51 @@ async def _generate_character_sheets(
             for chunk_key, prompt_name in chunk_prompts.items():
                 chunk_prompt = loader.load_prompt(
                     prompt_name,
-                    {"character_name": character_name},
+                    {
+                        "character_name": character_name,
+                        "character_sheet": sheet_text,
+                        "story_elements": story_elements,
+                    },
                 )
-                chunk_results[chunk_key] = await provider.generate_text(
+                raw_chunk = await provider.generate_text(
                     [{"role": "user", "content": chunk_prompt}],
                     model_config,
                 )
+                chunk_results[chunk_key] = _extract_output_content(raw_chunk)
 
             abridged_prompt = loader.load_prompt(
                 "characters/create_abridged",
                 {
-                    "story_elements": outline_result.story_elements,
+                    "story_elements": story_elements,
                     "character_name": character_name,
                 },
             )
-            abridged_text = await provider.generate_text(
+            abridged_raw = await provider.generate_text(
                 [{"role": "user", "content": abridged_prompt}],
                 model_config,
             )
+            abridged_text = _extract_output_content(abridged_raw)
 
+            character_info = (
+                "\n\n".join(
+                    f"=== {key.replace('_', ' ').title()} ===\n{value}"
+                    for key, value in chunk_results.items()
+                    if value
+                )
+                or sheet_text
+            )
             summary_prompt = loader.load_prompt(
                 "characters/create_summary",
                 {
                     "character_name": character_name,
-                    "character_info": sheet_json_text,
+                    "character_info": character_info,
                 },
             )
-            summary_text = await provider.generate_text(
+            summary_raw = await provider.generate_text(
                 [{"role": "user", "content": summary_prompt}],
                 model_config,
             )
+            summary_text = _extract_output_content(summary_raw)
 
             enriched_data = json.loads(sheet_json_text)
             if not isinstance(enriched_data, dict):
@@ -455,36 +478,51 @@ async def _generate_setting_sheets(
             for chunk_key, prompt_name in chunk_prompts.items():
                 chunk_prompt = loader.load_prompt(
                     prompt_name,
-                    {"setting_name": setting_name},
+                    {
+                        "setting_name": setting_name,
+                        "setting_sheet": sheet_text,
+                        "story_elements": story_elements,
+                    },
                 )
-                chunk_results[chunk_key] = await provider.generate_text(
+                raw_chunk = await provider.generate_text(
                     [{"role": "user", "content": chunk_prompt}],
                     model_config,
                 )
+                chunk_results[chunk_key] = _extract_output_content(raw_chunk)
 
             abridged_prompt = loader.load_prompt(
                 "settings/create_abridged",
                 {
-                    "story_elements": outline_result.story_elements,
+                    "story_elements": story_elements,
                     "setting_name": setting_name,
                 },
             )
-            abridged_text = await provider.generate_text(
+            abridged_raw = await provider.generate_text(
                 [{"role": "user", "content": abridged_prompt}],
                 model_config,
             )
+            abridged_text = _extract_output_content(abridged_raw)
 
+            setting_info = (
+                "\n\n".join(
+                    f"=== {key.replace('_', ' ').title()} ===\n{value}"
+                    for key, value in chunk_results.items()
+                    if value
+                )
+                or sheet_text
+            )
             summary_prompt = loader.load_prompt(
                 "settings/create_summary",
                 {
                     "setting_name": setting_name,
-                    "setting_info": sheet_json_text,
+                    "setting_info": setting_info,
                 },
             )
-            summary_text = await provider.generate_text(
+            summary_raw = await provider.generate_text(
                 [{"role": "user", "content": summary_prompt}],
                 model_config,
             )
+            summary_text = _extract_output_content(summary_raw)
 
             enriched_data = json.loads(sheet_json_text)
             if not isinstance(enriched_data, dict):

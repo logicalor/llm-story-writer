@@ -144,6 +144,7 @@ def test_load_sheet_abridged(story_env: tuple[Path, str]) -> None:
         "sheet": "Full sheet with lots of detail.",
         "chunks": {"background": "Some background."},
         "summary": "Short summary.",
+        "abridged": "Abridged version.",
     }
     _run_tool(
         "--operation",
@@ -170,7 +171,7 @@ def test_load_sheet_abridged(story_env: tuple[Path, str]) -> None:
     assert load_result.returncode == 0, f"stderr: {load_result.stderr}"
     loaded = json.loads(load_result.stdout)
     assert loaded["name"] == "Abridged"
-    assert loaded["summary"] == "Short summary."
+    assert loaded["abridged"] == "Abridged version."
     assert "updated_at" in loaded
     assert "sheet" not in loaded
     assert "chunks" not in loaded
@@ -221,17 +222,62 @@ def test_extract_names_parses_json(story_env: tuple[Path, str]) -> None:
     assert out == {"names": ["Alice", "Bob", "Charlie"]}
 
 
-def test_generate_abridged_truncation(story_env: tuple[Path, str]) -> None:
+def test_generate_abridged_data_escape_hatch(story_env: tuple[Path, str]) -> None:
+    """generate-abridged --data stores content directly to the abridged field."""
     stories_dir, name = story_env
-    long_sheet = " ".join(f"word{i}" for i in range(600))
-    sheet_data = {"sheet": long_sheet, "summary": ""}
+    sheet_data = {"sheet": "Alice sheet content.", "summary": ""}
     _run_tool(
         "--operation",
         "generate-sheet",
         "--name",
         name,
         "--character",
-        "Verbose",
+        "Alice",
+        "--data",
+        json.dumps(sheet_data),
+        stories_dir=stories_dir,
+    )
+
+    abridged_text = "Alice is a warrior. Short and sweet."
+    abr_result = _run_tool(
+        "--operation",
+        "generate-abridged",
+        "--name",
+        name,
+        "--character",
+        "Alice",
+        "--data",
+        abridged_text,
+        stories_dir=stories_dir,
+    )
+    assert abr_result.returncode == 0, f"stderr: {abr_result.stderr}"
+
+    load_result = _run_tool(
+        "--operation",
+        "load-sheet",
+        "--name",
+        name,
+        "--character",
+        "Alice",
+        stories_dir=stories_dir,
+    )
+    loaded = json.loads(load_result.stdout)
+    assert loaded["abridged"] == abridged_text
+
+
+def test_generate_abridged_requires_story_elements_when_no_data(
+    story_env: tuple[Path, str],
+) -> None:
+    """generate-abridged without --data requires story_elements savepoint."""
+    stories_dir, name = story_env
+    sheet_data = {"sheet": "Alice sheet content.", "summary": ""}
+    _run_tool(
+        "--operation",
+        "generate-sheet",
+        "--name",
+        name,
+        "--character",
+        "Alice",
         "--data",
         json.dumps(sheet_data),
         stories_dir=stories_dir,
@@ -243,25 +289,11 @@ def test_generate_abridged_truncation(story_env: tuple[Path, str]) -> None:
         "--name",
         name,
         "--character",
-        "Verbose",
-        "--budget",
-        "100",
+        "Alice",
         stories_dir=stories_dir,
     )
-    assert abr_result.returncode == 0, f"stderr: {abr_result.stderr}"
-
-    load_result = _run_tool(
-        "--operation",
-        "load-sheet",
-        "--name",
-        name,
-        "--character",
-        "Verbose",
-        stories_dir=stories_dir,
-    )
-    loaded = json.loads(load_result.stdout)
-    word_count = len(loaded["summary"].split())
-    assert word_count <= 75, f"Expected ≤75 words, got {word_count}"
+    assert abr_result.returncode == 1
+    assert "story_elements" in abr_result.stderr
 
 
 def test_path_traversal_story_name_blocked(story_env: tuple[Path, str]) -> None:
@@ -325,6 +357,80 @@ def test_missing_required_args(story_env: tuple[Path, str]) -> None:
     # with a descriptive error (not argparse exit 2, since --data is optional).
     assert result.returncode == 1
     assert "story_elements" in result.stderr
+
+
+def test_generate_chunks_requires_sheet(story_env: tuple[Path, str]) -> None:
+    """generate-chunks fails with clear error when sheet is missing."""
+    stories_dir, name = story_env
+    # Create a character with empty sheet
+    sheet_data = {"sheet": "", "summary": ""}
+    _run_tool(
+        "--operation",
+        "generate-sheet",
+        "--name",
+        name,
+        "--character",
+        "Empty",
+        "--data",
+        json.dumps(sheet_data),
+        stories_dir=stories_dir,
+    )
+    result = _run_tool(
+        "--operation",
+        "generate-chunks",
+        "--name",
+        name,
+        "--character",
+        "Empty",
+        stories_dir=stories_dir,
+    )
+    assert result.returncode == 1
+    assert "generate-sheet" in result.stderr
+
+
+def test_generate_chunks_missing_character(story_env: tuple[Path, str]) -> None:
+    """generate-chunks fails cleanly for nonexistent character."""
+    stories_dir, name = story_env
+    result = _run_tool(
+        "--operation",
+        "generate-chunks",
+        "--name",
+        name,
+        "--character",
+        "Ghost",
+        stories_dir=stories_dir,
+    )
+    assert result.returncode == 1
+    assert "not found" in result.stderr.lower()
+
+
+def test_generate_sheet_initialises_abridged_field(story_env: tuple[Path, str]) -> None:
+    """generate-sheet --data initialises the abridged field in the stored JSON."""
+    stories_dir, name = story_env
+    sheet_data = {"sheet": "Alice sheet.", "summary": "Short.", "abridged": "Compact."}
+    _run_tool(
+        "--operation",
+        "generate-sheet",
+        "--name",
+        name,
+        "--character",
+        "Alice",
+        "--data",
+        json.dumps(sheet_data),
+        stories_dir=stories_dir,
+    )
+    load_result = _run_tool(
+        "--operation",
+        "load-sheet",
+        "--name",
+        name,
+        "--character",
+        "Alice",
+        stories_dir=stories_dir,
+    )
+    loaded = json.loads(load_result.stdout)
+    assert "abridged" in loaded
+    assert loaded["abridged"] == "Compact."
 
 
 def test_extract_names_double_wrapped_json(story_env: tuple[Path, str]) -> None:

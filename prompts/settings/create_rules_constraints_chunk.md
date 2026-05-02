@@ -1,6 +1,18 @@
 # Setting Rules and Constraints Chunk Generation
 
-You are tasked with extracting and focusing on the rules, constraints, and limitations of a setting from its full setting sheet. Create a focused, detailed description of the setting's boundaries, restrictions, and governing principles.
+You are tasked with extracting and focusing on the rules, constraints, and limitations of {setting_name} from its full setting sheet. Create a focused, detailed description of the setting's boundaries, restrictions, and governing principles.
+
+<SETTING_NAME>
+{setting_name}
+</SETTING_NAME>
+
+<SETTING_SHEET>
+{setting_sheet}
+</SETTING_SHEET>
+
+<STORY_ELEMENTS>
+{story_elements}
+</STORY_ELEMENTS>
 
 ## Input
 - **Setting Name**: The name of the setting

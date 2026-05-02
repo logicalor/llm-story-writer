@@ -22,6 +22,24 @@ if _root_path not in sys.path:
 from src.tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
 
 
+def _extract_output_content(text: str) -> str:
+    """Extract content between <output>...</output> tags, or return text stripped."""
+    match = re.search(r"<output>(.*?)</output>", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
+
+
+SETTING_CHUNK_PROMPT_MAP: dict[str, str] = {
+    "physical_description": "settings/create_physical_description_chunk",
+    "atmosphere_mood": "settings/create_atmosphere_mood_chunk",
+    "function_purpose": "settings/create_function_purpose_chunk",
+    "history_background": "settings/create_history_background_chunk",
+    "rules_constraints": "settings/create_rules_constraints_chunk",
+    "connections_relationships": "settings/create_connections_relationships_chunk",
+}
+
+
 def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str:
     """Load and render a prompt template."""
     from infrastructure.prompts.prompt_loader import PromptLoader
@@ -186,6 +204,7 @@ def cmd_generate_sheet(args: argparse.Namespace) -> None:
         sheet_text = data.get("sheet", "")
         chunks = data.get("chunks", {})
         summary = data.get("summary", "")
+        abridged = data.get("abridged", "")
     else:
         # Default: generate sheet via LLM
         story_elements = _load_story_elements(args.name)
@@ -232,12 +251,14 @@ def cmd_generate_sheet(args: argparse.Namespace) -> None:
 
         chunks = {}
         summary = ""
+        abridged = ""
 
     sheet_data = {
         "name": args.setting,
         "sheet": sheet_text,
         "chunks": chunks,
         "summary": summary,
+        "abridged": abridged,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -289,6 +310,8 @@ def cmd_update_sheet(args: argparse.Namespace) -> None:
         existing["sheet"] = updates["sheet"]
     if "summary" in updates:
         existing["summary"] = updates["summary"]
+    if "abridged" in updates:
+        existing["abridged"] = updates["abridged"]
     if "chunks" in updates and isinstance(updates["chunks"], dict):
         if "chunks" not in existing or not isinstance(existing.get("chunks"), dict):
             existing["chunks"] = {}
@@ -325,7 +348,7 @@ def cmd_load_sheet(args: argparse.Namespace) -> None:
     if args.abridged:
         data = {
             "name": data.get("name", ""),
-            "summary": data.get("summary", ""),
+            "abridged": data.get("abridged", ""),
             "updated_at": data.get("updated_at", ""),
         }
 
@@ -352,8 +375,153 @@ def cmd_list(args: argparse.Namespace) -> None:
     print(json.dumps({"settings": names}, indent=2))
 
 
+def cmd_generate_chunks(args: argparse.Namespace) -> None:
+    """Generate semantic chunks from an existing setting sheet."""
+    if not args.setting:
+        print("Error: --setting is required for generate-chunks", file=sys.stderr)
+        sys.exit(2)
+
+    _validate_story_name(args.name)
+    setting_path = _validate_setting_name(args.setting, args.name)
+
+    if not setting_path.exists():
+        print(f"Error: setting sheet not found: {args.setting}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        data = json.loads(setting_path.read_text())
+    except json.JSONDecodeError:
+        print(f"Error: corrupted setting sheet: {args.setting}", file=sys.stderr)
+        sys.exit(1)
+
+    sheet_text = data.get("sheet", "")
+    if not sheet_text.strip():
+        print(
+            "Error: setting sheet is empty — run generate-sheet first",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    story_elements = _load_story_elements(args.name) or ""
+
+    chunk_map = SETTING_CHUNK_PROMPT_MAP
+    if args.chunk:
+        if args.chunk not in chunk_map:
+            valid = ", ".join(chunk_map.keys())
+            print(
+                f"Error: unknown chunk type '{args.chunk}'. Valid: {valid}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        chunk_map = {args.chunk: chunk_map[args.chunk]}
+
+    chunks: dict[str, str] = data.get("chunks", {})
+    generated: list[str] = []
+
+    for chunk_key, prompt_id in chunk_map.items():
+        try:
+            prompt_text = _load_prompt(
+                prompt_id,
+                {
+                    "setting_name": args.setting,
+                    "setting_sheet": sheet_text,
+                    "story_elements": story_elements,
+                },
+            )
+        except Exception as exc:
+            print(
+                f"Error: failed to load prompt for '{chunk_key}': {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        try:
+            result = _call_llm(prompt_text, model=args.model)
+        except Exception as exc:
+            print(f"Error: LLM call failed for '{chunk_key}': {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        chunks[chunk_key] = _extract_output_content(result)
+        generated.append(chunk_key)
+
+    data["chunks"] = chunks
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    _atomic_write(setting_path, json.dumps(data, indent=2))
+
+    rel_path = str(setting_path.relative_to(STORIES_DIR.resolve().parent))
+    print(
+        json.dumps(
+            {"status": "ok", "path": rel_path, "chunks_generated": generated},
+            indent=2,
+        )
+    )
+
+
+def cmd_generate_summary(args: argparse.Namespace) -> None:
+    """Generate a natural language summary from existing chunks."""
+    if not args.setting:
+        print("Error: --setting is required for generate-summary", file=sys.stderr)
+        sys.exit(2)
+
+    _validate_story_name(args.name)
+    setting_path = _validate_setting_name(args.setting, args.name)
+
+    if not setting_path.exists():
+        print(f"Error: setting sheet not found: {args.setting}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        data = json.loads(setting_path.read_text())
+    except json.JSONDecodeError:
+        print(f"Error: corrupted setting sheet: {args.setting}", file=sys.stderr)
+        sys.exit(1)
+
+    chunks: dict[str, str] = data.get("chunks", {})
+    valid_chunks = {
+        k: v
+        for k, v in chunks.items()
+        if v and not v.lower().startswith("please provide")
+    }
+    if not valid_chunks:
+        print(
+            "Error: no valid chunks found — run generate-chunks first",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    setting_info = "\n\n".join(
+        f"=== {key.replace('_', ' ').title()} ===\n{value}"
+        for key, value in valid_chunks.items()
+    )
+
+    try:
+        prompt_text = _load_prompt(
+            "settings/create_summary",
+            {
+                "setting_name": args.setting,
+                "setting_info": setting_info,
+            },
+        )
+    except Exception as exc:
+        print(f"Error: failed to load prompt: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        summary = _call_llm(prompt_text, model=args.model)
+    except Exception as exc:
+        print(f"Error: LLM call failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    data["summary"] = _extract_output_content(summary)
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    _atomic_write(setting_path, json.dumps(data, indent=2))
+
+    rel_path = str(setting_path.relative_to(STORIES_DIR.resolve().parent))
+    print(json.dumps({"status": "ok", "path": rel_path}, indent=2))
+
+
 def cmd_generate_abridged(args: argparse.Namespace) -> None:
-    """Generate an abridged summary from a setting sheet."""
+    """Generate a compact abridged summary via LLM using story_elements."""
     if not args.setting:
         print("Error: --setting is required for generate-abridged", file=sys.stderr)
         sys.exit(2)
@@ -371,19 +539,47 @@ def cmd_generate_abridged(args: argparse.Namespace) -> None:
         print(f"Error: corrupted setting sheet: {args.setting}", file=sys.stderr)
         sys.exit(1)
 
-    sheet_text = data.get("sheet", "")
-    budget = args.budget
-    word_limit = int(budget * 0.75)
+    if args.data is not None:
+        # Escape hatch: store caller-provided content directly to abridged
+        data["abridged"] = args.data
+        data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        _atomic_write(setting_path, json.dumps(data, indent=2))
+        rel_path = str(setting_path.relative_to(STORIES_DIR.resolve().parent))
+        print(json.dumps({"status": "ok", "path": rel_path}, indent=2))
+        return
 
-    words = sheet_text.split()
-    truncated = " ".join(words[:word_limit])
+    story_elements = _load_story_elements(args.name)
+    if story_elements is None:
+        print(
+            "Error: story_elements savepoint not found — run outline generation first, or pass --data",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
-    data["summary"] = truncated
+    try:
+        prompt_text = _load_prompt(
+            "settings/create_abridged",
+            {
+                "setting_name": args.setting,
+                "story_elements": story_elements,
+            },
+        )
+    except Exception as exc:
+        print(f"Error: failed to load prompt: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        abridged = _call_llm(prompt_text, model=args.model)
+    except Exception as exc:
+        print(f"Error: LLM call failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    data["abridged"] = _extract_output_content(abridged)
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     _atomic_write(setting_path, json.dumps(data, indent=2))
 
     rel_path = str(setting_path.relative_to(STORIES_DIR.resolve().parent))
-    print(json.dumps({"summary": truncated, "path": rel_path}, indent=2))
+    print(json.dumps({"status": "ok", "path": rel_path}, indent=2))
 
 
 def main() -> None:
@@ -397,6 +593,8 @@ def main() -> None:
             "update-sheet",
             "load-sheet",
             "list",
+            "generate-chunks",
+            "generate-summary",
             "generate-abridged",
         ],
         help="Operation to perform",
@@ -423,10 +621,16 @@ def main() -> None:
         help="LLM model name for generate-sheet (default: uses default model)",
     )
     parser.add_argument(
+        "--chunk",
+        default=None,
+        choices=list(SETTING_CHUNK_PROMPT_MAP.keys()),
+        help="Generate a single named chunk (generate-chunks only); omit to generate all",
+    )
+    parser.add_argument(
         "--budget",
         type=int,
         default=500,
-        help="Word budget for generate-abridged (default: 500)",
+        help="Deprecated — kept for backward compatibility, no longer used",
     )
     parser.add_argument(
         "--abridged",
@@ -446,6 +650,10 @@ def main() -> None:
         cmd_load_sheet(args)
     elif op == "list":
         cmd_list(args)
+    elif op == "generate-chunks":
+        cmd_generate_chunks(args)
+    elif op == "generate-summary":
+        cmd_generate_summary(args)
     elif op == "generate-abridged":
         cmd_generate_abridged(args)
 
