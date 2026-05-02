@@ -1,4 +1,3 @@
-<!-- STALE — archived to archive/issue-316-preexisting-failure-baseline-in-workflow-2026-05-03.md — delete this file -->
 ---
 date: "2026-05-03"
 issue: 316
@@ -53,3 +52,4 @@ before the first commit prevents confusion and saves review cycles.
 ### Action Taken
 
 Proposed for approval — structural addition to a shared workflow instruction file used by all agents.
+Archived during issue #317 collation (2026-05-03). Major proposal remains pending approval.
