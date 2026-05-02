@@ -9,6 +9,7 @@ from src.domain.value_objects.generation_settings import GenerationSettings
 
 NON_RUNTIME_PROMPT_PARTS = {"agents", "_unused", "skills"}
 NON_RUNTIME_PROMPT_FILES = {
+    Path("prompts/sample-story.md"),  # user-facing example, not a tool prompt template
     Path("prompts/chapters/create_list.md"),
     Path("prompts/chapters/create_list_iterative.md"),
     Path("prompts/multistep/outline/enrichment/understand_character_summaries.md"),
