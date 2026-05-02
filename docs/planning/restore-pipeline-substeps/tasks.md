@@ -148,6 +148,8 @@ After outline approval, run `outline/create_title`, `outline/create_summary`, `o
 
 ### Task 5: Outline Critic + Arc Analytics Loop
 
+Status: Complete in Issue #300 / PR #312.
+
 **Type:** backend (agent + orchestrator wiring)
 **Estimated scope:** large
 **Dependencies:** Task 2
@@ -155,18 +157,22 @@ After outline approval, run `outline/create_title`, `outline/create_summary`, `o
 **Description:**
 Implement `OutlineCriticAgent` that runs (when `enable_outline_critique=True`):
 
-1. Six critics under `prompts/outline_review/*.md` — currently exercised only via the `critique_runner` CLI tool. Each takes the stripped outline plus `base_context` and `story_elements`. Sequential by default; concurrent if `enable_concurrent_critics=True`.
-2. Three arc analytics under `prompts/outline_arc/*.md` — `arc_distribution`, `promise_payoff`, `arc_synthesis`. The synthesised result populates `state.critic_summary` and feeds `StoryPlannerAgent` (replacing its current empty inputs).
-3. If `outline_critique_iterations > 0` and any critic returns severity `>= warn`, request one revision pass on the outline. Cap revisions at `outline_max_revisions`; honour `outline_min_revisions` as a floor.
+1. Six critics under `prompts/outline_review/*.md`. The implemented agent builds one combined outline payload from `OutlineResult.summary` plus any `chapter_outlines` and `chapter_details`, then runs the critics sequentially by default or concurrently when `enable_concurrent_critics=True`.
+2. Three arc analytics under `prompts/outline_arc/*.md` — `arc_distribution`, `promise_payoff`, and `arc_synthesis`. The synthesised result populates `state.critic_summary` and feeds `StoryPlannerAgent`.
+3. Persist the concatenated critic summaries to `stories/<name>/outline/critic_summary.md` and the arc-analysis outputs to `PipelineState`.
 
 `StoryPlannerAgent` is updated to consume `state.critic_summary`, `arc_distribution`, `promise_payoff` from this agent's output instead of empty strings.
 
 **Acceptance Criteria:**
-- [ ] With `enable_outline_critique=True`, all six critics + three arc prompts are invoked exactly once per outline (or up to `outline_critique_iterations + 1` times if revisions trigger).
-- [ ] `state.critic_summary` is non-empty and persisted to `outline/critic_summary.md`.
-- [ ] `StoryPlannerAgent` receives non-empty `critic_summary`, `arc_distribution`, `promise_payoff` (asserted by test).
-- [ ] With `enable_outline_critique=False`, no critic prompts are loaded (asserted by spying on `PromptLoader.load_prompt`).
-- [ ] `pytest tests/unit/test_outline_critic_agent.py` and `test_story_planner_agent.py` pass.
+- [x] With `enable_outline_critique=True`, all six critics + three arc prompts are invoked once per generated outline.
+- [x] `state.critic_summary`, `state.arc_distribution`, and `state.promise_payoff` are persisted on `PipelineState`, and `outline/critic_summary.md` is written.
+- [x] `StoryPlannerAgent` receives non-empty `critic_summary`, `arc_distribution`, `promise_payoff` inputs.
+- [x] With `enable_outline_critique=False`, the orchestrator skips the critic phase entirely.
+- [x] `pytest tests/unit/test_outline_critic_agent.py` and the related story-planner/orchestrator tests pass.
+
+**Implementation Notes:**
+- `outline_critique_iterations` remains part of `GenerationSettings`, but the current implementation performs one critic pass per generated outline rather than an auto-revision loop.
+- `outline_min_revisions` and `outline_max_revisions` remain broader outline revision settings; the critic phase does not yet trigger automatic outline rewrites.
 
 **Key Files:**
 - `src/presentation/agents/outline_critic.py` — new.

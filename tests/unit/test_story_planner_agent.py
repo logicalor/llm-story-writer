@@ -71,7 +71,9 @@ def _make_agent(provider: MagicMock) -> StoryPlannerAgent:
 @pytest.mark.asyncio
 async def test_story_planner_consumes_critic_fields_from_state() -> None:
     provider = MagicMock()
-    provider.stream_text = MagicMock(return_value=_async_gen(["Strong arc assessment."]))
+    provider.stream_text = MagicMock(
+        return_value=_async_gen(["Strong arc assessment."])
+    )
     agent = _make_agent(provider)
     captured_variables: dict[str, str] = {}
 
@@ -101,7 +103,9 @@ async def test_story_planner_consumes_critic_fields_from_state() -> None:
 @pytest.mark.asyncio
 async def test_story_planner_handles_empty_critic_fields() -> None:
     provider = MagicMock()
-    provider.stream_text = MagicMock(return_value=_async_gen(["Strong arc assessment."]))
+    provider.stream_text = MagicMock(
+        return_value=_async_gen(["Strong arc assessment."])
+    )
     agent = _make_agent(provider)
 
     with patch(

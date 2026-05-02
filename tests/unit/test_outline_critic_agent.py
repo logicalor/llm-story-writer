@@ -12,7 +12,6 @@ if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
 from application.pipeline.handoffs import (
-    ArcAnalysisResult,
     ChapterDraft,
     OutlineResult,
     PipelineState,
@@ -105,7 +104,9 @@ def _critique_result(critic_type: str) -> CritiqueResult:
 
 
 def _expected_critic_summary() -> str:
-    return "\n\n".join(f"summary::{critic_type}" for critic_type in OUTLINE_CRITIC_TYPES)
+    return "\n\n".join(
+        f"summary::{critic_type}" for critic_type in OUTLINE_CRITIC_TYPES
+    )
 
 
 def _config() -> dict[str, object]:
