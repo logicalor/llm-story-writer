@@ -1,4 +1,3 @@
-<!-- STALE — archived to archive/issue-317-read-markdown-ref-security-tests-2026-05-03.md — delete this file -->
 ---
 date: "2026-05-03"
 issue: 317
@@ -56,3 +55,4 @@ These can be added in a follow-up commit on this branch or in a later hardening 
 
 Proposed: two additional test cases for `TestReadMarkdownRef` to verify security validation
 through the `read_markdown_ref` entry point. Follow-up PR or branch commit needed.
+Archived as pending follow-up — active note remains until tests are added.

@@ -532,13 +532,22 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
 **What the system does:**
 - Extracts character names from the approved outline and generates one JSON sheet per character
 - Extracts setting/location names from the approved outline and generates one JSON sheet per setting
+- Caches extracted names to `stories/<name>/characters/_names.json` and `stories/<name>/settings/_names.json` before the per-entity loop continues
+- Uses the work-item ledger inside `pipeline_state.json` to checkpoint each base sheet, each chunk, each abridged write, and each summary write
 - Uses orchestrator helpers rather than standalone character or setting presentation agents
 - If name extraction returns invalid JSON, the phase degrades gracefully and the pipeline continues
+
+**Resume behavior:**
+- Already-cached name lists are loaded from `_names.json` instead of being re-extracted
+- Completed character and setting JSON files are read back from disk
+- Resume continues from the next missing chunk or summary step instead of restarting the whole phase
 
 **Artefacts produced:**
 - `stories/<name>/savepoints/characters`
 - `stories/<name>/savepoints/settings`
+- `stories/<name>/characters/_names.json`
 - `stories/<name>/characters/<slug>.json` (one per character)
+- `stories/<name>/settings/_names.json`
 - `stories/<name>/settings/<slug>.json` (one per setting)
 
 **User action needed:** None
@@ -580,7 +589,7 @@ What this phase does:
 
 **What the system does:**
 - For each chapter (1 to `wanted_chapters`):
-  1. **Scene Generation (7b)** — Loads abridged character and setting sheet context; prefers the chapter's detailed outline block when available; forwards the prior chapter recap from `state.recaps[str(N-1)]` (preferring `compact`, then `sanitised`, then `events`); and generates chapter text via the `chapter-writer` agent. If `scene_generation_pipeline: true`, the agent expands the chapter into scene JSON and drafts scenes sequentially with position-aware prompts for first, middle, and final scenes. Otherwise, the full chapter is generated in one LLM call.
+  1. **Scene Generation (7b)** — Loads abridged character and setting sheet context; prefers the chapter's detailed outline block when available; forwards the prior chapter recap from `state.recaps[str(N-1)]` (preferring `compact`, then `sanitised`, then `events`); and generates chapter text via the `chapter-writer` agent. If `scene_generation_pipeline: true`, the agent expands the chapter into `stories/<name>/chapters/chapter_<N>_scenes.json`, then drafts scenes sequentially with position-aware prompts for first, middle, and final scenes. Each completed scene is written to `stories/<name>/chapters/chapter_<N>/scene_<M>.md` before the corresponding work item is marked done. Otherwise, the full chapter is generated in one LLM call.
   2. **Approval Gate** — Presents the chapter for user approval (interactive mode only)
   3. **Consistency Check (7e)** — Runs `consistency_checker`; findings stream to the token bus but do not block chapter persistence
   4. **Chapter Persistence** — Appends the approved draft to `state.approved_chapters` and writes `stories/<name>/chapters/chapter_<N>.md`
@@ -590,9 +599,16 @@ What this phase does:
   8. **Metadata Refresh (`metadata-chapter-1`)** — Immediately after Chapter 1 is approved, the orchestrator re-runs `StoryMetadataAgent` with the approved Chapter 1 prose. This refresh is advisory, updates `OutlineResult.title` plus `OutlineResult.tags` on success, and rewrites `stories/<name>/metadata.json`.
   9. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
 
+**Resume behavior:**
+- If scene decomposition already completed, resume reloads `chapter_<N>_scenes.json` instead of regenerating the scene list
+- If one or more scenes already completed, resume reloads `chapter_<N>/scene_<M>.md` files and continues from the first missing scene
+- Direct whole-chapter fallback still behaves as a single-shot draft; granular resume here applies only to the scene pipeline path
+
 > **Future work (not yet wired):** Phase 7a (chapter-outline-expander), Phase 7f (quality-reviewer / critique-revision loop), Phase 7.5 (prose-scrubber), Phase 7g (handoff artifact generation).
 
 **Artefacts produced:**
+- `stories/<name>/chapters/chapter_<N>_scenes.json` when scene generation pipeline is enabled
+- `stories/<name>/chapters/chapter_<N>/scene_<M>.md` for each completed scene when scene generation pipeline is enabled
 - `stories/<name>/chapters/chapter_1.md` through `chapter_{N}.md`
 - `stories/<name>/chapters/chapter_1_recap.json` through `chapter_{N}_recap.json`
 - `stories/<name>/savepoints/chapter-1` through `chapter-{N}` plus `chapter-loop`
@@ -1396,7 +1412,18 @@ The pipeline resume state is stored as a single JSON file:
 stories/<name>/savepoints/pipeline_state.json
 ```
 
-This file contains the full `PipelineState` object (completed phases, approved chapters, current phase, etc.).
+This file contains the full `PipelineState` object (completed phases, approved chapters, current phase, `completed_work_items`, and related phase data).
+
+Granular resume inside converted phases works by combining that ledger state with the persisted artefacts those work items point to. Current ADR 010 coverage writes these additional files during a run:
+
+```
+stories/<name>/characters/_names.json
+stories/<name>/settings/_names.json
+stories/<name>/chapters/chapter_<N>_scenes.json
+stories/<name>/chapters/chapter_<N>/scene_<M>.md
+```
+
+On resume, the orchestrator reloads those files only when the matching work-item IDs already appear in `PipelineState.completed_work_items`.
 
 Individual phase outputs are also stored as separate savepoint files in the same directory:
 
@@ -1474,6 +1501,8 @@ python -m src.tools.savepoint_manager --operation next-phase --name my-story
 # Resume in TUI
 story-writer tui --story my-story --resume
 ```
+
+If the interruption happened during scene drafting, resume reloads the completed `chapter_12/scene_<M>.md` files and continues from the first missing scene rather than restarting Chapter 12 from scene 1.
 
 **Scenario B: Want to restart from outline after changing the prompt**
 
@@ -1748,7 +1777,7 @@ curl http://127.0.0.1:1234/v1/models
 ```bash
 story-writer resume --story <name>
 ```
-The pipeline resumes from the last completed phase savepoint. If chapter 7 was halfway through, it restarts chapter 7 from the beginning (chapter generation is atomic per chapter, not per scene).
+The pipeline resumes from the latest `pipeline_state.json` snapshot. For converted ledger-backed loops, resume is finer-grained than the phase boundary: character and setting generation continue from the next missing work item, and scene-based chapter drafting continues from the next missing scene. Phases that are still single-shot continue to restart at the phase boundary.
 
 ### "Output is repetitive"
 

@@ -1,10 +1,10 @@
 # Story Orchestrator
 
-> Headless Python pipeline runner and agent-callable layer implemented in Issue #161 / PR #171, extended with characters and settings in Issue #182 / PR #194, consistency-result parsing in Issue #184 / PR #197, narrative-arc plus final-edit execution in Issue #185 / PR #198, story-foundation handoff seeding in Issue #292 / PR #304, and deeper character/setting generation plus per-chapter sheet evolution in Issue #298 / PR #310.
+> Headless Python pipeline runner and agent-callable layer implemented in Issue #161 / PR #171, extended with characters and settings in Issue #182 / PR #194, consistency-result parsing in Issue #184 / PR #197, narrative-arc plus final-edit execution in Issue #185 / PR #198, story-foundation handoff seeding in Issue #292 / PR #304, deeper character/setting generation plus per-chapter sheet evolution in Issue #298 / PR #310, advisory metadata checkpoints in Issue #299 / PR #311, and ledger-driven granular resume for characters, settings, and per-scene chapter drafting in Issue #318 / PR #330.
 
 ## Overview
 
-Issue #161 implements the first executable Python-native orchestration slice in `src/presentation/orchestrator.py`. Issue #182 extends that slice by replacing the characters and settings stubs with real sheet-generation helpers and by teaching the chapter writer to consume those generated sheets as prompt context. Issue #185 adds the missing Phase 2.5 narrative-arc pass and replaces the Phase 9 final-edit stub with a real editing agent. Issue #292 inserts `StoryFoundationAgent` ahead of outline generation so the orchestrator can seed `OutlineResult` with `base_context`, `story_start_date`, and `story_elements` before later phases run. Issue #298 deepens the character and setting phases by generating `summary`, `abridged`, and per-aspect `chunks` fields up front, then runs dedicated evolver agents after each approved chapter to keep sheets current as the manuscript changes. Issue #299 adds `StoryMetadataAgent`, an advisory three-checkpoint metadata pass that generates story title, summary, and tags after outline approval, after the first approved chapter, and after final edit. The current implementation still remains smaller than the long-term PRD: it runs a headless async pipeline, persists one JSON savepoint file, and coordinates Python presentation agents plus orchestrator-local helper phases through injected transport primitives.
+Issue #161 implements the first executable Python-native orchestration slice in `src/presentation/orchestrator.py`. Issue #182 extends that slice by replacing the characters and settings stubs with real sheet-generation helpers and by teaching the chapter writer to consume those generated sheets as prompt context. Issue #185 adds the missing Phase 2.5 narrative-arc pass and replaces the Phase 9 final-edit stub with a real editing agent. Issue #292 inserts `StoryFoundationAgent` ahead of outline generation so the orchestrator can seed `OutlineResult` with `base_context`, `story_start_date`, and `story_elements` before later phases run. Issue #298 deepens the character and setting phases by generating `summary`, `abridged`, and per-aspect `chunks` fields up front, then runs dedicated evolver agents after each approved chapter to keep sheets current as the manuscript changes. Issue #299 adds `StoryMetadataAgent`, an advisory three-checkpoint metadata pass that generates story title, summary, and tags after outline approval, after the first approved chapter, and after final edit. Issue #318 then converts the characters phase, settings phase, and scene-by-scene chapter drafting path to the ADR 010 work-item ledger so resumed runs can skip already-persisted sub-steps inside those phases. The current implementation still remains smaller than the long-term PRD: it runs a headless async pipeline, persists one JSON savepoint file, and coordinates Python presentation agents plus orchestrator-local helper phases through injected transport primitives.
 
 Two entry points exist:
 
@@ -32,11 +32,11 @@ The top-level flow lives in `run_pipeline()` and `_continue_pipeline()`.
 | `outline` | Run `OutlinePlannerAgent`, passing through story-foundation context. When `expand_outline=true`, the agent writes `outline/skeleton.md`, populates per-chapter detail files under `outline/details/`, persists the enriched `OutlineResult`, then waits on the outline approval gate. Revisions reuse the same foundation fields. | `outline` |
 | `metadata-outline` | Run `StoryMetadataAgent` after outline approval using outline text only. Persist generated title and tags into `state.outline_result` when generation succeeds, write `stories/<story>/metadata.json`, and continue even if generation fails. | `metadata_outline_complete` |
 | `narrative-arc` | If `state.outline_result` exists, run `StoryPlannerAgent`, stream the arc assessment onto `TokenStreamBus`, store `ArcAnalysisResult` in `state.arc_result`, and continue even if the agent raises | `arc_analysis_complete` |
-| `characters` | Emit a wiki-context event, build `story_elements` from the outline, extract character names through the configured LLM, generate one full sheet per extracted name, then enrich each JSON file with `abridged`, `summary`, and seven `chunks` entries before the phase completes | `characters` |
-| `settings` | Emit a wiki-context event, build `story_elements` from the outline, extract setting names through the configured LLM, generate one full sheet per extracted name, then enrich each JSON file with `abridged`, `summary`, and six `chunks` entries before the phase completes | `settings` |
+| `characters` | Emit a wiki-context event, build `story_elements` from the outline, cache extracted names in `stories/<story>/characters/_names.json`, generate one full sheet per extracted name, then ledger-gate each sheet, chunk, abridged, and summary write so resumed runs continue at the next missing work item | `characters` |
+| `settings` | Emit a wiki-context event, build `story_elements` from the outline, cache extracted location names in `stories/<story>/settings/_names.json`, generate one full sheet per extracted name, then ledger-gate each sheet, chunk, abridged, and summary write so resumed runs continue at the next missing work item | `settings` |
 | `wiki-init` | Idempotently initialise `stories/<story>/wiki/` directory structure (subdirectories, `index.md`, `log.md`, `_schema.md`, `contradictions.md`). Skips if wiki already present. Must succeed before chapter-loop wiki maintenance runs. | — (no separate savepoint) |
 | `wiki-bootstrap` | Seed wiki pages from the approved outline plus the generated character and setting sheets. Existing slugs are skipped so reruns stay idempotent, and failures are logged without aborting later phases. | `wiki_populated` |
-| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, emit any failed consistency findings to the token bus, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, run wiki maintenance, run character and setting sheet evolution, then run advisory recap generation and persist recap output when available. After the first approved chapter only, run `StoryMetadataAgent` again as `metadata-chapter-1` using Chapter 1 prose and persist the refreshed metadata payload. | `chapter-{N}`, then `chapter-loop` |
+| `chapter-loop` | For each chapter number, run chapter drafting, chapter gate handling, consistency check, emit any failed consistency findings to the token bus, append the approved draft to `state.approved_chapters`, write `stories/<story>/chapters/chapter_{N}.md`, run wiki maintenance, run character and setting sheet evolution, then run advisory recap generation and persist recap output when available. When the scene pipeline is active, the chapter writer also caches `chapter_{N}_scenes.json` plus one `chapter_{N}/scene_{M}.md` file per completed scene and resumes from the first missing scene after interruption. After the first approved chapter only, run `StoryMetadataAgent` again as `metadata-chapter-1` using Chapter 1 prose and persist the refreshed metadata payload. | `chapter-{N}`, then `chapter-loop` |
 | `final-edit` | Unless `generation.enable_final_edit` is explicitly `false`, run `FinalEditorAgent` once per approved chapter, replace `state.approved_chapters` with the edited drafts, and write `stories/<story>/output/story_edited.md` when edited content exists | `final_edit_complete` |
 | `metadata-final` | Run `StoryMetadataAgent` after final edit using the edited Chapter 1 prose when available. Persist generated title and tags into `state.outline_result` when generation succeeds, rewrite `stories/<story>/metadata.json`, and continue even if generation fails. | `metadata_final_complete` |
 | `assembly` | Read non-empty content from `state.approved_chapters`, write `stories/<story>/output/story.md`, and fail with `StoryGenerationError` if no approved chapter content exists | `assembly`, then `complete` |
@@ -49,11 +49,15 @@ The characters and settings phases are implemented as orchestrator helpers rathe
 
 The current orchestrator writes these story-facing artifact groups during a successful run:
 
-- `stories/<story>/savepoints/pipeline_state.json` — the persisted `PipelineState` snapshot, including `arc_result`, `recaps`, and `evolved_sheets` when those phases succeed
+- `stories/<story>/savepoints/pipeline_state.json` — the persisted `PipelineState` snapshot, including `arc_result`, `recaps`, `evolved_sheets`, and `completed_work_items` for ledger-gated resume
 - `stories/<story>/outline/skeleton.md` and `stories/<story>/outline/details/chapter_{N}.md` — Phase 3 outline artifacts written when `generation.expand_outline` is enabled; existing chapter detail files are reused on resume
 - `stories/<story>/metadata.json` — advisory story metadata rewritten after successful `metadata-outline`, `metadata-chapter-1`, and `metadata-final` runs; stores `title`, `summary`, `tags`, and `updated_at`
+- `stories/<story>/characters/_names.json` — cached character-name list reused when the characters phase resumes after name extraction already completed
 - `stories/<story>/characters/<slug>.json` — one JSON character sheet per extracted name
+- `stories/<story>/settings/_names.json` — cached location-name list reused when the settings phase resumes after extraction already completed
 - `stories/<story>/settings/<slug>.json` — one JSON setting sheet per extracted name
+- `stories/<story>/chapters/chapter_{N}_scenes.json` — persisted scene decomposition for the scene pipeline; reused on resumed runs instead of regenerating the scene list
+- `stories/<story>/chapters/chapter_{N}/scene_{M}.md` — one persisted scene draft per completed scene when the scene pipeline is active
 - `stories/<story>/chapters/chapter_{N}.md` — written immediately after chapter `N` passes the approval gate and consistency check
 - `stories/<story>/chapters/chapter_{N}_recap.json` — written after chapter `N` recap generation returns a non-empty recap payload
 - `stories/<story>/output/story_edited.md` — written after Phase 9 when final-edit is enabled and at least one edited chapter contains non-empty content
@@ -135,11 +139,11 @@ Both sheet-generation helpers follow the same pattern:
 
 1. Build a `story_elements` string from `OutlineResult.summary` plus serialized `chapter_outlines`.
 2. Load an extraction prompt from `prompts/characters/extract_names.md` or `prompts/settings/extract_names.md`.
-3. Ask the configured `chapter_writer` model for a JSON array of names.
-4. For each non-empty name that slugifies successfully, load the corresponding `create` prompt and request a full markdown sheet.
-5. Write the initial JSON document to disk so later summarisation prompts can read a stable object shape.
-6. Run `create_abridged`, `create_summary`, and the per-aspect chunk prompts for that entity.
-7. Rewrite the same JSON file with populated `chunks`, `abridged`, `summary`, and refreshed `updated_at`.
+3. Ask the configured `chapter_writer` model for a JSON array of names, then atomically cache the result to `_names.json` and mark the extraction work item done.
+4. For each non-empty name that slugifies successfully, load the corresponding `create` prompt and request a full markdown sheet unless the `.../<slug>/sheet` ledger item already exists.
+5. Write the initial JSON document to disk so later summarisation prompts can read a stable object shape, then mark the sheet work item done.
+6. Run `create_abridged`, `create_summary`, and the per-aspect chunk prompts for that entity, atomically rewriting the same JSON file after each completed sub-step before recording the matching work item.
+7. On resume, load cached names and any existing sheet JSON from disk, then continue at the first missing chunk, abridged, or summary item instead of restarting the entity from scratch.
 
 Characters currently generate seven chunks: `backstory`, `personality`, `motivation`, `relationships`, `skills`, `arc`, and `current_state`. Settings currently generate six chunks: `physical_description`, `atmosphere_mood`, `function_purpose`, `history_background`, `connections_relationships`, and `rules_constraints`.
 
@@ -147,7 +151,7 @@ Failure handling is intentionally permissive. If the extraction call returns mal
 
 ## Chapter Prompt Enrichment
 
-`ChapterWriterAgent.run()` now reads generated sheet files from `stories/<story>/characters/*.json` and `stories/<story>/settings/*.json` before it sends the chapter prompt to the model.
+`ChapterWriterAgent.run()` now reads generated sheet files from `stories/<story>/characters/*.json` and `stories/<story>/settings/*.json` before it sends the chapter prompt to the model. It also accepts `state: PipelineState | None = None`, allowing the orchestrator to pass the active work-item ledger into `_run_scene_pipeline()` without breaking older direct callers.
 
 For each readable JSON file:
 
@@ -255,6 +259,8 @@ Savepoints are persisted as a single JSON snapshot of `PipelineState` at `storie
 - `savepoint_id` stores the latest savepoint label.
 - `savepoints` accumulates the labels written so far.
 
+Granular resume is layered inside that same snapshot through `completed_work_items`. The helper pair `_work_item_done(state, phase, item_id)` and `_mark_work_item_done(state, phase, item_id)` now gate loop-heavy sub-steps within converted phases. Each ledger entry is written only after the corresponding artefact reaches disk.
+
 `_mark_phase_complete()` is the standard path for successful phase completion. It appends the phase to `completed_phases`, updates `savepoint_id`, appends to `savepoints`, and writes the snapshot.
 
 `resume_pipeline()` behaves as follows:
@@ -265,6 +271,14 @@ Savepoints are persisted as a single JSON snapshot of `PipelineState` at `storie
 4. Otherwise call `_continue_pipeline()` and skip any phase already listed in `completed_phases`.
 
 Named savepoints are **validation-only**. Resume always continues from the single latest `pipeline_state.json` snapshot. The `savepoint_name` argument only verifies that the story reached at least that phase; it never restores an older snapshot.
+
+Within converted phases, resume is more granular than the phase list implies:
+
+- characters reuse `characters/_names.json` and continue from the next missing sheet, chunk, abridged, or summary item;
+- settings reuse `settings/_names.json` and continue from the next missing sheet, chunk, abridged, or summary item; and
+- scene-based chapter drafting reloads `chapter_{N}_scenes.json` plus any completed `chapter_{N}/scene_{M}.md` files and continues from the first missing scene.
+
+Legacy savepoints without `completed_work_items` still load cleanly because `PipelineState.from_dict()` defaults that field to an empty dict. Those runs fall back to older phase-level behavior until a converted phase writes a fresh savepoint.
 
 ## Agent Callable Pattern
 
@@ -283,7 +297,7 @@ Issue #161 adds the first Python callables under `src/presentation/agents/`, and
 | `OutlinePlannerAgent` | `prompts/outline/create_skeleton.md`, `prompts/outline/expand_chapter_detail.md`, `prompts/outline/strip_elements.md`, fallback `prompts/outline/create_direct.md` | `OutlineResult` | Runs a multi-stage outline pipeline when `expand_outline=true`, persists outline artifacts under `stories/<story>/outline/`, reuses existing chapter detail files on resume, and falls back to one direct outline call when expansion is disabled |
 | `StoryMetadataAgent` | `prompts/outline/create_title.md`, `prompts/outline/create_summary.md`, `prompts/outline/create_tags.md` | `StoryMetadataResult` | Runs at `metadata-outline`, `metadata-chapter-1`, and `metadata-final`, emits advisory token-bus updates, parses JSON tag arrays, and rewrites `stories/<story>/metadata.json` without blocking the pipeline on failure |
 | `StoryPlannerAgent` | `prompts/outline/arc_assessment_direct.md` | `ArcAnalysisResult` | Streams one advisory arc assessment from the approved outline, truncates stored assessment text to 1000 characters, and derives `verdict_code` heuristically from the streamed output |
-| `ChapterWriterAgent` | `prompts/chapters/write_chapter_direct.md` plus scene-pipeline prompts when enabled | `ChapterDraft` | Builds each chapter from the best available detailed outline block, forwards prior chapter recap continuity from `PipelineState.recaps`, and either drafts scenes sequentially with first/middle/final scene prompts or falls back to direct whole-chapter drafting for revisions and pipeline fallback |
+| `ChapterWriterAgent` | `prompts/chapters/write_chapter_direct.md` plus scene-pipeline prompts when enabled | `ChapterDraft` | Builds each chapter from the best available detailed outline block, forwards prior chapter recap continuity from `PipelineState.recaps`, persists scene decomposition plus per-scene markdown when state-backed scene drafting is active, and otherwise falls back to direct whole-chapter drafting for revisions and pipeline fallback |
 | `WikiMaintainerAgent` | none loaded at runtime | `WikiUpdateBatch` | Calls `tools.wiki_extract.update_wiki_from_chapter()` on a worker thread, persists wiki batches after each approved chapter, returns concrete `updated_pages` / `new_pages` slug lists, and emits one `WikiContextEvent` per changed page |
 | `CharacterEvolverAgent` | `prompts/characters/extract_from_chapter.md`, `prompts/characters/analyze_changes.md`, `prompts/characters/update.md` | `dict[str, str]` | Runs after each approved chapter, updates character sheet `sheet` bodies in place when the analysis says a change is needed, and reports per-character `updated` or `unchanged` status back to the orchestrator |
 | `SettingEvolverAgent` | `prompts/settings/extract_from_chapter.md`, `prompts/settings/analyze_changes.md`, `prompts/settings/update.md` | `dict[str, str]` | Runs after each approved chapter, updates setting sheet `sheet` bodies in place when the analysis says a change is needed, and reports per-setting `updated` or `unchanged` status back to the orchestrator |
@@ -314,6 +328,7 @@ Each agent instantiates `PromptLoader` on demand inside `run()` and loads the di
 | `critic_summary` | `str` | Reserved persisted field for later outline-critique synthesis stages; defaults to `""` for old savepoints |
 | `recaps` | `dict[str, Any]` | Persisted per-chapter recap map keyed by string chapter number; defaults to `{}` for old savepoints |
 | `evolved_sheets` | `dict[str, Any]` | Persisted per-chapter sheet-evolution map keyed by string chapter number, with nested `characters` and `settings` status dicts; defaults to `{}` for old savepoints |
+| `completed_work_items` | `dict[str, list[str]]` | Phase-scoped work-item ledger used for granular resume inside characters, settings, and scene-based chapter drafting; defaults to `{}` for old savepoints |
 | `savepoints` | `list[str]` | Ordered record of checkpoint labels written during the run |
 | `status` | `str` | Run lifecycle state: defaults to `"running"`, changes to `"rejected"` or `"complete"` |
 
@@ -330,6 +345,7 @@ Document those only when the corresponding code lands.
 
 ## Related
 
+- [Granular Checkpointing](./granular-checkpointing.md)
 - [Python-Native Foundation](./python-native-foundation.md)
 - [Pipeline Primitives](./pipeline-primitives.md)
 - [PRD: Python-Native Orchestration and TUI](../planning/python-native-migration/prd.md)
