@@ -197,7 +197,13 @@ async def _generate_chapter_with_gate(
     outline_result: OutlineResult,
     settings: GenerationSettings,
 ) -> ChapterDraft | None:
-    draft = await agent.run(story_name, chapter_number, outline_result, settings)
+    draft = await agent.run(
+        story_name,
+        chapter_number,
+        outline_result,
+        settings,
+        recaps=state.recaps,
+    )
     while True:
         decision = await gate.await_decision()
         if decision.approved:
@@ -212,6 +218,7 @@ async def _generate_chapter_with_gate(
             outline_result,
             settings,
             feedback=decision.feedback,
+            recaps=state.recaps,
         )
         await _write_savepoint(state)
 

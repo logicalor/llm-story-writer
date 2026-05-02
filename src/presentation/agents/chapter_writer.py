@@ -92,7 +92,9 @@ class ChapterWriterAgent:
         outline_result: OutlineResult,
         settings: GenerationSettings,
         feedback: str | None = None,
+        recaps: dict[str, Any] | None = None,
     ) -> ChapterDraft:
+        recaps = recaps or {}
         chapter_outline = None
         if 0 < chapter_number <= len(outline_result.chapter_outlines):
             chapter_outline = outline_result.chapter_outlines[chapter_number - 1]
@@ -107,17 +109,28 @@ class ChapterWriterAgent:
             )
             title = str(chapter_outline.get("title") or title)
 
+        if outline_result.chapter_details and chapter_number <= len(
+            outline_result.chapter_details
+        ):
+            entry = outline_result.chapter_details[chapter_number - 1]
+            detail_block = entry.get("detail", "") if isinstance(entry, dict) else ""
+            if detail_block:
+                chapter_summary = detail_block
+
         _validate_story_name(story_name)
         base_context, character_context, setting_context = self._build_entity_context(
             story_name
         )
 
-        previous_chapter_summary = ""
-        if chapter_number > 1 and outline_result.chapter_outlines:
-            prev_outline = outline_result.chapter_outlines[chapter_number - 2]
-            if isinstance(prev_outline, dict):
-                previous_chapter_summary = str(
-                    prev_outline.get("summary") or prev_outline.get("content") or ""
+        previous_chapter_recap = ""
+        if chapter_number > 1:
+            recap_entry = recaps.get(str(chapter_number - 1), {})
+            if isinstance(recap_entry, dict):
+                previous_chapter_recap = (
+                    recap_entry.get("compact")
+                    or recap_entry.get("sanitised")
+                    or recap_entry.get("events")
+                    or ""
                 )
 
         next_chapter_summary = ""
@@ -145,7 +158,7 @@ class ChapterWriterAgent:
                 chapter_title=title,
                 chapter_summary=chapter_summary,
                 base_context=base_context,
-                previous_chapter_summary=previous_chapter_summary,
+                previous_chapter_recap=previous_chapter_recap,
                 next_chapter_summary=next_chapter_summary,
                 settings=settings,
             )
@@ -171,7 +184,7 @@ class ChapterWriterAgent:
             title=title,
             chapter_summary=chapter_summary,
             base_context=base_context,
-            previous_chapter_summary=previous_chapter_summary,
+            previous_chapter_summary=previous_chapter_recap,
             next_chapter_summary=next_chapter_summary,
             character_context=character_context,
             setting_context=setting_context,
@@ -258,9 +271,9 @@ class ChapterWriterAgent:
         chapter_title: str,
         chapter_summary: str,
         base_context: str,
-        previous_chapter_summary: str,
         next_chapter_summary: str,
         settings: GenerationSettings,
+        previous_chapter_recap: str = "",
     ) -> str:
         """Run synopsis → scene-decomposition → per-scene drafting.
 
@@ -287,7 +300,7 @@ class ChapterWriterAgent:
                 "outline": chapter_summary,
                 "story_elements": "",
                 "base_context": base_context,
-                "previous_chapter": previous_chapter_summary,
+                "previous_chapter": previous_chapter_recap,
             },
         )
         try:
@@ -320,7 +333,7 @@ class ChapterWriterAgent:
                 "chapter_synopsis": synopsis_text,
                 "scenes_min": str(settings.scenes_per_chapter_min),
                 "scenes_max": str(settings.scenes_per_chapter_max),
-                "previous_chapter_recap": previous_chapter_summary,
+                "previous_chapter_recap": previous_chapter_recap,
                 "next_chapter_synopsis": next_chapter_summary,
                 "story_elements": "",
                 "base_context": base_context,
@@ -366,7 +379,7 @@ class ChapterWriterAgent:
 
         # Stage 3: per-scene drafting.
         scene_prose: list[str] = []
-        previous_scene_tail = ""
+        total_scenes = len(scenes)
         for index, scene in enumerate(scenes, start=1):
             await self.wiki_bus.emit(
                 WikiContextEvent(
@@ -383,17 +396,18 @@ class ChapterWriterAgent:
                 f"{scene.get('title', '')} ---\n"
             )
 
+            if index == 1:
+                scene_prompt_key = "multistep/scene/create_content_first"
+            elif index == total_scenes:
+                scene_prompt_key = "multistep/scene/create_content_final"
+            else:
+                scene_prompt_key = "multistep/scene/create_content_middle"
+
             scene_prompt = loader.load_prompt(
-                "scenes/create_content",
+                scene_prompt_key,
                 variables={
-                    "scene_num": str(index),
-                    "chapter_num": str(chapter_number),
-                    "scene_definition": json.dumps(scene, ensure_ascii=False),
+                    "current_scene_summary": json.dumps(scene, ensure_ascii=False),
                     "base_context": base_context,
-                    "chapter_outline": synopsis_text,
-                    "story_elements": "",
-                    "previous_scene": previous_scene_tail,
-                    "next_chapter_synopsis": next_chapter_summary,
                 },
             )
             try:
@@ -417,9 +431,6 @@ class ChapterWriterAgent:
                 continue
 
             scene_prose.append(scene_text)
-            # Carry forward the last 500 chars of the prior scene as
-            # continuity context, keeping the prompt budget bounded.
-            previous_scene_tail = scene_text[-500:]
 
         if not scene_prose:
             return ""

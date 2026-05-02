@@ -98,16 +98,19 @@ Each active direct-generation prompt is loaded by a specific Python-native agent
 
 `src/presentation/agents/chapter_writer.py`
 
-- **Loads:** `chapters/write_chapter_direct.md`
+- **Loads:** `chapters/write_chapter_direct.md` for direct drafting and revision fallback. When `scene_generation_pipeline=true` and no revision feedback is active, it also loads `chapters/create_synopsis.md`, `chapters/expand_to_scenes.md`, and one of `multistep/scene/create_content_first.md`, `multistep/scene/create_content_middle.md`, or `multistep/scene/create_content_final.md` during the scene pipeline.
 - **Computed variables:**
-  - `chapter_number`, `chapter_title`, `chapter_summary` — from the current chapter outline
+  - `chapter_number`, `chapter_title` — from the current chapter outline
+  - `chapter_summary` — prefers `OutlineResult.chapter_details[N-1]["detail"]` when available, otherwise falls back to the current chapter outline summary/content
   - `story_name` — the story identifier
   - `character_context` — aggregated from JSON sheets in `stories/{story}/characters/*.json` (reads `name`, prefers `abridged`, falls back to `summary`, then falls back to the first 300 chars of `sheet`)
   - `setting_context` — aggregated from JSON sheets in `stories/{story}/settings/*.json` (same logic as characters)
   - `base_context` — combined `## Characters` and `## Settings` sections
-  - `previous_chapter_summary`, `next_chapter_summary` — from adjacent chapter outlines
+  - `previous_chapter_summary` — actually populated from `PipelineState.recaps[str(N-1)]`, preferring `compact`, then `sanitised`, then `events`; empty for Chapter 1
+  - `next_chapter_summary` — from the next chapter outline summary/content when present
   - `story_elements` — currently empty string (reserved for future use)
 - **User message:** `{"role": "user", "content": "Write the chapter now."}`
+- **Scene pipeline:** Expands the detailed chapter summary into a synopsis, decomposes that synopsis into scene JSON, persists `stories/{story}/chapters/chapter_{N}_scenes.json`, then drafts scenes sequentially. Scene prompt selection is position-aware: first scene uses `create_content_first`, last scene uses `create_content_final`, all others use `create_content_middle`.
 - **Output:** Returns `ChapterDraft` with full prose, title, and word count.
 - **Security:** Sanitises `story_name` against path traversal (`..`, `/`, `\`) before building filesystem paths.
 

@@ -570,7 +570,7 @@ What this phase does:
 
 **What the system does:**
 - For each chapter (1 to `wanted_chapters`):
-  1. **Scene Generation (7b)** — Loads abridged character and setting sheet context; generates chapter text via the `chapter-writer` agent. If `scene_generation_pipeline: true`, scenes are generated sequentially with wiki context. Otherwise, the full chapter is generated in one LLM call.
+  1. **Scene Generation (7b)** — Loads abridged character and setting sheet context; prefers the chapter's detailed outline block when available; forwards the prior chapter recap from `state.recaps[str(N-1)]` (preferring `compact`, then `sanitised`, then `events`); and generates chapter text via the `chapter-writer` agent. If `scene_generation_pipeline: true`, the agent expands the chapter into scene JSON and drafts scenes sequentially with position-aware prompts for first, middle, and final scenes. Otherwise, the full chapter is generated in one LLM call.
   2. **Approval Gate** — Presents the chapter for user approval (interactive mode only)
   3. **Consistency Check (7e)** — Runs `consistency_checker`; findings stream to the token bus but do not block chapter persistence
   4. **Chapter Persistence** — Appends the approved draft to `state.approved_chapters` and writes `stories/<name>/chapters/chapter_<N>.md`
