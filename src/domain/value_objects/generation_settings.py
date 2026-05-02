@@ -33,6 +33,7 @@ class GenerationSettings:
 
     # Critique settings
     enable_outline_critique: bool = True
+    enable_concurrent_critics: bool = False
     outline_critique_iterations: int = 3
 
     # Initial outline generation settings
@@ -165,6 +166,7 @@ class GenerationSettings:
             "scenes_per_chapter_max": self.scenes_per_chapter_max,
             "scene_expansion_enabled": self.scene_expansion_enabled,
             "enable_outline_critique": self.enable_outline_critique,
+            "enable_concurrent_critics": self.enable_concurrent_critics,
             "outline_critique_iterations": self.outline_critique_iterations,
             "stream": self.stream,
             "debug": self.debug,

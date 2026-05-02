@@ -31,6 +31,7 @@ from presentation.agents.character_evolver import CharacterEvolverAgent
 from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.agents.consistency_checker import ConsistencyCheckerAgent
 from presentation.agents.final_editor import FinalEditorAgent
+from presentation.agents.outline_critic import OutlineCriticAgent
 from presentation.agents.outline_planner import OutlinePlannerAgent
 from presentation.agents.setting_evolver import SettingEvolverAgent
 from presentation.agents.story_foundation import StoryFoundationAgent
@@ -591,6 +592,19 @@ async def _continue_pipeline(
             state.savepoint_id = "outline"
             await _write_savepoint(state)
 
+            if (
+                settings.enable_outline_critique
+                and "outline-critique" not in state.completed_phases
+            ):
+                critic_agent = OutlineCriticAgent(
+                    resolved_provider,
+                    resolved_config,
+                    bus,
+                    wiki_bus,
+                )
+                state = await critic_agent.run(state, settings)
+                await _write_savepoint(state)
+
             state = await _await_outline_approval(
                 state,
                 gate,
@@ -645,9 +659,7 @@ async def _continue_pipeline(
                     resolved_provider, resolved_config, bus, wiki_bus
                 )
                 try:
-                    arc_result: ArcAnalysisResult = await arc_agent.run(
-                        state.story_name, state.outline_result, settings
-                    )
+                    arc_result: ArcAnalysisResult = await arc_agent.run(state, settings)
                     state.arc_result = arc_result
                     await bus.emit(
                         f"\n[Narrative Arc] {arc_result.verdict_code}: "

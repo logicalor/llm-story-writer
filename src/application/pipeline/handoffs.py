@@ -145,6 +145,8 @@ class PipelineState:
     savepoint_id: str | None = None
     savepoints: list[str] = field(default_factory=list)
     critic_summary: str = ""
+    arc_distribution: str = ""
+    promise_payoff: str = ""
     recaps: dict[str, Any] = field(default_factory=dict)
     evolved_sheets: dict[str, Any] = field(default_factory=dict)
     status: str = "running"
@@ -207,6 +209,8 @@ class PipelineState:
             savepoint_id=data.get("savepoint_id"),
             savepoints=data.get("savepoints", []),
             critic_summary=data.get("critic_summary", ""),
+            arc_distribution=data.get("arc_distribution", ""),
+            promise_payoff=data.get("promise_payoff", ""),
             recaps=data.get("recaps", {}),
             evolved_sheets=data.get("evolved_sheets", {}),
             status=data.get("status", "running"),
