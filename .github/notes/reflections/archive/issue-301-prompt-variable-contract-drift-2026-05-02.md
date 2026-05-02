@@ -6,6 +6,7 @@ category: agent
 targets:
   - ".opencode/agents/coder.md"
 severity: minor
+status: archived
 ---
 
 ## Prompt variable contract change causes test expectation drift
