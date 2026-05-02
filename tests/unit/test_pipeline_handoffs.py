@@ -314,3 +314,70 @@ def test_old_state_json_loads_without_error() -> None:
     assert state.outline_result.base_context == ""
     assert state.approved_chapters[0].synopsis == ""
     assert state.critic_summary == ""
+
+
+def test_pipeline_state_completed_work_items_default() -> None:
+    """PipelineState defaults to empty dict for completed_work_items."""
+    state = PipelineState(story_name="test", current_phase="init")
+
+    assert state.completed_work_items == {}
+
+
+def test_pipeline_state_completed_work_items_round_trip() -> None:
+    """completed_work_items field survives to_dict/from_dict round-trip."""
+    state = PipelineState(
+        story_name="test",
+        current_phase="characters",
+        completed_work_items={
+            "characters": [
+                "characters/alice/sheet",
+                "characters/alice/chunk:backstory",
+            ],
+            "settings": ["settings/forest/chunk:atmosphere"],
+        },
+    )
+
+    round_tripped = PipelineState.from_dict(state.to_dict())
+
+    assert round_tripped.completed_work_items == state.completed_work_items
+
+
+def test_pipeline_state_legacy_savepoint_missing_field() -> None:
+    """Loading a savepoint without completed_work_items yields empty dict (backward compat)."""
+    legacy_data = {
+        "story_name": "old-story",
+        "current_phase": "characters",
+        "completed_phases": ["init", "outline"],
+        "outline_result": None,
+        "approved_chapters": [],
+        "wiki_batches": [],
+        "arc_result": None,
+        "batch_mode": False,
+        "savepoint_id": None,
+        "savepoints": [],
+        "critic_summary": "",
+        "arc_distribution": "",
+        "promise_payoff": "",
+        "recaps": {},
+        "evolved_sheets": {},
+        "status": "running",
+    }
+
+    state = PipelineState.from_dict(legacy_data)
+
+    assert state.completed_work_items == {}
+
+
+def test_pipeline_state_completed_work_items_to_json_valid() -> None:
+    """completed_work_items serialises correctly in to_json()."""
+    state = PipelineState(
+        story_name="test",
+        current_phase="init",
+        completed_work_items={"outline": ["outline/draft", "outline/critique"]},
+    )
+
+    parsed = json.loads(state.to_json())
+
+    assert parsed["completed_work_items"] == {
+        "outline": ["outline/draft", "outline/critique"]
+    }

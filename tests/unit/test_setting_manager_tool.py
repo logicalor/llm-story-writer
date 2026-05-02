@@ -295,6 +295,7 @@ def test_generate_abridged_requires_story_elements_when_no_data(
     assert abr_result.returncode != 0
     assert "story_elements" in abr_result.stderr
 
+
 def test_path_traversal_story_name_blocked(story_env: tuple[Path, str]) -> None:
     stories_dir, _ = story_env
     result = _run_tool(

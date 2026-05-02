@@ -1640,3 +1640,38 @@ Phase is only marked complete on success. On pipeline resume, this phase **is re
 Document the intent with a comment when choosing Pattern B.
 
 ChromaDB ID: `gotcha-advisory-phase-completion-semantics-046`
+
+---
+
+## Savepoints / I/O
+
+### 047 — `_atomic_write` handles `mkdir` internally — callers must not duplicate it
+
+**Source:** issue #316, PR #328
+**Severity:** info
+
+`_atomic_write(path, content)` in `src/presentation/orchestrator.py` calls
+`path.parent.mkdir(parents=True, exist_ok=True)` as its **first step** before writing. Callers
+(including `_write_savepoint`) must **not** add a separate `path.parent.mkdir()` call before
+invoking `_atomic_write` — it is redundant and falsely implies that directory creation is the
+caller's responsibility.
+
+```python
+# Wrong — redundant mkdir:
+def _write_savepoint(state: PipelineState) -> None:
+    path = _savepoint_path(state)
+    path.parent.mkdir(parents=True, exist_ok=True)   # ← remove this
+    _atomic_write(path, state.to_json())
+
+# Right — _atomic_write owns directory creation:
+def _write_savepoint(state: PipelineState) -> None:
+    path = _savepoint_path(state)
+    _atomic_write(path, state.to_json())
+```
+
+**Why this matters:** Callers that add the mkdir create two separate mkdir calls on the success
+path (one in the caller, one in `_atomic_write`). More importantly, they create a false
+invariant: future contributors who read the caller may believe that `_atomic_write` *requires*
+the directory to already exist — causing fragile caller-side guards to accumulate over time.
+
+ChromaDB ID: `gotcha-atomic-write-mkdir-internal-047`

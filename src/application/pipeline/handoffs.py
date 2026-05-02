@@ -149,6 +149,7 @@ class PipelineState:
     promise_payoff: str = ""
     recaps: dict[str, Any] = field(default_factory=dict)
     evolved_sheets: dict[str, Any] = field(default_factory=dict)
+    completed_work_items: dict[str, list[str]] = field(default_factory=dict)
     status: str = "running"
 
     def to_dict(self) -> dict[str, Any]:
@@ -214,6 +215,7 @@ class PipelineState:
             recaps=data.get("recaps", {}),
             evolved_sheets=data.get("evolved_sheets", {}),
             status=data.get("status", "running"),
+            completed_work_items=data.get("completed_work_items", {}),
         )
 
     def to_json(self) -> str:

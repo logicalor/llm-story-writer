@@ -85,7 +85,9 @@ class GenerationSettings:
         import dataclasses
 
         known_fields = {f.name for f in dataclasses.fields(cls)}
-        filtered_data = {k: v for k, v in data.items() if v is not None and k in known_fields}
+        filtered_data = {
+            k: v for k, v in data.items() if v is not None and k in known_fields
+        }
         return cls(**filtered_data)
 
     def to_dict(self) -> Dict[str, Any]:

@@ -31,6 +31,8 @@ from presentation.pipeline_primitives import (
 )
 from presentation.orchestrator import (
     _load_savepoint,
+    _mark_work_item_done,
+    _work_item_done,
     _write_savepoint,
     resume_pipeline,
     run_pipeline,
@@ -1665,3 +1667,110 @@ async def test_consistency_warnings_emitted_even_when_passed_true(
     assert state.status == "complete"
     assert "[Consistency] Chapter 1 — warnings/info found:" in emitted
     assert "[WARNING] Minor name inconsistency" in emitted
+
+
+def test_work_item_done_returns_false_when_not_present() -> None:
+    """_work_item_done returns False when item not in completed_work_items."""
+    state = PipelineState(story_name="test", current_phase="characters")
+
+    result = _work_item_done(state, "characters", "characters/alice/sheet")
+
+    assert result is False
+
+
+def test_work_item_done_returns_true_when_present() -> None:
+    """_work_item_done returns True when item is in completed_work_items."""
+    state = PipelineState(
+        story_name="test",
+        current_phase="characters",
+        completed_work_items={"characters": ["characters/alice/sheet"]},
+    )
+
+    result = _work_item_done(state, "characters", "characters/alice/sheet")
+
+    assert result is True
+
+
+def test_work_item_done_different_phase_returns_false() -> None:
+    """_work_item_done returns False when item is in a different phase."""
+    state = PipelineState(
+        story_name="test",
+        current_phase="characters",
+        completed_work_items={"settings": ["characters/alice/sheet"]},
+    )
+
+    result = _work_item_done(state, "characters", "characters/alice/sheet")
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_mark_work_item_done_appends_and_saves(tmp_path: Path) -> None:
+    """_mark_work_item_done appends item_id to ledger and writes savepoint."""
+    state = PipelineState(story_name="test-story", current_phase="characters")
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with patch(
+        "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+    ):
+        await _mark_work_item_done(state, "characters", "characters/alice/sheet")
+
+    assert "characters/alice/sheet" in state.completed_work_items["characters"]
+    saved_path = fake_savepoint_path("test-story")
+    assert saved_path.exists()
+    saved = json.loads(saved_path.read_text())
+    assert "characters/alice/sheet" in saved["completed_work_items"]["characters"]
+
+
+@pytest.mark.asyncio
+async def test_mark_work_item_done_idempotent(tmp_path: Path) -> None:
+    """_mark_work_item_done does not duplicate items when called twice."""
+    state = PipelineState(story_name="test-story", current_phase="characters")
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with patch(
+        "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+    ):
+        await _mark_work_item_done(state, "characters", "characters/alice/sheet")
+        await _mark_work_item_done(state, "characters", "characters/alice/sheet")
+
+    assert state.completed_work_items["characters"].count("characters/alice/sheet") == 1
+
+
+@pytest.mark.asyncio
+async def test_write_savepoint_atomic_leaves_prior_intact_on_failure(
+    tmp_path: Path,
+) -> None:
+    """_write_savepoint is atomic: if os.replace fails, prior savepoint is not corrupted."""
+    state = PipelineState(story_name="test-story", current_phase="outline")
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with patch(
+        "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+    ):
+        await _write_savepoint(state)
+
+    initial_path = fake_savepoint_path("test-story")
+    original_content = initial_path.read_text()
+
+    def failing_replace(src: str, dst: str) -> None:
+        raise OSError("Simulated mid-write failure")
+
+    state2 = PipelineState(story_name="test-story", current_phase="characters")
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path",
+            side_effect=fake_savepoint_path,
+        ),
+        patch("os.replace", side_effect=failing_replace),
+    ):
+        with pytest.raises(OSError):
+            await _write_savepoint(state2)
+
+    assert initial_path.read_text() == original_content
