@@ -274,8 +274,10 @@ async def _generate_character_sheets(
     config: dict[str, Any],
     stories_dir: Path,
     bus: TokenStreamBus | None = None,
+    status_bus: StatusBus | None = None,
 ) -> list[Path]:
     """Generate character sheets from outline and write to disk."""
+    sbus = status_bus if status_bus is not None else NullStatusBus()
     project_root = Path(__file__).resolve().parents[2]
     loader = PromptLoader(prompts_dir=str(project_root / "prompts"))
     models = config.get("models", {})
@@ -317,12 +319,18 @@ async def _generate_character_sheets(
         "current_state": "characters/create_current_state_chunk",
     }
 
-    for character_name in names:
+    for idx, character_name in enumerate(names, start=1):
         if not character_name.strip():
             continue
         slug = _slugify_name(character_name)
         if not slug:
             continue
+        await _emit_status(
+            sbus,
+            "characters",
+            f"[{idx}/{len(names)}] {character_name}: generating sheet",
+            kind="step",
+        )
         try:
             create_prompt = loader.load_prompt(
                 "characters/create",
@@ -355,7 +363,15 @@ async def _generate_character_sheets(
         try:
             sheet_json_text = char_path.read_text(encoding="utf-8")
             chunk_results: dict[str, str] = {}
-            for chunk_key, prompt_name in chunk_prompts.items():
+            chunk_items = list(chunk_prompts.items())
+            for chunk_idx, (chunk_key, prompt_name) in enumerate(chunk_items, start=1):
+                await _emit_status(
+                    sbus,
+                    "characters",
+                    f"[{idx}/{len(names)}] {character_name}: chunk "
+                    f"{chunk_idx}/{len(chunk_items)} ({chunk_key})",
+                    kind="step",
+                )
                 chunk_prompt = loader.load_prompt(
                     prompt_name,
                     {
@@ -370,6 +386,12 @@ async def _generate_character_sheets(
                 )
                 chunk_results[chunk_key] = _extract_output_content(raw_chunk)
 
+            await _emit_status(
+                sbus,
+                "characters",
+                f"[{idx}/{len(names)}] {character_name}: abridged",
+                kind="step",
+            )
             abridged_prompt = loader.load_prompt(
                 "characters/create_abridged",
                 {
@@ -390,6 +412,12 @@ async def _generate_character_sheets(
                     if value
                 )
                 or sheet_text
+            )
+            await _emit_status(
+                sbus,
+                "characters",
+                f"[{idx}/{len(names)}] {character_name}: summary",
+                kind="step",
             )
             summary_prompt = loader.load_prompt(
                 "characters/create_summary",
@@ -422,6 +450,12 @@ async def _generate_character_sheets(
                     f"({type(exc).__name__}: {exc}) — base sheet retained\n"
                 )
 
+        await _emit_status(
+            sbus,
+            "characters",
+            f"[{idx}/{len(names)}] {character_name}: saved",
+            kind="step",
+        )
         written.append(char_path)
 
     return written
@@ -434,8 +468,10 @@ async def _generate_setting_sheets(
     config: dict[str, Any],
     stories_dir: Path,
     bus: TokenStreamBus | None = None,
+    status_bus: StatusBus | None = None,
 ) -> list[Path]:
     """Generate setting sheets from outline and write to disk."""
+    sbus = status_bus if status_bus is not None else NullStatusBus()
     project_root = Path(__file__).resolve().parents[2]
     loader = PromptLoader(prompts_dir=str(project_root / "prompts"))
     models = config.get("models", {})
@@ -476,12 +512,18 @@ async def _generate_setting_sheets(
         "rules_constraints": "settings/create_rules_constraints_chunk",
     }
 
-    for setting_name in names:
+    for idx, setting_name in enumerate(names, start=1):
         if not setting_name.strip():
             continue
         slug = _slugify_name(setting_name)
         if not slug:
             continue
+        await _emit_status(
+            sbus,
+            "settings",
+            f"[{idx}/{len(names)}] {setting_name}: generating sheet",
+            kind="step",
+        )
         try:
             create_prompt = loader.load_prompt(
                 "settings/create",
@@ -517,7 +559,15 @@ async def _generate_setting_sheets(
         try:
             sheet_json_text = setting_path.read_text(encoding="utf-8")
             chunk_results: dict[str, str] = {}
-            for chunk_key, prompt_name in chunk_prompts.items():
+            chunk_items = list(chunk_prompts.items())
+            for chunk_idx, (chunk_key, prompt_name) in enumerate(chunk_items, start=1):
+                await _emit_status(
+                    sbus,
+                    "settings",
+                    f"[{idx}/{len(names)}] {setting_name}: chunk "
+                    f"{chunk_idx}/{len(chunk_items)} ({chunk_key})",
+                    kind="step",
+                )
                 chunk_prompt = loader.load_prompt(
                     prompt_name,
                     {
@@ -532,6 +582,12 @@ async def _generate_setting_sheets(
                 )
                 chunk_results[chunk_key] = _extract_output_content(raw_chunk)
 
+            await _emit_status(
+                sbus,
+                "settings",
+                f"[{idx}/{len(names)}] {setting_name}: abridged",
+                kind="step",
+            )
             abridged_prompt = loader.load_prompt(
                 "settings/create_abridged",
                 {
@@ -552,6 +608,12 @@ async def _generate_setting_sheets(
                     if value
                 )
                 or sheet_text
+            )
+            await _emit_status(
+                sbus,
+                "settings",
+                f"[{idx}/{len(names)}] {setting_name}: summary",
+                kind="step",
             )
             summary_prompt = loader.load_prompt(
                 "settings/create_summary",
@@ -584,6 +646,12 @@ async def _generate_setting_sheets(
                     f"({type(exc).__name__}: {exc}) — base sheet retained\n"
                 )
 
+        await _emit_status(
+            sbus,
+            "settings",
+            f"[{idx}/{len(names)}] {setting_name}: saved",
+            kind="step",
+        )
         written.append(setting_path)
 
     return written
@@ -826,6 +894,7 @@ async def _continue_pipeline(
                         resolved_config,
                         story_dir.parent,
                         bus,
+                        sbus,
                     )
                 )
                 if char_count == 0:
@@ -861,6 +930,7 @@ async def _continue_pipeline(
                     resolved_config,
                     story_dir.parent,
                     bus,
+                    sbus,
                 )
             await _mark_phase_complete(state, "settings", "settings")
 
@@ -880,21 +950,47 @@ async def _continue_pipeline(
             await bus.emit(
                 "\n[Wiki Bootstrap] Seeding wiki from outline and sheets...\n"
             )
+            bootstrap_ok = False
             try:
                 bootstrap_summary = await asyncio.to_thread(
                     bootstrap_wiki_from_story,
                     state.story_name,
                     model=wiki_model,
                 )
+                created = bootstrap_summary.get("created", 0)
+                skipped = bootstrap_summary.get("skipped", 0)
                 await bus.emit(
-                    f"[Wiki Bootstrap] Created {bootstrap_summary['created']} pages"
-                    f", skipped {bootstrap_summary['skipped']} existing.\n"
+                    f"[Wiki Bootstrap] Created {created} pages, "
+                    f"skipped {skipped} existing.\n"
                 )
+                bootstrap_ok = created > 0 or skipped > 0
+                if not bootstrap_ok:
+                    await _emit_status(
+                        sbus,
+                        "wiki-bootstrap",
+                        "Bootstrap returned 0 pages — phase will retry on next run",
+                        kind="warn",
+                    )
             except Exception as exc:
                 await bus.emit(
-                    f"[Wiki Bootstrap] bootstrap skipped ({type(exc).__name__}: {exc})\n"
+                    f"[Wiki Bootstrap] FAILED ({type(exc).__name__}: {exc})\n"
                 )
-            await _mark_phase_complete(state, "wiki-bootstrap", "wiki_populated")
+                await _emit_status(
+                    sbus,
+                    "wiki-bootstrap",
+                    f"bootstrap failed ({type(exc).__name__}: {exc})",
+                    kind="error",
+                )
+            if bootstrap_ok:
+                await _mark_phase_complete(state, "wiki-bootstrap", "wiki_populated")
+            else:
+                # Persist current state but do not mark phase complete, so
+                # resume will retry. Surface the issue prominently.
+                await bus.emit(
+                    "[Wiki Bootstrap] Phase NOT marked complete — resume will "
+                    "retry. Check provider/timeout settings.\n"
+                )
+                await _write_savepoint(state)
 
         outline_result = state.outline_result
         if outline_result is None:
@@ -907,7 +1003,7 @@ async def _continue_pipeline(
         next_chapter = len(state.approved_chapters) + 1
         if "chapter-loop" not in state.completed_phases:
             chapter_agent = ChapterWriterAgent(
-                resolved_provider, resolved_config, bus, wiki_bus
+                resolved_provider, resolved_config, bus, wiki_bus, sbus
             )
             char_evolver = CharacterEvolverAgent(
                 resolved_provider, resolved_config, bus, wiki_bus

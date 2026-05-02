@@ -29,6 +29,9 @@ from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import (
+    NullStatusBus,
+    StatusBus,
+    StatusEvent,
     TokenStreamBus,
     WikiContextBus,
     WikiContextEvent,
@@ -78,11 +81,15 @@ class ChapterWriterAgent:
         config: dict[str, Any],
         bus: TokenStreamBus,
         wiki_bus: WikiContextBus,
+        status_bus: StatusBus | None = None,
     ) -> None:
         self.provider = provider
         self.config = config
         self.bus = bus
         self.wiki_bus = wiki_bus
+        self.status_bus: StatusBus = (
+            status_bus if status_bus is not None else NullStatusBus()
+        )
         self._loader = PromptLoader(prompts_dir="prompts")
 
     async def run(
@@ -290,6 +297,14 @@ class ChapterWriterAgent:
         )
 
         # Stage 1: synopsis expansion.
+        phase = f"chapter-{chapter_number}"
+        await self.status_bus.emit(
+            StatusEvent(
+                phase=phase,
+                message=f"Ch {chapter_number}: expanding synopsis",
+                kind="step",
+            )
+        )
         await self.bus.emit(
             f"\n[Chapter {chapter_number}] Expanding chapter synopsis...\n"
         )
@@ -322,6 +337,13 @@ class ChapterWriterAgent:
         synopsis_text = synopsis_text.strip() or chapter_summary
 
         # Stage 2: scene decomposition.
+        await self.status_bus.emit(
+            StatusEvent(
+                phase=phase,
+                message=f"Ch {chapter_number}: decomposing into scenes",
+                kind="step",
+            )
+        )
         await self.bus.emit(
             f"\n[Chapter {chapter_number}] Decomposing synopsis into scenes "
             f"({settings.scenes_per_chapter_min}-"
@@ -379,8 +401,20 @@ class ChapterWriterAgent:
 
         # Stage 3: per-scene drafting.
         scene_prose: list[str] = []
+        scenes_completed_meta: list[dict[str, Any]] = []
         total_scenes = len(scenes)
         for index, scene in enumerate(scenes, start=1):
+            scene_title = scene.get("title", "") or f"scene {index}"
+            await self.status_bus.emit(
+                StatusEvent(
+                    phase=phase,
+                    message=(
+                        f"Ch {chapter_number}: scene {index}/{total_scenes} — "
+                        f"{scene_title}"
+                    ),
+                    kind="step",
+                )
+            )
             await self.wiki_bus.emit(
                 WikiContextEvent(
                     phase="chapter",
@@ -403,11 +437,36 @@ class ChapterWriterAgent:
             else:
                 scene_prompt_key = "multistep/scene/create_content_middle"
 
+            # Continuity context: tail of previous scene's prose + summary
+            # of all scenes already drafted, so the model does not retread.
+            if scene_prose:
+                prev_tail = scene_prose[-1].strip()
+                if len(prev_tail) > 1200:
+                    prev_tail = "…" + prev_tail[-1200:]
+            else:
+                prev_tail = ""
+
+            if scenes_completed_meta:
+                completed_lines = []
+                for done_idx, done_scene in enumerate(scenes_completed_meta, start=1):
+                    title = done_scene.get("title", "") or f"scene {done_idx}"
+                    desc = (
+                        done_scene.get("ending") or done_scene.get("description") or ""
+                    )
+                    completed_lines.append(f"{done_idx}. {title} — {desc}".strip())
+                scenes_completed_summary = "\n".join(completed_lines)
+            else:
+                scenes_completed_summary = "(none yet — this is the opening scene)"
+
             scene_prompt = loader.load_prompt(
                 scene_prompt_key,
                 variables={
                     "current_scene_summary": json.dumps(scene, ensure_ascii=False),
                     "base_context": base_context,
+                    "scene_index": str(index),
+                    "scene_total": str(total_scenes),
+                    "previous_scene_tail": prev_tail,
+                    "scenes_completed_summary": scenes_completed_summary,
                 },
             )
             try:
@@ -431,6 +490,7 @@ class ChapterWriterAgent:
                 continue
 
             scene_prose.append(scene_text)
+            scenes_completed_meta.append(scene)
 
         if not scene_prose:
             return ""

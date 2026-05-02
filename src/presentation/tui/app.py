@@ -126,7 +126,7 @@ class StoryWriterApp(App[None]):
         self.resume = resume
         self.savepoint_name = savepoint_name
         self._gate: TUIApprovalGate | None = None
-        self._wiki_visible = False
+        self._wiki_visible = True
         self._token_buffer: list[str] = []
 
         # Visibility tracking
@@ -166,7 +166,7 @@ class StoryWriterApp(App[None]):
         self.title = f"Story Writer - {self.story_name}"
         self.sub_title = "Initializing..."
         self.query_one("#approval-input", Input).display = False
-        self.query_one("#wiki-panel", Vertical).display = False
+        self.query_one("#wiki-panel", Vertical).display = self._wiki_visible
         # Refresh the activity bar every second so elapsed times tick.
         self.set_interval(1.0, self._refresh_status_bar)
         self._run_pipeline(self.story_name, self.resume, self.savepoint_name)
@@ -290,7 +290,24 @@ class StoryWriterApp(App[None]):
             self._set_phase_label(event.phase, "?", "phase-awaiting")
         elif event.kind == "error":
             self._set_phase_label(event.phase, "!", "phase-error")
-        # "step" / "info" / "warn" only update the status bar message.
+
+        # Log step/info/warn/error events into the Activity panel as well, so
+        # users have a scrollable history of substep progress (per-character,
+        # per-scene, etc.) rather than only the latest line in the status bar.
+        if event.kind in ("step", "info", "warn", "error"):
+            symbol = {
+                "step": "›",
+                "info": "·",
+                "warn": "!",
+                "error": "✗",
+            }.get(event.kind, "·")
+            ts = datetime.now().strftime("%H:%M:%S")
+            try:
+                self.query_one("#wiki-log", RichLog).write(
+                    f"{ts} {symbol} [{event.phase}] {event.message}"
+                )
+            except Exception:
+                pass
 
         self._refresh_status_bar()
 
@@ -380,11 +397,9 @@ class StoryWriterApp(App[None]):
         self.query_one("#wiki-panel", Vertical).display = self._wiki_visible
 
     def action_request_quit(self) -> None:
-        self.query_one("#output-log", RichLog).write(
-            "\nCancellation requested. Pipeline will finish its current phase before stopping.\n"
-            "Savepoint at last completed phase is preserved.\n"
-            f"Resume with: story-writer tui --story {self.story_name} --resume\n"
-        )
+        # Cancel workers and let Textual restore the terminal (cooked mode,
+        # alt-screen leave). main.py force-exits the process after app.run()
+        # returns, killing the pipeline worker thread.
         for worker in self.workers:
             worker.cancel()
         self.exit()

@@ -13,6 +13,19 @@ You have already analyzed:
 
 Use these insights to create a scene that flows seamlessly from the previous scene and concludes the chapter properly to lead into the next chapter.
 
+## Position In Chapter
+This is scene {scene_index} of {scene_total} — the final scene of the chapter. The scenes listed below have already been drafted. Do **not** re-establish their setting, repeat their events, or restart from the chapter's opening situation. Continue forward from where the previous scene ended and bring the chapter to a close.
+
+## Scenes Already Written In This Chapter
+{scenes_completed_summary}
+
+## End Of The Previous Scene (verbatim)
+The previous scene's prose ends with the following passage. Your scene must begin in continuity with this — same characters, same time-flow, same physical state. Do not retread it.
+
+<PREVIOUS_SCENE_TAIL>
+{previous_scene_tail}
+</PREVIOUS_SCENE_TAIL>
+
 ## Current Scene to Write
 <SCENE_OUTLINE>
 {current_scene_summary}

@@ -12,6 +12,9 @@ You have already analyzed:
 
 Use these insights to create a scene that opens the chapter effectively and leads smoothly into the next scene.
 
+## Position In Chapter
+This is scene {scene_index} of {scene_total}. No prior scenes have been written yet — you are opening the chapter.
+
 ## Current Scene to Write
 <SCENE_OUTLINE>
 {current_scene_summary}

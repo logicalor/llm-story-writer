@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 
 import yaml
@@ -58,12 +57,24 @@ def render_frontmatter(metadata: dict, body: str) -> str:
 
 # --- Slug Generation ---
 def slugify(name: str) -> str:
-    """Convert a name to a kebab-case slug."""
+    """Convert a name to a kebab-case slug.
+
+    Falls back to a hash-based slug when the input contains no ASCII
+    word characters (e.g. names entirely in non-Latin scripts or
+    punctuation), so downstream code never receives an empty slug.
+    """
+    if not isinstance(name, str):
+        name = str(name)
     slug = name.lower()
     slug = re.sub(r"[^a-z0-9\s-]", "", slug)
     slug = re.sub(r"[\s]+", "-", slug)
     slug = re.sub(r"-+", "-", slug)
     slug = slug.strip("-")
+    if not slug:
+        import hashlib
+
+        digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+        slug = f"entity-{digest}"
     return slug
 
 
@@ -187,23 +198,29 @@ _TYPE_TO_DIR = {
 
 
 def _validate_slug(slug: str) -> None:
-    """Reject slugs containing path traversal sequences or backslashes."""
+    """Reject empty slugs or slugs containing path traversal sequences/backslashes.
+
+    Raises ValueError on invalid input so callers (e.g. run_batch) can catch
+    it and roll back gracefully. Previously this called sys.exit(1), which
+    killed long-running pipeline processes on any malformed entity name.
+    """
+    if not isinstance(slug, str) or not slug:
+        raise ValueError(f"invalid slug (empty): {slug!r}")
     if ".." in slug or "/" in slug or "\\" in slug:
-        print(
-            f"Error: invalid slug (contains '..', '/' or '\\'): {slug}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        raise ValueError(f"invalid slug (contains '..', '/' or '\\\\'): {slug!r}")
 
 
 def _validate_glob_pattern(pattern: str) -> None:
-    """Reject glob patterns containing path traversal sequences or slashes."""
+    """Reject glob patterns containing path traversal sequences or slashes.
+
+    Raises ValueError on invalid input rather than calling sys.exit.
+    """
+    if not isinstance(pattern, str) or not pattern:
+        raise ValueError(f"invalid glob pattern (empty): {pattern!r}")
     if ".." in pattern or "/" in pattern or "\\" in pattern:
-        print(
-            f"Error: invalid glob pattern (contains '..', '/' or '\\'): {pattern}",
-            file=sys.stderr,
+        raise ValueError(
+            f"invalid glob pattern (contains '..', '/' or '\\\\'): {pattern!r}"
         )
-        sys.exit(1)
 
 
 def _filter_within_wiki(wiki_dir: Path, paths: list[Path]) -> list[Path]:

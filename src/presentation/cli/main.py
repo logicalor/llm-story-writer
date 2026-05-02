@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -52,6 +53,16 @@ def _cmd_tui(
     if prompt:
         _apply_prompt(story, prompt)
 
+    # Auto-resume when a pipeline savepoint already exists, so users don't
+    # accidentally restart from scratch and lose progress.
+    state_path = Path("stories") / story / "savepoints" / "pipeline_state.json"
+    if not resume and state_path.exists():
+        resume = True
+        print(
+            "[story-writer] Found existing pipeline state — resuming.",
+            file=sys.stderr,
+        )
+
     try:
         from presentation.tui.app import StoryWriterApp  # type: ignore[import-not-found]
     except ImportError:
@@ -64,6 +75,9 @@ def _cmd_tui(
 
     app = StoryWriterApp(story_name=story, resume=resume, savepoint_name=savepoint)
     app.run()
+    # Force-terminate any lingering pipeline worker threads.
+    # Python won't exit on its own if non-daemon threads are still running.
+    os._exit(0)
 
 
 def _cmd_run(story: str, *, batch: bool = False, prompt: str | None = None) -> None:
