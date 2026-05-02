@@ -1650,7 +1650,7 @@ ChromaDB ID: `gotcha-advisory-phase-completion-semantics-046`
 **Source:** issue #316, PR #328
 **Severity:** info
 
-`_atomic_write(path, content)` in `src/presentation/orchestrator.py` calls
+`_atomic_write(path, content)` in `src/tools/_io.py` calls
 `path.parent.mkdir(parents=True, exist_ok=True)` as its **first step** before writing. Callers
 (including `_write_savepoint`) must **not** add a separate `path.parent.mkdir()` call before
 invoking `_atomic_write` — it is redundant and falsely implies that directory creation is the
