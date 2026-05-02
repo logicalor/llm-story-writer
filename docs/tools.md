@@ -91,6 +91,7 @@ These modules support the public tool CLIs but are not normal top-level user com
 |--------|---------|
 | `src/tools/_io.py` | Shared filesystem paths and story-name validation |
 | `src/tools/_llm.py` | Common LLM-provider bootstrap helpers |
+| `src/tools/_persist.py` | Markdown pointer helpers: `persist_markdown` writes markdown to disk and returns a `{"$ref": ...}` pointer; `read_markdown_ref` resolves pointers or passes through legacy strings |
 | `src/tools/_wiki.py` | Shared wiki utility logic |
 | `src/tools/migrate_state_slim.py` | One-off migration helper retained in Python |
 

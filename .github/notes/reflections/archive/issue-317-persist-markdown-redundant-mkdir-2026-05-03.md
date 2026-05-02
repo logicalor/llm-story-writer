@@ -1,4 +1,3 @@
-<!-- STALE — archived to archive/issue-317-persist-markdown-redundant-mkdir-2026-05-03.md — delete this file -->
 ---
 date: "2026-05-03"
 issue: 317

@@ -930,7 +930,9 @@ async def test_characters_phase_skips_failed_sheet_generation(tmp_path: Path) ->
     assert characters_dir.exists()
     assert (characters_dir / "bob.json").exists()
     assert not (characters_dir / "alice.json").exists()
-    sheet_files = {p.name for p in characters_dir.glob("*.json") if p.name != "_names.json"}
+    sheet_files = {
+        p.name for p in characters_dir.glob("*.json") if p.name != "_names.json"
+    }
     assert sheet_files == {"bob.json"}
     assert (characters_dir / "_names.json").exists()
 
@@ -1841,7 +1843,9 @@ async def test_characters_phase_resumes_from_names_cache(tmp_path: Path) -> None
 
 
 @pytest.mark.asyncio
-async def test_characters_phase_resumes_skipping_completed_sheet(tmp_path: Path) -> None:
+async def test_characters_phase_resumes_skipping_completed_sheet(
+    tmp_path: Path,
+) -> None:
     provider = MagicMock()
     provider.generate_text = AsyncMock(
         side_effect=[
