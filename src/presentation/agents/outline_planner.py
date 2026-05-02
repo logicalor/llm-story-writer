@@ -190,6 +190,117 @@ class OutlinePlannerAgent:
             full_text += token
         return full_text
 
+    async def _run_chunked(
+        self,
+        story_name: str,
+        prompt: str,
+        settings: GenerationSettings,
+        base_context: str,
+        story_elements: str,
+    ) -> OutlineResult:
+        story_dir = _validate_story_name(story_name, STORIES_DIR)
+        outline_dir = story_dir / "outline"
+        chunks_dir = outline_dir / "chunks"
+        continuity_dir = outline_dir / "continuity"
+        chunks_dir.mkdir(parents=True, exist_ok=True)
+        continuity_dir.mkdir(parents=True, exist_ok=True)
+
+        desired_chapters = settings.wanted_chapters
+        chunk_size = settings.outline_chunk_size
+        loader = self._loader
+        accumulated_chunks: list[str] = []
+        continuity_summary = ""
+
+        windows: list[tuple[int, int]] = []
+        start = 1
+        while start <= desired_chapters:
+            end = min(start + chunk_size - 1, desired_chapters)
+            windows.append((start, end))
+            start = end + 1
+
+        for i, (chunk_start, chunk_end) in enumerate(windows):
+            previous_chunks_text = "\n\n".join(accumulated_chunks)
+            chunk_prompt = loader.load_prompt(
+                "outline/create_chunk",
+                variables={
+                    "story_elements": story_elements,
+                    "base_context": base_context,
+                    "chunk_start": str(chunk_start),
+                    "chunk_end": str(chunk_end),
+                    "total_chapters": str(desired_chapters),
+                    "previous_chunks": previous_chunks_text,
+                    "continuity_summary": continuity_summary,
+                },
+            )
+            chunk_text = await self._stream_prompt(
+                chunk_prompt,
+                f"Please generate the outline for chapters {chunk_start} to {chunk_end}.",
+                settings,
+            )
+            chunk_file = chunks_dir / f"chunk_{chunk_start}_{chunk_end}.md"
+            chunk_file.write_text(chunk_text, encoding="utf-8")
+            accumulated_chunks.append(chunk_text)
+
+            if i < len(windows) - 1:
+                next_start, next_end = windows[i + 1]
+                continuity_prompt = loader.load_prompt(
+                    "outline/analyze_continuity",
+                    variables={
+                        "story_elements": story_elements,
+                        "base_context": base_context,
+                        "enrichment_suggestions": "",
+                        "previous_chunks": "\n\n".join(accumulated_chunks),
+                        "chunk_start": str(next_start),
+                        "chunk_end": str(next_end),
+                        "total_chapters": str(desired_chapters),
+                        "last_chapter_in_previous": str(chunk_end),
+                    },
+                )
+                continuity_text = await self._stream_prompt(
+                    continuity_prompt,
+                    f"Please analyze continuity before chapter {next_start}.",
+                    settings,
+                )
+                continuity_file = (
+                    continuity_dir / f"continuity_{chunk_start}_{chunk_end}.md"
+                )
+                continuity_file.write_text(continuity_text, encoding="utf-8")
+                continuity_summary = continuity_text
+                await self.bus.emit(
+                    f"\n\n## Continuity Analysis (after chapter {chunk_end})\n\n{continuity_text}"
+                )
+
+        current_scope = "\n\n".join(accumulated_chunks)
+        enrichment_prompt = loader.load_prompt(
+            "outline/analyze_enrichment",
+            variables={
+                "story_elements": story_elements,
+                "base_context": base_context,
+                "character_context": "",
+                "setting_context": "",
+                "wanted_chapters": str(desired_chapters),
+                "current_scope": current_scope,
+            },
+        )
+        enrichment_text = await self._stream_prompt(
+            enrichment_prompt,
+            "Please analyze enrichment opportunities.",
+            settings,
+        )
+        (outline_dir / "enrichment.md").write_text(enrichment_text, encoding="utf-8")
+
+        chapter_outlines = _parse_chapter_outlines(current_scope, desired_chapters)
+        return OutlineResult(
+            story_name=story_name,
+            chapter_outlines=chapter_outlines,
+            summary=current_scope,
+            genre=_extract_genre(current_scope),
+            themes=_extract_themes(current_scope),
+            base_context=base_context,
+            story_elements=story_elements,
+            enrichment_suggestions=enrichment_text,
+        )
+
     async def run(
         self,
         story_name: str,
@@ -246,6 +357,18 @@ class OutlinePlannerAgent:
                 themes=_extract_themes(full_text),
                 base_context=base_context,
                 story_elements=story_elements,
+            )
+
+        if (
+            settings.use_chunked_outline_generation
+            and settings.wanted_chapters > settings.outline_chunk_size
+        ):
+            return await self._run_chunked(
+                story_name,
+                prompt,
+                settings,
+                base_context,
+                story_elements,
             )
 
         story_dir = _validate_story_name(story_name, STORIES_DIR)

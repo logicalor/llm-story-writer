@@ -698,7 +698,7 @@ These are LLM system/user prompts loaded by `PromptLoader` at runtime by Python-
 
 | Agent | Old Workflow Prompt (DO NOT USE) | New Direct-Generation Prompt |
 |---|---|---|
-| `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `prompts/outline/create_skeleton.md`, `prompts/outline/expand_chapter_detail.md`, `prompts/outline/strip_elements.md`, fallback `prompts/outline/create_direct.md` when `expand_outline=false` |
+| `OutlinePlannerAgent` | `prompts/agents/outline-planner.md` | `prompts/outline/create_direct.md` when `expand_outline=false`; otherwise `prompts/outline/create_skeleton.md`, `prompts/outline/expand_chapter_detail.md`, and `prompts/outline/strip_elements.md`; when `use_chunked_outline_generation=true` and `wanted_chapters > outline_chunk_size`, switch to `prompts/outline/create_chunk.md`, `prompts/outline/analyze_continuity.md`, and `prompts/outline/analyze_enrichment.md` |
 | `StoryPlannerAgent` | `prompts/agents/story-planner.md` | `prompts/outline/arc_assessment_direct.md` |
 | `ChapterWriterAgent` | `prompts/agents/chapter-writer.md` | `prompts/chapters/write_chapter_direct.md` |
 | `FinalEditorAgent` | `prompts/agents/final-editor.md` | `prompts/final_edit/edit_chapter_direct.md` |
@@ -770,7 +770,7 @@ All configuration lives in `config.yml` in the repository root. No secrets are r
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `wanted_chapters` | 25 | Target chapter count |
+| `wanted_chapters` | 40 | Target chapter count |
 | `outline_quality` | 87 | Quality threshold for outline (0–100) |
 | `chapter_quality` | 85 | Quality threshold for chapters |
 | `outline_min_revisions` | 2 | Lower bound retained in outline revision settings |
@@ -783,9 +783,9 @@ All configuration lives in `config.yml` in the repository root. No secrets are r
 | `enable_final_edit` | false | Run final polish pass |
 | `enable_scrubbing` | true | When final edit runs, gather prose-scrub and voice-consistency diagnostics before chapter polish |
 | `strategy` | "outline-chapter" | Writing strategy |
-| `use_chunked_outline_generation` | true | Generate outline in chunks |
-| `outline_chunk_size` | 10 | Chapters per outline chunk |
-| `expand_outline` | true | Switch Phase 3 to the multi-stage outline pipeline (`create_skeleton` → per-chapter detail expansion → `strip_elements`); when `false`, use one `create_direct` outline call |
+| `use_chunked_outline_generation` | false | Allow the chunked outline branch when `expand_outline=true` and `wanted_chapters > outline_chunk_size` |
+| `outline_chunk_size` | 4 | Chapters per chunk window before the chunked branch activates |
+| `expand_outline` | true | Select outline mode: when `false`, use one `create_direct` call; when `true`, use per-chapter expansion by default and switch to chunked windows only if `use_chunked_outline_generation=true` and the outline exceeds one chunk |
 | `scene_generation_pipeline` | true | Use scene-by-scene generation |
 | `scenes_per_chapter_min` | 8 | Minimum scenes per chapter (when scene expansion is enabled) |
 | `scenes_per_chapter_max` | 16 | Maximum scenes per chapter (when scene expansion is enabled) |
@@ -886,7 +886,7 @@ generation:
   enable_final_edit: true
   enable_scrubbing: true
   use_chunked_outline_generation: true
-  outline_chunk_size: 10
+  outline_chunk_size: 4
   stream: true
   debug: false
 ```
@@ -900,6 +900,7 @@ generation:
 | `enable_outline_critique` | true | Iterative outline refinement |
 | `enable_final_edit` | true | Post-generation polish pass |
 | `enable_scrubbing` | true | Feed prose and voice diagnostics into final edit |
+| `outline_chunk_size` | 4 | Keep each outline window small while preserving between-window continuity checks |
 | `debug` | false | Cleaner output |
 
 ### 8.3 Short Story Preset
@@ -944,6 +945,7 @@ generation:
 | `enable_final_edit` | false | true | false |
 | `enable_scrubbing` | false | true | false |
 | `use_chunked_outline_generation` | false | true | false |
+| `outline_chunk_size` | — | 4 | — |
 
 ---
 
@@ -1018,10 +1020,13 @@ Phase 2: Story Foundation
 
 Phase 3: Outline
   → Delegate to outline-planner subagent
-  → When `expand_outline=true`, run `create_skeleton` → per-chapter `expand_chapter_detail` → `strip_elements`
-  → Persist `stories/<name>/outline/skeleton.md` and `stories/<name>/outline/details/chapter_{N}.md`
-  → Persist `OutlineResult.summary`, `chapter_skeletons`, `chapter_details`, and `enrichment_suggestions`, then wait on approval gate
   → When `expand_outline=false`, fall back to one `create_direct` outline call using the same foundation context
+  → When `expand_outline=true` and chunking is off or the outline fits inside one chunk, run `create_skeleton` → per-chapter `expand_chapter_detail` → `strip_elements`
+  → Persist `stories/<name>/outline/skeleton.md` and `stories/<name>/outline/details/chapter_{N}.md` for the per-chapter path
+  → When `expand_outline=true`, `use_chunked_outline_generation=true`, and `wanted_chapters > outline_chunk_size`, split the outline into chapter windows and run `create_chunk` for each window
+  → Between chunk windows, run `analyze_continuity`, write `stories/<name>/outline/continuity/continuity_{start}_{end}.md`, and surface the findings on the token bus
+  → After the last chunk, run `analyze_enrichment`, write `stories/<name>/outline/enrichment.md`, and store the result in `OutlineResult.enrichment_suggestions`
+  → Persist chunk files under `stories/<name>/outline/chunks/chunk_{start}_{end}.md` when the chunked path is active, then wait on approval gate
   → When `enable_outline_critique=true`, run `OutlineCriticAgent` before the approval gate and persist `critic_summary.md` plus critique fields in `PipelineState`
   → After approval, run `metadata-outline` to write the first generated `stories/<name>/metadata.json`
 
@@ -1700,8 +1705,8 @@ curl http://127.0.0.1:1234/v1/models
 ### Context window overflow
 
 - Reduce `max_context_chunks` in `config.yml`
-- Lower `outline_chunk_size` if using chunked outline generation
-- Enable `use_chunked_outline_generation: true` to reduce prompt sizes
+- Lower `outline_chunk_size` if `wanted_chapters` exceeds the current chunk window
+- Enable `use_chunked_outline_generation: true` to reduce prompt sizes for long outlines; short outlines still stay on the per-chapter expansion path
 - Reduce `scenes_per_chapter_max` if using the scene generation pipeline
 
 ### "The outline looks wrong"
