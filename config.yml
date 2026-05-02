@@ -27,27 +27,16 @@ models:
 # Generation Settings
 generation:
   seed: 12
-  outline_quality: 87
-  chapter_quality: 85
   wanted_chapters: 25
-  outline_min_revisions: 0
-  outline_max_revisions: 3
-  chapter_min_revisions: 0
-  chapter_max_revisions: 3
   enable_final_edit: false
   enable_scrubbing: true
-  enable_chapter_revisions: true
   expand_outline: true
   scene_generation_pipeline: true
   scenes_per_chapter_min: 8
   scenes_per_chapter_max: 16
-  scene_expansion_enabled: true
   enable_outline_critique: false
-  outline_critique_iterations: 3
   stream: true
   debug: true
-#  strategy: "outline-chapter"
-  strategy: "outline-chapter"
   use_improved_recap_sanitizer: true
   use_multi_stage_recap_sanitizer: true
   use_chunked_outline_generation: true
