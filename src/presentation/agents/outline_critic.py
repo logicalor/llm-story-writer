@@ -22,6 +22,7 @@ from presentation.pipeline_primitives import (
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools.critique_parser import CritiqueParser, CritiqueResult
 
+# Keep in sync with src/tools/critique_runner.py::OUTLINE_CRITIC_TYPES
 OUTLINE_CRITIC_TYPES = [
     "audiobook-producer",
     "book-club-moderator",
