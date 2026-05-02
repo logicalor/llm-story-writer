@@ -24,7 +24,9 @@ def _outline_result(
     chapter_summaries: list[str] | None = None,
     chapter_details: list[dict[str, object]] | None = None,
 ) -> OutlineResult:
-    summaries = chapter_summaries or [f"Chapter {index} summary" for index in range(1, chapters + 1)]
+    summaries = chapter_summaries or [
+        f"Chapter {index} summary" for index in range(1, chapters + 1)
+    ]
     return OutlineResult(
         story_name="test-story",
         chapter_outlines=[
@@ -81,7 +83,11 @@ def _make_provider(responses: list[str]) -> tuple[MagicMock, list[str]]:
 
     async def fake_stream(messages, model_config, seed=None):
         captured_systems.append(
-            next(message["content"] for message in messages if message["role"] == "system")
+            next(
+                message["content"]
+                for message in messages
+                if message["role"] == "system"
+            )
         )
         try:
             text = next(response_iter)

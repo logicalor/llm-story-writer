@@ -59,10 +59,22 @@ def _savepoint_path(story_name: str) -> Path:
 
 
 async def _write_savepoint(state: PipelineState) -> None:
-    """Write PipelineState to disk as JSON savepoint."""
+    """Write PipelineState to disk as JSON savepoint (atomic)."""
     path = _savepoint_path(state.story_name)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(state.to_json(), encoding="utf-8")
+    _atomic_write(path, state.to_json())
+
+
+def _work_item_done(state: PipelineState, phase: str, item_id: str) -> bool:
+    """Return True if the given work item has already been completed."""
+    return item_id in state.completed_work_items.get(phase, [])
+
+
+async def _mark_work_item_done(state: PipelineState, phase: str, item_id: str) -> None:
+    """Mark a work item as completed and atomically persist the savepoint."""
+    state.completed_work_items.setdefault(phase, [])
+    if item_id not in state.completed_work_items[phase]:
+        state.completed_work_items[phase].append(item_id)
+    await _write_savepoint(state)
 
 
 async def _load_savepoint(story_name: str) -> PipelineState | None:
