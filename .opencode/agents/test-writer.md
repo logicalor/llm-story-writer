@@ -126,6 +126,8 @@ A function that previously made 1 LLM call may now make N calls per entity (e.g.
 
 (Source: issue #298, PR #310 — two orchestrator tests failed after `_generate_character_sheets` grew from 1 to 10 LLM calls per entity; companion to `gotchas.md` #043.)
 
+**Advisory pipeline phases and mock slot consumption:** Advisory phases (wrapped in `try/except Exception`) still consume `provider.generate_text` mock slots when the provider uses `AsyncMock(side_effect=[...])`. They do NOT consume slots when the provider is a plain `MagicMock()` — the advisory guard absorbs the `TypeError` from awaiting a non-coroutine. Rule of thumb: if your test sets `provider.generate_text = AsyncMock(side_effect=[...])`, patch every advisory agent class to prevent it from consuming entries. If your test uses `provider = MagicMock()`, no patch is needed. Advisory agents in the pipeline as of PR #311: `StoryMetadataAgent` (3 calls × 3 phases = up to 9 calls), `StoryPlannerAgent` (narrative-arc, 1 call). See `gotchas.md` #045.
+
 After writing each test, run the project's test command (see `copilot-instructions.md`).
 
 ### 3. Classify Results
