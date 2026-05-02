@@ -128,6 +128,8 @@ A function that previously made 1 LLM call may now make N calls per entity (e.g.
 
 **Advisory pipeline phases and mock slot consumption:** Advisory phases (wrapped in `try/except Exception`) still consume `provider.generate_text` mock slots when the provider uses `AsyncMock(side_effect=[...])`. They do NOT consume slots when the provider is a plain `MagicMock()` — the advisory guard absorbs the `TypeError` from awaiting a non-coroutine. Rule of thumb: if your test sets `provider.generate_text = AsyncMock(side_effect=[...])`, patch every advisory agent class to prevent it from consuming entries. If your test uses `provider = MagicMock()`, no patch is needed. Advisory agents in the pipeline as of PR #311: `StoryMetadataAgent` (3 calls × 3 phases = up to 9 calls), `StoryPlannerAgent` (narrative-arc, 1 call). See `gotchas.md` #045.
 
+**Repo-invariant tests (cleanup issues):** When your dispatch is a cleanup issue that removes dead fields, dead code, or orphan files, include at least one repo-invariant test that guards the cleaned state going forward. Repo-invariant tests scan workspace files using `pathlib`, `ast`, or `grep`-equivalent patterns, and assert structural properties that must remain true — e.g., no `.md` files in `prompts/` (outside `_unused/`) are unreferenced, no fields in a domain settings class are declared but never read. Place these tests in `tests/unit/test_repo_invariants.py`. They use no mocks and scan the real workspace, which makes them sensitive to new violations immediately on any future PR. (Source: issue #303, PR #315.)
+
 After writing each test, run the project's test command (see `copilot-instructions.md`).
 
 ### 3. Classify Results
