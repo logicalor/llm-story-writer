@@ -12,7 +12,7 @@ _src_dir = str(PROJECT_ROOT / "src")
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
-from application.pipeline.handoffs import OutlineResult
+from application.pipeline.handoffs import OutlineResult, PipelineState
 from domain.value_objects.generation_settings import GenerationSettings
 from presentation.agents.chapter_writer import (
     ChapterWriterAgent,
@@ -197,6 +197,146 @@ async def test_revision_feedback_uses_direct_path(tmp_path: Path) -> None:
     assert len(captured) == 1
     assert "Fix pacing in scene 2." in captured[0]
     assert draft.content == "Revised chapter prose."
+
+
+@pytest.mark.asyncio
+async def test_scene_pipeline_skips_decomposition_when_ledger_done(
+    tmp_path: Path,
+) -> None:
+    scenes = [
+        {"title": "Opening", "description": "Hero arrives at the gate."},
+        {"title": "Climax", "description": "Hero confronts the guard."},
+    ]
+    provider, captured = _make_provider(["Scene 1 prose body.", "Scene 2 prose body."])
+    state = PipelineState(
+        story_name="test-story",
+        current_phase="chapters",
+        completed_work_items={"chapter-1": ["scenes/decomposition"]},
+    )
+
+    scenes_file = tmp_path / "test-story" / "chapters" / "chapter_1_scenes.json"
+    scenes_file.parent.mkdir(parents=True, exist_ok=True)
+    scenes_file.write_text(json.dumps(scenes), encoding="utf-8")
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story", 1, _outline_result(), _settings(), state=state
+        )
+
+    assert draft.content
+    assert len(captured) == 2
+    assert "Scene 1 prose body." in draft.content
+    assert "Scene 2 prose body." in draft.content
+
+
+@pytest.mark.asyncio
+async def test_scene_pipeline_skips_completed_scenes_on_resume(tmp_path: Path) -> None:
+    scenes = [
+        {"title": "Opening", "description": "Hero arrives at the gate."},
+        {"title": "Climax", "description": "Hero confronts the guard."},
+    ]
+    provider, captured = _make_provider(["Scene 2 prose body."])
+    state = PipelineState(
+        story_name="test-story",
+        current_phase="chapters",
+        completed_work_items={"chapter-1": ["scenes/decomposition", "scene:1"]},
+    )
+
+    scenes_file = tmp_path / "test-story" / "chapters" / "chapter_1_scenes.json"
+    scenes_file.parent.mkdir(parents=True, exist_ok=True)
+    scenes_file.write_text(json.dumps(scenes), encoding="utf-8")
+    scene_1_path = tmp_path / "test-story" / "chapters" / "chapter_1" / "scene_1.md"
+    scene_1_path.parent.mkdir(parents=True, exist_ok=True)
+    scene_1_path.write_text("Scene 1 prose from disk", encoding="utf-8")
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story", 1, _outline_result(), _settings(), state=state
+        )
+
+    assert "Scene 1 prose from disk" in draft.content
+    assert "Scene 2 prose body." in draft.content
+    assert len(captured) == 1
+    assert "Climax" in captured[0]
+
+
+@pytest.mark.asyncio
+async def test_scene_pipeline_marks_work_items_done(tmp_path: Path) -> None:
+    scenes_payload = json.dumps(
+        [
+            {"title": "Opening", "description": "Hero arrives at the gate."},
+            {"title": "Climax", "description": "Hero confronts the guard."},
+        ]
+    )
+    provider, captured = _make_provider(
+        [
+            "Detailed synopsis content for chapter 1.",
+            f"```json\n{scenes_payload}\n```",
+            "Scene 1 prose body.",
+            "Scene 2 prose body.",
+        ]
+    )
+    state = PipelineState(story_name="test-story", current_phase="chapters")
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with (
+        patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
+        patch(
+            "presentation.agents.chapter_writer._savepoint_path",
+            side_effect=fake_savepoint_path,
+        ),
+    ):
+        draft = await agent.run(
+            "test-story", 1, _outline_result(), _settings(), state=state
+        )
+
+    assert draft.content
+    assert len(captured) == 4
+    completed = state.completed_work_items.get("chapter-1", [])
+    assert "scenes/decomposition" in completed
+    assert "scene:1" in completed
+    assert "scene:2" in completed
 
 
 def test_extract_json_array_strips_fences() -> None:

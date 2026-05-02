@@ -20,11 +20,12 @@ path because revisions operate on whole-chapter prose.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import re
 from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
-from application.pipeline.handoffs import ChapterDraft, OutlineResult
+from application.pipeline.handoffs import ChapterDraft, OutlineResult, PipelineState
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
@@ -36,7 +37,22 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
-from tools._io import STORIES_DIR, _validate_story_name
+from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
+
+
+def _savepoint_path(story_name: str) -> Path:
+    return STORIES_DIR / story_name / "savepoints" / "pipeline_state.json"
+
+
+def _work_item_done(state: PipelineState, phase: str, item_id: str) -> bool:
+    return item_id in state.completed_work_items.get(phase, [])
+
+
+async def _mark_work_item_done(state: PipelineState, phase: str, item_id: str) -> None:
+    state.completed_work_items.setdefault(phase, [])
+    if item_id not in state.completed_work_items[phase]:
+        state.completed_work_items[phase].append(item_id)
+    _atomic_write(_savepoint_path(state.story_name), state.to_json())
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -100,6 +116,7 @@ class ChapterWriterAgent:
         settings: GenerationSettings,
         feedback: str | None = None,
         recaps: dict[str, Any] | None = None,
+        state: PipelineState | None = None,
     ) -> ChapterDraft:
         recaps = recaps or {}
         chapter_outline = None
@@ -168,6 +185,7 @@ class ChapterWriterAgent:
                 previous_chapter_recap=previous_chapter_recap,
                 next_chapter_summary=next_chapter_summary,
                 settings=settings,
+                state=state,
             )
             if multi_stage_text:
                 return ChapterDraft(
@@ -281,6 +299,7 @@ class ChapterWriterAgent:
         next_chapter_summary: str,
         settings: GenerationSettings,
         previous_chapter_recap: str = "",
+        state: PipelineState | None = None,
     ) -> str:
         """Run synopsis → scene-decomposition → per-scene drafting.
 
@@ -296,114 +315,129 @@ class ChapterWriterAgent:
             self.config, "scene_writer", "openai-compat://default"
         )
 
-        # Stage 1: synopsis expansion.
         phase = f"chapter-{chapter_number}"
-        await self.status_bus.emit(
-            StatusEvent(
-                phase=phase,
-                message=f"Ch {chapter_number}: expanding synopsis",
-                kind="step",
+        scenes_json_path = (
+            STORIES_DIR
+            / story_name
+            / "chapters"
+            / f"chapter_{chapter_number}_scenes.json"
+        )
+        if state is not None and _work_item_done(state, phase, "scenes/decomposition"):
+            loaded_scenes = json.loads(scenes_json_path.read_text(encoding="utf-8"))
+            if not isinstance(loaded_scenes, list):
+                raise ValueError(
+                    f"Cached scenes for chapter {chapter_number} are not a JSON array"
+                )
+            scenes = [scene for scene in loaded_scenes if isinstance(scene, dict)]
+        else:
+            await self.status_bus.emit(
+                StatusEvent(
+                    phase=phase,
+                    message=f"Ch {chapter_number}: expanding synopsis",
+                    kind="step",
+                )
             )
-        )
-        await self.bus.emit(
-            f"\n[Chapter {chapter_number}] Expanding chapter synopsis...\n"
-        )
-        synopsis_prompt = loader.load_prompt(
-            "chapters/create_synopsis",
-            variables={
-                "chapter_number": str(chapter_number),
-                "outline": chapter_summary,
-                "story_elements": "",
-                "base_context": base_context,
-                "previous_chapter": previous_chapter_recap,
-            },
-        )
-        try:
-            synopsis_text = await self._stream_to_bus(
-                [
-                    {"role": "system", "content": synopsis_prompt},
-                    {"role": "user", "content": "Produce the expanded synopsis."},
-                ],
-                synopsis_model,
-                settings.seed,
-            )
-        except Exception as exc:
             await self.bus.emit(
-                f"\n[Chapter {chapter_number}] synopsis expansion failed "
-                f"({type(exc).__name__}: {exc}); using outline summary.\n"
+                f"\n[Chapter {chapter_number}] Expanding chapter synopsis...\n"
             )
-            synopsis_text = chapter_summary
+            synopsis_prompt = loader.load_prompt(
+                "chapters/create_synopsis",
+                variables={
+                    "chapter_number": str(chapter_number),
+                    "outline": chapter_summary,
+                    "story_elements": "",
+                    "base_context": base_context,
+                    "previous_chapter": previous_chapter_recap,
+                },
+            )
+            try:
+                synopsis_text = await self._stream_to_bus(
+                    [
+                        {"role": "system", "content": synopsis_prompt},
+                        {"role": "user", "content": "Produce the expanded synopsis."},
+                    ],
+                    synopsis_model,
+                    settings.seed,
+                )
+            except Exception as exc:
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] synopsis expansion failed "
+                    f"({type(exc).__name__}: {exc}); using outline summary.\n"
+                )
+                synopsis_text = chapter_summary
 
-        synopsis_text = synopsis_text.strip() or chapter_summary
+            synopsis_text = synopsis_text.strip() or chapter_summary
 
-        # Stage 2: scene decomposition.
-        await self.status_bus.emit(
-            StatusEvent(
-                phase=phase,
-                message=f"Ch {chapter_number}: decomposing into scenes",
-                kind="step",
+            await self.status_bus.emit(
+                StatusEvent(
+                    phase=phase,
+                    message=f"Ch {chapter_number}: decomposing into scenes",
+                    kind="step",
+                )
             )
-        )
-        await self.bus.emit(
-            f"\n[Chapter {chapter_number}] Decomposing synopsis into scenes "
-            f"({settings.scenes_per_chapter_min}-"
-            f"{settings.scenes_per_chapter_max})...\n"
-        )
-        scenes_prompt = loader.load_prompt(
-            "chapters/expand_to_scenes",
-            variables={
-                "chapter_synopsis": synopsis_text,
-                "scenes_min": str(settings.scenes_per_chapter_min),
-                "scenes_max": str(settings.scenes_per_chapter_max),
-                "previous_chapter_recap": previous_chapter_recap,
-                "next_chapter_synopsis": next_chapter_summary,
-                "story_elements": "",
-                "base_context": base_context,
-            },
-        )
-        try:
-            scenes_raw = await self._stream_to_bus(
-                [
-                    {"role": "system", "content": scenes_prompt},
-                    {"role": "user", "content": "Return the JSON array of scenes."},
-                ],
-                synopsis_model,
-                settings.seed,
-            )
-        except Exception as exc:
             await self.bus.emit(
-                f"\n[Chapter {chapter_number}] scene decomposition failed "
-                f"({type(exc).__name__}: {exc}); falling back to direct drafting.\n"
+                f"\n[Chapter {chapter_number}] Decomposing synopsis into scenes "
+                f"({settings.scenes_per_chapter_min}-"
+                f"{settings.scenes_per_chapter_max})...\n"
             )
-            return ""
+            scenes_prompt = loader.load_prompt(
+                "chapters/expand_to_scenes",
+                variables={
+                    "chapter_synopsis": synopsis_text,
+                    "scenes_min": str(settings.scenes_per_chapter_min),
+                    "scenes_max": str(settings.scenes_per_chapter_max),
+                    "previous_chapter_recap": previous_chapter_recap,
+                    "next_chapter_synopsis": next_chapter_summary,
+                    "story_elements": "",
+                    "base_context": base_context,
+                },
+            )
+            try:
+                scenes_raw = await self._stream_to_bus(
+                    [
+                        {"role": "system", "content": scenes_prompt},
+                        {"role": "user", "content": "Return the JSON array of scenes."},
+                    ],
+                    synopsis_model,
+                    settings.seed,
+                )
+            except Exception as exc:
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] scene decomposition failed "
+                    f"({type(exc).__name__}: {exc}); falling back to direct drafting.\n"
+                )
+                return ""
 
-        scenes = _extract_json_array(scenes_raw)
-        if not scenes:
-            await self.bus.emit(
-                f"\n[Chapter {chapter_number}] scene decomposition returned no "
-                "parsable scenes; falling back to direct drafting.\n"
-            )
-            return ""
+            scenes = _extract_json_array(scenes_raw)
+            if not scenes:
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] scene decomposition returned no "
+                    "parsable scenes; falling back to direct drafting.\n"
+                )
+                return ""
 
-        # Persist scene definitions for downstream tooling and resumability.
-        try:
-            scenes_dir = STORIES_DIR / story_name / "chapters"
-            scenes_dir.mkdir(parents=True, exist_ok=True)
-            (scenes_dir / f"chapter_{chapter_number}_scenes.json").write_text(
-                json.dumps(scenes, indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
-        except OSError as exc:
-            await self.bus.emit(
-                f"\n[Chapter {chapter_number}] could not persist scene "
-                f"definitions ({type(exc).__name__}: {exc}); continuing.\n"
-            )
+            try:
+                scenes_json_path.parent.mkdir(parents=True, exist_ok=True)
+                _atomic_write(
+                    scenes_json_path,
+                    json.dumps(scenes, indent=2, ensure_ascii=False),
+                )
+                if state is not None:
+                    await _mark_work_item_done(state, phase, "scenes/decomposition")
+            except OSError as exc:
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] could not persist scene "
+                    f"definitions ({type(exc).__name__}: {exc}); continuing.\n"
+                )
 
         # Stage 3: per-scene drafting.
         scene_prose: list[str] = []
         scenes_completed_meta: list[dict[str, Any]] = []
         total_scenes = len(scenes)
+        scenes_dir = STORIES_DIR / story_name / "chapters" / f"chapter_{chapter_number}"
         for index, scene in enumerate(scenes, start=1):
+            scene_item_id = f"scene:{index}"
+            scene_file = scenes_dir / f"scene_{index}.md"
             scene_title = scene.get("title", "") or f"scene {index}"
             await self.status_bus.emit(
                 StatusEvent(
@@ -429,6 +463,12 @@ class ChapterWriterAgent:
                 f"\n\n--- Chapter {chapter_number} Scene {index}/{len(scenes)}: "
                 f"{scene.get('title', '')} ---\n"
             )
+
+            if state is not None and _work_item_done(state, phase, scene_item_id):
+                scene_text = scene_file.read_text(encoding="utf-8")
+                scene_prose.append(scene_text)
+                scenes_completed_meta.append(scene)
+                continue
 
             if index == 1:
                 scene_prompt_key = "multistep/scene/create_content_first"
@@ -491,6 +531,10 @@ class ChapterWriterAgent:
 
             scene_prose.append(scene_text)
             scenes_completed_meta.append(scene)
+            if state is not None:
+                scene_file.parent.mkdir(parents=True, exist_ok=True)
+                _atomic_write(scene_file, scene_text)
+                await _mark_work_item_done(state, phase, scene_item_id)
 
         if not scene_prose:
             return ""

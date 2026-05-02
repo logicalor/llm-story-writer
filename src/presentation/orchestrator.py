@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
-from typing import Any
+from typing import Any, cast
 
 from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import (
@@ -219,6 +219,7 @@ async def _generate_chapter_with_gate(
         outline_result,
         settings,
         recaps=state.recaps,
+        state=state,
     )
     while True:
         decision = await gate.await_decision()
@@ -235,6 +236,7 @@ async def _generate_chapter_with_gate(
             settings,
             feedback=decision.feedback,
             recaps=state.recaps,
+            state=state,
         )
         await _write_savepoint(state)
 
@@ -281,6 +283,7 @@ def _parse_name_list(names_raw: str) -> list[str]:
 
 async def _generate_character_sheets(
     story_name: str,
+    state: PipelineState,
     outline_result: OutlineResult,
     provider: ModelProvider,
     config: dict[str, Any],
@@ -301,15 +304,24 @@ async def _generate_character_sheets(
         "characters/extract_names", {"story_elements": story_elements}
     )
     messages = [{"role": "user", "content": extract_prompt}]
-    try:
-        names_raw = await provider.generate_text(messages, model_config)
-        names = _parse_name_list(names_raw)
-    except Exception as exc:
-        if bus is not None:
-            await bus.emit(
-                f"\n[Characters] name extraction failed ({type(exc).__name__}: {exc}) — no character sheets generated\n"
-            )
-        names = []
+    names_cache_path = stories_dir / story_name / "characters" / "_names.json"
+    if _work_item_done(state, "characters", "_extract_names"):
+        names = json.loads(names_cache_path.read_text(encoding="utf-8"))
+    else:
+        try:
+            names_raw = await provider.generate_text(messages, model_config)
+            names = _parse_name_list(names_raw)
+            if not names:
+                return []
+        except Exception as exc:
+            if bus is not None:
+                await bus.emit(
+                    f"\n[Characters] name extraction failed ({type(exc).__name__}: {exc}) — no character sheets generated\n"
+                )
+            return []
+        names_cache_path.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write(names_cache_path, json.dumps(names, ensure_ascii=False))
+        await _mark_work_item_done(state, "characters", "_extract_names")
 
     if not names:
         if bus is not None:
@@ -337,44 +349,65 @@ async def _generate_character_sheets(
         slug = _slugify_name(character_name)
         if not slug:
             continue
+        char_path = characters_dir / f"{slug}.json"
+        char_item_sheet = f"characters/{slug}/sheet"
         await _emit_status(
             sbus,
             "characters",
             f"[{idx}/{len(names)}] {character_name}: generating sheet",
             kind="step",
         )
-        try:
-            create_prompt = loader.load_prompt(
-                "characters/create",
-                {
-                    "story_elements": story_elements,
-                    "character_name": character_name,
-                },
-            )
-            sheet_messages = [{"role": "user", "content": create_prompt}]
-            sheet_text = await provider.generate_text(sheet_messages, model_config)
-        except Exception as exc:
-            if bus is not None:
-                await bus.emit(
-                    f"\n[Characters] sheet generation failed for {character_name!r} "
-                    f"({type(exc).__name__}: {exc}) — skipping\n"
+        if _work_item_done(state, "characters", char_item_sheet):
+            loaded_sheet = json.loads(char_path.read_text(encoding="utf-8"))
+            if not isinstance(loaded_sheet, dict):
+                raise ValueError(
+                    f"Character sheet cache for {character_name!r} is not a JSON object"
                 )
-            continue
+            sheet_data = dict(loaded_sheet)
+            sheet_data.setdefault("name", character_name)
+            sheet_data.setdefault("summary", "")
+            sheet_data.setdefault("abridged", "")
+            if not isinstance(sheet_data.get("chunks"), dict):
+                sheet_data["chunks"] = {}
+            sheet_text = str(sheet_data.get("sheet") or "")
+        else:
+            try:
+                create_prompt = loader.load_prompt(
+                    "characters/create",
+                    {
+                        "story_elements": story_elements,
+                        "character_name": character_name,
+                    },
+                )
+                sheet_messages = [{"role": "user", "content": create_prompt}]
+                sheet_text = await provider.generate_text(sheet_messages, model_config)
+            except Exception as exc:
+                if bus is not None:
+                    await bus.emit(
+                        f"\n[Characters] sheet generation failed for {character_name!r} "
+                        f"({type(exc).__name__}: {exc}) — skipping\n"
+                    )
+                continue
 
-        sheet_data = {
-            "name": character_name,
-            "sheet": sheet_text,
-            "chunks": {},
-            "summary": "",
-            "abridged": "",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        char_path = characters_dir / f"{slug}.json"
-        _atomic_write(char_path, json.dumps(sheet_data, indent=2, ensure_ascii=False))
+            sheet_data = {
+                "name": character_name,
+                "sheet": sheet_text,
+                "chunks": {},
+                "summary": "",
+                "abridged": "",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            _atomic_write(
+                char_path,
+                json.dumps(sheet_data, indent=2, ensure_ascii=False),
+            )
+            await _mark_work_item_done(state, "characters", char_item_sheet)
+
+        chunk_results = dict(cast(dict[str, str], sheet_data.get("chunks", {})))
+        abridged_text = str(sheet_data.get("abridged") or "")
+        summary_text = str(sheet_data.get("summary") or "")
 
         try:
-            sheet_json_text = char_path.read_text(encoding="utf-8")
-            chunk_results: dict[str, str] = {}
             chunk_items = list(chunk_prompts.items())
             for chunk_idx, (chunk_key, prompt_name) in enumerate(chunk_items, start=1):
                 await _emit_status(
@@ -384,19 +417,42 @@ async def _generate_character_sheets(
                     f"{chunk_idx}/{len(chunk_items)} ({chunk_key})",
                     kind="step",
                 )
-                chunk_prompt = loader.load_prompt(
-                    prompt_name,
-                    {
-                        "character_name": character_name,
-                        "character_sheet": sheet_text,
-                        "story_elements": story_elements,
-                    },
+                chunk_item_id = f"characters/{slug}/chunk:{chunk_key}"
+                if _work_item_done(state, "characters", chunk_item_id):
+                    existing_chunks = sheet_data.get("chunks", {})
+                    if isinstance(existing_chunks, dict):
+                        chunk_results[chunk_key] = str(
+                            existing_chunks.get(chunk_key) or ""
+                        )
+                    else:
+                        chunk_results[chunk_key] = ""
+                    continue
+
+                try:
+                    chunk_prompt = loader.load_prompt(
+                        prompt_name,
+                        {
+                            "character_name": character_name,
+                            "character_sheet": sheet_text,
+                            "story_elements": story_elements,
+                        },
+                    )
+                    raw_chunk = await provider.generate_text(
+                        [{"role": "user", "content": chunk_prompt}],
+                        model_config,
+                    )
+                    chunk_results[chunk_key] = _extract_output_content(raw_chunk)
+                except Exception:
+                    chunk_results[chunk_key] = ""
+                    continue
+
+                sheet_data["chunks"] = chunk_results
+                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+                _atomic_write(
+                    char_path,
+                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
                 )
-                raw_chunk = await provider.generate_text(
-                    [{"role": "user", "content": chunk_prompt}],
-                    model_config,
-                )
-                chunk_results[chunk_key] = _extract_output_content(raw_chunk)
+                await _mark_work_item_done(state, "characters", chunk_item_id)
 
             await _emit_status(
                 sbus,
@@ -404,18 +460,33 @@ async def _generate_character_sheets(
                 f"[{idx}/{len(names)}] {character_name}: abridged",
                 kind="step",
             )
-            abridged_prompt = loader.load_prompt(
-                "characters/create_abridged",
-                {
-                    "story_elements": story_elements,
-                    "character_name": character_name,
-                },
-            )
-            abridged_raw = await provider.generate_text(
-                [{"role": "user", "content": abridged_prompt}],
-                model_config,
-            )
-            abridged_text = _extract_output_content(abridged_raw)
+            abridged_item_id = f"characters/{slug}/abridged"
+            if _work_item_done(state, "characters", abridged_item_id):
+                abridged_text = str(sheet_data.get("abridged") or "")
+            else:
+                try:
+                    abridged_prompt = loader.load_prompt(
+                        "characters/create_abridged",
+                        {
+                            "story_elements": story_elements,
+                            "character_name": character_name,
+                        },
+                    )
+                    abridged_raw = await provider.generate_text(
+                        [{"role": "user", "content": abridged_prompt}],
+                        model_config,
+                    )
+                    abridged_text = _extract_output_content(abridged_raw)
+                except Exception:
+                    abridged_text = ""
+
+                sheet_data["abridged"] = abridged_text
+                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+                _atomic_write(
+                    char_path,
+                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
+                )
+                await _mark_work_item_done(state, "characters", abridged_item_id)
 
             character_info = (
                 "\n\n".join(
@@ -431,36 +502,49 @@ async def _generate_character_sheets(
                 f"[{idx}/{len(names)}] {character_name}: summary",
                 kind="step",
             )
-            summary_prompt = loader.load_prompt(
-                "characters/create_summary",
-                {
-                    "character_name": character_name,
-                    "character_info": character_info,
-                },
-            )
-            summary_raw = await provider.generate_text(
-                [{"role": "user", "content": summary_prompt}],
-                model_config,
-            )
-            summary_text = _extract_output_content(summary_raw)
+            summary_item_id = f"characters/{slug}/summary"
+            if _work_item_done(state, "characters", summary_item_id):
+                summary_text = str(sheet_data.get("summary") or "")
+            else:
+                try:
+                    summary_prompt = loader.load_prompt(
+                        "characters/create_summary",
+                        {
+                            "character_name": character_name,
+                            "character_info": character_info,
+                        },
+                    )
+                    summary_raw = await provider.generate_text(
+                        [{"role": "user", "content": summary_prompt}],
+                        model_config,
+                    )
+                    summary_text = _extract_output_content(summary_raw)
+                except Exception:
+                    summary_text = ""
 
-            enriched_data = json.loads(sheet_json_text)
-            if not isinstance(enriched_data, dict):
-                enriched_data = sheet_data.copy()
-            enriched_data["chunks"] = chunk_results
-            enriched_data["abridged"] = abridged_text
-            enriched_data["summary"] = summary_text
-            enriched_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-            _atomic_write(
-                char_path,
-                json.dumps(enriched_data, indent=2, ensure_ascii=False),
-            )
+                sheet_data["summary"] = summary_text
+                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+                _atomic_write(
+                    char_path,
+                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
+                )
+                await _mark_work_item_done(state, "characters", summary_item_id)
         except Exception as exc:
             if bus is not None:
                 await bus.emit(
                     f"\n[Characters] enrichment failed for {character_name!r} "
                     f"({type(exc).__name__}: {exc}) — base sheet retained\n"
                 )
+
+        enriched_data = dict(sheet_data)
+        enriched_data["chunks"] = chunk_results
+        enriched_data["abridged"] = abridged_text
+        enriched_data["summary"] = summary_text
+        enriched_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        _atomic_write(
+            char_path,
+            json.dumps(enriched_data, indent=2, ensure_ascii=False),
+        )
 
         await _emit_status(
             sbus,
@@ -470,11 +554,12 @@ async def _generate_character_sheets(
         )
         written.append(char_path)
 
-    return written
+    return [path for path in written if path != names_cache_path]
 
 
 async def _generate_setting_sheets(
     story_name: str,
+    state: PipelineState,
     outline_result: OutlineResult,
     provider: ModelProvider,
     config: dict[str, Any],
@@ -495,15 +580,24 @@ async def _generate_setting_sheets(
         "settings/extract_names", {"story_elements": story_elements}
     )
     messages = [{"role": "user", "content": extract_prompt}]
-    try:
-        names_raw = await provider.generate_text(messages, model_config)
-        names = _parse_name_list(names_raw)
-    except Exception as exc:
-        if bus is not None:
-            await bus.emit(
-                f"\n[Settings] name extraction failed ({type(exc).__name__}: {exc}) — no setting sheets generated\n"
-            )
-        names = []
+    names_cache_path = stories_dir / story_name / "settings" / "_names.json"
+    if _work_item_done(state, "settings", "_extract_locations"):
+        names = json.loads(names_cache_path.read_text(encoding="utf-8"))
+    else:
+        try:
+            names_raw = await provider.generate_text(messages, model_config)
+            names = _parse_name_list(names_raw)
+            if not names:
+                return []
+        except Exception as exc:
+            if bus is not None:
+                await bus.emit(
+                    f"\n[Settings] name extraction failed ({type(exc).__name__}: {exc}) — no setting sheets generated\n"
+                )
+            return []
+        names_cache_path.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write(names_cache_path, json.dumps(names, ensure_ascii=False))
+        await _mark_work_item_done(state, "settings", "_extract_locations")
 
     if not names:
         if bus is not None:
@@ -530,47 +624,65 @@ async def _generate_setting_sheets(
         slug = _slugify_name(setting_name)
         if not slug:
             continue
+        setting_path = settings_dir / f"{slug}.json"
+        setting_item_sheet = f"settings/{slug}/sheet"
         await _emit_status(
             sbus,
             "settings",
             f"[{idx}/{len(names)}] {setting_name}: generating sheet",
             kind="step",
         )
-        try:
-            create_prompt = loader.load_prompt(
-                "settings/create",
-                {
-                    "story_elements": story_elements,
-                    "setting_name": setting_name,
-                },
-            )
-            sheet_messages = [{"role": "user", "content": create_prompt}]
-            sheet_text = await provider.generate_text(sheet_messages, model_config)
-        except Exception as exc:
-            if bus is not None:
-                await bus.emit(
-                    f"\n[Settings] sheet generation failed for {setting_name!r} "
-                    f"({type(exc).__name__}: {exc}) — skipping\n"
+        if _work_item_done(state, "settings", setting_item_sheet):
+            loaded_sheet = json.loads(setting_path.read_text(encoding="utf-8"))
+            if not isinstance(loaded_sheet, dict):
+                raise ValueError(
+                    f"Setting sheet cache for {setting_name!r} is not a JSON object"
                 )
-            continue
+            sheet_data = dict(loaded_sheet)
+            sheet_data.setdefault("name", setting_name)
+            sheet_data.setdefault("summary", "")
+            sheet_data.setdefault("abridged", "")
+            if not isinstance(sheet_data.get("chunks"), dict):
+                sheet_data["chunks"] = {}
+            sheet_text = str(sheet_data.get("sheet") or "")
+        else:
+            try:
+                create_prompt = loader.load_prompt(
+                    "settings/create",
+                    {
+                        "story_elements": story_elements,
+                        "setting_name": setting_name,
+                    },
+                )
+                sheet_messages = [{"role": "user", "content": create_prompt}]
+                sheet_text = await provider.generate_text(sheet_messages, model_config)
+            except Exception as exc:
+                if bus is not None:
+                    await bus.emit(
+                        f"\n[Settings] sheet generation failed for {setting_name!r} "
+                        f"({type(exc).__name__}: {exc}) — skipping\n"
+                    )
+                continue
 
-        sheet_data = {
-            "name": setting_name,
-            "sheet": sheet_text,
-            "chunks": {},
-            "summary": "",
-            "abridged": "",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        setting_path = settings_dir / f"{slug}.json"
-        _atomic_write(
-            setting_path,
-            json.dumps(sheet_data, indent=2, ensure_ascii=False),
-        )
+            sheet_data = {
+                "name": setting_name,
+                "sheet": sheet_text,
+                "chunks": {},
+                "summary": "",
+                "abridged": "",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            _atomic_write(
+                setting_path,
+                json.dumps(sheet_data, indent=2, ensure_ascii=False),
+            )
+            await _mark_work_item_done(state, "settings", setting_item_sheet)
+
+        chunk_results = dict(cast(dict[str, str], sheet_data.get("chunks", {})))
+        abridged_text = str(sheet_data.get("abridged") or "")
+        summary_text = str(sheet_data.get("summary") or "")
 
         try:
-            sheet_json_text = setting_path.read_text(encoding="utf-8")
-            chunk_results: dict[str, str] = {}
             chunk_items = list(chunk_prompts.items())
             for chunk_idx, (chunk_key, prompt_name) in enumerate(chunk_items, start=1):
                 await _emit_status(
@@ -580,19 +692,42 @@ async def _generate_setting_sheets(
                     f"{chunk_idx}/{len(chunk_items)} ({chunk_key})",
                     kind="step",
                 )
-                chunk_prompt = loader.load_prompt(
-                    prompt_name,
-                    {
-                        "setting_name": setting_name,
-                        "setting_sheet": sheet_text,
-                        "story_elements": story_elements,
-                    },
+                chunk_item_id = f"settings/{slug}/chunk:{chunk_key}"
+                if _work_item_done(state, "settings", chunk_item_id):
+                    existing_chunks = sheet_data.get("chunks", {})
+                    if isinstance(existing_chunks, dict):
+                        chunk_results[chunk_key] = str(
+                            existing_chunks.get(chunk_key) or ""
+                        )
+                    else:
+                        chunk_results[chunk_key] = ""
+                    continue
+
+                try:
+                    chunk_prompt = loader.load_prompt(
+                        prompt_name,
+                        {
+                            "setting_name": setting_name,
+                            "setting_sheet": sheet_text,
+                            "story_elements": story_elements,
+                        },
+                    )
+                    raw_chunk = await provider.generate_text(
+                        [{"role": "user", "content": chunk_prompt}],
+                        model_config,
+                    )
+                    chunk_results[chunk_key] = _extract_output_content(raw_chunk)
+                except Exception:
+                    chunk_results[chunk_key] = ""
+                    continue
+
+                sheet_data["chunks"] = chunk_results
+                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+                _atomic_write(
+                    setting_path,
+                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
                 )
-                raw_chunk = await provider.generate_text(
-                    [{"role": "user", "content": chunk_prompt}],
-                    model_config,
-                )
-                chunk_results[chunk_key] = _extract_output_content(raw_chunk)
+                await _mark_work_item_done(state, "settings", chunk_item_id)
 
             await _emit_status(
                 sbus,
@@ -600,18 +735,33 @@ async def _generate_setting_sheets(
                 f"[{idx}/{len(names)}] {setting_name}: abridged",
                 kind="step",
             )
-            abridged_prompt = loader.load_prompt(
-                "settings/create_abridged",
-                {
-                    "story_elements": story_elements,
-                    "setting_name": setting_name,
-                },
-            )
-            abridged_raw = await provider.generate_text(
-                [{"role": "user", "content": abridged_prompt}],
-                model_config,
-            )
-            abridged_text = _extract_output_content(abridged_raw)
+            abridged_item_id = f"settings/{slug}/abridged"
+            if _work_item_done(state, "settings", abridged_item_id):
+                abridged_text = str(sheet_data.get("abridged") or "")
+            else:
+                try:
+                    abridged_prompt = loader.load_prompt(
+                        "settings/create_abridged",
+                        {
+                            "story_elements": story_elements,
+                            "setting_name": setting_name,
+                        },
+                    )
+                    abridged_raw = await provider.generate_text(
+                        [{"role": "user", "content": abridged_prompt}],
+                        model_config,
+                    )
+                    abridged_text = _extract_output_content(abridged_raw)
+                except Exception:
+                    abridged_text = ""
+
+                sheet_data["abridged"] = abridged_text
+                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+                _atomic_write(
+                    setting_path,
+                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
+                )
+                await _mark_work_item_done(state, "settings", abridged_item_id)
 
             setting_info = (
                 "\n\n".join(
@@ -627,36 +777,49 @@ async def _generate_setting_sheets(
                 f"[{idx}/{len(names)}] {setting_name}: summary",
                 kind="step",
             )
-            summary_prompt = loader.load_prompt(
-                "settings/create_summary",
-                {
-                    "setting_name": setting_name,
-                    "setting_info": setting_info,
-                },
-            )
-            summary_raw = await provider.generate_text(
-                [{"role": "user", "content": summary_prompt}],
-                model_config,
-            )
-            summary_text = _extract_output_content(summary_raw)
+            summary_item_id = f"settings/{slug}/summary"
+            if _work_item_done(state, "settings", summary_item_id):
+                summary_text = str(sheet_data.get("summary") or "")
+            else:
+                try:
+                    summary_prompt = loader.load_prompt(
+                        "settings/create_summary",
+                        {
+                            "setting_name": setting_name,
+                            "setting_info": setting_info,
+                        },
+                    )
+                    summary_raw = await provider.generate_text(
+                        [{"role": "user", "content": summary_prompt}],
+                        model_config,
+                    )
+                    summary_text = _extract_output_content(summary_raw)
+                except Exception:
+                    summary_text = ""
 
-            enriched_data = json.loads(sheet_json_text)
-            if not isinstance(enriched_data, dict):
-                enriched_data = sheet_data.copy()
-            enriched_data["chunks"] = chunk_results
-            enriched_data["abridged"] = abridged_text
-            enriched_data["summary"] = summary_text
-            enriched_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-            _atomic_write(
-                setting_path,
-                json.dumps(enriched_data, indent=2, ensure_ascii=False),
-            )
+                sheet_data["summary"] = summary_text
+                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+                _atomic_write(
+                    setting_path,
+                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
+                )
+                await _mark_work_item_done(state, "settings", summary_item_id)
         except Exception as exc:
             if bus is not None:
                 await bus.emit(
                     f"\n[Settings] enrichment failed for {setting_name!r} "
                     f"({type(exc).__name__}: {exc}) — base sheet retained\n"
                 )
+
+        enriched_data = dict(sheet_data)
+        enriched_data["chunks"] = chunk_results
+        enriched_data["abridged"] = abridged_text
+        enriched_data["summary"] = summary_text
+        enriched_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        _atomic_write(
+            setting_path,
+            json.dumps(enriched_data, indent=2, ensure_ascii=False),
+        )
 
         await _emit_status(
             sbus,
@@ -666,7 +829,7 @@ async def _generate_setting_sheets(
         )
         written.append(setting_path)
 
-    return written
+    return [path for path in written if path != names_cache_path]
 
 
 async def _run_story_foundation(
@@ -901,6 +1064,7 @@ async def _continue_pipeline(
                 char_count = len(
                     await _generate_character_sheets(
                         state.story_name,
+                        state,
                         state.outline_result,
                         resolved_provider,
                         resolved_config,
@@ -937,6 +1101,7 @@ async def _continue_pipeline(
             if state.outline_result is not None:
                 await _generate_setting_sheets(
                     state.story_name,
+                    state,
                     state.outline_result,
                     resolved_provider,
                     resolved_config,
