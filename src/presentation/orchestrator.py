@@ -41,6 +41,9 @@ from presentation.agents.wiki_maintainer import WikiMaintainerAgent
 from presentation.pipeline_primitives import (
     ApprovalGate,
     NullApprovalGate,
+    NullStatusBus,
+    StatusBus,
+    StatusEvent,
     TokenStreamBus,
     WikiContextBus,
     WikiContextEvent,
@@ -78,6 +81,7 @@ def _create_provider(config: dict[str, Any]) -> ModelProvider:
         base_url=config.get("model_api_base"),
         context_length=config.get("context_length", 16384),
         randomize_seed=config.get("randomize_seed", True),
+        timeout=float(config.get("request_timeout", 600.0)),
     )
 
 
@@ -269,6 +273,7 @@ async def _generate_character_sheets(
     provider: ModelProvider,
     config: dict[str, Any],
     stories_dir: Path,
+    bus: TokenStreamBus | None = None,
 ) -> list[Path]:
     """Generate character sheets from outline and write to disk."""
     project_root = Path(__file__).resolve().parents[2]
@@ -285,8 +290,19 @@ async def _generate_character_sheets(
     try:
         names_raw = await provider.generate_text(messages, model_config)
         names = _parse_name_list(names_raw)
-    except Exception:
+    except Exception as exc:
+        if bus is not None:
+            await bus.emit(
+                f"\n[Characters] name extraction failed ({type(exc).__name__}: {exc}) — no character sheets generated\n"
+            )
         names = []
+
+    if not names:
+        if bus is not None:
+            await bus.emit(
+                "\n[Characters] extract_names returned an empty list — no character sheets generated\n"
+            )
+        return []
 
     characters_dir = stories_dir / story_name / "characters"
     characters_dir.mkdir(parents=True, exist_ok=True)
@@ -317,7 +333,12 @@ async def _generate_character_sheets(
             )
             sheet_messages = [{"role": "user", "content": create_prompt}]
             sheet_text = await provider.generate_text(sheet_messages, model_config)
-        except Exception:
+        except Exception as exc:
+            if bus is not None:
+                await bus.emit(
+                    f"\n[Characters] sheet generation failed for {character_name!r} "
+                    f"({type(exc).__name__}: {exc}) — skipping\n"
+                )
             continue
 
         sheet_data = {
@@ -394,8 +415,12 @@ async def _generate_character_sheets(
                 char_path,
                 json.dumps(enriched_data, indent=2, ensure_ascii=False),
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            if bus is not None:
+                await bus.emit(
+                    f"\n[Characters] enrichment failed for {character_name!r} "
+                    f"({type(exc).__name__}: {exc}) — base sheet retained\n"
+                )
 
         written.append(char_path)
 
@@ -408,6 +433,7 @@ async def _generate_setting_sheets(
     provider: ModelProvider,
     config: dict[str, Any],
     stories_dir: Path,
+    bus: TokenStreamBus | None = None,
 ) -> list[Path]:
     """Generate setting sheets from outline and write to disk."""
     project_root = Path(__file__).resolve().parents[2]
@@ -424,8 +450,19 @@ async def _generate_setting_sheets(
     try:
         names_raw = await provider.generate_text(messages, model_config)
         names = _parse_name_list(names_raw)
-    except Exception:
+    except Exception as exc:
+        if bus is not None:
+            await bus.emit(
+                f"\n[Settings] name extraction failed ({type(exc).__name__}: {exc}) — no setting sheets generated\n"
+            )
         names = []
+
+    if not names:
+        if bus is not None:
+            await bus.emit(
+                "\n[Settings] extract_names returned an empty list — no setting sheets generated\n"
+            )
+        return []
 
     settings_dir = stories_dir / story_name / "settings"
     settings_dir.mkdir(parents=True, exist_ok=True)
@@ -455,7 +492,12 @@ async def _generate_setting_sheets(
             )
             sheet_messages = [{"role": "user", "content": create_prompt}]
             sheet_text = await provider.generate_text(sheet_messages, model_config)
-        except Exception:
+        except Exception as exc:
+            if bus is not None:
+                await bus.emit(
+                    f"\n[Settings] sheet generation failed for {setting_name!r} "
+                    f"({type(exc).__name__}: {exc}) — skipping\n"
+                )
             continue
 
         sheet_data = {
@@ -535,8 +577,12 @@ async def _generate_setting_sheets(
                 setting_path,
                 json.dumps(enriched_data, indent=2, ensure_ascii=False),
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            if bus is not None:
+                await bus.emit(
+                    f"\n[Settings] enrichment failed for {setting_name!r} "
+                    f"({type(exc).__name__}: {exc}) — base sheet retained\n"
+                )
 
         written.append(setting_path)
 
@@ -557,6 +603,20 @@ async def _run_story_foundation(
     return await agent.run(story_name, story_prompt, settings)
 
 
+async def _emit_status(
+    status_bus: StatusBus,
+    phase: str,
+    message: str,
+    kind: str = "info",
+    detail: str = "",
+) -> None:
+    """Emit a status event, also mirroring a banner line into the token bus is
+    handled by callers when desired. Safe with NullStatusBus."""
+    await status_bus.emit(
+        StatusEvent(phase=phase, message=message, kind=kind, detail=detail)
+    )
+
+
 async def _continue_pipeline(
     state: PipelineState,
     gate: ApprovalGate,
@@ -564,18 +624,29 @@ async def _continue_pipeline(
     wiki_bus: WikiContextBus,
     config: dict[str, Any] | None,
     provider: ModelProvider | None,
+    status_bus: StatusBus | None = None,
 ) -> PipelineState:
     resolved_config = config if config is not None else ConfigLoader().load_config()
     resolved_provider = provider or _create_provider(resolved_config)
     settings = _load_settings(resolved_config)
+    sbus = status_bus if status_bus is not None else NullStatusBus()
 
     story_dir = STORIES_DIR / state.story_name
     (story_dir / "savepoints").mkdir(parents=True, exist_ok=True)
     story_prompt = _load_story_prompt(state.story_name)
 
+    async def _banner(phase: str, message: str) -> None:
+        """Emit a status event AND a visible banner line into the token log."""
+        await _emit_status(sbus, phase, message, kind="phase_start")
+        await bus.emit(f"\n=== {phase}: {message} ===\n")
+
     try:
         if "story-foundation" not in state.completed_phases:
             state.current_phase = "story-foundation"
+            await _banner(
+                "story-foundation",
+                "Extracting base context, story start date, and core elements",
+            )
             foundation_result = await _run_story_foundation(
                 state.story_name,
                 story_prompt,
@@ -598,9 +669,16 @@ async def _continue_pipeline(
                 "story-foundation",
                 "story_foundation_complete",
             )
+            await _emit_status(
+                sbus,
+                "story-foundation",
+                "Foundation complete",
+                kind="phase_end",
+            )
 
         if "outline" not in state.completed_phases:
             state.current_phase = "outline"
+            await _banner("outline", "Generating chapter outline")
             outline_agent = OutlinePlannerAgent(
                 resolved_provider, resolved_config, bus, wiki_bus
             )
@@ -641,6 +719,10 @@ async def _continue_pipeline(
                 settings.enable_outline_critique
                 and "outline-critique" not in state.completed_phases
             ):
+                await _banner(
+                    "outline-critique",
+                    "Running outline critic passes",
+                )
                 critic_agent = OutlineCriticAgent(
                     resolved_provider,
                     resolved_config,
@@ -650,6 +732,12 @@ async def _continue_pipeline(
                 state = await critic_agent.run(state, settings)
                 await _write_savepoint(state)
 
+            await _emit_status(
+                sbus,
+                "outline",
+                "Awaiting outline approval",
+                kind="awaiting",
+            )
             state = await _await_outline_approval(
                 state,
                 gate,
@@ -663,9 +751,11 @@ async def _continue_pipeline(
             if state.status == "rejected":
                 return state
             await _mark_phase_complete(state, "outline", "outline")
+            await _emit_status(sbus, "outline", "Outline approved", kind="phase_end")
 
         if "metadata-outline" not in state.completed_phases:
             state.current_phase = "metadata-outline"
+            await _banner("metadata-outline", "Generating story title and tags")
             if state.outline_result is not None:
                 try:
                     metadata_agent = StoryMetadataAgent(
@@ -699,6 +789,7 @@ async def _continue_pipeline(
 
         if "narrative-arc" not in state.completed_phases:
             state.current_phase = "narrative-arc"
+            await _banner("narrative-arc", "Analysing narrative arc")
             if state.outline_result is not None:
                 arc_agent = StoryPlannerAgent(
                     resolved_provider, resolved_config, bus, wiki_bus
@@ -718,6 +809,7 @@ async def _continue_pipeline(
 
         if "characters" not in state.completed_phases:
             state.current_phase = "characters"
+            await _banner("characters", "Generating character sheets")
             await wiki_bus.emit(
                 WikiContextEvent(
                     phase="characters",
@@ -726,17 +818,34 @@ async def _continue_pipeline(
                 )
             )
             if state.outline_result is not None:
-                await _generate_character_sheets(
-                    state.story_name,
-                    state.outline_result,
-                    resolved_provider,
-                    resolved_config,
-                    story_dir.parent,
+                char_count = len(
+                    await _generate_character_sheets(
+                        state.story_name,
+                        state.outline_result,
+                        resolved_provider,
+                        resolved_config,
+                        story_dir.parent,
+                        bus,
+                    )
                 )
+                if char_count == 0:
+                    await _emit_status(
+                        sbus,
+                        "characters",
+                        "Characters phase produced no files — will retry on resume",
+                        kind="warn",
+                    )
+                    # Do NOT mark phase complete so resume retries it.
+                    await _write_savepoint(state)
+                    raise StoryGenerationError(
+                        "[Characters] No character sheets were generated. "
+                        "Check extract_names prompt and LLM output."
+                    )
             await _mark_phase_complete(state, "characters", "characters")
 
         if "settings" not in state.completed_phases:
             state.current_phase = "settings"
+            await _banner("settings", "Generating setting sheets")
             await wiki_bus.emit(
                 WikiContextEvent(
                     phase="settings",
@@ -751,6 +860,7 @@ async def _continue_pipeline(
                     resolved_provider,
                     resolved_config,
                     story_dir.parent,
+                    bus,
                 )
             await _mark_phase_complete(state, "settings", "settings")
 
@@ -764,6 +874,7 @@ async def _continue_pipeline(
 
         if "wiki-bootstrap" not in state.completed_phases:
             state.current_phase = "wiki-bootstrap"
+            await _banner("wiki-bootstrap", "Seeding wiki from outline and sheets")
             models = resolved_config.get("models", {})
             wiki_model: str | None = models.get("chapter_writer")
             await bus.emit(
@@ -818,6 +929,11 @@ async def _continue_pipeline(
                 if chapter_number < next_chapter:
                     continue
                 state.current_phase = f"chapter-{chapter_number}"
+                total = len(chapter_numbers)
+                await _banner(
+                    f"chapter-{chapter_number}",
+                    f"Drafting chapter {chapter_number} of {total}",
+                )
                 draft = await _generate_chapter_with_gate(
                     state,
                     gate,
@@ -830,6 +946,12 @@ async def _continue_pipeline(
                 if draft is None:
                     return state
 
+                await _emit_status(
+                    sbus,
+                    f"chapter-{chapter_number}",
+                    f"Consistency check chapter {chapter_number}",
+                    kind="step",
+                )
                 consistency_result = await consistency_agent.run(
                     state.story_name,
                     chapter_number,
@@ -854,6 +976,12 @@ async def _continue_pipeline(
                         )
                 state.approved_chapters.append(draft)
                 _write_chapter_file(story_dir, chapter_number, draft.content)
+                await _emit_status(
+                    sbus,
+                    f"chapter-{chapter_number}",
+                    f"Updating wiki for chapter {chapter_number}",
+                    kind="step",
+                )
                 try:
                     wiki_batch = await wiki_agent.run(
                         state.story_name, chapter_number, draft.content
@@ -981,11 +1109,18 @@ async def _continue_pipeline(
                     f"chapter-{chapter_number}",
                     f"chapter-{chapter_number}",
                 )
+                await _emit_status(
+                    sbus,
+                    f"chapter-{chapter_number}",
+                    f"Chapter {chapter_number} complete",
+                    kind="phase_end",
+                )
 
             await _mark_phase_complete(state, "chapter-loop", "chapter-loop")
 
         if "final-edit" not in state.completed_phases:
             state.current_phase = "final-edit"
+            await _banner("final-edit", "Running final editor pass")
             generation_config = resolved_config.get("generation", {})
             enable_final_edit = (
                 generation_config.get("enable_final_edit", True)
@@ -1020,6 +1155,7 @@ async def _continue_pipeline(
 
         if "metadata-final" not in state.completed_phases:
             state.current_phase = "metadata-final"
+            await _banner("metadata-final", "Refreshing story metadata")
             if state.outline_result is not None and state.approved_chapters:
                 try:
                     metadata_agent_final = StoryMetadataAgent(
@@ -1060,6 +1196,7 @@ async def _continue_pipeline(
 
         state.current_phase = "assembly"
         if "assembly" not in state.completed_phases:
+            await _banner("assembly", "Assembling final story file")
             output_path = story_dir / "output" / "story.md"
             output_path.parent.mkdir(parents=True, exist_ok=True)
             parts = [
@@ -1085,10 +1222,20 @@ async def _continue_pipeline(
         if "complete" not in state.savepoints:
             state.savepoints.append("complete")
         await _write_savepoint(state)
+        await _emit_status(sbus, "complete", "Pipeline complete", kind="phase_end")
         return state
+    except Exception as exc:
+        await _emit_status(
+            sbus,
+            state.current_phase,
+            f"Pipeline error: {type(exc).__name__}: {exc}",
+            kind="error",
+        )
+        raise
     finally:
         bus.close()
         wiki_bus.close()
+        sbus.close()
 
 
 async def run_pipeline(
@@ -1098,6 +1245,7 @@ async def run_pipeline(
     wiki_bus: WikiContextBus,
     config: dict[str, Any] | None = None,
     provider: ModelProvider | None = None,
+    status_bus: StatusBus | None = None,
 ) -> PipelineState:
     """Execute the full story generation pipeline.
 
@@ -1122,7 +1270,7 @@ async def run_pipeline(
     await _mark_phase_complete(state, "init", "init")
 
     return await _continue_pipeline(
-        state, gate, bus, wiki_bus, resolved_config, provider
+        state, gate, bus, wiki_bus, resolved_config, provider, status_bus
     )
 
 
@@ -1134,6 +1282,7 @@ async def resume_pipeline(
     wiki_bus: WikiContextBus,
     config: dict[str, Any] | None = None,
     provider: ModelProvider | None = None,
+    status_bus: StatusBus | None = None,
 ) -> PipelineState:
     """Resume a pipeline from the latest persisted savepoint.
 
@@ -1162,6 +1311,10 @@ async def resume_pipeline(
     if state.status == "complete":
         bus.close()
         wiki_bus.close()
+        if status_bus is not None:
+            status_bus.close()
         return state
 
-    return await _continue_pipeline(state, gate, bus, wiki_bus, config, provider)
+    return await _continue_pipeline(
+        state, gate, bus, wiki_bus, config, provider, status_bus
+    )

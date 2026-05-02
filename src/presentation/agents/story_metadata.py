@@ -42,6 +42,34 @@ def _parse_tags(raw: str) -> list[str]:
     return []
 
 
+def _parse_title(raw: str) -> str:
+    """Extract a clean single-line title from an LLM response.
+
+    Returns the first non-empty, non-heading line that is 100 chars or fewer.
+    Falls back to the raw response truncated to 100 chars if nothing better is
+    found — so the caller always gets something.
+    """
+    for line in raw.splitlines():
+        stripped = line.strip()
+        # Skip markdown headings, empty lines, or lines that look like
+        # prose/explanation rather than a title.
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            continue
+        # Heuristic: a bare title won't start with a bullet, number, or word
+        # followed immediately by a colon (e.g. "Why?:").
+        if stripped[0] in ("-", "*", ">") or (
+            len(stripped) > 1 and stripped[1] in ("-", ".", ")")
+        ):
+            continue
+        if len(stripped) <= 100:
+            # Strip surrounding bold/italic markdown markers if present.
+            stripped = stripped.strip("*_")
+            return stripped
+    return raw.strip()[:100]
+
+
 class StoryMetadataAgent:
     def __init__(
         self,
@@ -92,8 +120,8 @@ class StoryMetadataAgent:
                 seed=settings.seed,
             )
             if response:
-                title = response.strip()
-                await self.bus.emit(response)
+                title = _parse_title(response)
+                await self.bus.emit(f"[Metadata] Title: {title}\n")
         except Exception:
             pass
 

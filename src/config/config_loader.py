@@ -87,6 +87,7 @@ class ConfigLoader:
                         ),
                         "context_length": infrastructure.get("context_length", 4096),
                         "randomize_seed": infrastructure.get("randomize_seed", True),
+                        "request_timeout": infrastructure.get("request_timeout", 600.0),
                         # RAG Configuration
                         "embedding_model": infrastructure.get(
                             "embedding_model", "openai-compat://nomic-embed-text"

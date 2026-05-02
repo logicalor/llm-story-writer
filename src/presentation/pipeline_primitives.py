@@ -152,3 +152,81 @@ class WikiContextBus:
             if item is _SENTINEL:
                 break
             yield item  # type: ignore[misc]
+
+
+@dataclass
+class StatusEvent:
+    """A structured status event describing pipeline progress.
+
+    Emitted by the orchestrator at phase boundaries and key sub-steps so
+    consumers (TUI, CLI) can render high-level activity without parsing
+    raw token output.
+
+    kind:
+        - "phase_start": entering a new pipeline phase
+        - "phase_end":   phase completed
+        - "step":        a sub-step inside the active phase
+        - "info":        informational note
+        - "warn":        non-fatal issue
+        - "error":       fatal error
+        - "awaiting":    blocked on user input (approval gate)
+    """
+
+    phase: str
+    message: str
+    kind: str = "info"
+    detail: str = ""
+
+
+class StatusBus:
+    """Async status event bus backed by asyncio.Queue.
+
+    Producer: .emit(event) for each status event, .close() when done.
+    Consumer: async iteration yields StatusEvent objects.
+
+    Supports a single consumer only.
+    """
+
+    def __init__(self) -> None:
+        self._queue: asyncio.Queue[StatusEvent | object] = asyncio.Queue()
+        self._closed = False
+
+    async def emit(self, event: StatusEvent) -> None:
+        if self._closed:
+            raise RuntimeError("emit() called after close()")
+        await self._queue.put(event)
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._queue.put_nowait(_SENTINEL)
+
+    def __aiter__(self) -> AsyncIterator[StatusEvent]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncIterator[StatusEvent]:
+        if self._closed and self._queue.empty():
+            return
+        while True:
+            item = await self._queue.get()
+            if item is _SENTINEL:
+                break
+            yield item  # type: ignore[misc]
+
+
+class NullStatusBus(StatusBus):
+    """No-op status bus. Drops all events. Safe default for headless callers."""
+
+    async def emit(self, event: StatusEvent) -> None:  # noqa: D401
+        return None
+
+    def close(self) -> None:
+        self._closed = True
+
+    def __aiter__(self) -> AsyncIterator[StatusEvent]:
+        async def _empty() -> AsyncIterator[StatusEvent]:
+            if False:
+                yield  # type: ignore[unreachable]
+
+        return _empty()

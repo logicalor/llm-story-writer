@@ -9,7 +9,7 @@ Screen {
 }
 
 #phase-panel {
-    width: 20;
+    width: 24;
     border: solid $primary;
     padding: 1;
 }
@@ -20,8 +20,35 @@ Screen {
     margin-bottom: 1;
 }
 
+#phase-list {
+    height: auto;
+}
+
 .phase-item {
+    height: 1;
+}
+
+.phase-pending {
     color: $text-muted;
+}
+
+.phase-active {
+    color: $warning;
+    text-style: bold;
+}
+
+.phase-done {
+    color: $success;
+}
+
+.phase-awaiting {
+    color: $accent;
+    text-style: bold;
+}
+
+.phase-error {
+    color: $error;
+    text-style: bold;
 }
 
 #output-log {
@@ -31,7 +58,7 @@ Screen {
 }
 
 #wiki-panel {
-    width: 30;
+    width: 60;
     border: solid $success;
     padding: 1;
     display: none;
@@ -45,6 +72,14 @@ Screen {
 
 #wiki-log {
     height: 1fr;
+}
+
+#status-bar {
+    dock: bottom;
+    height: 1;
+    background: $surface;
+    color: $text;
+    padding: 0 1;
 }
 
 #approval-input {
