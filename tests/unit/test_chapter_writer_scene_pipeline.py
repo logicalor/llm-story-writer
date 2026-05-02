@@ -107,8 +107,8 @@ async def test_scene_pipeline_runs_three_stages_in_order(tmp_path: Path) -> None
     assert len(captured) == 4
     assert "Create Chapter Synopsis" in captured[0]
     assert "scene" in captured[1].lower()
-    assert "Scene 1" in captured[2] or "scene_num" in captured[2].lower()
-    assert "Scene 2" in captured[3] or "scene_num" in captured[3].lower()
+    assert "Opening" in captured[2]
+    assert "Climax" in captured[3]
 
     # Final chapter content concatenates scene prose under the chapter title.
     assert "Scene 1 prose body." in draft.content
