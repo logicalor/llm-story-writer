@@ -10,6 +10,8 @@ Issue #161 builds on that base with a headless Python orchestrator and persisted
 
 This foundation reduces path sprawl, gives later Python orchestration work a stable prompt-loading entry point, replaces ad hoc phase payloads with explicit Python types that can round-trip through JSON savepoints, and exposes the resulting pipeline through a normal Python console script.
 
+The legacy `outline_chapter` strategy package under `src/application/strategies/outline_chapter/` remains as historical reference only. The active runtime pipeline is now the agent-based orchestrator in `src/presentation/orchestrator.py`, so strategy-era descriptions should not be treated as the current generation flow.
+
 ## Agent Prompt Relocation
 
 All eleven agent prompt files now live in `prompts/agents/`. Filenames and Markdown bodies were preserved verbatim during the move so downstream migration tasks can keep using the existing prompt content.
@@ -129,6 +131,17 @@ The practical effect is simple:
 - `src/presentation/orchestrator.py` and related presentation agents call Python services and tool modules directly
 - standalone `src/tools/*.py` CLIs remain available for shell use
 - reusable prompt content from deleted OpenCode commands and skills now lives under `prompts/agents/` and `prompts/skills/`
+
+## Restored Agent Pipeline (Issues #292-#303)
+
+The pipeline-restore series reactivates the Python-native agent chain that now drives end-to-end story generation:
+
+- `src/presentation/agents/story_foundation.py` — generates the story foundation fields (`base_context`, `story_start_date`, `story_elements`) from the story prompt before outline generation
+- `src/presentation/agents/outline_planner.py` — creates the chapter-by-chapter outline, including the chunked outline branch when enabled
+- `src/presentation/agents/outline_critic.py` — runs the outline critique and synthesis loop before outline approval when critique is enabled
+- `src/presentation/agents/recap_writer.py` — generates recap artefacts after each approved chapter so the next chapter receives continuity context
+- `src/presentation/agents/chapter_writer.py` — writes each chapter, including the scene-generation pipeline path when enabled
+- `src/presentation/agents/final_editor.py` — performs the final edit pass across approved chapters before assembly
 
 ## Developer Guide
 

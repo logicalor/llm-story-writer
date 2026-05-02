@@ -15,7 +15,6 @@ class TestGenerationSettings:
 
         assert settings.scenes_per_chapter_min == 8
         assert settings.scenes_per_chapter_max == 16
-        assert settings.scene_expansion_enabled is True
 
     def test_scenes_per_chapter_min_too_low(self) -> None:
         """Scene minimum below 1 is rejected."""
@@ -32,10 +31,6 @@ class TestGenerationSettings:
         with pytest.raises(ValidationError, match="min must be <= max"):
             GenerationSettings(scenes_per_chapter_min=10, scenes_per_chapter_max=5)
 
-    def test_scene_expansion_enabled_default_true(self) -> None:
-        """Scene expansion flag defaults to enabled."""
-        assert GenerationSettings().scene_expansion_enabled is True
-
     def test_from_dict_scenes_fields(self) -> None:
         """from_dict preserves explicit scene range overrides."""
         settings = GenerationSettings.from_dict(
@@ -47,4 +42,3 @@ class TestGenerationSettings:
 
         assert settings.scenes_per_chapter_min == 5
         assert settings.scenes_per_chapter_max == 12
-        assert settings.scene_expansion_enabled is True
