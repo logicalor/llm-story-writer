@@ -396,7 +396,17 @@ stories/my-first-story/
 
 The story generation pipeline is divided into primary phases. Each phase writes a savepoint on completion, so you can resume after any interruption.
 
-> **Note:** The active orchestrator (`src/presentation/orchestrator.py`) runs a *reduced slice* of the full spec. Phases marked ⏳ below are defined but **not yet wired** into the active orchestrator. See [Story Pipeline Skill](../prompts/skills/story-pipeline/SKILL.md) for the complete specification.
+The current restored pipeline runs in this order:
+
+```text
+Foundation -> Outline Structure -> Outline Critique -> Chapter Loop (Recap -> Chapter Write) -> Final Edit
+```
+
+- **Foundation** extracts the story's base context, story start date, and story elements from the prompt before outline generation begins. Those fields seed `OutlineResult` and survive savepoints and resume.
+- **Outline Structure** turns the prompt plus foundation context into the chapter-by-chapter outline, using either direct, expanded, or chunked outline generation depending on the active settings. The approved outline becomes the structural source for downstream character, setting, wiki, and chapter work.
+- **Outline Critique** runs the outline review loop when `enable_outline_critique` is enabled. It evaluates the generated outline with multiple critics, persists the critique summary and arc-analysis artefacts, then hands the reviewed outline to the approval gate.
+- **Chapter Loop (Recap -> Chapter Write)** carries forward recap context from the prior approved chapter, writes the next chapter from the outline plus accumulated story state, then updates wiki pages, sheets, and the new recap for the following chapter. This loop repeats once per target chapter.
+- **Final Edit** performs the last prose-polish pass across approved chapters, optionally running scrub and voice-consistency diagnostics before editing. Assembly then writes the final manuscript from the edited chapter set.
 
 In addition to the primary phases, the orchestrator now runs three advisory metadata checkpoints that never block progress:
 
