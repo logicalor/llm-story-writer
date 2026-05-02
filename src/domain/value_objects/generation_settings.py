@@ -11,30 +11,19 @@ class GenerationSettings:
 
     # Core settings
     seed: int = 12
-    outline_quality: int = 87
-    chapter_quality: int = 85
     wanted_chapters: int = 40  # Default number of desired chapters
-
-    # Revision settings
-    outline_min_revisions: int = 2
-    outline_max_revisions: int = 3
-    chapter_min_revisions: int = 2
-    chapter_max_revisions: int = 3
 
     # Feature flags
     enable_final_edit: bool = False
     enable_scrubbing: bool = True
-    enable_chapter_revisions: bool = True
     expand_outline: bool = True
     scene_generation_pipeline: bool = True
     scenes_per_chapter_min: int = 8
     scenes_per_chapter_max: int = 16
-    scene_expansion_enabled: bool = True
 
     # Critique settings
     enable_outline_critique: bool = True
     enable_concurrent_critics: bool = False
-    outline_critique_iterations: int = 3
 
     # Initial outline generation settings
     use_chunked_outline_generation: bool = (
@@ -47,9 +36,6 @@ class GenerationSettings:
     debug: bool = False
     log_prompt_inputs: bool = False  # Log full prompt inputs for debugging
 
-    # Strategy settings
-    strategy: str = "outline-chapter"
-
     # Recap sanitizer settings
     use_improved_recap_sanitizer: bool = True
     use_multi_stage_recap_sanitizer: bool = True
@@ -58,43 +44,8 @@ class GenerationSettings:
     translate_language: Optional[str] = None
     translate_prompt_language: Optional[str] = None
 
-    # Advanced settings
-    optional_output_name: Optional[str] = None
-
     def __post_init__(self):
         """Validate the generation settings."""
-        # Validate quality thresholds
-        if not 0 <= self.outline_quality <= 100:
-            raise ValidationError(
-                f"Outline quality must be between 0 and 100, got {self.outline_quality}"
-            )
-
-        if not 0 <= self.chapter_quality <= 100:
-            raise ValidationError(
-                f"Chapter quality must be between 0 and 100, got {self.chapter_quality}"
-            )
-
-        # Validate revision counts
-        if self.outline_min_revisions < 0:
-            raise ValidationError(
-                f"Outline min revisions cannot be negative, got {self.outline_min_revisions}"
-            )
-
-        if self.outline_max_revisions < self.outline_min_revisions:
-            raise ValidationError(
-                f"Outline max revisions ({self.outline_max_revisions}) cannot be less than min revisions ({self.outline_min_revisions})"
-            )
-
-        if self.chapter_min_revisions < 0:
-            raise ValidationError(
-                f"Chapter min revisions cannot be negative, got {self.chapter_min_revisions}"
-            )
-
-        if self.chapter_max_revisions < self.chapter_min_revisions:
-            raise ValidationError(
-                f"Chapter max revisions ({self.chapter_max_revisions}) cannot be less than min revisions ({self.chapter_min_revisions})"
-            )
-
         # Validate seed
         if self.seed < 0:
             raise ValidationError(f"Seed cannot be negative, got {self.seed}")
@@ -108,17 +59,6 @@ class GenerationSettings:
         if self.wanted_chapters > 1000:
             raise ValidationError(
                 f"Wanted chapters cannot exceed 1000, got {self.wanted_chapters}"
-            )
-
-        # Validate critique iterations
-        if self.outline_critique_iterations < 1:
-            raise ValidationError(
-                f"Outline critique iterations must be at least 1, got {self.outline_critique_iterations}"
-            )
-
-        if self.outline_critique_iterations > 10:
-            raise ValidationError(
-                f"Outline critique iterations cannot exceed 10, got {self.outline_critique_iterations}"
             )
 
         # Validate outline chunk size
@@ -150,27 +90,17 @@ class GenerationSettings:
         """Convert GenerationSettings to a dictionary."""
         return {
             "seed": self.seed,
-            "outline_quality": self.outline_quality,
-            "chapter_quality": self.chapter_quality,
             "wanted_chapters": self.wanted_chapters,
-            "outline_min_revisions": self.outline_min_revisions,
-            "outline_max_revisions": self.outline_max_revisions,
-            "chapter_min_revisions": self.chapter_min_revisions,
-            "chapter_max_revisions": self.chapter_max_revisions,
             "enable_final_edit": self.enable_final_edit,
             "enable_scrubbing": self.enable_scrubbing,
-            "enable_chapter_revisions": self.enable_chapter_revisions,
             "expand_outline": self.expand_outline,
             "scene_generation_pipeline": self.scene_generation_pipeline,
             "scenes_per_chapter_min": self.scenes_per_chapter_min,
             "scenes_per_chapter_max": self.scenes_per_chapter_max,
-            "scene_expansion_enabled": self.scene_expansion_enabled,
             "enable_outline_critique": self.enable_outline_critique,
             "enable_concurrent_critics": self.enable_concurrent_critics,
-            "outline_critique_iterations": self.outline_critique_iterations,
             "stream": self.stream,
             "debug": self.debug,
-            "strategy": self.strategy,
             "use_improved_recap_sanitizer": self.use_improved_recap_sanitizer,
             "use_multi_stage_recap_sanitizer": self.use_multi_stage_recap_sanitizer,
             "use_chunked_outline_generation": self.use_chunked_outline_generation,
@@ -178,7 +108,6 @@ class GenerationSettings:
             "log_prompt_inputs": self.log_prompt_inputs,
             "translate_language": self.translate_language,
             "translate_prompt_language": self.translate_prompt_language,
-            "optional_output_name": self.optional_output_name,
         }
 
     def with_updates(self, **kwargs) -> "GenerationSettings":

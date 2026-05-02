@@ -49,3 +49,28 @@ git stash && pytest tests/unit/test_X.py -v && git stash pop
 If the failures reproduce on the stashed (pre-PR) state, they are baseline failures — record as pre-existing and exclude from the PR assessment.
 
 These create noise in PR baselines — reviewers must manually filter them out each time, which is error-prone. Should be resolved in a dedicated cleanup issue. File a GitHub issue and address in the next available sprint slot.
+
+---
+
+## Remove dead GenerationSettings fields and orphan prompts
+
+**Date:** 2026-05-02
+**Source:** GitHub issue #303
+
+Removed prompt files and moved an example prompt after confirming they have no live call sites in `src/`:
+
+- `prompts/story_state/analyze_evolution.md` — no call site in `src/` (dead `story_state` prompt)
+- `prompts/story_state/generate_chapter_content.md` — no call site in `src/` (dead `story_state` prompt; generation handled by `chapter_writer.py`)
+- `prompts/story_state/rag_interrogation.md` — no call site in `src/` (dead `story_state` prompt)
+- `prompts/scenes/create_content-copy.md` — accidental file copy; original `create_content.md` retained
+- `prompts/sample-story.md` → `prompts/_unused/sample-story.md` — user-facing example, not a tool prompt template
+
+Removed unused `GenerationSettings` fields after confirming they are never consumed outside the dataclass:
+
+- `outline_quality`, `chapter_quality` — quality hints never consumed by pipeline
+- `outline_min_revisions`, `outline_max_revisions`, `chapter_min_revisions`, `chapter_max_revisions` — revision bounds never read outside dataclass
+- `enable_chapter_revisions` — never read outside dataclass
+- `scene_expansion_enabled` — never read outside dataclass (only tested for default value)
+- `outline_critique_iterations` — never read outside dataclass
+- `strategy` — selected upstream before `GenerationSettings` constructed; not consumed from settings object
+- `optional_output_name` — never read outside dataclass

@@ -42,14 +42,7 @@ TRANSLATOR_MODEL="openai-compat://llama3:70b"
 # Random seed for reproducible results
 SEED=42
 
-# Revision settings - Multiple revisions for quality
-OUTLINE_MIN_REVISIONS=2
-OUTLINE_MAX_REVISIONS=5
-CHAPTER_MIN_REVISIONS=1
-CHAPTER_MAX_REVISIONS=3
-
 # Feature flags - Enable all quality features
-NO_CHAPTER_REVISION="false"
 NO_SCRUB_CHAPTERS="false"
 EXPAND_OUTLINE="true"
 ENABLE_FINAL_EDIT_PASS="true"
@@ -92,16 +85,8 @@ CMD="$CMD -TranslatorModel \"$TRANSLATOR_MODEL\""
 
 # Add generation settings
 CMD="$CMD -Seed $SEED"
-CMD="$CMD -OutlineMinRevisions $OUTLINE_MIN_REVISIONS"
-CMD="$CMD -OutlineMaxRevisions $OUTLINE_MAX_REVISIONS"
-CMD="$CMD -ChapterMinRevisions $CHAPTER_MIN_REVISIONS"
-CMD="$CMD -ChapterMaxRevisions $CHAPTER_MAX_REVISIONS"
 
 # Add feature flags
-if [ "$NO_CHAPTER_REVISION" = "true" ]; then
-    CMD="$CMD -NoChapterRevision"
-fi
-
 if [ "$NO_SCRUB_CHAPTERS" = "true" ]; then
     CMD="$CMD -NoScrubChapters"
 fi
@@ -141,8 +126,6 @@ echo "Prompt file: $PROMPT_FILE"
 echo "Output name: ${OUTPUT_NAME:-auto-generated}"
 echo "Seed: $SEED"
 echo "Quality settings:"
-echo "  - Outline revisions: $OUTLINE_MIN_REVISIONS-$OUTLINE_MAX_REVISIONS"
-echo "  - Chapter revisions: $CHAPTER_MIN_REVISIONS-$CHAPTER_MAX_REVISIONS"
 echo "  - Final edit pass: enabled"
 echo "  - Content scrubbing: enabled"
 echo ""
