@@ -26,7 +26,7 @@ Task 6 (recap pipeline)  ──────────────────�
 Task 8 (char/setting depth + per-chapter evolution)                                │
 Task 9 (wiki bootstrap)                            ─ independent                   │
 Task 10 (final-edit diagnostics)                   ─ independent                   │
-Task 11 (chunked outline path)                     ─ optional, gated               │
+Task 11 (chunked outline path)                     ─ optional, gated, shipped      │
                                                                                    │
 Task 12 (dead-flag tidy + grep invariants + docs)  ◄────────────────────────────────
 ```
@@ -345,7 +345,7 @@ When `enable_scrubbing=False`, skip stage 1 entirely; behaviour matches current 
 
 ---
 
-### Task 11: Chunked Outline Path (Optional)
+### Task 11: Chunked Outline Path (Optional, Complete)
 
 **Type:** backend (agent extension)
 **Estimated scope:** medium
@@ -364,10 +364,10 @@ The 9 `multistep/outline/*` chunks are evaluated during implementation. Any not 
 When `use_chunked_outline_generation=False`, behaviour matches Task 2's per-chapter expansion.
 
 **Acceptance Criteria:**
-- [ ] With chunked flag enabled and 25 chapters / chunk size 5, exactly 5 chunk calls and 4 continuity calls are issued.
-- [ ] `enrichment_suggestions` is non-empty after the run.
-- [ ] With flag disabled, behaviour matches Task 2 (existing tests pass).
-- [ ] `pytest tests/unit/test_outline_chunked.py` passes.
+- [x] With chunked flag enabled and 25 chapters / chunk size 5, exactly 5 chunk calls and 4 continuity calls are issued.
+- [x] `enrichment_suggestions` is non-empty after the run.
+- [x] With flag disabled, behaviour matches Task 2 (existing tests pass).
+- [x] `pytest tests/unit/test_outline_chunked.py` passes.
 
 **Key Files:**
 - `src/presentation/agents/outline_planner.py` — extend with chunked branch.
@@ -423,5 +423,5 @@ Final pass. Three workstreams:
 | 8 | Character/setting depth + per-chapter evolution | backend         | large  | 1          |
 | 9 | Wiki bootstrap from outline + sheets            | orchestrator    | medium | —          |
 | 10| Final-edit diagnostics                          | backend         | medium | —          |
-| 11| Chunked outline path (optional flag)            | backend         | medium | 2          |
+| 11| Chunked outline path (optional flag, complete)  | backend         | medium | 2          |
 | 12| Cleanup: dead flags, prompt retirement, docs    | cleanup + docs  | medium | 1–11       |
