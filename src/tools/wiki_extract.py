@@ -31,7 +31,12 @@ from tools._wiki_api import (  # noqa: E402
 )
 from tools.wiki_update import run_batch  # noqa: E402
 
-__all__ = ["bootstrap_wiki_from_story", "update_wiki_from_chapter"]
+__all__ = [
+    "_bootstrap_single_wiki_entity",
+    "_list_wiki_entities",
+    "bootstrap_wiki_from_story",
+    "update_wiki_from_chapter",
+]
 
 
 def _load_outline_savepoint(story_dir: Path) -> str:
@@ -583,22 +588,14 @@ def _build_payload_from_entities(
     return {"creates": creates, "updates": [], "timeline_events": []}
 
 
-def bootstrap_wiki_from_story(
-    story_name: str,
-    *,
-    model: str | None = None,
-) -> dict[str, Any]:
-    """Seed the wiki from the approved outline and character/setting sheets.
-
-    Idempotent: pages whose slugs already exist are skipped.
-    Returns a summary dict: {created, skipped, entity_counts}.
-    """
+def _list_wiki_entities(story_name: str, *, model: str | None = None) -> list[Any]:
+    """Extract and deduplicate wiki entities without generating detail levels."""
     story_dir = _validate_story_name(story_name)
     cache = _load_extract_cache(story_dir)
 
     outline_text = _load_outline_savepoint(story_dir)
     if not outline_text.strip():
-        return {"created": 0, "skipped": 0, "entity_counts": {}}
+        return []
 
     entities: list[dict[str, Any]] = []
     entities.extend(
@@ -638,6 +635,56 @@ def bootstrap_wiki_from_story(
         )
 
     deduped = _deduplicate_entities(entities)
+    _delete_extract_cache(story_dir)
+    return deduped
+
+
+def _bootstrap_single_wiki_entity(
+    story_name: str,
+    entity: Any,
+    *,
+    model: str | None = None,
+    wiki_dir: Path | None = None,
+) -> None:
+    """Generate detail levels for one entity and write its wiki page if absent."""
+    story_dir = _validate_story_name(story_name)
+    resolved_wiki_dir = wiki_dir if wiki_dir is not None else get_wiki_dir(story_dir)
+    if not isinstance(entity, dict):
+        raise ValueError("entity must be an object")
+
+    slug = slugify(entity.get("name", ""))
+    if not slug:
+        raise ValueError("entity missing name")
+    if find_pages(resolved_wiki_dir, slug=slug):
+        return
+
+    payload = _build_payload_from_entities([entity], model=model)
+    payload["creates"] = [
+        entry
+        for entry in payload["creates"]
+        if not find_pages(resolved_wiki_dir, slug=entry["slug"])
+    ]
+    if not payload["creates"]:
+        return
+
+    run_batch(story_name, payload)
+
+
+def bootstrap_wiki_from_story(
+    story_name: str,
+    *,
+    model: str | None = None,
+) -> dict[str, Any]:
+    """Seed the wiki from the approved outline and character/setting sheets.
+
+    Idempotent: pages whose slugs already exist are skipped.
+    Returns a summary dict: {created, skipped, entity_counts}.
+    """
+    story_dir = _validate_story_name(story_name)
+    deduped = _list_wiki_entities(story_name, model=model)
+    if not deduped:
+        return {"created": 0, "skipped": 0, "entity_counts": {}}
+    cache = _load_extract_cache(story_dir)
     payload = _build_payload_from_entities(
         deduped,
         model=model,

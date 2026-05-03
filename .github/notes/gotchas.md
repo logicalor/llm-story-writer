@@ -1675,3 +1675,46 @@ invariant: future contributors who read the caller may believe that `_atomic_wri
 the directory to already exist — causing fragile caller-side guards to accumulate over time.
 
 ChromaDB ID: `gotcha-atomic-write-mkdir-internal-047`
+
+---
+
+## Checkpointing
+
+### 048 — Per-chapter ledger guards: use `_is_work_item_done` / `_mark_work_item_done` for idempotent pipeline steps
+
+**Source:** issue #320, PR #332 (ADR 010 granular checkpointing Tasks 7–11)
+**Severity:** info
+
+The orchestrator exposes two helpers for per-chapter idempotent checkpointing. Any new
+per-chapter pipeline phase should use these instead of ad-hoc savepoint logic:
+
+- `_is_work_item_done(state, phase, item_id)` — returns `True` if the item has been recorded
+  as complete for the given phase; returns `False` if not yet done.
+- `_mark_work_item_done(state, phase, item_id)` — appends `item_id` to
+  `state.completed_work_items[phase]` and **saves the savepoint** as a side-effect.
+
+Canonical usage pattern for a per-chapter phase:
+
+```python
+for n in chapter_numbers:
+    item_id = f"chapter_{n}"
+    if _is_work_item_done(state, "my_phase", item_id):
+        continue  # already done on a prior run; skip
+    # ... do per-chapter work ...
+    await _mark_work_item_done(state, "my_phase", item_id)
+    # ^^^ saves savepoint — do NOT add _write_savepoint() immediately after
+```
+
+**Rules:**
+1. `item_id` values must be deterministic and stable across runs — typically `f"chapter_{n}"` or
+   an entity slug (e.g., a character name).
+2. The `phase` key must be consistent between the `_is_done` and `_mark_done` call sites within
+   the same pipeline phase. Choose a unique descriptive string (e.g., `"final_edit"`,
+   `"wiki_bootstrap_entities"`). Grep `_is_work_item_done` in the orchestrator to see all
+   existing phase keys before choosing a new one.
+3. `_mark_work_item_done` saves the savepoint internally — **do not** add a redundant
+   `await _write_savepoint(state)` call immediately after it (see gotcha #047 for the
+   `_atomic_write` mkdir contract; the same principle applies here).
+
+ChromaDB ID: `gotcha-ledger-guard-per-chapter-checkpointing-048`
+

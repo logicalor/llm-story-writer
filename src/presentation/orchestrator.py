@@ -8,6 +8,7 @@ both TUI and headless operation without code changes.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -18,7 +19,6 @@ from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import (
     ArcAnalysisResult,
     ChapterDraft,
-    FinalEditResult,
     OutlineResult,
     PipelineState,
 )
@@ -50,7 +50,8 @@ from presentation.pipeline_primitives import (
 )
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools._persist import persist_markdown, read_markdown_ref
-from tools.wiki_extract import bootstrap_wiki_from_story
+from tools._wiki import slugify as wiki_slugify
+from tools.wiki_extract import _bootstrap_single_wiki_entity, _list_wiki_entities
 from tools.wiki_init import _init_wiki_for_story
 
 
@@ -140,6 +141,11 @@ def _write_chapter_file(story_dir: Path, chapter_number: int, content: str) -> N
     (chapters_dir / f"chapter_{chapter_number}.md").write_text(
         content, encoding="utf-8"
     )
+
+
+def _edited_chapter_path(story_name: str, chapter_number: int) -> Path:
+    """Return path for a per-chapter final-edit output."""
+    return STORIES_DIR / story_name / "chapters" / f"chapter_{chapter_number}_edited.md"
 
 
 def _write_story_metadata(
@@ -929,6 +935,20 @@ async def _continue_pipeline(
         await bus.emit(f"\n=== {phase}: {message} ===\n")
 
     try:
+        if state.completed_work_items:
+            for completed_phase in state.completed_phases:
+                await _emit_status(sbus, completed_phase, "(resumed)", "phase_end")
+
+            for phase, items in state.completed_work_items.items():
+                if phase not in state.completed_phases and items:
+                    last_done = items[-1]
+                    await _emit_status(
+                        sbus,
+                        phase,
+                        f"Resuming at: next step after {last_done}",
+                        "step",
+                    )
+
         if "story-foundation" not in state.completed_phases:
             state.current_phase = "story-foundation"
             await _banner(
@@ -967,6 +987,7 @@ async def _continue_pipeline(
         if "outline" not in state.completed_phases:
             state.current_phase = "outline"
             await _banner("outline", "Generating chapter outline")
+            outline_phase = "outline"
             outline_agent = OutlinePlannerAgent(
                 resolved_provider, resolved_config, bus, wiki_bus
             )
@@ -985,27 +1006,30 @@ async def _continue_pipeline(
                 if state.outline_result is not None
                 else ""
             )
-            state.outline_result = await outline_agent.run(
-                state.story_name,
-                story_prompt,
-                settings,
-                base_context=_foundation_base_context,
-                story_elements=_foundation_story_elements,
-            )
-            if not state.outline_result.base_context:
-                state.outline_result.base_context = _foundation_base_context
-            if not state.outline_result.story_start_date:
-                state.outline_result.story_start_date = _foundation_story_start_date
-            if not state.outline_result.story_elements:
-                state.outline_result.story_elements = _foundation_story_elements
-            # Persist generated outline before approval so a crash mid-gate
-            # preserves it. The phase is only marked complete on approval.
-            state.savepoint_id = "outline"
-            await _write_savepoint(state)
+            if not _work_item_done(state, outline_phase, "outline/draft"):
+                state.outline_result = await outline_agent.run(
+                    state.story_name,
+                    story_prompt,
+                    settings,
+                    base_context=_foundation_base_context,
+                    story_elements=_foundation_story_elements,
+                )
+                if not state.outline_result.base_context:
+                    state.outline_result.base_context = _foundation_base_context
+                if not state.outline_result.story_start_date:
+                    state.outline_result.story_start_date = _foundation_story_start_date
+                if not state.outline_result.story_elements:
+                    state.outline_result.story_elements = _foundation_story_elements
+                # Persist generated outline before approval so a crash mid-gate
+                # preserves it. The phase is only marked complete on approval.
+                state.savepoint_id = "outline"
+                await _write_savepoint(state)
+                await _mark_work_item_done(state, outline_phase, "outline/draft")
 
             if (
                 settings.enable_outline_critique
                 and "outline-critique" not in state.completed_phases
+                and not _work_item_done(state, outline_phase, "outline/critique")
             ):
                 await _banner(
                     "outline-critique",
@@ -1019,6 +1043,7 @@ async def _continue_pipeline(
                 )
                 state = await critic_agent.run(state, settings)
                 await _write_savepoint(state)
+                await _mark_work_item_done(state, outline_phase, "outline/critique")
 
             await _emit_status(
                 sbus,
@@ -1174,18 +1199,49 @@ async def _continue_pipeline(
             )
             bootstrap_ok = False
             try:
-                bootstrap_summary = await asyncio.to_thread(
-                    bootstrap_wiki_from_story,
+                entities = await asyncio.to_thread(
+                    _list_wiki_entities,
                     state.story_name,
                     model=wiki_model,
                 )
-                created = bootstrap_summary.get("created", 0)
-                skipped = bootstrap_summary.get("skipped", 0)
+                phase = "wiki-bootstrap"
+                created = 0
+                skipped = 0
+                wiki_dir = STORIES_DIR / state.story_name / "wiki"
+                for entity in entities:
+                    slug = wiki_slugify(entity.get("name", ""))
+                    if not slug:
+                        continue
+                    item_id = f"wiki-bootstrap/{slug}"
+                    if _work_item_done(state, phase, item_id):
+                        skipped += 1
+                        await _emit_status(
+                            sbus,
+                            phase,
+                            f"Skipped: {slug} (already done)",
+                            "step",
+                        )
+                        continue
+                    await asyncio.to_thread(
+                        _bootstrap_single_wiki_entity,
+                        state.story_name,
+                        entity,
+                        model=wiki_model,
+                        wiki_dir=wiki_dir,
+                    )
+                    await _mark_work_item_done(state, phase, item_id)
+                    await _emit_status(
+                        sbus,
+                        phase,
+                        f"Wiki page created: {slug}",
+                        "step",
+                    )
+                    created += 1
                 await bus.emit(
                     f"[Wiki Bootstrap] Created {created} pages, "
                     f"skipped {skipped} existing.\n"
                 )
-                bootstrap_ok = created > 0 or skipped > 0
+                bootstrap_ok = bool(entities)
                 if not bootstrap_ok:
                     await _emit_status(
                         sbus,
@@ -1222,7 +1278,6 @@ async def _continue_pipeline(
 
         chapter_numbers = _chapter_numbers(outline_result, settings)
         _backfill_missing_chapter_files(story_dir, state.approved_chapters)
-        next_chapter = len(state.approved_chapters) + 1
         if "chapter-loop" not in state.completed_phases:
             chapter_agent = ChapterWriterAgent(
                 resolved_provider, resolved_config, bus, wiki_bus, sbus
@@ -1244,155 +1299,183 @@ async def _continue_pipeline(
             )
 
             for chapter_number in chapter_numbers:
-                if chapter_number < next_chapter:
+                phase = f"chapter-{chapter_number}"
+                if phase in state.completed_phases:
                     continue
-                state.current_phase = f"chapter-{chapter_number}"
+                state.current_phase = phase
                 total = len(chapter_numbers)
                 await _banner(
-                    f"chapter-{chapter_number}",
+                    phase,
                     f"Drafting chapter {chapter_number} of {total}",
                 )
-                draft = await _generate_chapter_with_gate(
-                    state,
-                    gate,
-                    chapter_agent,
-                    state.story_name,
-                    chapter_number,
-                    outline_result,
-                    settings,
-                )
-                if draft is None:
-                    return state
+                draft_item_id = f"chapter-{chapter_number}/draft"
+                if not _work_item_done(state, phase, draft_item_id):
+                    if chapter_number <= len(state.approved_chapters):
+                        await _mark_work_item_done(state, phase, draft_item_id)
+                        draft = state.approved_chapters[chapter_number - 1]
+                    else:
+                        generated_draft = await _generate_chapter_with_gate(
+                            state,
+                            gate,
+                            chapter_agent,
+                            state.story_name,
+                            chapter_number,
+                            outline_result,
+                            settings,
+                        )
+                        if generated_draft is None:
+                            return state
+                        draft = generated_draft
+                        state.approved_chapters.append(draft)
+                        _write_chapter_file(story_dir, chapter_number, draft.content)
+                        await _mark_work_item_done(state, phase, draft_item_id)
+                else:
+                    draft = state.approved_chapters[chapter_number - 1]
 
-                await _emit_status(
-                    sbus,
-                    f"chapter-{chapter_number}",
-                    f"Consistency check chapter {chapter_number}",
-                    kind="step",
-                )
-                consistency_result = await consistency_agent.run(
-                    state.story_name,
-                    chapter_number,
-                    draft.content,
-                    outline_result=outline_result,
-                )
-                if not consistency_result["passed"]:
-                    await bus.emit(
-                        f"\n[Consistency] Chapter {chapter_number} — issues found:\n"
+                consistency_item_id = f"chapter-{chapter_number}/consistency-check"
+                if not _work_item_done(state, phase, consistency_item_id):
+                    await _emit_status(
+                        sbus,
+                        phase,
+                        f"Consistency check chapter {chapter_number}",
+                        kind="step",
                     )
-                    for issue in consistency_result["issues"]:
-                        await bus.emit(
-                            f"  [{issue['severity'].upper()}] {issue['description']}\n"
-                        )
-                elif consistency_result["issues"]:
-                    await bus.emit(
-                        f"\n[Consistency] Chapter {chapter_number} — warnings/info found:\n"
-                    )
-                    for issue in consistency_result["issues"]:
-                        await bus.emit(
-                            f"  [{issue['severity'].upper()}] {issue['description']}\n"
-                        )
-                state.approved_chapters.append(draft)
-                _write_chapter_file(story_dir, chapter_number, draft.content)
-                await _emit_status(
-                    sbus,
-                    f"chapter-{chapter_number}",
-                    f"Updating wiki for chapter {chapter_number}",
-                    kind="step",
-                )
-                try:
-                    wiki_batch = await wiki_agent.run(
-                        state.story_name, chapter_number, draft.content
-                    )
-                    state.wiki_batches.append(wiki_batch)
-                except Exception as exc:
-                    # Wiki updates are advisory; a failure must not lose the
-                    # approved chapter or block the loop. Persist the chapter
-                    # savepoint and continue so the run can complete.
-                    await bus.emit(
-                        f"\n[Wiki] chapter {chapter_number} wiki update skipped "
-                        f"({type(exc).__name__}: {exc})\n"
-                    )
-                try:
-                    char_changes = await char_evolver.run(
+                    consistency_result = await consistency_agent.run(
                         state.story_name,
-                        draft,
                         chapter_number,
-                        settings,
+                        draft.content,
+                        outline_result=outline_result,
                     )
-                    setting_changes = await setting_evolver.run(
-                        state.story_name,
-                        draft,
-                        chapter_number,
-                        settings,
+                    if not consistency_result["passed"]:
+                        await bus.emit(
+                            f"\n[Consistency] Chapter {chapter_number} — issues found:\n"
+                        )
+                        for issue in consistency_result["issues"]:
+                            await bus.emit(
+                                f"  [{issue['severity'].upper()}] {issue['description']}\n"
+                            )
+                    elif consistency_result["issues"]:
+                        await bus.emit(
+                            f"\n[Consistency] Chapter {chapter_number} — warnings/info found:\n"
+                        )
+                        for issue in consistency_result["issues"]:
+                            await bus.emit(
+                                f"  [{issue['severity'].upper()}] {issue['description']}\n"
+                            )
+                    await _mark_work_item_done(state, phase, consistency_item_id)
+
+                wiki_item_id = f"chapter-{chapter_number}/wiki-update"
+                if not _work_item_done(state, phase, wiki_item_id):
+                    await _emit_status(
+                        sbus,
+                        phase,
+                        f"Updating wiki for chapter {chapter_number}",
+                        kind="step",
                     )
-                    if char_changes or setting_changes:
+                    try:
+                        wiki_batch = await wiki_agent.run(
+                            state.story_name, chapter_number, draft.content
+                        )
+                        state.wiki_batches.append(wiki_batch)
+                        await _mark_work_item_done(state, phase, wiki_item_id)
+                    except Exception as exc:
+                        await bus.emit(
+                            f"\n[Wiki] chapter {chapter_number} wiki update skipped "
+                            f"({type(exc).__name__}: {exc})\n"
+                        )
+
+                sheet_item_id = f"chapter-{chapter_number}/sheet-evolution"
+                if not _work_item_done(state, phase, sheet_item_id):
+                    try:
+                        char_changes = await char_evolver.run(
+                            state.story_name,
+                            draft,
+                            chapter_number,
+                            settings,
+                        )
+                        setting_changes = await setting_evolver.run(
+                            state.story_name,
+                            draft,
+                            chapter_number,
+                            settings,
+                        )
                         state.evolved_sheets[str(chapter_number)] = {
                             "characters": char_changes,
                             "settings": setting_changes,
                         }
                         await _write_savepoint(state)
-                except Exception as exc:
-                    await bus.emit(
-                        f"\n[Sheet Evolution] chapter {chapter_number} skipped "
-                        f"({type(exc).__name__}: {exc})\n"
-                    )
-                # Recap generation is advisory; failure must not block the loop
-                try:
-                    from presentation.agents.recap_writer import (
-                        RecapWriterAgent,
-                    )
+                        await _mark_work_item_done(state, phase, sheet_item_id)
+                    except Exception as exc:
+                        await bus.emit(
+                            f"\n[Sheet Evolution] chapter {chapter_number} skipped "
+                            f"({type(exc).__name__}: {exc})\n"
+                        )
 
-                    recap_agent = RecapWriterAgent(
-                        resolved_provider, resolved_config, bus, wiki_bus
-                    )
-                    previous_recap_data = state.recaps.get(
-                        str(chapter_number - 1),
-                        "",
-                    )
-                    if isinstance(previous_recap_data, dict):
-                        previous_recap = (
-                            previous_recap_data.get("sanitised")
-                            or previous_recap_data.get("compact")
-                            or previous_recap_data.get("events")
-                            or ""
+                recap_item_id = f"chapter-{chapter_number}/recap"
+                if not _work_item_done(state, phase, recap_item_id):
+                    try:
+                        from presentation.agents.recap_writer import (
+                            RecapWriterAgent,
                         )
-                    elif isinstance(previous_recap_data, str):
-                        previous_recap = previous_recap_data
-                    else:
-                        previous_recap = str(previous_recap_data)
-                    story_start_date = (
-                        state.outline_result.story_start_date
-                        if state.outline_result is not None
-                        else ""
-                    )
-                    recap_result = await recap_agent.run(
-                        story_name=state.story_name,
-                        chapter_number=chapter_number,
-                        chapter_content=draft.content,
-                        previous_recap=previous_recap,
-                        story_start_date=story_start_date,
-                        settings=settings,
-                    )
-                    if recap_result.get("events"):
-                        state.recaps[str(chapter_number)] = recap_result
-                        recap_path = (
-                            story_dir
-                            / "chapters"
-                            / f"chapter_{chapter_number}_recap.json"
+
+                        recap_agent = RecapWriterAgent(
+                            resolved_provider, resolved_config, bus, wiki_bus
                         )
-                        _atomic_write(
-                            recap_path,
-                            json.dumps(recap_result, indent=2, ensure_ascii=False),
+                        previous_recap_data = state.recaps.get(
+                            str(chapter_number - 1),
+                            "",
                         )
-                except Exception as exc:
-                    await bus.emit(
-                        f"\n[Recap] chapter {chapter_number} recap skipped "
-                        f"({type(exc).__name__}: {exc})\n"
-                    )
+                        if isinstance(previous_recap_data, dict):
+                            previous_recap = (
+                                previous_recap_data.get("sanitised")
+                                or previous_recap_data.get("compact")
+                                or previous_recap_data.get("events")
+                                or ""
+                            )
+                        elif isinstance(previous_recap_data, str):
+                            previous_recap = previous_recap_data
+                        else:
+                            previous_recap = str(previous_recap_data)
+                        story_start_date = (
+                            state.outline_result.story_start_date
+                            if state.outline_result is not None
+                            else ""
+                        )
+                        recap_result = await recap_agent.run(
+                            story_name=state.story_name,
+                            chapter_number=chapter_number,
+                            chapter_content=draft.content,
+                            previous_recap=previous_recap,
+                            story_start_date=story_start_date,
+                            settings=settings,
+                        )
+                        if recap_result.get("events"):
+                            state.recaps[str(chapter_number)] = recap_result
+                            recap_path = (
+                                story_dir
+                                / "chapters"
+                                / f"chapter_{chapter_number}_recap.json"
+                            )
+                            _atomic_write(
+                                recap_path,
+                                json.dumps(
+                                    recap_result,
+                                    indent=2,
+                                    ensure_ascii=False,
+                                ),
+                            )
+                        await _mark_work_item_done(state, phase, recap_item_id)
+                    except Exception as exc:
+                        await bus.emit(
+                            f"\n[Recap] chapter {chapter_number} recap skipped "
+                            f"({type(exc).__name__}: {exc})\n"
+                        )
                 if (
                     chapter_number == 1
                     and "metadata-chapter-1" not in state.completed_phases
+                    and not _work_item_done(
+                        state, phase, f"chapter-{chapter_number}/metadata"
+                    )
                 ):
                     if state.outline_result is not None:
                         try:
@@ -1418,6 +1501,11 @@ async def _continue_pipeline(
                             )
                             state.completed_phases.append("metadata-chapter-1")
                             await _write_savepoint(state)
+                            await _mark_work_item_done(
+                                state,
+                                phase,
+                                f"chapter-{chapter_number}/metadata",
+                            )
                         except Exception as exc:
                             await bus.emit(
                                 f"\n[Metadata] chapter-1 metadata skipped ({type(exc).__name__}: {exc})\n"
@@ -1450,15 +1538,46 @@ async def _continue_pipeline(
                     resolved_provider, resolved_config, bus, wiki_bus
                 )
                 try:
-                    final_edit_result: FinalEditResult = await final_editor.run(
-                        state.story_name, state.approved_chapters, settings
+                    prior_summaries = final_editor.build_prior_summaries(
+                        state.approved_chapters
                     )
-                    state.approved_chapters = final_edit_result.edited_chapters
+                    edited_chapters = list(state.approved_chapters)
+                    for index, draft in enumerate(state.approved_chapters):
+                        chapter_number = (
+                            draft.chapter_number
+                            if hasattr(draft, "chapter_number")
+                            else index + 1
+                        )
+                        item_id = f"final-edit/chapter:{chapter_number}"
+                        edited_path = _edited_chapter_path(
+                            state.story_name, chapter_number
+                        )
+                        if _work_item_done(state, "final-edit", item_id):
+                            if edited_path.exists():
+                                edited_content = edited_path.read_text(encoding="utf-8")
+                                edited_chapters[index] = replace(
+                                    draft,
+                                    content=edited_content,
+                                    word_count=len(edited_content.split()),
+                                )
+                                continue
+
+                        edited = await final_editor.edit_single_chapter(
+                            draft,
+                            prior_summaries[index],
+                            chapter_number,
+                            settings,
+                        )
+                        _atomic_write(edited_path, edited.content)
+                        edited_chapters[index] = edited
+                        await _mark_work_item_done(state, "final-edit", item_id)
+
+                    state.approved_chapters = edited_chapters
                     edited_path = story_dir / "output" / "story_edited.md"
                     edited_path.parent.mkdir(parents=True, exist_ok=True)
                     edited_parts = [
                         ch.content.rstrip()
-                        for ch in final_edit_result.edited_chapters
+                        for ch in state.approved_chapters
                         if ch.content.strip()
                     ]
                     if edited_parts:

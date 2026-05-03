@@ -411,14 +411,14 @@ The story generation pipeline is divided into primary phases. Each phase writes 
 The current restored pipeline runs in this order:
 
 ```text
-Foundation -> Outline Structure -> Outline Critique -> Chapter Loop (Recap -> Chapter Write) -> Final Edit
+Init -> Story Foundation -> Outline -> [Outline Critique] -> Narrative Arc Analysis -> Characters & Settings -> Wiki Initialization -> Wiki Bootstrap -> Chapter Loop -> Final Edit -> Assembly
 ```
 
 - **Foundation** extracts the story's base context, story start date, and story elements from the prompt before outline generation begins. Those fields seed `OutlineResult` and survive savepoints and resume.
 - **Outline Structure** turns the prompt plus foundation context into the chapter-by-chapter outline, using either direct, expanded, or chunked outline generation depending on the active settings. The approved outline becomes the structural source for downstream character, setting, wiki, and chapter work.
-- **Outline Critique** runs the outline review loop when `enable_outline_critique` is enabled. It evaluates the generated outline with multiple critics, persists the critique summary and arc-analysis artefacts, then hands the reviewed outline to the approval gate.
-- **Chapter Loop (Recap -> Chapter Write)** carries forward recap context from the prior approved chapter, writes the next chapter from the outline plus accumulated story state, then updates wiki pages, sheets, and the new recap for the following chapter. This loop repeats once per target chapter.
-- **Final Edit** performs the last prose-polish pass across approved chapters, optionally running scrub and voice-consistency diagnostics before editing. Assembly then writes the final manuscript from the edited chapter set.
+- **Outline Critique** runs the outline review loop when `enable_outline_critique` is enabled. The outline phase now checkpoints the draft and critique sub-steps separately, so resume can return to the approval gate or skip critique when those artefacts are already persisted.
+- **Chapter Loop (Recap -> Chapter Write)** carries forward recap context from the prior approved chapter, writes the next chapter from the outline plus accumulated story state, then updates wiki pages, sheets, metadata, and the new recap for the following chapter. Drafting, consistency, wiki update, sheet evolution, recap, and Chapter 1 metadata refresh are now resumable as separate chapter-local ledger items.
+- **Final Edit** performs the last prose-polish pass across approved chapters, optionally running scrub and voice-consistency diagnostics before editing. Each edited chapter is now checkpointed independently before assembly writes the final manuscript.
 
 In addition to the primary phases, the orchestrator now runs three advisory metadata checkpoints that never block progress:
 
@@ -509,6 +509,11 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
 - Waits for outline approval or revision feedback before marking the phase complete
 - After approval, runs the advisory `metadata-outline` checkpoint to generate the first title, summary, and tag set from outline text alone
 
+**Resume behavior:**
+- `outline/draft` lets resume reuse the saved outline instead of regenerating it before the approval gate
+- `outline/critique` lets resume skip the critic pass when the reviewed outline is already persisted
+- Legacy savepoints with `outline` already in `completed_phases` still bypass the whole section cleanly
+
 **Artefacts produced:**
 - `stories/<name>/savepoints/outline`
 - `stories/<name>/savepoints/pipeline_state.json` with the latest `OutlineResult`
@@ -589,19 +594,24 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
 Runs immediately after wiki initialization and before the chapter loop.
 
 What this phase does:
-- Calls `bootstrap_wiki_from_story()` in `src/tools/wiki_extract.py`
-- Loads the approved outline savepoint plus character and setting JSON sheets
-- Extracts and deduplicates entities, then skips already-existing slugs for idempotent reruns
-- Applies the initial wiki batch and records created/skipped counts
+- Calls `_list_wiki_entities()` in `src/tools/wiki_extract.py` to extract and deduplicate entities from the approved outline plus character and setting JSON sheets
+- Drives `_bootstrap_single_wiki_entity()` in a per-entity loop so each created wiki page has its own ledger item
+- Skips already-completed work items and already-existing wiki slugs for idempotent reruns
+- Leaves `bootstrap_wiki_from_story()` available for direct CLI or ad-hoc one-shot bootstrap usage
 - Continues the pipeline even if bootstrap fails; the exception is logged but the chapter loop still runs
 
 **Savepoint:** `wiki_populated`
+
+**Resume behavior:**
+- Completed wiki pages are tracked as `wiki-bootstrap/<slug>` ledger items and skipped individually on resume
+- A partial bootstrap resumes from the next missing entity instead of redoing the full batch
+- If bootstrap produces zero pages or raises, the phase is not marked complete, so the next run retries it
 
 ### Phase 8: Chapter Loop
 
 **What the system does:**
 - For each chapter (1 to `wanted_chapters`):
-  1. **Scene Generation (7b)** — Loads abridged character and setting sheet context; prefers the chapter's detailed outline block when available; forwards the prior chapter recap from `state.recaps[str(N-1)]` (preferring `compact`, then `sanitised`, then `events`); and generates chapter text via the `chapter-writer` agent. If `scene_generation_pipeline: true`, the agent expands the chapter into `stories/<name>/chapters/chapter_<N>_scenes.json`, then drafts scenes sequentially with position-aware prompts for first, middle, and final scenes. Each completed scene is written to `stories/<name>/chapters/chapter_<N>/scene_<M>.md` before the corresponding work item is marked done. Otherwise, the full chapter is generated in one LLM call.
+  1. **Scene Generation (7b)** — Loads abridged character and setting sheet context; prefers the chapter's detailed outline block when available; forwards the prior chapter recap from `state.recaps[str(N-1)]` (preferring `compact`, then `sanitised`, then `events`); and generates chapter text via the `chapter-writer` agent. If `scene_generation_pipeline: true`, the agent expands the chapter into `stories/<name>/chapters/chapter_<N>_scenes.json`, then drafts scenes sequentially with position-aware prompts for first, middle, and final scenes. Each completed scene is written to `stories/<name>/chapters/chapter_<N>/scene_<M>.md` before the corresponding work item is marked done. Otherwise, the full chapter is generated in one LLM call. Once the draft is approved, `stories/<name>/chapters/chapter_<N>.md` is written before `chapter-<N>/draft` is recorded.
   2. **Approval Gate** — Presents the chapter for user approval (interactive mode only)
   3. **Consistency Check (7e)** — Runs `consistency_checker`; findings stream to the token bus but do not block chapter persistence
   4. **Chapter Persistence** — Appends the approved draft to `state.approved_chapters` and writes `stories/<name>/chapters/chapter_<N>.md`
@@ -612,8 +622,10 @@ What this phase does:
   9. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
 
 **Resume behavior:**
+- If an approved draft already exists in `state.approved_chapters` from a legacy savepoint, resume backfills `chapter-<N>/draft` and continues with the next missing post-processing item
 - If scene decomposition already completed, resume reloads `chapter_<N>_scenes.json` instead of regenerating the scene list
 - If one or more scenes already completed, resume reloads `chapter_<N>/scene_<M>.md` files and continues from the first missing scene
+- If the chapter draft already completed, resume independently skips completed consistency, wiki update, sheet evolution, recap, and Chapter 1 metadata sub-steps
 - Direct whole-chapter fallback still behaves as a single-shot draft; granular resume here applies only to the scene pipeline path
 
 > **Future work (not yet wired):** Phase 7a (chapter-outline-expander), Phase 7f (quality-reviewer / critique-revision loop), Phase 7.5 (prose-scrubber), Phase 7g (handoff artifact generation).
@@ -638,10 +650,15 @@ What this phase does:
 - Enabled unless `generation.enable_final_edit` is explicitly set to `false` in `config.yml`
 - Loads `prompts/final_edit/edit_chapter_direct.md` via `PromptLoader`
 - Streams one editing pass per approved chapter (voice consistency, pacing, prose polish)
+- Writes each edited chapter to `stories/<name>/chapters/chapter_<N>_edited.md` before recording `final-edit/chapter:<N>`
 - Falls back to original chapter content if the model returns empty output
 - Writes the edited manuscript to `stories/<name>/output/story_edited.md`
 - Runs the advisory `metadata-final` checkpoint after editing completes, using the edited Chapter 1 prose when available to produce the final title, summary, and tag set in `stories/<name>/metadata.json`
 - Persists `final_edit_complete`
+
+**Resume behavior:**
+- Resume reloads `chapter_<N>_edited.md` for any chapter whose `final-edit/chapter:<N>` ledger item is already complete
+- A partial final-edit pass resumes from the first unedited chapter instead of restarting the whole polish phase
 
 **Artefacts produced:**
 - `stories/<name>/output/story_edited.md`
@@ -1429,10 +1446,12 @@ This file contains the full `PipelineState` object (completed phases, approved c
 Granular resume inside converted phases works by combining that ledger state with the persisted artefacts those work items point to. Current ADR 010 coverage writes these additional files during a run:
 
 ```
+stories/<name>/chapters/chapter_<N>.md
 stories/<name>/characters/_names.json
 stories/<name>/settings/_names.json
 stories/<name>/chapters/chapter_<N>_scenes.json
 stories/<name>/chapters/chapter_<N>/scene_<M>.md
+stories/<name>/chapters/chapter_<N>_edited.md
 ```
 
 On resume, the orchestrator reloads those files only when the matching work-item IDs already appear in `PipelineState.completed_work_items`.
@@ -1462,6 +1481,8 @@ story-writer resume --story <name>
 ```
 
 Resume always continues from the latest `pipeline_state.json` snapshot. The `--savepoint` argument only validates that the story reached at least the named phase; it does not restore an older snapshot.
+
+When the savepoint contains ledger data, the TUI backfills completed phase-end events and shows `Resuming at: next step after <last_done>` for each partially completed phase. Legacy savepoints with an empty `completed_work_items` dict do not show that banner.
 
 ```bash
 # Validate that the story reached chapter-3 before resuming

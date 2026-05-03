@@ -1,4 +1,3 @@
-<!-- STALE — archived to archive/issue-319-pointer-format-test-expectation-drift-2026-05-03.md — delete this file -->
 ---
 date: "2026-05-03"
 issue: 319
@@ -53,23 +52,10 @@ same dispatch rather than leaving them for the Orchestrator.
 ### Suggested Improvement
 
 Add a sub-bullet to Coder Rule 11 ("Test expectation drift") in both
-`coder.agent.md` files:
-
-> **When converting a JSON field from inline content to a `{"$ref": "path"}` pointer**
-> — scan existing tests for assertions of the form `assert substring in data["field"]`
-> or `data["field"] == expected_string` against the converted field. These become
-> expectation-drift failures immediately on conversion. Fix them in the same dispatch:
-> (1) extract `ref_path = data["field"]["$ref"]`, (2) read the referenced `.md` file
-> from the story directory, (3) assert against the file content. Do not leave pointer
-> expectation-drift for the Orchestrator to diagnose. (Source: issue #319, PR #331.)
-
-Also add a bullet to the Assertions section of `.agents/skills/test-verification/SKILL.md`:
-
-> For fields written as pointer format (`{"$ref": "path/to/file.md"}`): never assert
-> directly on `data["field"]`. Resolve via `ref_path = data["field"]["$ref"]`, read
-> the `.md` file, then assert on the file content.
+`coder.agent.md` files and to the test-verification SKILL.
 
 ### Action Taken
 
-Applied: sub-bullet added to Coder Rule 11 in both `coder.agent.md` files;
-pointer-resolution assertion note added to `test-verification/SKILL.md`.
+Applied: added sub-bullet to both coder agent files under Rule 11 — "When converting a
+JSON field from inline content to a `{"$ref": "path"}` pointer" — with the three-step
+fix sequence. (Source: issue #319, PR #331.)

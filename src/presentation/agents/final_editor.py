@@ -36,6 +36,126 @@ class FinalEditorAgent:
         self.wiki_bus = wiki_bus
         self._loader = PromptLoader(prompts_dir="prompts")
 
+    def build_prior_summaries(self, approved_chapters: list[ChapterDraft]) -> list[str]:
+        """Pre-compute prior-chapter summaries for the full chapter list."""
+        prior_summaries: list[str] = []
+        running_summaries: list[str] = []
+        for index, draft in enumerate(approved_chapters):
+            chapter_number = (
+                draft.chapter_number if hasattr(draft, "chapter_number") else index + 1
+            )
+            prior_summaries.append("\n".join(running_summaries))
+            running_summaries.append(
+                f"Chapter {chapter_number}: {draft.title} — "
+                f"{draft.content[:200].replace(chr(10), ' ')}..."
+            )
+        return prior_summaries
+
+    async def edit_single_chapter(
+        self,
+        draft: ChapterDraft,
+        prior_summary: str,
+        chapter_number: int,
+        settings: GenerationSettings,
+    ) -> ChapterDraft:
+        """Edit a single chapter using optional scrub and voice passes."""
+        model_config = _build_model_config(
+            self.config, "chapter_writer", "openai-compat://default"
+        )
+
+        await self.wiki_bus.emit(
+            WikiContextEvent(
+                phase="final-edit",
+                event_type="entity_match",
+                content=f"Final editing chapter {chapter_number} of {draft.story_name}",
+            )
+        )
+
+        if settings.enable_scrubbing:
+            prose_prompt = self._loader.load_prompt(
+                "final_edit/prose_scrub",
+                variables={
+                    "chapter_text": draft.content,
+                    "chapter_number": str(chapter_number),
+                },
+            )
+            messages = [
+                {"role": "system", "content": prose_prompt},
+                {"role": "user", "content": "Return the findings JSON."},
+            ]
+            prose_findings = ""
+            stream = cast(
+                AsyncIterator[str],
+                self.provider.stream_text(messages, model_config, seed=settings.seed),
+            )
+            async for token in stream:
+                prose_findings += token
+            prose_findings = prose_findings.strip()
+
+            voice_prompt = self._loader.load_prompt(
+                "final_edit/voice_consistency_pass",
+                variables={
+                    "chapter_text": draft.content,
+                    "prior_chapters_summary": prior_summary,
+                },
+            )
+            messages = [
+                {"role": "system", "content": voice_prompt},
+                {"role": "user", "content": "Return the findings JSON."},
+            ]
+            voice_findings = ""
+            stream = cast(
+                AsyncIterator[str],
+                self.provider.stream_text(messages, model_config, seed=settings.seed),
+            )
+            async for token in stream:
+                voice_findings += token
+            voice_findings = voice_findings.strip()
+        else:
+            prose_findings = ""
+            voice_findings = ""
+
+        system_prompt = self._loader.load_prompt(
+            "final_edit/edit_chapter_direct",
+            variables={
+                "chapter_text": draft.content,
+                "chapter_number": str(chapter_number),
+                "chapter_title": draft.title,
+                "prior_chapters_summary": prior_summary,
+                "prose_findings": prose_findings,
+                "voice_findings": voice_findings,
+            },
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "Return the polished chapter."},
+        ]
+
+        full_text = ""
+        stream = cast(
+            AsyncIterator[str],
+            self.provider.stream_text(messages, model_config, seed=settings.seed),
+        )
+        async for token in stream:
+            await self.bus.emit(token)
+            full_text += token
+
+        edited_content = full_text.strip() if full_text.strip() else draft.content
+        return ChapterDraft(
+            story_name=draft.story_name,
+            chapter_number=draft.chapter_number,
+            title=draft.title,
+            content=edited_content,
+            word_count=len(edited_content.split()),
+            synopsis=draft.synopsis,
+            scene_definitions=list(draft.scene_definitions),
+            recap=dict(draft.recap),
+            consistency_findings=list(draft.consistency_findings),
+            critic_findings=list(draft.critic_findings),
+            savepoint_id=draft.savepoint_id,
+        )
+
     async def run(
         self,
         story_name: str,
@@ -48,120 +168,19 @@ class FinalEditorAgent:
         system prompt. The returned text replaces the chapter content. If the
         LLM returns an empty response, the original content is preserved.
         """
-        model_config = _build_model_config(
-            self.config, "chapter_writer", "openai-compat://default"
-        )
         edited_chapters: list[ChapterDraft] = []
-        loader = self._loader
+        prior_summaries = self.build_prior_summaries(approved_chapters)
 
-        # Pre-build a per-chapter prior summary so chapter N only sees
-        # chapters 1..N-1 (no leakage of later chapters into the edit pass).
-        per_chapter_prior_summary: dict[int, str] = {}
-        running_summaries: list[str] = []
-        for draft in approved_chapters:
-            per_chapter_prior_summary[draft.chapter_number] = "\n".join(
-                running_summaries
+        for index, draft in enumerate(approved_chapters):
+            chapter_number = (
+                draft.chapter_number if hasattr(draft, "chapter_number") else index + 1
             )
-            running_summaries.append(
-                f"Chapter {draft.chapter_number}: {draft.title} — "
-                f"{draft.content[:200].replace(chr(10), ' ')}..."
-            )
-
-        for draft in approved_chapters:
-            await self.wiki_bus.emit(
-                WikiContextEvent(
-                    phase="final-edit",
-                    event_type="entity_match",
-                    content=f"Final editing chapter {draft.chapter_number} of {story_name}",
-                )
-            )
-
-            prior_chapters_summary = per_chapter_prior_summary.get(
-                draft.chapter_number, ""
-            )
-
-            if settings.enable_scrubbing:
-                prose_prompt = loader.load_prompt(
-                    "final_edit/prose_scrub",
-                    variables={
-                        "chapter_text": draft.content,
-                        "chapter_number": str(draft.chapter_number),
-                    },
-                )
-                messages = [
-                    {"role": "system", "content": prose_prompt},
-                    {"role": "user", "content": "Return the findings JSON."},
-                ]
-                prose_findings = ""
-                stream = cast(
-                    AsyncIterator[str],
-                    self.provider.stream_text(
-                        messages, model_config, seed=settings.seed
-                    ),
-                )
-                async for token in stream:
-                    prose_findings += token
-                prose_findings = prose_findings.strip()
-
-                voice_prompt = loader.load_prompt(
-                    "final_edit/voice_consistency_pass",
-                    variables={
-                        "chapter_text": draft.content,
-                        "prior_chapters_summary": prior_chapters_summary,
-                    },
-                )
-                messages = [
-                    {"role": "system", "content": voice_prompt},
-                    {"role": "user", "content": "Return the findings JSON."},
-                ]
-                voice_findings = ""
-                stream = cast(
-                    AsyncIterator[str],
-                    self.provider.stream_text(
-                        messages, model_config, seed=settings.seed
-                    ),
-                )
-                async for token in stream:
-                    voice_findings += token
-                voice_findings = voice_findings.strip()
-            else:
-                prose_findings = ""
-                voice_findings = ""
-
-            system_prompt = loader.load_prompt(
-                "final_edit/edit_chapter_direct",
-                variables={
-                    "chapter_text": draft.content,
-                    "chapter_number": str(draft.chapter_number),
-                    "chapter_title": draft.title,
-                    "prior_chapters_summary": prior_chapters_summary,
-                    "prose_findings": prose_findings,
-                    "voice_findings": voice_findings,
-                },
-            )
-
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": "Return the polished chapter."},
-            ]
-
-            full_text = ""
-            stream = cast(
-                AsyncIterator[str],
-                self.provider.stream_text(messages, model_config, seed=settings.seed),
-            )
-            async for token in stream:
-                await self.bus.emit(token)
-                full_text += token
-
-            edited_content = full_text.strip() if full_text.strip() else draft.content
             edited_chapters.append(
-                ChapterDraft(
-                    story_name=draft.story_name,
-                    chapter_number=draft.chapter_number,
-                    title=draft.title,
-                    content=edited_content,
-                    word_count=len(edited_content.split()),
+                await self.edit_single_chapter(
+                    draft,
+                    prior_summaries[index],
+                    chapter_number,
+                    settings,
                 )
             )
 

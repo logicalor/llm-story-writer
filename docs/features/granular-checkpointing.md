@@ -10,7 +10,7 @@ This change exists to cut wasted LLM work after an interruption. A killed run no
 
 ## Implemented Coverage
 
-Issue #318 / PR #330 implements ADR 010 Tasks 4, 5, and 6 across three loop-heavy pipeline surfaces.
+Issue #318 / PR #330 implements ADR 010 Tasks 4, 5, and 6. Issue #320 / PR #332 completes Tasks 7 through 11, extending ledger-driven resume across the remaining loop-heavy and multi-step pipeline surfaces.
 
 ### Characters Phase
 
@@ -72,11 +72,82 @@ Resume behavior:
 - If one or more scene work items already completed, the agent reads those `scene_<M>.md` files back into memory and continues drafting from the first missing scene.
 - Existing direct-draft callers remain compatible because `state=None` keeps the ledger optional.
 
+### Wiki Bootstrap
+
+`src/tools/wiki_extract.py` now exposes two narrower runtime entry points for the bootstrap phase:
+
+- `_list_wiki_entities(story_name, *, model=None)` extracts entities from the approved outline plus character and setting sheets, deduplicates them, and returns the entity list without generating detail levels.
+- `_bootstrap_single_wiki_entity(story_name, entity, *, model=None, wiki_dir=None)` generates detail levels for one entity and writes that page only if the slug does not already exist.
+
+`src/presentation/orchestrator.py` now drives wiki bootstrap entity-by-entity under the `wiki-bootstrap` ledger bucket with `wiki-bootstrap/<slug>` work-item IDs. Each page write completes before the ledger entry is recorded.
+
+Resume behavior:
+
+- Completed entity slugs are skipped individually on resume.
+- Existing wiki pages remain idempotent because `_bootstrap_single_wiki_entity()` returns immediately when the slug already exists.
+- `bootstrap_wiki_from_story()` remains available for direct CLI or ad-hoc Python usage and still performs the full batch bootstrap in one call.
+
+### Per-Chapter Post-Processing
+
+The chapter loop now treats the approved chapter draft and each post-processing sub-step as separate ledger items under the chapter phase key `chapter-<N>`.
+
+New per-chapter work items:
+
+- `chapter-<N>/draft` — chapter generation plus persisted chapter write
+- `chapter-<N>/consistency-check` — `ConsistencyCheckerAgent`
+- `chapter-<N>/wiki-update` — `WikiMaintainerAgent`
+- `chapter-<N>/sheet-evolution` — character and setting sheet evolvers
+- `chapter-<N>/recap` — `RecapWriterAgent`
+- `chapter-<N>/metadata` — `StoryMetadataAgent` refresh after Chapter 1 only
+
+The chapter loop gate no longer skips by comparing `len(state.approved_chapters)` to the current chapter number. It now treats `f"chapter-{N}" in state.completed_phases` as the authoritative per-chapter completion marker.
+
+Resume behavior:
+
+- Legacy resumes that already have an approved chapter in `state.approved_chapters` but no draft ledger entry backfill `chapter-<N>/draft` without regenerating the chapter text.
+- A run interrupted after the chapter draft but before recap or sheet evolution resumes at the next missing post-processing item instead of repeating the full chapter.
+- Chapter 1 metadata refresh is resumable independently from recap, wiki update, and sheet evolution.
+
+### Final Edit
+
+`src/presentation/agents/final_editor.py` now exposes two reusable methods:
+
+- `build_prior_summaries(approved_chapters) -> list[str]`
+- `edit_single_chapter(draft, prior_summary, chapter_number, settings) -> ChapterDraft`
+
+`FinalEditorAgent.run()` keeps the existing public API and now delegates through those methods for backward compatibility.
+
+`src/presentation/orchestrator.py` drives final edit chapter-by-chapter with `final-edit/chapter:<N>` work-item IDs. Each edited chapter is written atomically to `stories/<story>/chapters/chapter_<N>_edited.md` before the ledger entry is recorded.
+
+Resume behavior:
+
+- If `final-edit/chapter:<N>` is already present and `chapter_<N>_edited.md` exists, resume reloads the edited file instead of re-running the editor.
+- If interruption happens mid-pass, already-edited chapters remain on disk and the next run starts from the first chapter without a completed final-edit ledger item.
+
+### Outline Draft And Critique
+
+The outline phase now checkpoints two sub-steps under the `outline` ledger bucket:
+
+- `outline/draft` — initial outline generation written to `pipeline_state.json` before the approval gate opens
+- `outline/critique` — the combined `OutlineCriticAgent` pass when critique is enabled
+
+Resume behavior:
+
+- If `outline/draft` is complete, the saved outline is reused and the pipeline does not regenerate it before returning to the approval gate or critique path.
+- If critique completed already, the orchestrator skips the critic pass and proceeds from the saved reviewed outline.
+- Legacy savepoints that already contain `"outline"` in `completed_phases` still short-circuit the section at the phase level.
+
+### TUI Resume Status
+
+At the start of `_continue_pipeline()`, the orchestrator now backfills a `phase_end` status event for each completed phase when `completed_work_items` is present, then emits a step event of the form `Resuming at: next step after <last_done>` for each partially completed phase.
+
+This banner is intentionally suppressed for legacy savepoints whose `completed_work_items` dict is empty, so older runs keep their prior resume behavior.
+
 ## Work-Item ID Scheme
 
 Work-item IDs are stable, deterministic strings derived from phase scope plus the persisted unit of work. The canonical grammar and reserved meta-items live in [Work-Item ID Convention](../planning/granular-checkpointing/work-item-ids.md).
 
-The newly implemented IDs from this PR are:
+The implemented IDs now cover:
 
 | Phase key | Work-item ID pattern | Persisted artefact |
 |---|---|---|
@@ -90,8 +161,18 @@ The newly implemented IDs from this PR are:
 | `settings` | `settings/<slug>/chunk:<chunk-name>` | `stories/<story>/settings/<slug>.json` + `stories/<story>/settings/<slug>/chunks/<chunk-name>.md` |
 | `settings` | `settings/<slug>/abridged` | `stories/<story>/settings/<slug>.json` + `stories/<story>/settings/<slug>/abridged.md` |
 | `settings` | `settings/<slug>/summary` | `stories/<story>/settings/<slug>.json` + `stories/<story>/settings/<slug>/summary.md` |
+| `outline` | `outline/draft` | `stories/<story>/savepoints/pipeline_state.json` with the generated outline before approval |
+| `outline` | `outline/critique` | `stories/<story>/savepoints/pipeline_state.json` with outline critique fields populated |
+| `wiki-bootstrap` | `wiki-bootstrap/<slug>` | `stories/<story>/wiki/<type>/<slug>.md` |
 | `chapter-<N>` | `chapter-<N>/scenes/decomposition` | `stories/<story>/chapters/chapter_<N>_scenes.json` |
 | `chapter-<N>` | `chapter-<N>/scene:<M>` | `stories/<story>/chapters/chapter_<N>/scene_<M>.md` |
+| `chapter-<N>` | `chapter-<N>/draft` | `stories/<story>/chapters/chapter_<N>.md` |
+| `chapter-<N>` | `chapter-<N>/consistency-check` | `stories/<story>/savepoints/pipeline_state.json` with advisory consistency output already surfaced |
+| `chapter-<N>` | `chapter-<N>/wiki-update` | Updated wiki pages plus `state.wiki_batches` saved in `pipeline_state.json` |
+| `chapter-<N>` | `chapter-<N>/sheet-evolution` | Updated sheet JSON/markdown plus `state.evolved_sheets[str(N)]` |
+| `chapter-<N>` | `chapter-<N>/recap` | `stories/<story>/chapters/chapter_<N>_recap.json` and `state.recaps[str(N)]` when recap data exists |
+| `chapter-<N>` | `chapter-<N>/metadata` | `stories/<story>/metadata.json` after the Chapter 1 metadata refresh |
+| `final-edit` | `final-edit/chapter:<N>` | `stories/<story>/chapters/chapter_<N>_edited.md` |
 
 Slug-bearing IDs use the orchestrator's `_slugify_name()` helper, so resume must see the same normalized entity name every run.
 
@@ -101,9 +182,13 @@ After a kill, crash, or manual stop, `story-writer resume --story <name>` still 
 
 With these ADR 010 tasks implemented:
 
+- Outline generation and optional outline critique resume from the next missing outline sub-step.
 - Characters resume from the next missing extraction, chunk, abridged, or summary item.
 - Settings resume from the next missing extraction, chunk, abridged, or summary item.
-- Scene-based chapter drafting resumes from the next missing scene instead of restarting the whole chapter.
+- Wiki bootstrap resumes from the next missing entity slug.
+- Chapter drafting resumes from the next missing scene when the scene pipeline is active, and chapter post-processing resumes from the next missing draft, consistency, wiki, sheet-evolution, recap, or metadata item.
+- Final edit resumes from the next missing chapter edit.
+- The TUI resume banner now surfaces the last completed work item for partially completed phases when ledger data exists.
 
 The safety rule is unchanged and critical: write the markdown body and rewrite the JSON pointer first, then mark the work item done. If the process dies before the ledger write, that sub-step reruns. If it dies after the ledger write, both artefacts are already on disk and can be loaded safely on resume.
 
@@ -112,6 +197,6 @@ Legacy savepoints remain compatible. Older `pipeline_state.json` files load with
 ## Related
 
 - [Story Orchestrator](./story-orchestrator.md)
-- [Comprehensive Manual](../manual.md#142-savepoints-and-resume)
+- [Comprehensive Manual](../manual.md#14-working-with-savepoints)
 - [PRD: Granular Pipeline Checkpointing](../planning/granular-checkpointing/prd.md)
 - [Work-Item ID Convention](../planning/granular-checkpointing/work-item-ids.md)
