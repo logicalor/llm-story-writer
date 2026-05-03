@@ -57,8 +57,8 @@ The orchestrator also now produces intermediate story artefacts directly in the 
 | `src/tools/prompt_loader.py` | Load prompt templates and substitute variables |
 | `src/tools/story_state.py` | Initialize, read, write, and list story state |
 | `src/tools/savepoint_manager.py` | Save, load, inspect, and clear savepoints |
-| `src/tools/character_manager.py` | Create and update character sheets |
-| `src/tools/setting_manager.py` | Create and update setting sheets |
+| `src/tools/character_manager.py` | Create and update character sheets; write markdown bodies to sibling `.md` files and store `{"$ref": ...}` pointers in JSON |
+| `src/tools/setting_manager.py` | Create and update setting sheets; write markdown bodies to sibling `.md` files and store `{"$ref": ...}` pointers in JSON |
 | `src/tools/recap_manager.py` | Persist chapter recap data |
 
 ### Generation And Review Tools
@@ -109,13 +109,13 @@ Several runtime artefacts are written by the Python-native orchestrator and then
 | `stories/<story>/outline/enrichment.md` | `src/presentation/agents/outline_planner.py` after the final chunked window | Manual inspection, downstream enrichment review | Final enrichment suggestions from `outline/analyze_enrichment`; mirrored into `OutlineResult.enrichment_suggestions` |
 | `stories/<story>/outline/critic_summary.md` | `src/presentation/agents/outline_critic.py` when `generation.enable_outline_critique` is `true` | Manual inspection, debugging workflows | Concatenated summaries from the six outline-review critics. The separately synthesised arc summary is stored on `PipelineState.critic_summary` |
 | `stories/<story>/metadata.json` | `src/presentation/orchestrator.py` after `metadata-outline`, `metadata-chapter-1`, and `metadata-final` | Manual inspection, release metadata export, debugging workflows | JSON document with `title`, `summary`, `tags`, and `updated_at`. The orchestrator also mirrors `title` and `tags` into `PipelineState.outline_result`, but the summary lives on disk only |
-| `stories/<story>/characters/<slug>.json` | `src/presentation/orchestrator.py` characters phase | `src/presentation/agents/chapter_writer.py`, `src/presentation/agents/character_evolver.py`, character-management workflows | JSON document with `name`, full markdown `sheet`, `chunks`, `abridged`, `summary`, and `updated_at` |
-| `stories/<story>/settings/<slug>.json` | `src/presentation/orchestrator.py` settings phase | `src/presentation/agents/chapter_writer.py`, `src/presentation/agents/setting_evolver.py`, setting-management workflows | Same JSON shape as character sheets |
+| `stories/<story>/characters/<slug>.json` | `src/presentation/orchestrator.py` characters phase | `src/presentation/agents/chapter_writer.py`, `src/presentation/agents/character_evolver.py`, character-management workflows | JSON document with `name`, pointer refs for `sheet`, `chunks`, `abridged`, and `summary`, plus `updated_at`. Bodies live under `stories/<story>/characters/<slug>/` as sibling `.md` files such as `sheet.md`, `summary.md`, `abridged.md`, and `chunks/<key>.md` |
+| `stories/<story>/settings/<slug>.json` | `src/presentation/orchestrator.py` settings phase | `src/presentation/agents/chapter_writer.py`, `src/presentation/agents/setting_evolver.py`, setting-management workflows | Same pointer-based shape as character sheets, with markdown bodies under `stories/<story>/settings/<slug>/` |
 | `stories/<story>/chapters/chapter_{N}.md` | `src/presentation/orchestrator.py` chapter loop | `src/tools/story_assembler.py`, downstream review flows | Approved chapter manuscript |
 | `stories/<story>/chapters/chapter_{N}_recap.json` | `src/presentation/orchestrator.py` after `src/presentation/agents/recap_writer.py` returns a recap result | later chapter-loop continuity context, manual inspection, debugging workflows | JSON document with `events`, `compact`, and `sanitised` fields; the same object is also stored in `PipelineState.recaps[str(N)]` |
 | `stories/<story>/output/story.md` | `src/presentation/orchestrator.py` assembly phase | Manual export and downstream editing | Concatenated final manuscript |
 
-Characters and settings files are generated from prompt templates in `prompts/characters/` and `prompts/settings/`. Filenames are slugified from the extracted entity names, and writes are atomic so later phases never read a half-written JSON file.
+Characters and settings files are generated from prompt templates in `prompts/characters/` and `prompts/settings/`. The JSON files now keep only structured metadata plus `{"$ref": ...}` pointers for `sheet`, `chunks`, `summary`, and `abridged`; the markdown bodies live in sibling `.md` files under each entity slug directory. Filenames are slugified from the extracted entity names, and writes are atomic so later phases never read a half-written JSON file.
 
 `ChapterWriterAgent` reads both directories opportunistically. It prefers each sheet's stored `abridged` text, then falls back to `summary`, then falls back to the first 300 characters of the `sheet` body. Missing directories, malformed JSON files, or individual read failures are skipped instead of aborting chapter generation.
 

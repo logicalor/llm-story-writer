@@ -53,9 +53,11 @@ The current orchestrator writes these story-facing artifact groups during a succ
 - `stories/<story>/outline/skeleton.md` and `stories/<story>/outline/details/chapter_{N}.md` — Phase 3 outline artifacts written when `generation.expand_outline` is enabled; existing chapter detail files are reused on resume
 - `stories/<story>/metadata.json` — advisory story metadata rewritten after successful `metadata-outline`, `metadata-chapter-1`, and `metadata-final` runs; stores `title`, `summary`, `tags`, and `updated_at`
 - `stories/<story>/characters/_names.json` — cached character-name list reused when the characters phase resumes after name extraction already completed
-- `stories/<story>/characters/<slug>.json` — one JSON character sheet per extracted name
+- `stories/<story>/characters/<slug>.json` — one JSON character sheet per extracted name, now storing `{"$ref": ...}` pointers for markdown-bearing fields
+- `stories/<story>/characters/<slug>/sheet.md`, `summary.md`, `abridged.md`, and `chunks/<key>.md` — markdown bodies referenced by the character JSON file
 - `stories/<story>/settings/_names.json` — cached location-name list reused when the settings phase resumes after extraction already completed
-- `stories/<story>/settings/<slug>.json` — one JSON setting sheet per extracted name
+- `stories/<story>/settings/<slug>.json` — one JSON setting sheet per extracted name, now storing `{"$ref": ...}` pointers for markdown-bearing fields
+- `stories/<story>/settings/<slug>/sheet.md`, `summary.md`, `abridged.md`, and `chunks/<key>.md` — markdown bodies referenced by the setting JSON file
 - `stories/<story>/chapters/chapter_{N}_scenes.json` — persisted scene decomposition for the scene pipeline; reused on resumed runs instead of regenerating the scene list
 - `stories/<story>/chapters/chapter_{N}/scene_{M}.md` — one persisted scene draft per completed scene when the scene pipeline is active
 - `stories/<story>/chapters/chapter_{N}.md` — written immediately after chapter `N` passes the approval gate and consistency check
@@ -63,18 +65,20 @@ The current orchestrator writes these story-facing artifact groups during a succ
 - `stories/<story>/output/story_edited.md` — written after Phase 9 when final-edit is enabled and at least one edited chapter contains non-empty content
 - `stories/<story>/output/story.md` — written during `assembly` by joining the non-empty content of `state.approved_chapters` with blank lines
 
-Character and setting sheets use the same on-disk shape:
+Character and setting sheets use the same on-disk pointer shape:
 
 ```json
 {
   "name": "Alice",
-  "sheet": "# Alice\nHero of the story.",
+  "sheet": {"$ref": "characters/alice/sheet.md"},
   "chunks": {},
-  "abridged": "Short prompt-safe version of the sheet.",
-  "summary": "",
+  "abridged": {"$ref": "characters/alice/abridged.md"},
+  "summary": {"$ref": "characters/alice/summary.md"},
   "updated_at": "2026-04-25T12:34:56+00:00"
 }
 ```
+
+The `chunks`, `summary`, `abridged`, and `sheet` fields now point to sibling markdown files under the entity slug directory. Read paths resolve both legacy inline strings and pointer objects, but new writes from the orchestrator, the managers, and both evolver agents always persist the markdown bodies into `.md` files first and then rewrite the JSON pointer values.
 
 Filenames are derived by `_slugify_name()`: lowercase, spaces converted to `-`, non-alphanumeric characters stripped except `-`, repeated dashes collapsed, and surrounding dashes trimmed.
 
@@ -141,8 +145,8 @@ Both sheet-generation helpers follow the same pattern:
 2. Load an extraction prompt from `prompts/characters/extract_names.md` or `prompts/settings/extract_names.md`.
 3. Ask the configured `chapter_writer` model for a JSON array of names, then atomically cache the result to `_names.json` and mark the extraction work item done.
 4. For each non-empty name that slugifies successfully, load the corresponding `create` prompt and request a full markdown sheet unless the `.../<slug>/sheet` ledger item already exists.
-5. Write the initial JSON document to disk so later summarisation prompts can read a stable object shape, then mark the sheet work item done.
-6. Run `create_abridged`, `create_summary`, and the per-aspect chunk prompts for that entity, atomically rewriting the same JSON file after each completed sub-step before recording the matching work item.
+5. Write the initial JSON document to disk with a pointer `sheet` ref targeting `characters/<slug>/sheet.md` or `settings/<slug>/sheet.md`, then mark the sheet work item done.
+6. Run `create_abridged`, `create_summary`, and the per-aspect chunk prompts for that entity, persisting each markdown body to a sibling `.md` file and atomically rewriting the same JSON file with fresh pointer refs after each completed sub-step before recording the matching work item.
 7. On resume, load cached names and any existing sheet JSON from disk, then continue at the first missing chunk, abridged, or summary item instead of restarting the entity from scratch.
 
 Characters currently generate seven chunks: `backstory`, `personality`, `motivation`, `relationships`, `skills`, `arc`, and `current_state`. Settings currently generate six chunks: `physical_description`, `atmosphere_mood`, `function_purpose`, `history_background`, `connections_relationships`, and `rules_constraints`.
@@ -170,8 +174,8 @@ Both evolvers follow the same chapter-local flow for every existing sheet JSON f
 
 1. Run `extract_from_chapter` against the approved chapter prose.
 2. Run `analyze_changes` with the current JSON sheet and extracted chapter events.
-3. If the analysis indicates an update is needed, run `update` and rewrite the sheet JSON on disk.
-4. Preserve the existing `abridged`, `summary`, and `chunks` fields while replacing `sheet` and `updated_at`.
+3. If the analysis indicates an update is needed, run `update`, persist the new sheet body to `sheet.md`, and rewrite the sheet JSON pointer on disk.
+4. Preserve the existing `abridged`, `summary`, and `chunks` pointer fields while replacing `sheet` and `updated_at`.
 
 The orchestrator records the per-chapter outcome in `PipelineState.evolved_sheets[str(chapter_number)]` using this shape:
 

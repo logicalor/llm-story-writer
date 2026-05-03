@@ -190,9 +190,9 @@ be short single-paragraph descriptions (chapter title, tag list, etc.).
 
 - [ ] `persist_markdown` and `read_markdown_ref` helpers exist and are
       typed.
-- [ ] All character-sheet writes produce JSON with pointer refs and
+- [x] All character-sheet writes produce JSON with pointer refs and
       markdown sibling files.
-- [ ] All setting-sheet writes do the same.
+- [x] All setting-sheet writes do the same.
 - [ ] Outline persistence (`pipeline_state.json::outline_result`) stores
       chapter summaries as pointers and `enrichment_suggestions` as a
       proper JSON sub-document — no fenced `` ```json `` strings remain.

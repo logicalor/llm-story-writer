@@ -355,11 +355,23 @@ stories/my-first-story/
 │   ├── story.md                  # Final assembled manuscript
 │   └── story_edited.md           # Post-final-edit manuscript (optional)
 ├── characters/
-│   ├── yuki-tanaka-oduya.json    # Character sheet (name, sheet, chunks, abridged, summary, updated_at)
+│   ├── yuki-tanaka-oduya.json    # Character sheet metadata + {"$ref": ...} pointers
+│   ├── yuki-tanaka-oduya/
+│   │   ├── sheet.md              # Full markdown body
+│   │   ├── summary.md            # Summary markdown body
+│   │   ├── abridged.md           # Prompt-safe markdown body
+│   │   └── chunks/
+│   │       └── ...               # One markdown file per character chunk
 │   ├── commander-voss.json
 │   └── ...
 ├── settings/
-│   ├── europa-research-base.json # Setting sheet (same JSON schema as characters)
+│   ├── europa-research-base.json # Setting sheet metadata + {"$ref": ...} pointers
+│   ├── europa-research-base/
+│   │   ├── sheet.md
+│   │   ├── summary.md
+│   │   ├── abridged.md
+│   │   └── chunks/
+│   │       └── ...               # One markdown file per setting chunk
 │   └── ...
 ├── savepoints/
 │   ├── pipeline_state.json       # Resume state (single JSON file)
@@ -1637,40 +1649,40 @@ story-writer tui --story my-story
 
 ### 15.7 Working with Character and Setting Sheets
 
-Character and setting sheets are JSON files that can be edited manually:
+Character and setting sheets are split across pointer JSON plus sibling markdown files. Edit the markdown bodies directly when you want to change sheet content:
 
 ```bash
-# Edit a character sheet
-vim stories/my-story/characters/yuki-tanaka-oduya.json
+# Edit a character sheet body
+vim stories/my-story/characters/yuki-tanaka-oduya/sheet.md
 
-# Edit a setting sheet
-vim stories/my-story/settings/europa-research-base.json
+# Edit a setting sheet body
+vim stories/my-story/settings/europa-research-base/sheet.md
 ```
 
-Each sheet follows this schema:
+Each entity still has a companion JSON file, but markdown-bearing fields now store `{"$ref": ...}` pointers to sibling `.md` files:
 
 ```json
 {
   "name": "Yuki Tanaka-Oduya",
-  "sheet": "Full multi-paragraph description...",
+  "sheet": {"$ref": "characters/yuki-tanaka-oduya/sheet.md"},
   "chunks": {
-    "backstory": "...",
-    "personality": "...",
-    "motivation": "...",
-    "relationships": "...",
-    "skills": "...",
-    "arc": "...",
-    "current_state": "..."
+    "backstory": {"$ref": "characters/yuki-tanaka-oduya/chunks/backstory.md"},
+    "personality": {"$ref": "characters/yuki-tanaka-oduya/chunks/personality.md"},
+    "motivation": {"$ref": "characters/yuki-tanaka-oduya/chunks/motivation.md"},
+    "relationships": {"$ref": "characters/yuki-tanaka-oduya/chunks/relationships.md"},
+    "skills": {"$ref": "characters/yuki-tanaka-oduya/chunks/skills.md"},
+    "arc": {"$ref": "characters/yuki-tanaka-oduya/chunks/arc.md"},
+    "current_state": {"$ref": "characters/yuki-tanaka-oduya/chunks/current_state.md"}
   },
-  "abridged": "Short prompt-safe version used for chapter context...",
-  "summary": "One-paragraph summary...",
+  "abridged": {"$ref": "characters/yuki-tanaka-oduya/abridged.md"},
+  "summary": {"$ref": "characters/yuki-tanaka-oduya/summary.md"},
   "updated_at": "2026-04-30T12:00:00Z"
 }
 ```
 
-Setting sheets use the same top-level shape but different chunk keys: `physical_description`, `atmosphere_mood`, `function_purpose`, `history_background`, `connections_relationships`, and `rules_constraints`.
+Setting sheets use the same top-level pointer shape but different chunk keys: `physical_description`, `atmosphere_mood`, `function_purpose`, `history_background`, `connections_relationships`, and `rules_constraints`.
 
-After manual edits, the next chapter generation will pick up the updated sheets automatically. Chapter prompts prefer `abridged`, then `summary`, then the first 300 characters of `sheet` when building character and setting context.
+After manual edits, the next chapter generation will pick up the updated sheets automatically. Read paths resolve both legacy inline strings and the new pointer objects, while new writes always persist markdown into sibling `.md` files. Chapter prompts prefer `abridged`, then `summary`, then the first 300 characters of `sheet` when building character and setting context.
 
 ### 15.8 Common Daily Workflows
 

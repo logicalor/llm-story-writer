@@ -182,14 +182,17 @@ class TestSettingManagerPointerFormat:
             },
         )
 
-        with patch(
-            "tools.setting_manager._load_prompt",
-            side_effect=lambda prompt_id, variables=None: str(
-                (variables or {}).get("setting_sheet", "")
+        with (
+            patch(
+                "tools.setting_manager._load_prompt",
+                side_effect=lambda prompt_id, variables=None: str(
+                    (variables or {}).get("setting_sheet", "")
+                ),
             ),
-        ), patch(
-            "tools.setting_manager._call_llm",
-            return_value="<output>chunk content here</output>",
+            patch(
+                "tools.setting_manager._call_llm",
+                return_value="<output>chunk content here</output>",
+            ),
         ):
             cmd_generate_chunks(_setting_args(name=story_name))
 
@@ -240,12 +243,15 @@ class TestSettingManagerPointerFormat:
         )
         mock_llm = MagicMock(return_value="<output>great summary</output>")
 
-        with patch(
-            "tools.setting_manager._load_prompt",
-            side_effect=lambda prompt_id, variables=None: str(
-                (variables or {}).get("setting_info", "")
+        with (
+            patch(
+                "tools.setting_manager._load_prompt",
+                side_effect=lambda prompt_id, variables=None: str(
+                    (variables or {}).get("setting_info", "")
+                ),
             ),
-        ), patch("tools.setting_manager._call_llm", mock_llm):
+            patch("tools.setting_manager._call_llm", mock_llm),
+        ):
             cmd_generate_summary(_setting_args(name=story_name))
 
         prompt = mock_llm.call_args.args[0]

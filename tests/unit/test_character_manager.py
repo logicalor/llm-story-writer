@@ -26,7 +26,9 @@ from tools.character_manager import (
 
 
 @pytest.fixture()
-def character_story(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str, Path]:
+def character_story(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[str, Path]:
     story_name = "test-story"
     story_root = tmp_path / story_name
     story_root.mkdir(parents=True)
@@ -116,7 +118,9 @@ class TestCharacterManagerPointerFormat:
     ) -> None:
         story_name, story_root = character_story
         sheet_body = "# Alice\nResolved markdown body."
-        sheet_ref = persist_markdown(story_root, "characters/alice/sheet.md", sheet_body)
+        sheet_ref = persist_markdown(
+            story_root, "characters/alice/sheet.md", sheet_body
+        )
         _write_character_json(
             story_root,
             {
@@ -178,14 +182,17 @@ class TestCharacterManagerPointerFormat:
             },
         )
 
-        with patch(
-            "tools.character_manager._load_prompt",
-            side_effect=lambda prompt_id, variables=None: str(
-                (variables or {}).get("character_sheet", "")
+        with (
+            patch(
+                "tools.character_manager._load_prompt",
+                side_effect=lambda prompt_id, variables=None: str(
+                    (variables or {}).get("character_sheet", "")
+                ),
             ),
-        ), patch(
-            "tools.character_manager._call_llm",
-            return_value="<output>chunk content here</output>",
+            patch(
+                "tools.character_manager._call_llm",
+                return_value="<output>chunk content here</output>",
+            ),
         ):
             cmd_generate_chunks(_character_args(name=story_name))
 
@@ -237,12 +244,15 @@ class TestCharacterManagerPointerFormat:
         )
         mock_llm = MagicMock(return_value="<output>great summary</output>")
 
-        with patch(
-            "tools.character_manager._load_prompt",
-            side_effect=lambda prompt_id, variables=None: str(
-                (variables or {}).get("character_info", "")
+        with (
+            patch(
+                "tools.character_manager._load_prompt",
+                side_effect=lambda prompt_id, variables=None: str(
+                    (variables or {}).get("character_info", "")
+                ),
             ),
-        ), patch("tools.character_manager._call_llm", mock_llm):
+            patch("tools.character_manager._call_llm", mock_llm),
+        ):
             cmd_generate_summary(_character_args(name=story_name))
 
         prompt = mock_llm.call_args.args[0]
