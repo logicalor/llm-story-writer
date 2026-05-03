@@ -29,5 +29,5 @@ Templates live in `references/templates.md`.
 - Do not write production code while acting only as planner.
 - Prefer existing repo patterns over new abstractions.
 - Separate "must ship now" from follow-up ideas.
-- Verify every path and link included in a plan.
+- **Verify every path, link, and named function/class referenced in a plan.** For Markdown hyperlinks: confirm the target file exists. For prose file references (e.g., "the key file is `src/tools/foo.py`"): run `ls src/tools/foo.py` to confirm existence. For function or class references: run `grep -r "def function_name\|class ClassName" src/` to confirm the actual file location. A mismatched filename wastes Researcher cycles and can misdirect the Coder. (Source: issue #320 — issue body referenced `src/tools/wiki_bootstrap.py` but `bootstrap_wiki_from_story` lives in `src/tools/wiki_extract.py`.)
 - Explicitly call out stale Copilot/OpenCode assumptions when a plan touches agent infrastructure.
