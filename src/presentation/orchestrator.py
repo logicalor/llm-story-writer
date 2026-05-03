@@ -1014,10 +1014,30 @@ async def _continue_pipeline(
             if state.outline_result is None:
                 state.outline_result = foundation_result
             else:
-                state.outline_result.base_context = foundation_result.base_context
                 state.outline_result.story_start_date = (
                     foundation_result.story_start_date
                 )
+            if (
+                isinstance(foundation_result.base_context, str)
+                and foundation_result.base_context
+            ):
+                state.outline_result.base_context = persist_markdown(
+                    story_dir,
+                    "outline/base_context.md",
+                    foundation_result.base_context,
+                )
+            elif isinstance(foundation_result.base_context, dict):
+                state.outline_result.base_context = foundation_result.base_context
+            if (
+                isinstance(foundation_result.story_elements, str)
+                and foundation_result.story_elements
+            ):
+                state.outline_result.story_elements = persist_markdown(
+                    story_dir,
+                    "outline/story_elements.md",
+                    foundation_result.story_elements,
+                )
+            elif isinstance(foundation_result.story_elements, dict):
                 state.outline_result.story_elements = foundation_result.story_elements
             await _mark_phase_complete(
                 state,
@@ -1038,20 +1058,30 @@ async def _continue_pipeline(
             outline_agent = OutlinePlannerAgent(
                 resolved_provider, resolved_config, bus, wiki_bus
             )
-            _foundation_base_context = (
+            _raw_bc = (
                 state.outline_result.base_context
                 if state.outline_result is not None
                 else ""
+            )
+            _foundation_base_context = (
+                read_markdown_ref(story_dir, _raw_bc)
+                if isinstance(_raw_bc, dict)
+                else (_raw_bc or "")
             )
             _foundation_story_start_date = (
                 state.outline_result.story_start_date
                 if state.outline_result is not None
                 else ""
             )
-            _foundation_story_elements = (
+            _raw_se = (
                 state.outline_result.story_elements
                 if state.outline_result is not None
                 else ""
+            )
+            _foundation_story_elements = (
+                read_markdown_ref(story_dir, _raw_se)
+                if isinstance(_raw_se, dict)
+                else (_raw_se or "")
             )
             if not _work_item_done(state, outline_phase, "outline/draft"):
                 state.outline_result = await outline_agent.run(
@@ -1104,12 +1134,23 @@ async def _continue_pipeline(
                     state.outline_result.enrichment_suggestions = {
                         "$ref": "outline/enrichment_suggestions.json"
                     }
-                if not state.outline_result.base_context:
-                    state.outline_result.base_context = _foundation_base_context
+                if not state.outline_result.base_context and _foundation_base_context:
+                    state.outline_result.base_context = persist_markdown(
+                        story_dir,
+                        "outline/base_context.md",
+                        _foundation_base_context,
+                    )
                 if not state.outline_result.story_start_date:
                     state.outline_result.story_start_date = _foundation_story_start_date
-                if not state.outline_result.story_elements:
-                    state.outline_result.story_elements = _foundation_story_elements
+                if (
+                    not state.outline_result.story_elements
+                    and _foundation_story_elements
+                ):
+                    state.outline_result.story_elements = persist_markdown(
+                        story_dir,
+                        "outline/story_elements.md",
+                        _foundation_story_elements,
+                    )
                 # Persist generated outline before approval so a crash mid-gate
                 # preserves it. The phase is only marked complete on approval.
                 state.savepoint_id = "outline"

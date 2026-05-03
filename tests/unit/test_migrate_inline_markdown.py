@@ -168,3 +168,101 @@ def test_migrate_story_writes_text_fallback_for_non_json_enrichment(
     assert (story_dir / "outline" / "enrichment_suggestions.txt").read_text(
         encoding="utf-8"
     ) == "plain suggestion text"
+
+
+def test_migrate_pipeline_state_base_context_and_story_elements(
+    story_dir: Path,
+) -> None:
+    base_context = "# Base Context\n\nThe story begins here."
+    story_elements = 'Story overview.\n\n[{"chapter_number": 1, "title": "Opening"}]'
+    _write_json(
+        story_dir / "savepoints" / "pipeline_state.json",
+        {
+            "outline_result": {
+                "base_context": base_context,
+                "story_elements": story_elements,
+                "chapter_outlines": [],
+            }
+        },
+    )
+
+    migrated = migrate_inline_markdown.migrate_story(story_dir)
+
+    assert migrated == 2
+    pipeline_state = json.loads(
+        (story_dir / "savepoints" / "pipeline_state.json").read_text(encoding="utf-8")
+    )
+    assert pipeline_state["outline_result"]["base_context"] == {
+        "$ref": "outline/base_context.md"
+    }
+    assert pipeline_state["outline_result"]["story_elements"] == {
+        "$ref": "outline/story_elements.md"
+    }
+    assert (story_dir / "outline" / "base_context.md").read_text(
+        encoding="utf-8"
+    ) == base_context
+    assert (story_dir / "outline" / "story_elements.md").read_text(
+        encoding="utf-8"
+    ) == story_elements
+    assert (story_dir / "savepoints" / "pipeline_state.json.premigrate").exists()
+
+
+def test_migrate_pipeline_state_skips_empty_base_context_story_elements(
+    story_dir: Path,
+) -> None:
+    _write_json(
+        story_dir / "savepoints" / "pipeline_state.json",
+        {
+            "outline_result": {
+                "base_context": "",
+                "story_elements": "",
+                "chapter_outlines": [],
+            }
+        },
+    )
+
+    migrated = migrate_inline_markdown.migrate_story(story_dir)
+
+    assert migrated == 0
+    pipeline_state = json.loads(
+        (story_dir / "savepoints" / "pipeline_state.json").read_text(encoding="utf-8")
+    )
+    assert pipeline_state["outline_result"]["base_context"] == ""
+    assert pipeline_state["outline_result"]["story_elements"] == ""
+    assert not (story_dir / "outline" / "base_context.md").exists()
+    assert not (story_dir / "outline" / "story_elements.md").exists()
+
+
+def test_migrate_pipeline_state_skips_existing_refs_for_base_context_story_elements(
+    story_dir: Path,
+) -> None:
+    _write_json(
+        story_dir / "savepoints" / "pipeline_state.json",
+        {
+            "outline_result": {
+                "base_context": {"$ref": "outline/base_context.md"},
+                "story_elements": {"$ref": "outline/story_elements.md"},
+                "chapter_outlines": [],
+            }
+        },
+    )
+    (story_dir / "outline").mkdir(parents=True, exist_ok=True)
+    (story_dir / "outline" / "base_context.md").write_text(
+        "# Base Context\n\nAlready migrated.", encoding="utf-8"
+    )
+    (story_dir / "outline" / "story_elements.md").write_text(
+        "Story elements already migrated.", encoding="utf-8"
+    )
+
+    migrated = migrate_inline_markdown.migrate_story(story_dir)
+
+    assert migrated == 0
+    pipeline_state = json.loads(
+        (story_dir / "savepoints" / "pipeline_state.json").read_text(encoding="utf-8")
+    )
+    assert pipeline_state["outline_result"]["base_context"] == {
+        "$ref": "outline/base_context.md"
+    }
+    assert pipeline_state["outline_result"]["story_elements"] == {
+        "$ref": "outline/story_elements.md"
+    }

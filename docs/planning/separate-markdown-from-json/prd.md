@@ -146,7 +146,9 @@ the pointer shape so contributors and external tools can validate.
   `characters/<slug>/sheet.md`, `characters/<slug>/chunks/<k>.md`,
   `characters/<slug>/summary.md`, `characters/<slug>/abridged.md`.
 - **Outline:** `chapter_outlines[].summary` becomes a pointer to
-  `outline/chapter_N_summary.md`. The string-encoded
+  `outline/chapter_N_summary.md`. `outline_result.base_context` and
+  `outline_result.story_elements` become pointers to
+  `outline/base_context.md` and `outline/story_elements.md`. The string-encoded
   `enrichment_suggestions` is parsed once at write time and stored as a
   proper JSON sub-document `outline/enrichment_suggestions.json`,
   referenced from `pipeline_state.json` by path.
@@ -193,8 +195,9 @@ be short single-paragraph descriptions (chapter title, tag list, etc.).
       markdown sibling files.
 - [x] All setting-sheet writes do the same.
 - [x] Outline persistence (`pipeline_state.json::outline_result`) stores
-      chapter summaries as pointers and `enrichment_suggestions` as a
-      proper JSON sub-document — no fenced `` ```json `` strings remain.
+  chapter summaries, `base_context`, and `story_elements` as pointers,
+  and `enrichment_suggestions` as a proper JSON sub-document — no
+  fenced `` ```json `` strings remain.
 - [x] Per-chapter recap files use pointer refs.
 - [x] `state.json::story_prompt` is a pointer to `prompt.md`.
 - [x] Migration script converts every existing story under `stories/`

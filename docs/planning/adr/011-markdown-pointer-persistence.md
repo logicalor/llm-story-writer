@@ -1,13 +1,14 @@
 # ADR 011: Markdown-Pointer Persistence Convention
 
 **Date:** 2026-05-03
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 
 The pipeline persists generated long-form prose inside JSON fields
-(`character.sheet`, `setting.chunks.*`, `recap.events`, `outline.summary`,
-`state.story_prompt`) and, in one observed case
+(`character.sheet`, `setting.chunks.*`, `recap.events`,
+`outline_result.chapter_outlines[].summary`, `outline_result.base_context`,
+`outline_result.story_elements`, `state.story_prompt`) and, in one observed case
 (`outline.enrichment_suggestions`), wraps a JSON payload inside a markdown
 fenced code block that is itself embedded as a string inside another JSON
 file — three levels of nested escaping. Both shapes are antipatterns:

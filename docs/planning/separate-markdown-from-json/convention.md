@@ -42,6 +42,7 @@ Suggested path patterns:
 - Chapter recaps: `chapters/chapter_<N>/recap.md`
 - Story prompt: `prompt.md`
 - Outline chapter summaries: `outline/chapter_<N>_summary.md`
+- Outline story foundation fields: `outline/base_context.md`, `outline/story_elements.md`
 
 These paths are conventions, not arbitrary examples. Writers should keep file locations stable so downstream readers, migrations, and ChromaDB source-sync can rely on predictable on-disk paths.
 

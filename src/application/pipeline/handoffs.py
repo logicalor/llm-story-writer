@@ -35,9 +35,9 @@ class OutlineResult:
     summary: str
     genre: str
     themes: list[str]
-    base_context: str = ""
+    base_context: str | dict[str, str] = ""
     story_start_date: str = ""
-    story_elements: str = ""
+    story_elements: str | dict[str, str] = ""
     chapter_skeletons: list[dict[str, Any]] = field(default_factory=list)
     chapter_details: list[dict[str, Any]] = field(default_factory=list)
     enrichment_suggestions: str | dict[str, str] = ""

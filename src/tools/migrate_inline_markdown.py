@@ -23,7 +23,7 @@ if _src_path not in sys.path:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
+from tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
 
 
 FENCED_JSON_RE = re.compile(r"```json\s*(.*?)```", re.DOTALL)
@@ -297,6 +297,18 @@ class StoryMigration:
                             self._migrate_outline_summary(chapter, index) or changed
                         )
             changed = self._migrate_enrichment_suggestions(outline_result) or changed
+            for field_name, relative_path in (
+                ("base_context", "outline/base_context.md"),
+                ("story_elements", "outline/story_elements.md"),
+            ):
+                val = outline_result.get(field_name)
+                if isinstance(val, str) and val.strip():
+                    changed = (
+                        self._migrate_ref_field(
+                            outline_result, field_name, relative_path
+                        )
+                        or changed
+                    )
 
         recaps = data.get("recaps")
         if isinstance(recaps, dict):
