@@ -18,7 +18,11 @@ from application.pipeline.handoffs import (
     WikiUpdateBatch,
 )
 from presentation.orchestrator import resume_pipeline, run_pipeline
-from presentation.pipeline_primitives import NullApprovalGate, TokenStreamBus, WikiContextBus
+from presentation.pipeline_primitives import (
+    NullApprovalGate,
+    TokenStreamBus,
+    WikiContextBus,
+)
 from tools._persist import persist_markdown
 
 
@@ -132,9 +136,15 @@ async def test_recap_write_stores_pointer_dicts_in_state(tmp_path: Path) -> None
         "compact": {"$ref": "chapters/chapter_1/recap_compact.md"},
         "sanitised": {"$ref": "chapters/chapter_1/recap_sanitised.md"},
     }
-    assert (tmp_path / "test-story" / "chapters" / "chapter_1" / "recap_events.md").exists()
-    assert (tmp_path / "test-story" / "chapters" / "chapter_1" / "recap_compact.md").exists()
-    assert (tmp_path / "test-story" / "chapters" / "chapter_1" / "recap_sanitised.md").exists()
+    assert (
+        tmp_path / "test-story" / "chapters" / "chapter_1" / "recap_events.md"
+    ).exists()
+    assert (
+        tmp_path / "test-story" / "chapters" / "chapter_1" / "recap_compact.md"
+    ).exists()
+    assert (
+        tmp_path / "test-story" / "chapters" / "chapter_1" / "recap_sanitised.md"
+    ).exists()
 
 
 @pytest.mark.asyncio
@@ -184,15 +194,15 @@ async def test_recap_md_files_contain_correct_content(tmp_path: Path) -> None:
         )
 
     story_root = tmp_path / "test-story"
-    assert (
-        story_root / "chapters" / "chapter_1" / "recap_events.md"
-    ).read_text(encoding="utf-8") == "ev"
-    assert (
-        story_root / "chapters" / "chapter_1" / "recap_compact.md"
-    ).read_text(encoding="utf-8") == "cp"
-    assert (
-        story_root / "chapters" / "chapter_1" / "recap_sanitised.md"
-    ).read_text(encoding="utf-8") == "san"
+    assert (story_root / "chapters" / "chapter_1" / "recap_events.md").read_text(
+        encoding="utf-8"
+    ) == "ev"
+    assert (story_root / "chapters" / "chapter_1" / "recap_compact.md").read_text(
+        encoding="utf-8"
+    ) == "cp"
+    assert (story_root / "chapters" / "chapter_1" / "recap_sanitised.md").read_text(
+        encoding="utf-8"
+    ) == "san"
 
 
 @pytest.mark.asyncio
@@ -264,7 +274,10 @@ async def test_recap_read_resolves_pointer_to_string(tmp_path: Path) -> None:
             provider=provider,
         )
 
-    assert recap_cls.return_value.run.await_args.kwargs["previous_recap"] == "previous events"
+    assert (
+        recap_cls.return_value.run.await_args.kwargs["previous_recap"]
+        == "previous events"
+    )
 
 
 @pytest.mark.asyncio
@@ -323,4 +336,6 @@ async def test_recap_legacy_inline_dict_still_loads(tmp_path: Path) -> None:
             provider=provider,
         )
 
-    assert recap_cls.return_value.run.await_args.kwargs["previous_recap"] == "old content"
+    assert (
+        recap_cls.return_value.run.await_args.kwargs["previous_recap"] == "old content"
+    )

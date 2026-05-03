@@ -19,7 +19,11 @@ from application.pipeline.handoffs import (
     WikiUpdateBatch,
 )
 from presentation.orchestrator import _build_story_elements, run_pipeline
-from presentation.pipeline_primitives import NullApprovalGate, TokenStreamBus, WikiContextBus
+from presentation.pipeline_primitives import (
+    NullApprovalGate,
+    TokenStreamBus,
+    WikiContextBus,
+)
 
 
 def _config() -> dict[str, object]:
@@ -134,18 +138,16 @@ async def test_outline_summary_pointer_written_to_disk(tmp_path: Path) -> None:
     assert state.outline_result.chapter_outlines[0]["summary"] == {
         "$ref": "outline/chapter_1_summary.md"
     }
-    assert (
-        tmp_path / "test-story" / "outline" / "chapter_1_summary.md"
-    ).read_text(encoding="utf-8") == "Chapter 1 summary..."
+    assert (tmp_path / "test-story" / "outline" / "chapter_1_summary.md").read_text(
+        encoding="utf-8"
+    ) == "Chapter 1 summary..."
 
 
 @pytest.mark.asyncio
 async def test_enrichment_suggestions_parsed_and_stored_as_json(tmp_path: Path) -> None:
     state = await _run_outline_pipeline(
         tmp_path,
-        _outline_result(
-            '```json\n{"tone": "dark", "themes": ["loss"]}\n```'
-        ),
+        _outline_result('```json\n{"tone": "dark", "themes": ["loss"]}\n```'),
     )
 
     assert state.outline_result is not None
@@ -153,9 +155,9 @@ async def test_enrichment_suggestions_parsed_and_stored_as_json(tmp_path: Path) 
         "$ref": "outline/enrichment_suggestions.json"
     }
     payload = json.loads(
-        (
-            tmp_path / "test-story" / "outline" / "enrichment_suggestions.json"
-        ).read_text(encoding="utf-8")
+        (tmp_path / "test-story" / "outline" / "enrichment_suggestions.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert payload == {"tone": "dark", "themes": ["loss"]}
 
