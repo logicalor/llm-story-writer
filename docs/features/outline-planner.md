@@ -59,6 +59,8 @@ All three paths return an `OutlineResult`, but the populated fields differ by mo
 
 Chunked mode also emits a token-bus section after each continuity pass so the TUI and headless logs surface the current mismatch analysis before the next window starts.
 
+When the orchestrator persists the returned `OutlineResult`, it externalizes each `chapter_outlines[].summary` value to `stories/<story>/outline/chapter_<N>_summary.md` and replaces the inline text in `pipeline_state.json` with `{"$ref": ...}`. If `enrichment_suggestions` contains a fenced JSON string, the orchestrator strips the fence, parses the JSON, writes `stories/<story>/outline/enrichment_suggestions.json`, and stores `{"$ref": "outline/enrichment_suggestions.json"}` in the savepoint. `_build_story_elements()` resolves those summary pointers before serializing chapter outlines back into later prompt payloads.
+
 ## Configuration
 
 | Setting | Default | Effect |

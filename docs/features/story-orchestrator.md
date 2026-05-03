@@ -1,6 +1,6 @@
 # Story Orchestrator
 
-> Headless Python pipeline runner and agent-callable layer implemented in Issue #161 / PR #171, extended with characters and settings in Issue #182 / PR #194, consistency-result parsing in Issue #184 / PR #197, narrative-arc plus final-edit execution in Issue #185 / PR #198, story-foundation handoff seeding in Issue #292 / PR #304, deeper character/setting generation plus per-chapter sheet evolution in Issue #298 / PR #310, advisory metadata checkpoints in Issue #299 / PR #311, and ledger-driven granular resume for characters, settings, and per-scene chapter drafting in Issue #318 / PR #330.
+> Headless Python pipeline runner and agent-callable layer implemented in Issue #161 / PR #171, extended with characters and settings in Issue #182 / PR #194, consistency-result parsing in Issue #184 / PR #197, narrative-arc plus final-edit execution in Issue #185 / PR #198, story-foundation handoff seeding in Issue #292 / PR #304, deeper character/setting generation plus per-chapter sheet evolution in Issue #298 / PR #310, advisory metadata checkpoints in Issue #299 / PR #311, ledger-driven granular resume for characters, settings, and per-scene chapter drafting in Issue #318 / PR #330, and pointer-based recap, outline, and story-prompt persistence in Issue #321 / PR #333.
 
 ## Overview
 
@@ -49,8 +49,12 @@ The characters and settings phases are implemented as orchestrator helpers rathe
 
 The current orchestrator writes these story-facing artifact groups during a successful run:
 
-- `stories/<story>/savepoints/pipeline_state.json` — the persisted `PipelineState` snapshot, including `arc_result`, `recaps`, `evolved_sheets`, and `completed_work_items` for ledger-gated resume
+- `stories/<story>/savepoints/pipeline_state.json` — the persisted `PipelineState` snapshot, including `arc_result`, pointer-based `recaps`, pointer-based `outline_result.chapter_outlines[].summary`, pointer-based `outline_result.enrichment_suggestions`, `evolved_sheets`, and `completed_work_items` for ledger-gated resume
+- `stories/<story>/state.json` — story metadata plus `story_prompt: {"$ref": "prompt.md"}` for the current prompt body
+- `stories/<story>/prompt.md` — the markdown story prompt referenced from `state.json`
 - `stories/<story>/outline/skeleton.md` and `stories/<story>/outline/details/chapter_{N}.md` — Phase 3 outline artifacts written when `generation.expand_outline` is enabled; existing chapter detail files are reused on resume
+- `stories/<story>/outline/chapter_{N}_summary.md` — per-chapter outline summaries externalized from `pipeline_state.json` after outline persistence
+- `stories/<story>/outline/enrichment_suggestions.json` — structured enrichment suggestions parsed out of the legacy fenced JSON string and referenced from `pipeline_state.json`
 - `stories/<story>/metadata.json` — advisory story metadata rewritten after successful `metadata-outline`, `metadata-chapter-1`, and `metadata-final` runs; stores `title`, `summary`, `tags`, and `updated_at`
 - `stories/<story>/characters/_names.json` — cached character-name list reused when the characters phase resumes after name extraction already completed
 - `stories/<story>/characters/<slug>.json` — one JSON character sheet per extracted name, now storing `{"$ref": ...}` pointers for markdown-bearing fields
@@ -61,7 +65,8 @@ The current orchestrator writes these story-facing artifact groups during a succ
 - `stories/<story>/chapters/chapter_{N}_scenes.json` — persisted scene decomposition for the scene pipeline; reused on resumed runs instead of regenerating the scene list
 - `stories/<story>/chapters/chapter_{N}/scene_{M}.md` — one persisted scene draft per completed scene when the scene pipeline is active
 - `stories/<story>/chapters/chapter_{N}.md` — written immediately after chapter `N` passes the approval gate and consistency check
-- `stories/<story>/chapters/chapter_{N}_recap.json` — written after chapter `N` recap generation returns a non-empty recap payload
+- `stories/<story>/chapters/chapter_{N}_recap.json` — written after chapter `N` recap generation returns a non-empty recap payload; stores `events`, `compact`, and `sanitised` as `{"$ref": ...}` pointers
+- `stories/<story>/chapters/chapter_{N}/recap_events.md`, `recap_compact.md`, and `recap_sanitised.md` — markdown recap bodies referenced from both `pipeline_state.json` and `chapter_{N}_recap.json`
 - `stories/<story>/output/story_edited.md` — written after Phase 9 when final-edit is enabled and at least one edited chapter contains non-empty content
 - `stories/<story>/output/story.md` — written during `assembly` by joining the non-empty content of `state.approved_chapters` with blank lines
 
@@ -79,6 +84,8 @@ Character and setting sheets use the same on-disk pointer shape:
 ```
 
 The `chunks`, `summary`, `abridged`, and `sheet` fields now point to sibling markdown files under the entity slug directory. Read paths resolve both legacy inline strings and pointer objects, but new writes from the orchestrator, the managers, and both evolver agents always persist the markdown bodies into `.md` files first and then rewrite the JSON pointer values.
+
+Outline persistence follows the same pointer convention. Before the outline savepoint is written, each `chapter_outlines[].summary` string is externalized to `stories/<story>/outline/chapter_{N}_summary.md`, and `_build_story_elements()` resolves those pointers back through `read_markdown_ref()` before serializing outline data into downstream prompts. When `OutlineResult.enrichment_suggestions` contains structured JSON wrapped in a fenced markdown block, the orchestrator strips the fence, parses the JSON, writes `stories/<story>/outline/enrichment_suggestions.json`, and stores `{"$ref": "outline/enrichment_suggestions.json"}` in the savepoint.
 
 Filenames are derived by `_slugify_name()`: lowercase, spaces converted to `-`, non-alphanumeric characters stripped except `-`, repeated dashes collapsed, and surrounding dashes trimmed.
 
@@ -214,8 +221,10 @@ The orchestrator treats recap generation as advisory only:
 
 1. Read the prior recap from `PipelineState.recaps[str(N-1)]`, preferring `sanitised`, then `compact`, then `events`.
 2. Call `RecapWriterAgent.run()`.
-3. If the returned recap contains a non-empty `events` field, persist it to `PipelineState.recaps[str(N)]` and write `stories/<story>/chapters/chapter_{N}_recap.json`.
+3. If the returned recap contains a non-empty `events` field, persist each recap field to `stories/<story>/chapters/chapter_{N}/recap_<field>.md`, store the resulting `{"$ref": ...}` dicts under `PipelineState.recaps[str(N)]`, and write the same pointer map to `stories/<story>/chapters/chapter_{N}_recap.json`.
 4. If the agent raises, emit a `[Recap] chapter N recap skipped (...)` message and continue the chapter loop.
+
+`state.json` follows the same read/write convention for the story prompt. `story-writer ... --prompt <path>` writes the prompt body to `stories/<story>/prompt.md`, stores `story_prompt: {"$ref": "prompt.md"}` in `state.json`, and `_load_story_prompt()` continues to accept the older inline-string form during the compatibility window.
 
 Two recap modes are currently wired:
 
