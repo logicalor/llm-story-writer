@@ -33,6 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME",
         help="Savepoint name to validate. Resume always continues from the latest savepoint; this argument only verifies the story reached at least the specified phase.",
     )
+    tui_p.add_argument(
+        "--debug-log",
+        default=None,
+        metavar="PATH",
+        help="Write a JSONL debug log of every LLM request and response to PATH.",
+    )
 
     run_p = sub.add_parser("run", help="Run the full pipeline headlessly.")
     run_p.add_argument("--story", required=True, metavar="NAME", help="Story name.")
@@ -46,6 +52,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--batch",
         action="store_true",
         help="Run headlessly (non-interactive). NOTE: story-writer run is always headless; this flag is reserved for future interactive mode.",
+    )
+    run_p.add_argument(
+        "--debug-log",
+        default=None,
+        metavar="PATH",
+        help="Write a JSONL debug log of every LLM request and response to PATH.",
     )
 
     resume_p = sub.add_parser("resume", help="Resume from latest savepoint.")
@@ -61,6 +73,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="NAME",
         help="Savepoint name to validate. Resume always continues from the latest savepoint; this argument only verifies the story reached at least the specified phase.",
+    )
+    resume_p.add_argument(
+        "--debug-log",
+        default=None,
+        metavar="PATH",
+        help="Write a JSONL debug log of every LLM request and response to PATH.",
     )
 
     rag_p = sub.add_parser("rag", help="RAG index management commands.")

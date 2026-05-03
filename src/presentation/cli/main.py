@@ -188,6 +188,8 @@ def main() -> None:
     if args.subcommand == "tui":
         if getattr(args, "savepoint", None) and not args.resume:
             parser.error("--savepoint requires --resume")
+        if getattr(args, "debug_log", None):
+            os.environ["LLM_DEBUG_LOG"] = args.debug_log
         _cmd_tui(
             args.story,
             resume=args.resume,
@@ -195,8 +197,12 @@ def main() -> None:
             prompt=args.prompt,
         )
     elif args.subcommand == "run":
+        if getattr(args, "debug_log", None):
+            os.environ["LLM_DEBUG_LOG"] = args.debug_log
         _cmd_run(args.story, batch=args.batch, prompt=args.prompt)
     elif args.subcommand == "resume":
+        if getattr(args, "debug_log", None):
+            os.environ["LLM_DEBUG_LOG"] = args.debug_log
         _cmd_resume(args.story, args.savepoint, prompt=args.prompt)
     elif args.subcommand == "rag":
         if args.rag_subcommand == "reconcile":

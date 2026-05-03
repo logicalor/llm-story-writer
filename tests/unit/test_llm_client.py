@@ -101,3 +101,61 @@ def test_default_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LLM_MODEL", raising=False)
     assert _get_api_base() == "http://127.0.0.1:1234/v1"
     assert _get_model() == "gemma-4-26b-a4b-it-heretic-guff"
+
+
+def test_debug_log_written(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pytest.TempPathFactory
+) -> None:
+    """LLM_DEBUG_LOG causes a JSONL record to be appended after each call."""
+    import json as _json
+
+    from src.tools._llm import generate_text_messages
+
+    log_file = tmp_path / "llm_debug.jsonl"
+    monkeypatch.setenv("LLM_DEBUG_LOG", str(log_file))
+
+    messages = [{"role": "user", "content": "hello"}]
+    response_text = "world"
+
+    # Fake the HTTP call so we never need a real server
+    import unittest.mock as mock
+
+    fake_resp = mock.MagicMock()
+    fake_resp.json.return_value = {
+        "choices": [{"message": {"content": response_text}}]
+    }
+    fake_resp.raise_for_status.return_value = None
+
+    with mock.patch("src.tools._llm.requests.post", return_value=fake_resp):
+        result = generate_text_messages(messages, model="test-model")
+
+    assert result == response_text
+    assert log_file.exists()
+    record = _json.loads(log_file.read_text())
+    assert record["model"] == "test-model"
+    assert record["messages"] == messages
+    assert record["response"] == response_text
+    assert "timestamp" in record
+
+
+def test_debug_log_not_written_when_unset(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pytest.TempPathFactory
+) -> None:
+    """No log file is created when LLM_DEBUG_LOG is not set."""
+    import unittest.mock as mock
+
+    from src.tools._llm import generate_text_messages
+
+    monkeypatch.delenv("LLM_DEBUG_LOG", raising=False)
+    log_file = tmp_path / "should_not_exist.jsonl"
+
+    fake_resp = mock.MagicMock()
+    fake_resp.json.return_value = {
+        "choices": [{"message": {"content": "hi"}}]
+    }
+    fake_resp.raise_for_status.return_value = None
+
+    with mock.patch("src.tools._llm.requests.post", return_value=fake_resp):
+        generate_text_messages([{"role": "user", "content": "ping"}])
+
+    assert not log_file.exists()

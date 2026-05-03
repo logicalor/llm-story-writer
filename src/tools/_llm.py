@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
+from datetime import datetime, timezone
 
 import requests
 
@@ -16,6 +18,33 @@ def _get_api_base() -> str:
 def _get_model() -> str:
     """Return the default model identifier."""
     return os.environ.get("LLM_MODEL", "gemma-4-26b-a4b-it-heretic-guff")
+
+
+def _append_debug_log(
+    messages: list[dict[str, str]],
+    model: str,
+    response: str,
+    *,
+    temperature: float | None,
+    max_tokens: int | None,
+) -> None:
+    """Append one JSONL record to the debug log file if LLM_DEBUG_LOG is set."""
+    log_path = os.environ.get("LLM_DEBUG_LOG")
+    if not log_path:
+        return
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "model": model,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "messages": messages,
+        "response": response,
+    }
+    try:
+        with open(log_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError:
+        pass  # Never let logging failures break generation
 
 
 def generate_text(
@@ -92,7 +121,15 @@ def generate_text_messages(
     except (KeyError, IndexError, TypeError) as exc:
         raise RuntimeError(f"Unexpected LLM API response structure: {exc}") from exc
 
-    return _unwrap_output_tags(content)
+    content = _unwrap_output_tags(content)
+    _append_debug_log(
+        messages,
+        str(payload["model"]),
+        content,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    return content
 
 
 _OUTPUT_TAG_RE = re.compile(r"<output>\s*(.*?)\s*</output>", re.DOTALL | re.IGNORECASE)
