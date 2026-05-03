@@ -228,3 +228,73 @@ def test_bootstrap_is_resumable_after_partial_run(
     assert result["created"] == 1
     assert result["skipped"] == 1
     assert (wiki_dir / "characters" / "navigator-jun.md").exists()
+
+
+def test_list_wiki_entities_returns_entities(
+    story_env: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        wiki_extract,
+        "_load_outline_savepoint",
+        lambda story_dir: "Chapter 1 outline with Captain Vale.",
+    )
+    _set_fake_llm(
+        monkeypatch,
+        [json.dumps([_outline_entity("Captain Vale")])],
+    )
+
+    entities = wiki_extract._list_wiki_entities("test-story", model="test-model")
+
+    assert isinstance(entities, list)
+    assert [entity["name"] for entity in entities] == ["Captain Vale"]
+
+
+def test_bootstrap_single_wiki_entity_creates_page(
+    story_env: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wiki_dir = _init_story_wiki(story_env)
+    _set_fake_llm(monkeypatch, [json.dumps(_detail_levels())])
+    entity = {
+        **_outline_entity("Captain Vale"),
+        "first_appearance": 1,
+        "frontmatter": {},
+    }
+
+    wiki_extract._bootstrap_single_wiki_entity(
+        "test-story",
+        entity,
+        model="test-model",
+        wiki_dir=wiki_dir,
+    )
+
+    assert (wiki_dir / "characters" / "captain-vale.md").exists()
+
+
+def test_bootstrap_single_wiki_entity_skips_existing_page(
+    story_env: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wiki_dir = _init_story_wiki(story_env)
+    _write_existing_character_page(story_env, "captain-vale", "Captain Vale")
+
+    def _unexpected_chat_completion(
+        prompt: str, *, model: str | None = None, base_url: str | None = None
+    ) -> str:
+        raise AssertionError("LLM should not be called for existing wiki page")
+
+    monkeypatch.setattr(
+        wiki_extract,
+        "_chat_completion",
+        _unexpected_chat_completion,
+    )
+
+    wiki_extract._bootstrap_single_wiki_entity(
+        "test-story",
+        _outline_entity("Captain Vale"),
+        model="test-model",
+        wiki_dir=wiki_dir,
+    )
+
+    assert (wiki_dir / "characters" / "captain-vale.md").exists()

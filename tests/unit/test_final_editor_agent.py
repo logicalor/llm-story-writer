@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -156,3 +156,82 @@ async def test_scrubbing_disabled_skips_stage1_calls_only_edit_chapter_direct() 
     assert "final_edit/voice_consistency_pass" not in prompt_names
     assert captured_edit_variables["prose_findings"] == ""
     assert captured_edit_variables["voice_findings"] == ""
+
+
+@pytest.mark.asyncio
+async def test_edit_single_chapter_returns_chapter_draft() -> None:
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    provider = MagicMock()
+    provider.stream_text.return_value = _stream_tokens(["Polished chapter text"])
+    agent = FinalEditorAgent(
+        provider=provider,
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    with patch(
+        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+        return_value="system",
+    ):
+        result = await agent.edit_single_chapter(
+            _draft(1),
+            prior_summary="prior",
+            chapter_number=1,
+            settings=GenerationSettings.from_dict({"enable_scrubbing": False}),
+        )
+
+    bus.close()
+    wiki_bus.close()
+
+    assert isinstance(result, ChapterDraft)
+    assert result.content == "Polished chapter text"
+    provider.stream_text.assert_called_once()
+
+
+def test_build_prior_summaries_returns_list_of_strings() -> None:
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = FinalEditorAgent(
+        provider=_ProviderStub("ignored"),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    summaries = agent.build_prior_summaries([_draft(1), _draft(2)])
+
+    assert isinstance(summaries, list)
+    assert len(summaries) == 2
+    assert all(isinstance(summary, str) for summary in summaries)
+
+
+@pytest.mark.asyncio
+async def test_run_delegates_to_edit_single_chapter() -> None:
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = FinalEditorAgent(
+        provider=_ProviderStub("ignored"),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+    chapters = [_draft(1), _draft(2)]
+
+    with patch.object(
+        agent,
+        "edit_single_chapter",
+        new=AsyncMock(side_effect=chapters),
+    ) as edit_single:
+        result = await agent.run(
+            "s",
+            chapters,
+            GenerationSettings.from_dict({"enable_scrubbing": False}),
+        )
+
+    bus.close()
+    wiki_bus.close()
+
+    assert edit_single.await_count == 2
+    assert result.edited_chapters == chapters
