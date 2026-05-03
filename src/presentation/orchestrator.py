@@ -274,8 +274,10 @@ def _build_story_elements(outline_result: OutlineResult, story_root: Path) -> st
         for chapter in outline_result.chapter_outlines:
             chapter_copy = dict(chapter)
             summary = chapter_copy.get("summary")
-            if isinstance(summary, str | dict):
+            if isinstance(summary, dict):
                 chapter_copy["summary"] = read_markdown_ref(story_root, summary)
+            elif isinstance(summary, str):
+                chapter_copy["summary"] = summary
             resolved_outlines.append(chapter_copy)
         parts.append(json.dumps(resolved_outlines, ensure_ascii=False))
     return "\n\n".join(parts)
@@ -386,7 +388,11 @@ async def _generate_character_sheets(
             sheet_data.setdefault("abridged", "")
             if not isinstance(sheet_data.get("chunks"), dict):
                 sheet_data["chunks"] = {}
-            sheet_text = read_markdown_ref(story_root, sheet_data.get("sheet") or "")
+            sheet_text = (
+                read_markdown_ref(story_root, _r)
+                if isinstance(_r := sheet_data.get("sheet"), dict)
+                else (_r or "")
+            )
         else:
             try:
                 create_prompt = loader.load_prompt(
@@ -423,8 +429,16 @@ async def _generate_character_sheets(
             await _mark_work_item_done(state, "characters", char_item_sheet)
 
         chunk_results = dict(cast(dict[str, str], sheet_data.get("chunks", {})))
-        abridged_text = read_markdown_ref(story_root, sheet_data.get("abridged") or "")
-        summary_text = read_markdown_ref(story_root, sheet_data.get("summary") or "")
+        abridged_text = (
+            read_markdown_ref(story_root, _r)
+            if isinstance(_r := sheet_data.get("abridged"), dict)
+            else (_r or "")
+        )
+        summary_text = (
+            read_markdown_ref(story_root, _r)
+            if isinstance(_r := sheet_data.get("summary"), dict)
+            else (_r or "")
+        )
 
         try:
             chunk_items = list(chunk_prompts.items())
@@ -440,8 +454,10 @@ async def _generate_character_sheets(
                 if _work_item_done(state, "characters", chunk_item_id):
                     existing_chunks = sheet_data.get("chunks", {})
                     if isinstance(existing_chunks, dict):
-                        chunk_results[chunk_key] = read_markdown_ref(
-                            story_root, existing_chunks.get(chunk_key) or ""
+                        chunk_results[chunk_key] = (
+                            read_markdown_ref(story_root, _r)
+                            if isinstance(_r := existing_chunks.get(chunk_key), dict)
+                            else (_r or "")
                         )
                     else:
                         chunk_results[chunk_key] = ""
@@ -486,8 +502,10 @@ async def _generate_character_sheets(
             )
             abridged_item_id = f"characters/{slug}/abridged"
             if _work_item_done(state, "characters", abridged_item_id):
-                abridged_text = read_markdown_ref(
-                    story_root, sheet_data.get("abridged") or ""
+                abridged_text = (
+                    read_markdown_ref(story_root, _r)
+                    if isinstance(_r := sheet_data.get("abridged"), dict)
+                    else (_r or "")
                 )
             else:
                 try:
@@ -532,8 +550,10 @@ async def _generate_character_sheets(
             )
             summary_item_id = f"characters/{slug}/summary"
             if _work_item_done(state, "characters", summary_item_id):
-                summary_text = read_markdown_ref(
-                    story_root, sheet_data.get("summary") or ""
+                summary_text = (
+                    read_markdown_ref(story_root, _r)
+                    if isinstance(_r := sheet_data.get("summary"), dict)
+                    else (_r or "")
                 )
             else:
                 try:
@@ -684,7 +704,11 @@ async def _generate_setting_sheets(
             sheet_data.setdefault("abridged", "")
             if not isinstance(sheet_data.get("chunks"), dict):
                 sheet_data["chunks"] = {}
-            sheet_text = read_markdown_ref(story_root, sheet_data.get("sheet") or "")
+            sheet_text = (
+                read_markdown_ref(story_root, _r)
+                if isinstance(_r := sheet_data.get("sheet"), dict)
+                else (_r or "")
+            )
         else:
             try:
                 create_prompt = loader.load_prompt(
@@ -721,8 +745,16 @@ async def _generate_setting_sheets(
             await _mark_work_item_done(state, "settings", setting_item_sheet)
 
         chunk_results = dict(cast(dict[str, str], sheet_data.get("chunks", {})))
-        abridged_text = read_markdown_ref(story_root, sheet_data.get("abridged") or "")
-        summary_text = read_markdown_ref(story_root, sheet_data.get("summary") or "")
+        abridged_text = (
+            read_markdown_ref(story_root, _r)
+            if isinstance(_r := sheet_data.get("abridged"), dict)
+            else (_r or "")
+        )
+        summary_text = (
+            read_markdown_ref(story_root, _r)
+            if isinstance(_r := sheet_data.get("summary"), dict)
+            else (_r or "")
+        )
 
         try:
             chunk_items = list(chunk_prompts.items())
@@ -738,8 +770,10 @@ async def _generate_setting_sheets(
                 if _work_item_done(state, "settings", chunk_item_id):
                     existing_chunks = sheet_data.get("chunks", {})
                     if isinstance(existing_chunks, dict):
-                        chunk_results[chunk_key] = read_markdown_ref(
-                            story_root, existing_chunks.get(chunk_key) or ""
+                        chunk_results[chunk_key] = (
+                            read_markdown_ref(story_root, _r)
+                            if isinstance(_r := existing_chunks.get(chunk_key), dict)
+                            else (_r or "")
                         )
                     else:
                         chunk_results[chunk_key] = ""
@@ -782,8 +816,10 @@ async def _generate_setting_sheets(
             )
             abridged_item_id = f"settings/{slug}/abridged"
             if _work_item_done(state, "settings", abridged_item_id):
-                abridged_text = read_markdown_ref(
-                    story_root, sheet_data.get("abridged") or ""
+                abridged_text = (
+                    read_markdown_ref(story_root, _r)
+                    if isinstance(_r := sheet_data.get("abridged"), dict)
+                    else (_r or "")
                 )
             else:
                 try:
@@ -828,8 +864,10 @@ async def _generate_setting_sheets(
             )
             summary_item_id = f"settings/{slug}/summary"
             if _work_item_done(state, "settings", summary_item_id):
-                summary_text = read_markdown_ref(
-                    story_root, sheet_data.get("summary") or ""
+                summary_text = (
+                    read_markdown_ref(story_root, _r)
+                    if isinstance(_r := sheet_data.get("summary"), dict)
+                    else (_r or "")
                 )
             else:
                 try:
@@ -1481,17 +1519,27 @@ async def _continue_pipeline(
                         )
                         if isinstance(previous_recap_data, dict):
                             previous_recap = (
-                                read_markdown_ref(
-                                    story_dir,
-                                    previous_recap_data.get("sanitised") or "",
+                                (
+                                    read_markdown_ref(story_dir, _r)
+                                    if isinstance(
+                                        _r := previous_recap_data.get("sanitised"),
+                                        dict,
+                                    )
+                                    else (_r or "")
                                 )
-                                or read_markdown_ref(
-                                    story_dir,
-                                    previous_recap_data.get("compact") or "",
+                                or (
+                                    read_markdown_ref(story_dir, _r)
+                                    if isinstance(
+                                        _r := previous_recap_data.get("compact"), dict
+                                    )
+                                    else (_r or "")
                                 )
-                                or read_markdown_ref(
-                                    story_dir,
-                                    previous_recap_data.get("events") or "",
+                                or (
+                                    read_markdown_ref(story_dir, _r)
+                                    if isinstance(
+                                        _r := previous_recap_data.get("events"), dict
+                                    )
+                                    else (_r or "")
                                 )
                                 or ""
                             )

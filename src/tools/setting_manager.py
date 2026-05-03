@@ -364,12 +364,25 @@ def cmd_load_sheet(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     story_root = setting_path.parent.parent
-    data["sheet"] = read_markdown_ref(story_root, data.get("sheet", ""))
+    data["sheet"] = (
+        read_markdown_ref(story_root, _ref)
+        if isinstance(_ref := data.get("sheet"), dict)
+        else (_ref or "")
+    )
     data["chunks"] = {
-        k: read_markdown_ref(story_root, v) for k, v in data.get("chunks", {}).items()
+        k: (read_markdown_ref(story_root, v) if isinstance(v, dict) else (v or ""))
+        for k, v in data.get("chunks", {}).items()
     }
-    data["summary"] = read_markdown_ref(story_root, data.get("summary", ""))
-    data["abridged"] = read_markdown_ref(story_root, data.get("abridged", ""))
+    data["summary"] = (
+        read_markdown_ref(story_root, _ref)
+        if isinstance(_ref := data.get("summary"), dict)
+        else (_ref or "")
+    )
+    data["abridged"] = (
+        read_markdown_ref(story_root, _ref)
+        if isinstance(_ref := data.get("abridged"), dict)
+        else (_ref or "")
+    )
 
     if args.abridged:
         data = {
@@ -422,7 +435,11 @@ def cmd_generate_chunks(args: argparse.Namespace) -> None:
         print(f"Error: corrupted setting sheet: {args.setting}", file=sys.stderr)
         sys.exit(1)
 
-    sheet_text = read_markdown_ref(story_root, data.get("sheet", ""))
+    sheet_text = (
+        read_markdown_ref(story_root, _ref)
+        if isinstance(_ref := data.get("sheet"), dict)
+        else (_ref or "")
+    )
     if not sheet_text.strip():
         print(
             "Error: setting sheet is empty — run generate-sheet first",
@@ -510,7 +527,10 @@ def cmd_generate_summary(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     chunks_raw: dict = data.get("chunks", {})
-    chunks = {k: read_markdown_ref(story_root, v) for k, v in chunks_raw.items()}
+    chunks = {
+        k: (read_markdown_ref(story_root, v) if isinstance(v, dict) else (v or ""))
+        for k, v in chunks_raw.items()
+    }
     valid_chunks = {
         k: v
         for k, v in chunks.items()
