@@ -40,7 +40,7 @@ class OutlineResult:
     story_elements: str = ""
     chapter_skeletons: list[dict[str, Any]] = field(default_factory=list)
     chapter_details: list[dict[str, Any]] = field(default_factory=list)
-    enrichment_suggestions: str = ""
+    enrichment_suggestions: str | dict[str, str] = ""
     title: str = ""
     tags: list[str] = field(default_factory=list)
     savepoint_id: str | None = None

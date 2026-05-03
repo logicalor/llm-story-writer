@@ -65,10 +65,11 @@ When the returned recap contains a non-empty `events` field, the orchestrator wr
 
 | Location | Purpose |
 |----------|---------|
-| `PipelineState.recaps[str(N)]` | Persist the per-chapter recap inside `stories/<story>/savepoints/pipeline_state.json` |
-| `stories/<story>/chapters/chapter_<N>_recap.json` | Persist the same recap object as an on-disk chapter artefact |
+| `PipelineState.recaps[str(N)]` | Persist the per-chapter recap inside `stories/<story>/savepoints/pipeline_state.json` as `events`, `compact`, and `sanitised` pointer dicts |
+| `stories/<story>/chapters/chapter_<N>_recap.json` | Persist the same pointer map as an on-disk chapter artefact |
+| `stories/<story>/chapters/chapter_<N>/recap_events.md`, `recap_compact.md`, `recap_sanitised.md` | Persist the markdown recap bodies referenced by both JSON files |
 
-The recap file contains the same three top-level keys: `events`, `compact`, and `sanitised`.
+Both JSON files contain the same three top-level keys: `events`, `compact`, and `sanitised`, each storing `{"$ref": "chapters/chapter_<N>/..."}`. Read sites resolve those refs through `read_markdown_ref()` and still accept the older inline-string shape during the compatibility window.
 
 The current implementation does not write per-stage recap savepoints. On resume, the orchestrator reloads the latest `PipelineState` snapshot and reruns recap generation for any chapter that has not yet completed the chapter loop in that snapshot.
 

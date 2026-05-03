@@ -154,8 +154,7 @@ the pointer shape so contributors and external tools can validate.
 - **Recaps:** `chapters/chapter_N_recap.json` keeps `chapter_number`,
   `created_at`, plus pointer refs for `events`, `compact`, `sanitised`.
   `pipeline_state.recaps[N]` is **not** stored inline anymore — it
-  becomes a path to `chapter_N_recap.json` (which then has its own
-  refs).
+  stores the same per-field pointer dict shape as the on-disk recap JSON.
 - **Story prompt:** `state.json::story_prompt` becomes a pointer to
   `prompt.md` at the story root.
 - **Wiki pages:** already correctly stored as `.md` with YAML
@@ -193,11 +192,11 @@ be short single-paragraph descriptions (chapter title, tag list, etc.).
 - [x] All character-sheet writes produce JSON with pointer refs and
       markdown sibling files.
 - [x] All setting-sheet writes do the same.
-- [ ] Outline persistence (`pipeline_state.json::outline_result`) stores
+- [x] Outline persistence (`pipeline_state.json::outline_result`) stores
       chapter summaries as pointers and `enrichment_suggestions` as a
       proper JSON sub-document — no fenced `` ```json `` strings remain.
-- [ ] Per-chapter recap files use pointer refs.
-- [ ] `state.json::story_prompt` is a pointer to `prompt.md`.
+- [x] Per-chapter recap files use pointer refs.
+- [x] `state.json::story_prompt` is a pointer to `prompt.md`.
 - [ ] Migration script converts every existing story under `stories/`
       without data loss; a round-trip read returns identical bodies.
 - [ ] Lint script flags any reintroduction of inline markdown / fenced

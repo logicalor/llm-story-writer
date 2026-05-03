@@ -240,6 +240,8 @@ python -c "import json,sys; print(json.dumps(sys.stdin.read()))" < ~/prompts/my-
   --field story_prompt --value -
 ```
 
+That direct write still loads as a legacy inline form, but the preferred current format is the pointer form written by `--prompt`: `state.json` stores `{"$ref": "prompt.md"}` and the prompt body lives in `stories/<story>/prompt.md`.
+
 **Alternative — use `--prompt` (simpler):**
 
 Both `tui` and `run` accept a `--prompt <path>` argument that automatically initialises the story (if it does not exist) and loads the prompt file into state:
@@ -258,7 +260,7 @@ You can also use `--prompt` with `resume` to overwrite the existing prompt befor
 story-writer resume --story my-first-story --prompt ~/prompts/revised-prompt.txt
 ```
 
-**Alternative:** You can also edit `stories/my-first-story/state.json` directly and add a `story_prompt` field containing your prompt text.
+**Alternative:** You can edit `stories/my-first-story/prompt.md` directly, or edit `stories/my-first-story/state.json` and set `story_prompt` to `{"$ref": "prompt.md"}`.
 
 ### Step 4: Launch TUI or Run Headless
 
@@ -344,10 +346,16 @@ python -m src.tools.story_assembler assemble --story-name my-first-story
 
 ```
 stories/my-first-story/
+├── prompt.md                    # Story prompt markdown body
 ├── state.json                    # Pipeline state and metadata
 ├── outline.json                  # Approved outline
 ├── chapters/
 │   ├── chapter_1.md
+│   ├── chapter_1_recap.json      # Pointer map for recap markdown
+│   ├── chapter_1/
+│   │   ├── recap_events.md
+│   │   ├── recap_compact.md
+│   │   └── recap_sanitised.md
 │   ├── chapter_2.md
 │   ├── chapter_3.md
 │   └── ...                       # One file per approved chapter
@@ -398,7 +406,8 @@ stories/my-first-story/
 
 **Key points about the file tree:**
 - `state.json` is the source of truth for story metadata and progress
-- `savepoints/pipeline_state.json` is the resume checkpoint (single JSON file)
+- `state.json.story_prompt` now points to `prompt.md` instead of embedding the full prompt body
+- `savepoints/pipeline_state.json` is the resume checkpoint (single JSON file) and now stores pointer refs for recap markdown, chapter outline summaries, and structured `enrichment_suggestions`
 - Individual step savepoints (e.g., `outline_complete`, `chapter_3_complete`) are separate files in the same directory
 - The `wiki/` directory is fully Obsidian-compatible — open it in Obsidian to browse linked pages
 
@@ -617,7 +626,7 @@ What this phase does:
   4. **Chapter Persistence** — Appends the approved draft to `state.approved_chapters` and writes `stories/<name>/chapters/chapter_<N>.md`
   5. **Wiki Update (7c)** — Calls `WikiMaintainerAgent` to extract structured data and persist wiki pages; failures are logged and do not block the loop
   6. **Sheet Evolution** — Calls `CharacterEvolverAgent` and `SettingEvolverAgent` after the wiki step. Each agent runs `extract_from_chapter` → `analyze_changes` → `update` over the existing sheet files, rewrites `sheet` when a change is needed, and records per-entity `updated` or `unchanged` results in `state.evolved_sheets[str(N)]`.
-  7. **Recap Generation (7d)** — Calls `RecapWriterAgent` after sheet evolution. The default path runs six LLM stages (`extract_chapter_events` → `recap/assign_event_timing` → `recap/enrich_event_details` → `recap/format_json` → `recap/compact_events` → optional `recap/sanitize`). When `use_multi_stage_recap_sanitizer: false`, the agent takes the short path (`extract_chapter_events` → `recap/format_json`). Recap failures are advisory and do not block later chapters.
+  7. **Recap Generation (7d)** — Calls `RecapWriterAgent` after sheet evolution. The default path runs six LLM stages (`extract_chapter_events` → `recap/assign_event_timing` → `recap/enrich_event_details` → `recap/format_json` → `recap/compact_events` → optional `recap/sanitize`). When `use_multi_stage_recap_sanitizer: false`, the agent takes the short path (`extract_chapter_events` → `recap/format_json`). On success, the orchestrator writes the recap bodies to `stories/<name>/chapters/chapter_<N>/recap_events.md`, `recap_compact.md`, and `recap_sanitised.md`, then stores `{"$ref": ...}` pointers for those files in both `state.recaps[str(N)]` and `chapter_<N>_recap.json`. Recap failures are advisory and do not block later chapters.
   8. **Metadata Refresh (`metadata-chapter-1`)** — Immediately after Chapter 1 is approved, the orchestrator re-runs `StoryMetadataAgent` with the approved Chapter 1 prose. This refresh is advisory, updates `OutlineResult.title` plus `OutlineResult.tags` on success, and rewrites `stories/<name>/metadata.json`.
   9. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
 
@@ -634,7 +643,8 @@ What this phase does:
 - `stories/<name>/chapters/chapter_<N>_scenes.json` when scene generation pipeline is enabled
 - `stories/<name>/chapters/chapter_<N>/scene_<M>.md` for each completed scene when scene generation pipeline is enabled
 - `stories/<name>/chapters/chapter_1.md` through `chapter_{N}.md`
-- `stories/<name>/chapters/chapter_1_recap.json` through `chapter_{N}_recap.json`
+- `stories/<name>/chapters/chapter_1_recap.json` through `chapter_{N}_recap.json`, each storing `events`, `compact`, and `sanitised` as `{"$ref": ...}` pointers
+- `stories/<name>/chapters/chapter_<N>/recap_events.md`, `recap_compact.md`, and `recap_sanitised.md`
 - `stories/<name>/savepoints/chapter-1` through `chapter-{N}` plus `chapter-loop`
 - Updated wiki pages under `stories/<name>/wiki/`
 
@@ -1731,9 +1741,8 @@ python -m src.tools.wiki_search --story my-story --query "commander voss"
 
 **Iterating on a prompt:**
 ```bash
-# Edit the prompt in state.json
-python -m src.tools.story_state --operation write --name my-story \
-  --field story_prompt --value "$(cat ~/new-prompt.txt | python -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
+# Rewrite prompt.md and refresh the state.json pointer automatically
+story-writer resume --story my-story --prompt ~/new-prompt.txt
 
 # Clear savepoints to restart from outline
 python -m src.tools.savepoint_manager --operation clear --name my-story

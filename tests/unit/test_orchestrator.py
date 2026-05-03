@@ -2031,7 +2031,9 @@ async def test_chapter_loop_resumes_at_consistency_check(tmp_path: Path) -> None
         setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": []})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
-        final_editor_cls.return_value.build_prior_summaries = MagicMock(return_value=[""])
+        final_editor_cls.return_value.build_prior_summaries = MagicMock(
+            return_value=[""]
+        )
         final_editor_cls.return_value.edit_single_chapter = AsyncMock(
             return_value=_chapter_draft()
         )
@@ -2136,7 +2138,9 @@ async def test_chapter_loop_resumes_at_wiki_update(tmp_path: Path) -> None:
         setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": []})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
-        final_editor_cls.return_value.build_prior_summaries = MagicMock(return_value=[""])
+        final_editor_cls.return_value.build_prior_summaries = MagicMock(
+            return_value=[""]
+        )
         final_editor_cls.return_value.edit_single_chapter = AsyncMock(
             return_value=_chapter_draft()
         )
@@ -2203,7 +2207,9 @@ async def test_chapter_loop_resumes_at_sheet_evolution(tmp_path: Path) -> None:
         setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": []})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
-        final_editor_cls.return_value.build_prior_summaries = MagicMock(return_value=[""])
+        final_editor_cls.return_value.build_prior_summaries = MagicMock(
+            return_value=[""]
+        )
         final_editor_cls.return_value.edit_single_chapter = AsyncMock(
             return_value=_chapter_draft()
         )
@@ -2271,7 +2277,9 @@ async def test_chapter_loop_resumes_at_recap(tmp_path: Path) -> None:
         setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": ["event"]})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
-        final_editor_cls.return_value.build_prior_summaries = MagicMock(return_value=[""])
+        final_editor_cls.return_value.build_prior_summaries = MagicMock(
+            return_value=[""]
+        )
         final_editor_cls.return_value.edit_single_chapter = AsyncMock(
             return_value=_chapter_draft()
         )
@@ -2422,7 +2430,9 @@ async def test_chapter_loop_backfills_draft_for_legacy_approved_chapter(
         setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": []})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
-        final_editor_cls.return_value.build_prior_summaries = MagicMock(return_value=[""])
+        final_editor_cls.return_value.build_prior_summaries = MagicMock(
+            return_value=[""]
+        )
         final_editor_cls.return_value.edit_single_chapter = AsyncMock(
             return_value=_chapter_draft()
         )

@@ -1678,6 +1678,48 @@ ChromaDB ID: `gotcha-atomic-write-mkdir-internal-047`
 
 ---
 
+### 049 — `$ref` pointer to a `.json` file: `read_markdown_ref` returns raw text; call `json.loads()` before treating result as a dict
+
+**Source:** issue #321, PR #333 (ADR 011 Task 6)
+**Severity:** warning
+
+The `{"$ref": "path"}` pointer dict (ADR 011) is used for **both** markdown files and
+structured JSON files (e.g. `outline/enrichment_suggestions.json`). The helper
+`read_markdown_ref(story_root, ref)` in `src/tools/_persist.py` works for JSON targets —
+it reads the file and returns its contents as a `str` — but the caller receives **raw JSON
+text, not a parsed `dict`**.
+
+Calling `read_markdown_ref` then immediately subscripting the result produces a
+`TypeError` at runtime (string is not subscriptable):
+
+```python
+# Wrong — result is a raw JSON string, not a dict:
+raw = read_markdown_ref(story_root, pointer)
+suggestions = raw["character_enrichment"]   # TypeError: string indices must be integers
+
+# Right — parse after reading:
+raw = read_markdown_ref(story_root, pointer)
+suggestions = json.loads(raw)["character_enrichment"]
+
+# Alternatively — read and parse in one step (preferred for JSON targets):
+ref_path = pointer["$ref"]
+suggestions = json.loads((story_root / ref_path).read_text(encoding="utf-8"))
+```
+
+**When this applies:** Any `$ref` pointer whose path ends in `.json` (e.g.
+`outline/enrichment_suggestions.json`). Pointers to `.md` files need no `json.loads()` —
+`read_markdown_ref` returns the markdown body directly.
+
+**Why this matters:** The naming `read_markdown_ref` implies markdown output. A Coder adding a
+new read site for a JSON `$ref` has no naming signal that parsing is required; the result is
+a silent `TypeError` or the use of the raw JSON string as prompt text rather than structured
+data. Prefer the direct-read pattern (`json.loads((story_root / ref["$ref"]).read_text())`)
+for JSON targets to make the expectation explicit.
+
+ChromaDB ID: `gotcha-ref-pointer-to-json-file-049`
+
+---
+
 ## Checkpointing
 
 ### 048 — Per-chapter ledger guards: use `_is_work_item_done` / `_mark_work_item_done` for idempotent pipeline steps
