@@ -34,9 +34,14 @@ class TestReadMarkdownRef:
 
         assert read_markdown_ref(tmp_path, pointer) == "# Hello"
 
-    def test_legacy_string_passthrough(self, tmp_path) -> None:
-        assert read_markdown_ref(tmp_path, "some legacy string") == "some legacy string"
+    def test_raises_on_legacy_string(self, tmp_path) -> None:
+        with pytest.raises(ValueError, match="run migrate_inline_markdown first"):
+            read_markdown_ref(tmp_path, "some legacy string")
 
     def test_raises_on_invalid_type(self, tmp_path) -> None:
         with pytest.raises(TypeError):
             read_markdown_ref(tmp_path, 42)
+
+    def test_raises_on_path_traversal(self, tmp_path) -> None:
+        with pytest.raises(ValueError):
+            read_markdown_ref(tmp_path, {"$ref": "../escape.md"})

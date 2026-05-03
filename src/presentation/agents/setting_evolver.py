@@ -96,16 +96,28 @@ class SettingEvolverAgent:
                 setting_name = str(sheet_data.get("name") or setting_path.stem)
                 resolved_data = {
                     **sheet_data,
-                    "sheet": read_markdown_ref(story_root, sheet_data.get("sheet", "")),
+                    "sheet": (
+                        read_markdown_ref(story_root, _ref)
+                        if isinstance(_ref := sheet_data.get("sheet"), dict)
+                        else (_ref or "")
+                    ),
                     "chunks": {
-                        k: read_markdown_ref(story_root, v)
+                        k: (
+                            read_markdown_ref(story_root, v)
+                            if isinstance(v, dict)
+                            else (v or "")
+                        )
                         for k, v in sheet_data.get("chunks", {}).items()
                     },
-                    "summary": read_markdown_ref(
-                        story_root, sheet_data.get("summary", "")
+                    "summary": (
+                        read_markdown_ref(story_root, _ref)
+                        if isinstance(_ref := sheet_data.get("summary"), dict)
+                        else (_ref or "")
                     ),
-                    "abridged": read_markdown_ref(
-                        story_root, sheet_data.get("abridged", "")
+                    "abridged": (
+                        read_markdown_ref(story_root, _ref)
+                        if isinstance(_ref := sheet_data.get("abridged"), dict)
+                        else (_ref or "")
                     ),
                 }
 

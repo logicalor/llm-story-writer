@@ -233,14 +233,9 @@ Create the story directory and write your prompt into `state.json`:
 ```bash
 # Initialize the story directory
 python -m src.tools.story_state --operation init --name my-first-story
-
-# Load your prompt file into story state
-python -c "import json,sys; print(json.dumps(sys.stdin.read()))" < ~/prompts/my-story.txt | \
-  python -m src.tools.story_state --operation write --name my-first-story \
-  --field story_prompt --value -
 ```
 
-That direct write still loads as a legacy inline form, but the preferred current format is the pointer form written by `--prompt`: `state.json` stores `{"$ref": "prompt.md"}` and the prompt body lives in `stories/<story>/prompt.md`.
+Load the prompt with `--prompt` so the runtime writes the pointer form directly: `state.json` stores `{"$ref": "prompt.md"}` and the prompt body lives in `stories/<story>/prompt.md`.
 
 **Alternative — use `--prompt` (simpler):**
 
@@ -258,6 +253,12 @@ You can also use `--prompt` with `resume` to overwrite the existing prompt befor
 
 ```bash
 story-writer resume --story my-first-story --prompt ~/prompts/revised-prompt.txt
+```
+
+If you already have stories created before the markdown-pointer migration, run the one-shot migrator before resuming generation:
+
+```bash
+python3 src/tools/migrate_inline_markdown.py --name my-first-story
 ```
 
 **Alternative:** You can edit `stories/my-first-story/prompt.md` directly, or edit `stories/my-first-story/state.json` and set `story_prompt` to `{"$ref": "prompt.md"}`.
@@ -1713,7 +1714,7 @@ Each entity still has a companion JSON file, but markdown-bearing fields now sto
 
 Setting sheets use the same top-level pointer shape but different chunk keys: `physical_description`, `atmosphere_mood`, `function_purpose`, `history_background`, `connections_relationships`, and `rules_constraints`.
 
-After manual edits, the next chapter generation will pick up the updated sheets automatically. Read paths resolve both legacy inline strings and the new pointer objects, while new writes always persist markdown into sibling `.md` files. Chapter prompts prefer `abridged`, then `summary`, then the first 300 characters of `sheet` when building character and setting context.
+After manual edits, the next chapter generation will pick up the updated sheets automatically. Runtime reads now expect pointer objects for markdown-backed fields, and new writes always persist markdown into sibling `.md` files. If an older story still has inline markdown in JSON, run `python3 src/tools/migrate_inline_markdown.py --name <story>` before continuing. Chapter prompts prefer `abridged`, then `summary`, then the first 300 characters of `sheet` when building character and setting context.
 
 ### 15.8 Common Daily Workflows
 

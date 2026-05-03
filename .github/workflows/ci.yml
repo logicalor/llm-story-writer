@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  pull_request:
+    paths:
+      - "stories/**"
+      - "src/**/*_writer.py"
+      - "src/**/*_manager.py"
+      - "src/tools/**"
+      - "scripts/**"
+
+jobs:
+  lint-no-inline-markdown:
+    name: Lint — no inline markdown in stories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check for inline markdown in stories JSON
+        run: python scripts/lint_no_inline_markdown.py

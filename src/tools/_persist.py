@@ -30,11 +30,14 @@ def persist_markdown(story_root: Path, relative_path: str, body: str) -> dict[st
     return {"$ref": relative_path}
 
 
-def read_markdown_ref(story_root: Path, ref: dict[str, str] | str) -> str:
+def read_markdown_ref(story_root: Path, ref: dict[str, str]) -> str:
     if isinstance(ref, str):
-        return ref
+        raise ValueError(
+            "legacy inline string passed to read_markdown_ref — "
+            f"run migrate_inline_markdown first. Got: {ref[:60]!r}"
+        )
     if not isinstance(ref, dict):
-        raise TypeError("ref must be a dict with '$ref' or a string")
+        raise TypeError("ref must be a dict with '$ref'")
 
     relative_path = ref.get("$ref")
     if not isinstance(relative_path, str):
