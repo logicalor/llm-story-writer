@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from src.tools._io import _slugify_story_name, _validate_story_name
+from tools._io import _slugify_story_name, _validate_story_name
 
 
 @pytest.fixture()
@@ -16,7 +16,7 @@ def stories_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Provide a temp stories directory and patch STORIES_DIR."""
     d = tmp_path / "stories"
     d.mkdir()
-    monkeypatch.setattr("src.tools._io.STORIES_DIR", d)
+    monkeypatch.setattr("tools._io.STORIES_DIR", d)
     return d
 
 

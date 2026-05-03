@@ -269,7 +269,7 @@ class TestPromptPointer:
 
         with (
             patch("tools._io.STORIES_DIR", stories_dir),
-            patch("src.tools._io.STORIES_DIR", stories_dir),
+            patch("tools._io.STORIES_DIR", stories_dir),
         ):
             _apply_prompt("my-story", str(prompt_file))
 
@@ -290,7 +290,7 @@ class TestPromptPointer:
 
         with (
             patch("tools._io.STORIES_DIR", stories_dir),
-            patch("src.tools._io.STORIES_DIR", stories_dir),
+            patch("tools._io.STORIES_DIR", stories_dir),
         ):
             _apply_prompt("my-story", str(prompt_file))
 

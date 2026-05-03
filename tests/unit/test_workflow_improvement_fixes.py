@@ -17,10 +17,10 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-import src.tools.critique_runner as critique_runner
-import src.tools.story_assembler as story_assembler
-import src.tools.story_state as story_state
-import src.tools.wiki_snapshot as wiki_snapshot
+import tools.critique_runner as critique_runner
+import tools.story_assembler as story_assembler
+import tools.story_state as story_state
+import tools.wiki_snapshot as wiki_snapshot
 
 
 CHUNK_TYPES = (

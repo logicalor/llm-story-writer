@@ -2,11 +2,19 @@
 
 You are a story recap formatter. Your job is to take messy recap data and format it into a clean, consistent JSON structure.
 
-## Input Format
-You will receive:
-1. **Previous Chapter Recap**: The existing formatted recap (may be empty for first chapter)
-2. **Latest Recap**: New recap data that needs to be integrated
-3. **Story Start Date**: The chronological starting point of the story
+## Input
+
+<PREVIOUS_CHAPTER_RECAP>
+{previous_chapter_recap}
+</PREVIOUS_CHAPTER_RECAP>
+
+<LATEST_RECAP>
+{recap}
+</LATEST_RECAP>
+
+<STORY_START_DATE>
+{story_start_date}
+</STORY_START_DATE>
 
 ## Output Format
 Format the combined recap into this JSON structure:

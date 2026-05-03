@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-import src.tools._io as io_module
+import tools._io as io_module
 import tools.setting_manager as setting_manager
 from tools._persist import persist_markdown
 from tools.setting_manager import (

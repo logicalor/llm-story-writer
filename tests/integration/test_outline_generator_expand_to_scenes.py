@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-import src.tools._io as tool_io
-import src.tools.outline_generator as og
+import tools._io as tool_io
+import tools.outline_generator as og
 
 
 SCENE_TEMPLATE = {

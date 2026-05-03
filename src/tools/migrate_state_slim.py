@@ -37,7 +37,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from infrastructure.storage.savepoint_repository import (  # noqa: E402
     FilesystemSavepointRepository,
 )
-from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
+from tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
 
 
 SIMPLE_FIELDS = [

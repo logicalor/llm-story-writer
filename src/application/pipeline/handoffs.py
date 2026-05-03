@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, asdict, field
+from pathlib import Path
 from typing import Any
 
 
@@ -153,23 +154,70 @@ class PipelineState:
     status: str = "running"
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialise to a JSON-compatible dict for savepoint persistence."""
-        return asdict(self)
+        """Serialise to a JSON-compatible dict for savepoint persistence.
+
+        Large markdown fields (outline summary/base_context/story_elements and
+        chapter content) are written to individual .md files and replaced with
+        $ref dicts so the savepoint JSON stays compact.
+        """
+        from tools._io import STORIES_DIR
+        from tools._persist import persist_markdown
+
+        story_root: Path = STORIES_DIR / self.story_name
+        d = asdict(self)
+
+        if d.get("outline_result"):
+            or_dict = d["outline_result"]
+            for field_name, rel_path in [
+                ("summary", "outline/summary.md"),
+                ("base_context", "outline/base_context.md"),
+                ("story_elements", "outline/story_elements.md"),
+            ]:
+                val = or_dict.get(field_name)
+                if isinstance(val, str) and val:
+                    or_dict[field_name] = persist_markdown(story_root, rel_path, val)
+
+        for ch in d.get("approved_chapters", []):
+            content = ch.get("content")
+            if isinstance(content, str) and content:
+                chapter_num = ch["chapter_number"]
+                ch["content"] = persist_markdown(
+                    story_root,
+                    f"chapters/chapter_{chapter_num}/content.md",
+                    content,
+                )
+
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PipelineState:
-        """Reconstruct a PipelineState from a previously serialised dict."""
+        """Reconstruct a PipelineState from a previously serialised dict.
+
+        Resolves any $ref dicts for large markdown fields back to plain strings
+        so that all downstream consumers receive plain str values.
+        """
+        from tools._io import STORIES_DIR
+        from tools._persist import read_markdown_ref
+
+        story_name: str = data["story_name"]
+        story_root: Path = STORIES_DIR / story_name
+
+        def _resolve(val: object) -> str:
+            if isinstance(val, dict):
+                return read_markdown_ref(story_root, val)
+            return val if isinstance(val, str) else ""
+
         outline_data = data.get("outline_result")
         if outline_data is not None:
             outline = OutlineResult(
                 story_name=outline_data["story_name"],
                 chapter_outlines=outline_data.get("chapter_outlines", []),
-                summary=outline_data.get("summary", ""),
+                summary=_resolve(outline_data.get("summary", "")),
                 genre=outline_data.get("genre", ""),
                 themes=outline_data.get("themes", []),
-                base_context=outline_data.get("base_context", ""),
+                base_context=_resolve(outline_data.get("base_context", "")),
                 story_start_date=outline_data.get("story_start_date", ""),
-                story_elements=outline_data.get("story_elements", ""),
+                story_elements=_resolve(outline_data.get("story_elements", "")),
                 chapter_skeletons=outline_data.get("chapter_skeletons", []),
                 chapter_details=outline_data.get("chapter_details", []),
                 enrichment_suggestions=outline_data.get("enrichment_suggestions", ""),
@@ -184,7 +232,7 @@ class PipelineState:
                 story_name=ch["story_name"],
                 chapter_number=ch["chapter_number"],
                 title=ch["title"],
-                content=ch["content"],
+                content=_resolve(ch.get("content", "")),
                 word_count=ch["word_count"],
                 synopsis=ch.get("synopsis", ""),
                 scene_definitions=ch.get("scene_definitions", []),

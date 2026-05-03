@@ -13,8 +13,8 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from src.tools import _io, wiki_extract  # noqa: E402
-from src.tools.wiki_init import _init_wiki_for_story  # noqa: E402
+from tools import _io, wiki_extract  # noqa: E402
+from tools.wiki_init import _init_wiki_for_story  # noqa: E402
 from tools import _io as api_io  # noqa: E402
 from tools import _wiki_api  # noqa: E402
 

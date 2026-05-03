@@ -35,7 +35,7 @@ class RAGCLI:
         cmd = [
             sys.executable,
             "-m",
-            "src.tools.rag_query",
+            "tools.rag_query",
             "--operation",
             operation,
             "--name",

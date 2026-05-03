@@ -22,7 +22,7 @@ if _src_path not in sys.path:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.tools._io import _validate_story_name  # noqa: E402
+from tools._io import _validate_story_name  # noqa: E402
 
 
 def _validate_step(step: str, savepoints_dir: Path) -> None:

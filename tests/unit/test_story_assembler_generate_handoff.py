@@ -17,8 +17,8 @@ if str(SRC_DIR) not in sys.path:
 
 from domain.exceptions import ConfigurationError
 
-import src.tools._io as _io_module
-import src.tools.story_assembler as sa
+import tools._io as _io_module
+import tools.story_assembler as sa
 
 
 @pytest.fixture

@@ -211,7 +211,7 @@ class TestFilterLowImportanceEvents:
 
     def test_filter_keeps_high_importance_events(self) -> None:
         """Mixed importance events — only high-importance survive."""
-        from src.tools.recap_manager import _filter_low_importance_events
+        from tools.recap_manager import _filter_low_importance_events
 
         recap_data = {
             "events": [
@@ -233,7 +233,7 @@ class TestFilterLowImportanceEvents:
 
     def test_filter_handles_empty_events(self) -> None:
         """Empty events list passes through cleanly."""
-        from src.tools.recap_manager import _filter_low_importance_events
+        from tools.recap_manager import _filter_low_importance_events
 
         recap_data = {
             "events": [],
@@ -249,7 +249,7 @@ class TestClassifyEventRecency:
 
     def test_classify_recency_current_events(self) -> None:
         """Events from today classified as 'current'."""
-        from src.tools.recap_manager import _classify_event_recency
+        from tools.recap_manager import _classify_event_recency
 
         data = {
             "events": [
@@ -261,7 +261,7 @@ class TestClassifyEventRecency:
 
     def test_classify_recency_historical_events(self) -> None:
         """Events from 30+ days ago classified as 'historical'."""
-        from src.tools.recap_manager import _classify_event_recency
+        from tools.recap_manager import _classify_event_recency
 
         data = {
             "events": [

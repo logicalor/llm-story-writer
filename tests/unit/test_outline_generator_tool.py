@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-import src.tools._io as tool_io
-import src.tools.outline_generator as og
+import tools._io as tool_io
+import tools.outline_generator as og
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TOOL_SCRIPT = str(PROJECT_ROOT / "src" / "tools" / "outline_generator.py")

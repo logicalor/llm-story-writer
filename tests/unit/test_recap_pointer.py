@@ -237,7 +237,8 @@ async def test_recap_read_resolves_pointer_to_string(tmp_path: Path) -> None:
     )
     savepoint_path = _fake_savepoint_path(tmp_path, "test-story")
     savepoint_path.parent.mkdir(parents=True, exist_ok=True)
-    savepoint_path.write_text(state.to_json(), encoding="utf-8")
+    with patch("tools._io.STORIES_DIR", tmp_path):
+        savepoint_path.write_text(state.to_json(), encoding="utf-8")
 
     with (
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
@@ -299,7 +300,8 @@ async def test_recap_legacy_inline_dict_still_loads(tmp_path: Path) -> None:
     )
     savepoint_path = _fake_savepoint_path(tmp_path, "test-story")
     savepoint_path.parent.mkdir(parents=True, exist_ok=True)
-    savepoint_path.write_text(state.to_json(), encoding="utf-8")
+    with patch("tools._io.STORIES_DIR", tmp_path):
+        savepoint_path.write_text(state.to_json(), encoding="utf-8")
 
     with (
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),

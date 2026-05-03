@@ -23,7 +23,7 @@ if _src_path not in sys.path:
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
-from src.tools._io import _validate_story_name  # noqa: E402
+from tools._io import _validate_story_name  # noqa: E402
 
 # Keep in sync with src/presentation/agents/outline_critic.py::OUTLINE_CRITIC_TYPES
 OUTLINE_CRITIC_TYPES = [
@@ -87,7 +87,7 @@ def _call_llm_messages(
     messages: list[dict[str, str]], *, model: str | None = None
 ) -> str:
     """Call LLM with full conversation history and return text response."""
-    from src.tools._llm import generate_text_messages
+    from tools._llm import generate_text_messages
 
     return generate_text_messages(messages, model=model)
 
@@ -165,7 +165,7 @@ def cmd_run_critics(
     model: str | None = None,
 ) -> None:
     """Run all critics for the selected mode against story content."""
-    from src.tools.critique_parser import CritiqueParser
+    from tools.critique_parser import CritiqueParser
 
     story_dir = _validate_story_name(name)
     if not story_dir.exists():
@@ -250,7 +250,7 @@ def cmd_parse_scores(
     critic_type: str, response_text: str, *, mode: str = "outline"
 ) -> None:
     """Parse scores from a single critic response."""
-    from src.tools.critique_parser import CritiqueParser
+    from tools.critique_parser import CritiqueParser
 
     valid_critics = _critic_types_for_mode(mode)
     if critic_type not in valid_critics:
@@ -308,7 +308,7 @@ def cmd_should_refine(
 
 def cmd_generate_feedback(name: str, iteration: int, *, mode: str = "outline") -> None:
     """Format critique results as structured markdown."""
-    from src.tools.critique_parser import (
+    from tools.critique_parser import (
         CritiqueParser,
         CritiqueResult,
         CritiqueScore,

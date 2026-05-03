@@ -532,8 +532,11 @@ async def test_resume_pipeline_from_savepoint(tmp_path: Path) -> None:
     def fake_savepoint_path(story_name: str) -> Path:
         return tmp_path / story_name / "savepoints" / "pipeline_state.json"
 
-    with patch(
-        "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("tools._io.STORIES_DIR", tmp_path),
     ):
         await _write_savepoint(partial_state)
         loaded_state = await _load_savepoint("test-story")

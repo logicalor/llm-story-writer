@@ -21,9 +21,9 @@ _src = str(Path(__file__).resolve().parents[1])
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-from src.tools._io import _atomic_write, _validate_story_name  # noqa: E402
-from src.tools._llm import count_tokens, generate_text  # noqa: E402
-from src.tools._wiki import (  # noqa: E402
+from tools._io import _atomic_write, _validate_story_name  # noqa: E402
+from tools._llm import count_tokens, generate_text  # noqa: E402
+from tools._wiki import (  # noqa: E402
     _validate_slug,
     find_pages,
     get_wiki_dir,
@@ -32,7 +32,7 @@ from src.tools._wiki import (  # noqa: E402
     read_index,
 )
 from tools._chroma_sync import refresh_if_stale  # noqa: E402
-from src.tools.wiki_search import _get_collection  # noqa: E402
+from tools.wiki_search import _get_collection  # noqa: E402
 
 CHROMADB_DIR = os.environ.get("CHROMADB_DIR", str(PROJECT_ROOT / ".chromadb"))
 

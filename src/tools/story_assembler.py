@@ -24,9 +24,9 @@ from infrastructure.prompts.prompt_loader import PromptLoader  # noqa: E402
 from infrastructure.storage.savepoint_repository import (  # noqa: E402
     FilesystemSavepointRepository,
 )
-from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
-from src.tools._llm import generate_text  # noqa: E402
-from src.tools.story_state import _set_nested, _write_state_atomic  # noqa: E402
+from tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
+from tools._llm import generate_text  # noqa: E402
+from tools.story_state import _set_nested, _write_state_atomic  # noqa: E402
 
 CHAPTER_SAVEPOINT_PATTERNS = (
     "chapter_{chapter_num}_complete",

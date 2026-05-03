@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.tools._wiki import _validate_glob_pattern, _validate_slug
+from tools._wiki import _validate_glob_pattern, _validate_slug
 
 
 class TestValidateSlug:

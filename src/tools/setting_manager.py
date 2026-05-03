@@ -19,7 +19,7 @@ if _src_path not in sys.path:
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
-from src.tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
+from tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
 from tools._persist import persist_markdown, read_markdown_ref  # noqa: E402
 
 
@@ -51,7 +51,7 @@ def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str
 
 def _call_llm(prompt: str, *, model: str | None = None) -> str:
     """Call LLM with a single prompt and return text response."""
-    from src.tools._llm import generate_text
+    from tools._llm import generate_text
 
     return generate_text(prompt, model=model)
 

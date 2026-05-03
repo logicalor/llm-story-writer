@@ -13,7 +13,7 @@ _src = str(Path(__file__).resolve().parents[1])
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-from src.tools._io import _validate_story_name  # noqa: E402
+from tools._io import _validate_story_name  # noqa: E402
 from tools._chroma_sync import refresh_if_stale  # noqa: E402
 
 CHROMADB_DIR = os.environ.get("CHROMADB_DIR", str(PROJECT_ROOT / ".chromadb"))

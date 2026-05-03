@@ -24,8 +24,8 @@ if _src_path not in sys.path:
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
-from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
-from src.tools._llm import _extract_json_block  # noqa: E402
+from tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
+from tools._llm import _extract_json_block  # noqa: E402
 
 # Chunk types for story analysis
 CHUNK_TYPES = (
@@ -77,7 +77,7 @@ def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str
 
 def _call_llm(prompt: str, *, model: str | None = None) -> str:
     """Call LLM with a single prompt and return text response."""
-    from src.tools._llm import generate_text
+    from tools._llm import generate_text
 
     return generate_text(prompt, model=model)
 
@@ -86,7 +86,7 @@ def _call_llm_messages(
     messages: list[dict[str, str]], *, model: str | None = None
 ) -> str:
     """Call LLM with full conversation history and return text response."""
-    from src.tools._llm import generate_text_messages
+    from tools._llm import generate_text_messages
 
     return generate_text_messages(messages, model=model)
 

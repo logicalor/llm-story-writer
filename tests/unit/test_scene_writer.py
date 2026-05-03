@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
 
-import src.tools.scene_writer as sw
+import tools.scene_writer as sw
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TOOL_SCRIPT = str(PROJECT_ROOT / "src" / "tools" / "scene_writer.py")
@@ -758,7 +758,7 @@ def test_assemble_chapter_missing_scenes(story_env: tuple[Path, str]) -> None:
 
 def test_count_tokens() -> None:
     """Verify count_tokens: 'hello world' -> int(2*1.33)=2, empty string -> 0."""
-    from src.tools._llm import count_tokens
+    from tools._llm import count_tokens
 
     assert count_tokens("hello world") == 2
     assert count_tokens("") == 0

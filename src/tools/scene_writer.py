@@ -23,8 +23,8 @@ if _src_path not in sys.path:
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
-from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
-from src.tools.story_state import _set_nested, _write_state_atomic  # noqa: E402
+from tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
+from tools.story_state import _set_nested, _write_state_atomic  # noqa: E402
 
 
 def _make_repo(name: str) -> FilesystemSavepointRepository:
@@ -64,7 +64,7 @@ def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str
 
 def _call_llm(prompt: str, *, model: str | None = None) -> str:
     """Call LLM with a single prompt and return text response."""
-    from src.tools._llm import generate_text
+    from tools._llm import generate_text
 
     return generate_text(prompt, model=model)
 
@@ -156,7 +156,7 @@ def cmd_parse_definitions(
     )
 
     try:
-        from src.tools._llm import _extract_json_block
+        from tools._llm import _extract_json_block
 
         raw = _call_llm(prompt_text, model=model)
         json_str = _extract_json_block(raw)
@@ -391,7 +391,7 @@ def cmd_scrub_analyze(
         {"chapter_text": chapter_text, "chapter_number": str(chapter_num)},
     )
     try:
-        from src.tools._llm import _extract_json_block
+        from tools._llm import _extract_json_block
 
         raw = _call_llm(prompt_text, model=model)
         json_str = _extract_json_block(raw)
@@ -421,7 +421,7 @@ def cmd_voice_analyze(
         },
     )
     try:
-        from src.tools._llm import _extract_json_block
+        from tools._llm import _extract_json_block
 
         raw = _call_llm(prompt_text, model=model)
         json_str = _extract_json_block(raw)

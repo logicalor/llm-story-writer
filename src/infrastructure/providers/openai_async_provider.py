@@ -4,6 +4,7 @@ import json
 import os
 import random
 import re
+from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Dict, Iterable, List, Optional, cast
 from urllib.parse import urlparse, urlunparse
 
@@ -14,6 +15,28 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from application.interfaces.model_provider import ModelProvider
 from domain.exceptions import ModelProviderError
 from domain.value_objects.model_config import ModelConfig
+
+
+def _append_debug_log(
+    messages: List[Dict[str, str]],
+    model: str,
+    response: str,
+) -> None:
+    """Append one JSONL record to LLM_DEBUG_LOG if the env var is set."""
+    log_path = os.environ.get("LLM_DEBUG_LOG")
+    if not log_path:
+        return
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "model": model,
+        "messages": messages,
+        "response": response,
+    }
+    try:
+        with open(log_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError:
+        pass  # Never let logging failures break generation
 
 
 def _normalize_base_url(base_url: str) -> str:
@@ -181,7 +204,9 @@ class OpenAIAsyncProvider(ModelProvider):
                     print(chunk, end="", flush=True)
                     chunks.append(chunk)
                 print()
-                return self._filter_think_tags("".join(chunks))
+                full_text = self._filter_think_tags("".join(chunks))
+                _append_debug_log(messages, model_config.name, full_text)
+                return full_text
 
             options = self._prepare_options(model_config, seed, format_type)
             response = await self._get_client(model_config).chat.completions.create(
@@ -193,6 +218,8 @@ class OpenAIAsyncProvider(ModelProvider):
             response = cast(ChatCompletion, response)
             response_text = response.choices[0].message.content or ""
             response_text = self._filter_think_tags(response_text)
+
+            _append_debug_log(messages, model_config.name, response_text)
 
             if min_word_count > 1 and len(response_text.split()) < min_word_count:
                 continued_messages = [
@@ -310,6 +337,7 @@ class OpenAIAsyncProvider(ModelProvider):
         format_type: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Stream text generation using async OpenAI-compatible API."""
+        accumulated: List[str] = []
         try:
             options = self._prepare_options(model_config, seed, format_type)
             stream = await self._get_client(model_config).chat.completions.create(
@@ -322,9 +350,13 @@ class OpenAIAsyncProvider(ModelProvider):
             async for chunk in stream:
                 delta = chunk.choices[0].delta.content if chunk.choices else None
                 if delta:
+                    accumulated.append(delta)
                     yield delta
         except Exception as exc:
             raise ModelProviderError(f"OpenAI async streaming failed: {exc}") from exc
+        finally:
+            if accumulated:
+                _append_debug_log(messages, model_config.name, "".join(accumulated))
 
     async def is_model_available(self, model_config: ModelConfig) -> bool:
         """Check if server model listing is reachable."""

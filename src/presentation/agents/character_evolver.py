@@ -86,7 +86,21 @@ class CharacterEvolverAgent:
         )
         results: dict[str, str] = {}
 
+        scenes_path = (
+            STORIES_DIR
+            / story_name
+            / "chapters"
+            / f"chapter_{chapter_number}_scenes.json"
+        )
+        chapter_synopsis = (
+            scenes_path.read_text(encoding="utf-8")
+            if scenes_path.exists()
+            else chapter_draft.content
+        )
+
         for character_path in sorted(characters_dir.glob("*.json")):
+            if character_path.stem.startswith("_"):
+                continue
             character_name = character_path.stem
             try:
                 raw_data = character_path.read_text(encoding="utf-8")
@@ -123,7 +137,7 @@ class CharacterEvolverAgent:
 
                 extracted_events = await self._run_prompt(
                     "characters/extract_from_chapter",
-                    {"chapter_synopsis": chapter_draft.content},
+                    {"chapter_synopsis": chapter_synopsis},
                     model_config,
                     settings,
                 )
@@ -138,7 +152,7 @@ class CharacterEvolverAgent:
                         "current_character_sheet": json.dumps(
                             resolved_data, ensure_ascii=False
                         ),
-                        "chapter_outline": extracted_events,
+                        "chapter_outline": chapter_synopsis,
                     },
                     model_config,
                     settings,
@@ -147,13 +161,17 @@ class CharacterEvolverAgent:
                     results[character_name] = "unchanged"
                     continue
 
+                existing_text = (
+                    resolved_data.get("sheet")
+                    or resolved_data.get("abridged")
+                    or resolved_data.get("summary")
+                    or ""
+                )
                 updated_sheet = await self._run_prompt(
                     "characters/update",
                     {
                         "character_name": character_name,
-                        "current_character_sheet": json.dumps(
-                            resolved_data, ensure_ascii=False
-                        ),
+                        "current_character_sheet": existing_text,
                         "changes_to_apply": changes_analysis,
                     },
                     model_config,

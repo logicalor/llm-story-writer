@@ -12,8 +12,8 @@ _src = str(Path(__file__).resolve().parents[1])
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-from src.tools._io import _validate_story_name  # noqa: E402
-from src.tools._wiki import (  # noqa: E402
+from tools._io import _validate_story_name  # noqa: E402
+from tools._wiki import (  # noqa: E402
     find_pages,
     get_wiki_dir,
     match_entities_in_text,

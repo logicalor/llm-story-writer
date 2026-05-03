@@ -38,6 +38,7 @@ from presentation.pipeline_primitives import (
     WikiContextEvent,
 )
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
+from tools._persist import read_markdown_ref
 
 
 def _savepoint_path(story_name: str) -> Path:
@@ -125,11 +126,17 @@ class ChapterWriterAgent:
 
         title = f"Chapter {chapter_number}"
         chapter_summary = outline_result.summary
+        story_root = STORIES_DIR / story_name
         if isinstance(chapter_outline, dict):
-            chapter_summary = str(
+            raw_summary = (
                 chapter_outline.get("summary")
                 or chapter_outline.get("content")
                 or chapter_summary
+            )
+            chapter_summary = (
+                read_markdown_ref(story_root, raw_summary)
+                if isinstance(raw_summary, dict)
+                else str(raw_summary)
             )
             title = str(chapter_outline.get("title") or title)
 
@@ -137,11 +144,21 @@ class ChapterWriterAgent:
             outline_result.chapter_details
         ):
             entry = outline_result.chapter_details[chapter_number - 1]
-            detail_block = entry.get("detail", "") if isinstance(entry, dict) else ""
+            raw_detail = entry.get("detail", "") if isinstance(entry, dict) else ""
+            detail_block = (
+                read_markdown_ref(story_root, raw_detail)
+                if isinstance(raw_detail, dict)
+                else (raw_detail or "")
+            )
             if detail_block:
                 chapter_summary = detail_block
 
         _validate_story_name(story_name)
+        actual_story_elements = (
+            read_markdown_ref(story_root, outline_result.story_elements)
+            if isinstance(outline_result.story_elements, dict)
+            else (outline_result.story_elements or "")
+        )
         base_context, character_context, setting_context = self._build_entity_context(
             story_name
         )
@@ -161,8 +178,13 @@ class ChapterWriterAgent:
         if chapter_number < len(outline_result.chapter_outlines):
             next_outline = outline_result.chapter_outlines[chapter_number]
             if isinstance(next_outline, dict):
-                next_chapter_summary = str(
+                raw_next = (
                     next_outline.get("summary") or next_outline.get("content") or ""
+                )
+                next_chapter_summary = (
+                    read_markdown_ref(story_root, raw_next)
+                    if isinstance(raw_next, dict)
+                    else str(raw_next)
                 )
 
         await self.wiki_bus.emit(
@@ -181,6 +203,7 @@ class ChapterWriterAgent:
                 chapter_number=chapter_number,
                 chapter_title=title,
                 chapter_summary=chapter_summary,
+                story_elements=actual_story_elements,
                 base_context=base_context,
                 previous_chapter_recap=previous_chapter_recap,
                 next_chapter_summary=next_chapter_summary,
@@ -208,6 +231,7 @@ class ChapterWriterAgent:
             chapter_number=chapter_number,
             title=title,
             chapter_summary=chapter_summary,
+            story_elements=actual_story_elements,
             base_context=base_context,
             previous_chapter_summary=previous_chapter_recap,
             next_chapter_summary=next_chapter_summary,
@@ -250,11 +274,18 @@ class ChapterWriterAgent:
                     continue
 
                 name = data.get("name", sheet_path.stem)
-                sheet_text = data.get("sheet", "")
+                story_root = story_dir
+
+                def _resolve(val: Any) -> str:
+                    if isinstance(val, dict):
+                        return read_markdown_ref(story_root, val)
+                    return val or ""
+
+                sheet_text = _resolve(data.get("sheet", ""))
                 context_text = (
-                    data.get("abridged")
-                    or data.get("summary")
-                    or (sheet_text[:300].strip() if sheet_text else "")
+                    _resolve(data.get("abridged"))
+                    or _resolve(data.get("summary"))
+                    or sheet_text[:300].strip()
                 )
                 if context_text:
                     target_list.append(f"- {name}: {context_text}")
@@ -295,6 +326,7 @@ class ChapterWriterAgent:
         chapter_number: int,
         chapter_title: str,
         chapter_summary: str,
+        story_elements: str,
         base_context: str,
         next_chapter_summary: str,
         settings: GenerationSettings,
@@ -345,7 +377,7 @@ class ChapterWriterAgent:
                 variables={
                     "chapter_number": str(chapter_number),
                     "outline": chapter_summary,
-                    "story_elements": "",
+                    "story_elements": story_elements,
                     "base_context": base_context,
                     "previous_chapter": previous_chapter_recap,
                 },
@@ -388,7 +420,7 @@ class ChapterWriterAgent:
                     "scenes_max": str(settings.scenes_per_chapter_max),
                     "previous_chapter_recap": previous_chapter_recap,
                     "next_chapter_synopsis": next_chapter_summary,
-                    "story_elements": "",
+                    "story_elements": story_elements,
                     "base_context": base_context,
                 },
             )
@@ -548,6 +580,7 @@ class ChapterWriterAgent:
         chapter_number: int,
         title: str,
         chapter_summary: str,
+        story_elements: str,
         base_context: str,
         previous_chapter_summary: str,
         next_chapter_summary: str,
@@ -565,7 +598,7 @@ class ChapterWriterAgent:
                 "chapter_summary": chapter_summary,
                 "story_name": story_name,
                 "base_context": base_context,
-                "story_elements": "",
+                "story_elements": story_elements,
                 "previous_chapter_summary": previous_chapter_summary,
                 "next_chapter_summary": next_chapter_summary,
                 "character_context": character_context,

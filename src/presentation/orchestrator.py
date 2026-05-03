@@ -213,6 +213,24 @@ async def _await_outline_approval(
         await _write_savepoint(state)
 
 
+async def _emit_consistency_results(
+    bus: TokenStreamBus,
+    chapter_number: int,
+    consistency_result: dict[str, Any],
+) -> None:
+    """Emit consistency check findings to the token bus."""
+    if not consistency_result["passed"]:
+        await bus.emit(f"\n[Consistency] Chapter {chapter_number} — issues found:\n")
+        for issue in consistency_result["issues"]:
+            await bus.emit(f"  [{issue['severity'].upper()}] {issue['description']}\n")
+    elif consistency_result["issues"]:
+        await bus.emit(
+            f"\n[Consistency] Chapter {chapter_number} — warnings/info found:\n"
+        )
+        for issue in consistency_result["issues"]:
+            await bus.emit(f"  [{issue['severity'].upper()}] {issue['description']}\n")
+
+
 async def _generate_chapter_with_gate(
     state: PipelineState,
     gate: ApprovalGate,
@@ -221,6 +239,8 @@ async def _generate_chapter_with_gate(
     chapter_number: int,
     outline_result: OutlineResult,
     settings: GenerationSettings,
+    consistency_agent: ConsistencyCheckerAgent | None = None,
+    bus: TokenStreamBus | None = None,
 ) -> ChapterDraft | None:
     draft = await agent.run(
         story_name,
@@ -230,6 +250,25 @@ async def _generate_chapter_with_gate(
         recaps=state.recaps,
         state=state,
     )
+    if consistency_agent is not None and bus is not None:
+        try:
+            consistency_result = await consistency_agent.run(
+                story_name,
+                chapter_number,
+                draft.content,
+                outline_result=outline_result,
+            )
+            await _emit_consistency_results(bus, chapter_number, consistency_result)
+            await _mark_work_item_done(
+                state,
+                f"chapter-{chapter_number}",
+                f"chapter-{chapter_number}/consistency-check",
+            )
+        except Exception as exc:
+            await bus.emit(
+                f"\n[Consistency] Chapter {chapter_number} check failed "
+                f"({type(exc).__name__}: {exc})\n"
+            )
     while True:
         decision = await gate.await_decision()
         if decision.approved:
@@ -247,6 +286,25 @@ async def _generate_chapter_with_gate(
             recaps=state.recaps,
             state=state,
         )
+        if consistency_agent is not None and bus is not None:
+            try:
+                consistency_result = await consistency_agent.run(
+                    story_name,
+                    chapter_number,
+                    draft.content,
+                    outline_result=outline_result,
+                )
+                await _emit_consistency_results(bus, chapter_number, consistency_result)
+                await _mark_work_item_done(
+                    state,
+                    f"chapter-{chapter_number}",
+                    f"chapter-{chapter_number}/consistency-check",
+                )
+            except Exception as exc:
+                await bus.emit(
+                    f"\n[Consistency] Chapter {chapter_number} check failed "
+                    f"({type(exc).__name__}: {exc})\n"
+                )
         await _write_savepoint(state)
 
 
@@ -317,10 +375,17 @@ async def _generate_character_sheets(
     models = config.get("models", {})
     model_name = models.get("chapter_writer", "openai-compat://default")
     model_config = ModelConfig.from_string(model_name)
-    story_elements = _build_story_elements(outline_result, story_root)
+    _se = outline_result.story_elements
+    actual_story_elements = (
+        read_markdown_ref(story_root, _se) if isinstance(_se, dict) else (_se or "")
+    )
+    _bc = outline_result.base_context
+    actual_base_context = (
+        read_markdown_ref(story_root, _bc) if isinstance(_bc, dict) else (_bc or "")
+    )
 
     extract_prompt = loader.load_prompt(
-        "characters/extract_names", {"story_elements": story_elements}
+        "characters/extract_names", {"story_elements": actual_story_elements}
     )
     messages = [{"role": "user", "content": extract_prompt}]
     names_cache_path = stories_dir / story_name / "characters" / "_names.json"
@@ -398,8 +463,9 @@ async def _generate_character_sheets(
                 create_prompt = loader.load_prompt(
                     "characters/create",
                     {
-                        "story_elements": story_elements,
+                        "story_elements": actual_story_elements,
                         "character_name": character_name,
+                        "additional_context": actual_base_context,
                     },
                 )
                 sheet_messages = [{"role": "user", "content": create_prompt}]
@@ -469,7 +535,7 @@ async def _generate_character_sheets(
                         {
                             "character_name": character_name,
                             "character_sheet": sheet_text,
-                            "story_elements": story_elements,
+                            "story_elements": actual_story_elements,
                         },
                     )
                     raw_chunk = await provider.generate_text(
@@ -512,7 +578,7 @@ async def _generate_character_sheets(
                     abridged_prompt = loader.load_prompt(
                         "characters/create_abridged",
                         {
-                            "story_elements": story_elements,
+                            "story_elements": actual_story_elements,
                             "character_name": character_name,
                         },
                     )
@@ -634,10 +700,17 @@ async def _generate_setting_sheets(
     models = config.get("models", {})
     model_name = models.get("chapter_writer", "openai-compat://default")
     model_config = ModelConfig.from_string(model_name)
-    story_elements = _build_story_elements(outline_result, story_root)
+    _se = outline_result.story_elements
+    actual_story_elements = (
+        read_markdown_ref(story_root, _se) if isinstance(_se, dict) else (_se or "")
+    )
+    _bc = outline_result.base_context
+    actual_base_context = (
+        read_markdown_ref(story_root, _bc) if isinstance(_bc, dict) else (_bc or "")
+    )
 
     extract_prompt = loader.load_prompt(
-        "settings/extract_names", {"story_elements": story_elements}
+        "settings/extract_names", {"story_elements": actual_story_elements}
     )
     messages = [{"role": "user", "content": extract_prompt}]
     names_cache_path = stories_dir / story_name / "settings" / "_names.json"
@@ -714,8 +787,9 @@ async def _generate_setting_sheets(
                 create_prompt = loader.load_prompt(
                     "settings/create",
                     {
-                        "story_elements": story_elements,
+                        "story_elements": actual_story_elements,
                         "setting_name": setting_name,
+                        "additional_context": actual_base_context,
                     },
                 )
                 sheet_messages = [{"role": "user", "content": create_prompt}]
@@ -785,7 +859,7 @@ async def _generate_setting_sheets(
                         {
                             "setting_name": setting_name,
                             "setting_sheet": sheet_text,
-                            "story_elements": story_elements,
+                            "story_elements": actual_story_elements,
                         },
                     )
                     raw_chunk = await provider.generate_text(
@@ -826,7 +900,7 @@ async def _generate_setting_sheets(
                     abridged_prompt = loader.load_prompt(
                         "settings/create_abridged",
                         {
-                            "story_elements": story_elements,
+                            "story_elements": actual_story_elements,
                             "setting_name": setting_name,
                         },
                     )
@@ -1455,6 +1529,8 @@ async def _continue_pipeline(
                             chapter_number,
                             outline_result,
                             settings,
+                            consistency_agent=consistency_agent,
+                            bus=bus,
                         )
                         if generated_draft is None:
                             return state
@@ -1467,33 +1543,21 @@ async def _continue_pipeline(
 
                 consistency_item_id = f"chapter-{chapter_number}/consistency-check"
                 if not _work_item_done(state, phase, consistency_item_id):
-                    await _emit_status(
-                        sbus,
-                        phase,
-                        f"Consistency check chapter {chapter_number}",
-                        kind="step",
-                    )
-                    consistency_result = await consistency_agent.run(
-                        state.story_name,
-                        chapter_number,
-                        draft.content,
-                        outline_result=outline_result,
-                    )
-                    if not consistency_result["passed"]:
-                        await bus.emit(
-                            f"\n[Consistency] Chapter {chapter_number} — issues found:\n"
-                        )
-                        for issue in consistency_result["issues"]:
-                            await bus.emit(
-                                f"  [{issue['severity'].upper()}] {issue['description']}\n"
+                    if consistency_agent is not None and bus is not None:
+                        try:
+                            consistency_result = await consistency_agent.run(
+                                state.story_name,
+                                chapter_number,
+                                draft.content,
+                                outline_result=outline_result,
                             )
-                    elif consistency_result["issues"]:
-                        await bus.emit(
-                            f"\n[Consistency] Chapter {chapter_number} — warnings/info found:\n"
-                        )
-                        for issue in consistency_result["issues"]:
+                            await _emit_consistency_results(
+                                bus, chapter_number, consistency_result
+                            )
+                        except Exception as exc:
                             await bus.emit(
-                                f"  [{issue['severity'].upper()}] {issue['description']}\n"
+                                f"\n[Consistency] Chapter {chapter_number} check failed "
+                                f"({type(exc).__name__}: {exc})\n"
                             )
                     await _mark_work_item_done(state, phase, consistency_item_id)
 

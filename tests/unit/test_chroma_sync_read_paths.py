@@ -13,7 +13,7 @@ from uuid import uuid4
 import chromadb
 import pytest
 
-from src.tools._chroma_sync import compute_fingerprint, upsert_from_source
+from tools._chroma_sync import compute_fingerprint, upsert_from_source
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAG_QUERY_SCRIPT = str(PROJECT_ROOT / "src" / "tools" / "rag_query.py")

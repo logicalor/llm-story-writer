@@ -86,7 +86,21 @@ class SettingEvolverAgent:
         )
         results: dict[str, str] = {}
 
+        scenes_path = (
+            STORIES_DIR
+            / story_name
+            / "chapters"
+            / f"chapter_{chapter_number}_scenes.json"
+        )
+        chapter_synopsis = (
+            scenes_path.read_text(encoding="utf-8")
+            if scenes_path.exists()
+            else chapter_draft.content
+        )
+
         for setting_path in sorted(settings_dir.glob("*.json")):
+            if setting_path.stem.startswith("_"):
+                continue
             setting_name = setting_path.stem
             try:
                 raw_data = setting_path.read_text(encoding="utf-8")
@@ -123,7 +137,7 @@ class SettingEvolverAgent:
 
                 extracted_events = await self._run_prompt(
                     "settings/extract_from_chapter",
-                    {"chapter_synopsis": chapter_draft.content},
+                    {"chapter_synopsis": chapter_synopsis},
                     model_config,
                     settings,
                 )
@@ -138,7 +152,7 @@ class SettingEvolverAgent:
                         "current_setting_sheet": json.dumps(
                             resolved_data, ensure_ascii=False
                         ),
-                        "chapter_outline": extracted_events,
+                        "chapter_outline": chapter_synopsis,
                     },
                     model_config,
                     settings,
@@ -147,11 +161,17 @@ class SettingEvolverAgent:
                     results[setting_name] = "unchanged"
                     continue
 
+                existing_text = (
+                    resolved_data.get("sheet")
+                    or resolved_data.get("abridged")
+                    or resolved_data.get("summary")
+                    or ""
+                )
                 updated_sheet = await self._run_prompt(
                     "settings/update",
                     {
                         "setting_name": setting_name,
-                        "existing_sheet": json.dumps(resolved_data, ensure_ascii=False),
+                        "existing_sheet": existing_text,
                         "chapter_outline": changes_analysis,
                         "chapter_num": str(chapter_number),
                     },

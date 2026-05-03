@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.tools._persist import persist_markdown, read_markdown_ref
+from tools._persist import persist_markdown, read_markdown_ref
 
 
 class TestPersistMarkdown:

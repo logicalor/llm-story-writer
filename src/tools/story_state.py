@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
+from tools._io import STORIES_DIR, _validate_story_name  # noqa: E402
 
 
 # --- Milestone savepoint auto-write ---

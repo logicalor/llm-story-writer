@@ -55,7 +55,7 @@ def test_prompt_loader_resolves_outline_review():
 
 def test_character_voice_consistency_in_critic_criteria() -> None:
     """CritiqueParser knows 'character-voice-consistency' with correct criteria."""
-    from src.tools.critique_parser import CritiqueParser
+    from tools.critique_parser import CritiqueParser
 
     parser = CritiqueParser()
 

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
-import src.tools.critique_runner as cr
+import tools.critique_runner as cr
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TOOL_SCRIPT = str(PROJECT_ROOT / "src" / "tools" / "critique_runner.py")

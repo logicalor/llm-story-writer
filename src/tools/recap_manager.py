@@ -24,7 +24,7 @@ if _src_path not in sys.path:
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
-from src.tools._io import _validate_story_name  # noqa: E402
+from tools._io import _validate_story_name  # noqa: E402
 
 
 def _validate_chapter(chapter: int) -> None:
@@ -71,14 +71,14 @@ def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str
 
 def _call_llm(prompt: str, *, model: str | None = None) -> str:
     """Call LLM with a prompt and return text response."""
-    from src.tools._llm import generate_text
+    from tools._llm import generate_text
 
     return generate_text(prompt, model=model)
 
 
 def _extract_json_from_response(text: str) -> str:
     """Extract JSON from LLM response, stripping markdown fences."""
-    from src.tools._llm import _extract_json_block
+    from tools._llm import _extract_json_block
 
     return _extract_json_block(text)
 
