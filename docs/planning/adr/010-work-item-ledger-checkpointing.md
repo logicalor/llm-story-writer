@@ -1,7 +1,7 @@
 # ADR 010: Work-Item Ledger for Granular Pipeline Checkpointing
 
 **Date:** 2026-05-03
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 
@@ -73,3 +73,12 @@ correct: the ledger reflects what is on disk.
 - Integration test costs grow because we test interrupt-resume at every
   sub-step boundary; mitigated by replay-from-fixture rather than live
   LLM calls.
+
+## Implementation Status
+
+ADR 010 is now implemented across the planned task set.
+
+- Issue #318 / PR #330 completed Tasks 4 through 6 for characters, settings, and per-scene chapter drafting.
+- Issue #320 / PR #332 completed Tasks 7 through 11 for per-chapter post-processing, final edit, wiki bootstrap, outline draft and critique ledger items, and the TUI resume banner.
+
+The active runtime now records ledger entries for outline draft and critique, character and setting sheet generation, wiki bootstrap entities, scene decomposition and per-scene chapter drafting, per-chapter post-processing sub-steps, and per-chapter final edit output.
