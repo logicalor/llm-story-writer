@@ -14,6 +14,8 @@ there.
 
 ### Task 1: Add `_chroma_sync` helper module
 
+**Status:** Implemented in issue #324 / PR #336
+
 **Type:** backend
 **Estimated scope:** small
 **Dependencies:** none (logically depends on separate-markdown-from-json
@@ -40,12 +42,12 @@ Create `src/tools/_chroma_sync.py` with:
 
 **Acceptance Criteria:**
 
-- [ ] All five helpers exist with type hints
-- [ ] Round-trip tests: index → modify file → `is_stale` returns True
-- [ ] Mtime-equal-but-content-differs test (touch + content change)
+- [x] All five helpers exist with type hints
+- [x] Round-trip tests: index → modify file → `is_stale` returns True
+- [x] Mtime-equal-but-content-differs test (touch + content change)
       caught by sha fallback
-- [ ] Path traversal rejected on `source_path` inputs
-- [ ] No path = `None` case stores `source_path` as the JSON-null-
+- [x] Path traversal rejected on `source_path` inputs
+- [x] No path = `None` case stores `source_path` as the JSON-null-
       compatible empty string `""` (chroma metadata constraint) and
       `is_stale` returns False for those entries
 
@@ -57,6 +59,8 @@ Create `src/tools/_chroma_sync.py` with:
 ---
 
 ### Task 2: Convert wiki upserts to use `upsert_from_source`
+
+**Status:** Implemented in issue #324 / PR #336
 
 **Type:** backend
 **Estimated scope:** small
@@ -72,10 +76,10 @@ Existing metadata (`name`, `slug`, `type`, etc.) flows in via
 
 **Acceptance Criteria:**
 
-- [ ] Every wiki page upsert records `source_path`, `source_mtime`,
+- [x] Every wiki page upsert records `source_path`, `source_mtime`,
       `source_sha256`
-- [ ] `_upsert_to_chromadb` is removed or becomes a thin wrapper
-- [ ] Test: upsert a page → modify the source file → `is_stale` True
+- [x] `_upsert_to_chromadb` is removed or becomes a thin wrapper
+- [x] Test: upsert a page → modify the source file → `is_stale` True
 
 **Key Files:**
 

@@ -90,6 +90,7 @@ These modules support the public tool CLIs but are not normal top-level user com
 
 | Module | Purpose |
 |--------|---------|
+| `src/tools/_chroma_sync.py` | Source-sync helper for ChromaDB-backed markdown indexing. Computes source fingerprints, upserts metadata with `source_path` / `source_mtime` / `source_sha256`, checks staleness, and supports collection reconciliation. |
 | `src/tools/_io.py` | Shared filesystem paths and story-name validation |
 | `src/tools/_llm.py` | Common LLM-provider bootstrap helpers |
 | `src/tools/_persist.py` | Markdown pointer helpers: `persist_markdown` writes markdown to disk and returns a `{"$ref": ...}` pointer; `read_markdown_ref` resolves pointer dicts only and raises `ValueError` for legacy inline strings |
@@ -125,6 +126,8 @@ After each approved chapter, `CharacterEvolverAgent` and `SettingEvolverAgent` m
 `src/tools/wiki_extract.py` now exposes four programmatic entry points used by the runtime. `_list_wiki_entities(story_name, *, model=None)` performs entity extraction plus deduplication only. `_bootstrap_single_wiki_entity(story_name, entity, *, model=None, wiki_dir=None)` generates detail levels and writes one missing wiki page. `bootstrap_wiki_from_story(story_name, *, model=None)` still supports the full one-shot bootstrap for CLI or ad-hoc use by seeding the wiki from the approved outline savepoint plus character and setting JSON sheets, deduplicating extracted entities, skipping already-existing slugs for idempotent upsert behavior, applying the batch through `run_batch()`, and returning `{created, skipped, entity_counts}`. `update_wiki_from_chapter(story_name, chapter_number, chapter_text, *, model=None)` handles the later incremental chapter updates.
 
 `WikiMaintainerAgent` now uses `src/tools/wiki_extract.py` directly for post-chapter updates. The programmatic `update_wiki_from_chapter(story_name, chapter_number, chapter_text, *, model=None)` entry point runs the `wiki/extract_from_chapter` prompt, matches existing entities from the wiki index, generates detail levels for newly created pages, applies the batch through `run_batch()`, and returns both summary counts and the concrete created or updated slug lists. That keeps wiki persistence inside one Python boundary and gives the orchestrator a typed result instead of free-form model text.
+
+Wiki-page indexing now routes through `src/tools/_chroma_sync.py` from `src/tools/wiki_update.py`. That helper injects source provenance metadata into every wiki-page upsert so later retrieval and reconcile flows can detect stale embeddings after hand edits or branch switches.
 
 ## CLI Entry Points
 

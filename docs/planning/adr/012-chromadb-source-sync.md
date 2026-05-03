@@ -1,7 +1,7 @@
 # ADR 012: ChromaDB Source-Sync Metadata
 
 **Date:** 2026-05-03
-**Status:** Proposed
+**Status:** Accepted — initial implementation landed for Tasks 1 and 2 in issue #324 / PR #336
 
 ## Context
 
@@ -55,6 +55,21 @@ the whole collection, idempotently.
 The contract is enforced by a single helper module `_chroma_sync.py`;
 direct `collection.upsert` calls for source-backed content are
 disallowed.
+
+## Implementation Status
+
+Issue #324 / PR #336 landed the foundational helper module plus wiki-write
+site adoption:
+
+- `src/tools/_chroma_sync.py` now provides `ReconcileReport`,
+  `compute_fingerprint()`, `upsert_from_source()`, `is_stale()`,
+  `refresh_if_stale()`, and `reconcile_collection()`.
+- `src/tools/wiki_update.py` now routes wiki-page ChromaDB writes through
+  `upsert_from_source()` and records `source_path`, `source_mtime`, and
+  `source_sha256` for wiki pages.
+
+Read-side refresh hooks, reconcile CLI wiring, and broader `stories-<story>`
+upsert migration remain follow-on work from the PRD task list.
 
 ## Consequences
 

@@ -4,7 +4,7 @@
 
 **Date:** 2026-05-03
 **Author:** Planner agent
-**Status:** Draft
+**Status:** In progress — Tasks 1 and 2 implemented in issue #324 / PR #336
 
 ## Problem Statement
 
@@ -163,9 +163,9 @@ metadata.
 
 ## Acceptance Criteria
 
-- [ ] `_chroma_sync.upsert_from_source`, `is_stale`, `refresh_if_stale`,
+- [x] `_chroma_sync.upsert_from_source`, `is_stale`, `refresh_if_stale`,
       `reconcile_collection` exist with type hints and unit tests
-- [ ] All wiki-page upserts go through `upsert_from_source` (or a tiny
+- [x] All wiki-page upserts go through `upsert_from_source` (or a tiny
       wrapper) and record `source_path`, `source_mtime`, `source_sha256`
 - [ ] All `stories-<story>` upserts whose body originates from a known
       file do the same; synthetic entries explicitly record
