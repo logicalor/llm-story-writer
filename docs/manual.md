@@ -255,7 +255,7 @@ You can also use `--prompt` with `resume` to overwrite the existing prompt befor
 story-writer resume --story my-first-story --prompt ~/prompts/revised-prompt.txt
 ```
 
-If you already have stories created before the markdown-pointer migration, run the one-shot migrator before resuming generation:
+If you already have stories created before the markdown-pointer migration, run the one-shot migrator before resuming generation. It upgrades pointer-backed fields such as `state.story_prompt`, `outline_result.chapter_outlines[].summary`, `outline_result.base_context`, `outline_result.story_elements`, `outline_result.enrichment_suggestions`, and recap markdown bodies:
 
 ```bash
 python3 src/tools/migrate_inline_markdown.py --name my-first-story
@@ -501,7 +501,7 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
 - Seeds `PipelineState.outline_result` with those fields so later phases can preserve them across savepoints and resume
 
 **Artefacts produced:**
-- `stories/<name>/savepoints/pipeline_state.json` with `outline_result.base_context`, `outline_result.story_start_date`, and `outline_result.story_elements`
+- `stories/<name>/savepoints/pipeline_state.json` with `outline_result.story_start_date` plus pointer-backed `outline_result.base_context -> outline/base_context.md` and `outline_result.story_elements -> outline/story_elements.md`
 - `stories/<name>/savepoints/story_foundation_complete`
 
 **User action needed:** None
