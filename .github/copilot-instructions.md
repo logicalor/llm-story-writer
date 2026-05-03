@@ -97,7 +97,7 @@ MCP config files may coexist at multiple levels — **do not confuse the paths**
 
 - **Never use `${{ github.event.* }}` or `${{ inputs.* }}` directly inside `run:` blocks** — this is command injection (CWE-78). Pass via `env:` keys on the step instead.
 - **Never write multiline values to `$GITHUB_OUTPUT` using `key=value` format** — the second line breaks the output file format and is silently ignored. Convert to single-line first (`tr '\n' ' '`) or use the heredoc EOF delimiter syntax.
-- **Gate conditions for selective tests must include all high-risk file types** — lock files, config files, etc. — not only the primary language file filter.
+- **Gate conditions for selective tests must include all high-risk file types** — lock files, config files, and any `scripts/` files invoked by the workflow step — not only the primary language file filter.
 
 ## Communication Style
 
