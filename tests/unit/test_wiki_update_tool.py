@@ -572,9 +572,7 @@ class TestLog:
 
 
 class TestChromaDB:
-    def test_chromadb_upsert_on_create(
-        self, chromadb_dir: Path
-    ) -> None:
+    def test_chromadb_upsert_on_create(self, chromadb_dir: Path) -> None:
         import chromadb
 
         with tempfile.TemporaryDirectory(dir=PROJECT_ROOT) as temp_dir:
@@ -626,9 +624,7 @@ class TestChromaDB:
             assert len(docs["ids"]) == 1
             assert docs["ids"][0] == "chroma-char"
 
-    def test_chromadb_upsert_carries_source_metadata(
-        self, chromadb_dir: Path
-    ) -> None:
+    def test_chromadb_upsert_carries_source_metadata(self, chromadb_dir: Path) -> None:
         import chromadb
 
         with tempfile.TemporaryDirectory(dir=PROJECT_ROOT) as temp_dir:

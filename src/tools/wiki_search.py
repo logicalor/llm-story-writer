@@ -14,6 +14,7 @@ if _src not in sys.path:
     sys.path.insert(0, _src)
 
 from src.tools._io import _validate_story_name  # noqa: E402
+from tools._chroma_sync import refresh_if_stale  # noqa: E402
 
 CHROMADB_DIR = os.environ.get("CHROMADB_DIR", str(PROJECT_ROOT / ".chromadb"))
 
@@ -71,15 +72,40 @@ def cmd_semantic(args: argparse.Namespace) -> None:
         metadatas = (
             query_result["metadatas"][0] if query_result.get("metadatas") else []
         )
+        refreshed_map: dict = {}
+        refreshed_ids = [
+            doc_id for doc_id in ids if refresh_if_stale(collection, doc_id)
+        ]
+        if refreshed_ids:
+            re_fetch = collection.get(
+                ids=refreshed_ids,
+                include=["documents", "metadatas"],
+            )
+            refreshed_map = {
+                re_fetch["ids"][i]: {
+                    "document": (re_fetch.get("documents") or [])[i]
+                    if i < len(re_fetch.get("documents") or [])
+                    else "",
+                    "metadata": (re_fetch.get("metadatas") or [])[i]
+                    if i < len(re_fetch.get("metadatas") or [])
+                    else {},
+                }
+                for i in range(len(re_fetch["ids"]))
+            }
 
         for i, doc_id in enumerate(ids):
+            fresh = refreshed_map.get(doc_id)
             entry: dict = {
                 "slug": doc_id,
                 "score": round(1.0 / (1.0 + distances[i]), 4)
                 if i < len(distances)
                 else 0.0,
-                "excerpt": documents[i][:500] if i < len(documents) else "",
-                "metadata": metadatas[i] if i < len(metadatas) else {},
+                "excerpt": (fresh["document"] if fresh else documents[i])[:500]
+                if (fresh or i < len(documents))
+                else "",
+                "metadata": fresh["metadata"]
+                if fresh
+                else (metadatas[i] if i < len(metadatas) else {}),
             }
             results.append(entry)
 
@@ -126,13 +152,40 @@ def cmd_metadata(args: argparse.Namespace) -> None:
         ids = get_result["ids"]
         documents = get_result.get("documents") or []
         metadatas = get_result.get("metadatas") or []
+        refreshed_map: dict = {}
+        refreshed_ids = [
+            doc_id for doc_id in ids if refresh_if_stale(collection, doc_id)
+        ]
+        if refreshed_ids:
+            re_fetch = collection.get(
+                ids=refreshed_ids,
+                include=["documents", "metadatas"],
+            )
+            refreshed_map = {
+                re_fetch["ids"][i]: {
+                    "document": (re_fetch.get("documents") or [])[i]
+                    if i < len(re_fetch.get("documents") or [])
+                    else "",
+                    "metadata": (re_fetch.get("metadatas") or [])[i]
+                    if i < len(re_fetch.get("metadatas") or [])
+                    else {},
+                }
+                for i in range(len(re_fetch["ids"]))
+            }
 
         for i, doc_id in enumerate(ids):
+            fresh = refreshed_map.get(doc_id)
             entry: dict = {
                 "slug": doc_id,
                 "score": 1.0,
-                "excerpt": documents[i][:500] if i < len(documents) else "",
-                "metadata": metadatas[i] if i < len(metadatas) else {},
+                "excerpt": (
+                    fresh["document"]
+                    if fresh
+                    else (documents[i] if i < len(documents) else "")
+                )[:500],
+                "metadata": fresh["metadata"]
+                if fresh
+                else (metadatas[i] if i < len(metadatas) else {}),
             }
             results.append(entry)
 

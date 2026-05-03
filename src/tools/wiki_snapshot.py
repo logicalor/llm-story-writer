@@ -31,6 +31,7 @@ from src.tools._wiki import (  # noqa: E402
     parse_frontmatter,
     read_index,
 )
+from tools._chroma_sync import refresh_if_stale  # noqa: E402
 from src.tools.wiki_search import _get_collection  # noqa: E402
 
 CHROMADB_DIR = os.environ.get("CHROMADB_DIR", str(PROJECT_ROOT / ".chromadb"))
@@ -209,6 +210,9 @@ def _tier2_metadata_query(story_name: str) -> list[dict]:
     except (KeyError, ValueError, TypeError) as e:
         print(f"Warning: T2 world rule query failed: {e}", file=sys.stderr)
 
+    for doc_id in (result["slug"] for result in results):
+        refresh_if_stale(collection, doc_id)
+
     return results
 
 
@@ -243,6 +247,8 @@ def _tier3_semantic_search(
         metadatas = (
             query_result["metadatas"][0] if query_result.get("metadatas") else []
         )
+        for doc_id in ids:
+            refresh_if_stale(collection, doc_id)
         for i, doc_id in enumerate(ids):
             score = round(1.0 / (1.0 + distances[i]), 4) if i < len(distances) else 0.0
             results.append(

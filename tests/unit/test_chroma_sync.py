@@ -58,9 +58,7 @@ def test_compute_fingerprint_returns_mtime_and_sha(tmp_path: Path) -> None:
     assert re.fullmatch(r"[0-9a-f]{64}", sha256_hex)
 
 
-def test_upsert_from_source_round_trip(
-    collection, source_project_root: Path
-) -> None:
+def test_upsert_from_source_round_trip(collection, source_project_root: Path) -> None:
     source_path = _write_source(source_project_root, "wiki/entry.md", "hello sync")
     relative_path = str(source_path.relative_to(source_project_root))
 
@@ -97,7 +95,9 @@ def test_is_stale_false_when_content_unchanged(
     assert is_stale(collection, "stable") is False
 
 
-def test_is_stale_true_when_mtime_changes(collection, source_project_root: Path) -> None:
+def test_is_stale_true_when_mtime_changes(
+    collection, source_project_root: Path
+) -> None:
     source_path = _write_source(source_project_root, "wiki/changed.md", "before")
     relative_path = str(source_path.relative_to(source_project_root))
 
@@ -251,7 +251,9 @@ def test_reconcile_updates_stale_files(collection, source_project_root: Path) ->
     assert result["documents"][0] == "after"
 
 
-def test_reconcile_deletes_orphaned_entries(collection, source_project_root: Path) -> None:
+def test_reconcile_deletes_orphaned_entries(
+    collection, source_project_root: Path
+) -> None:
     source_root = source_project_root / "wiki"
     source_root.mkdir(parents=True, exist_ok=True)
     collection.upsert(
