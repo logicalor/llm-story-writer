@@ -82,6 +82,7 @@ The orchestrator also now produces intermediate story artefacts directly in the 
 | `src/tools/wiki_update.py` | Apply wiki page updates |
 | `src/tools/wiki_lint.py` | Validate wiki pages against formatting and consistency rules |
 | `src/tools/rag_query.py` | Query ChromaDB collections for story context |
+| `src/tools/migrate_inline_markdown.py` | One-shot migration tool that rewrites legacy inline-markdown story JSON into pointer-backed markdown files; supports `--name`, `--all`, and `--dry-run` |
 
 ### Shared Internal Helpers
 
@@ -91,7 +92,7 @@ These modules support the public tool CLIs but are not normal top-level user com
 |--------|---------|
 | `src/tools/_io.py` | Shared filesystem paths and story-name validation |
 | `src/tools/_llm.py` | Common LLM-provider bootstrap helpers |
-| `src/tools/_persist.py` | Markdown pointer helpers: `persist_markdown` writes markdown to disk and returns a `{"$ref": ...}` pointer; `read_markdown_ref` resolves pointers or passes through legacy strings |
+| `src/tools/_persist.py` | Markdown pointer helpers: `persist_markdown` writes markdown to disk and returns a `{"$ref": ...}` pointer; `read_markdown_ref` resolves pointer dicts only and raises `ValueError` for legacy inline strings |
 | `src/tools/_wiki.py` | Shared wiki utility logic |
 | `src/tools/migrate_state_slim.py` | One-off migration helper retained in Python |
 

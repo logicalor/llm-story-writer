@@ -58,8 +58,7 @@ the round-trip it is easy to corrupt.
    sub-key, not as a fenced code block in a string.
 3. Migrations are automated — existing stories on disk upgrade without
    manual editing.
-4. Backward-compatible reads — code that loads a story can read both old
-   (inline) and new (pointer) formats during the transition window.
+4. Existing stories can be upgraded in one pass before runtime reads.
 5. New writes only ever produce the new format.
 
 ## Non-Goals
@@ -131,10 +130,10 @@ Add `src/tools/_persist.py` with two functions:
 - `persist_markdown(story_root: Path, relative_path: str, body: str) -> dict`
   — atomic-writes the body to `story_root / relative_path` and returns
   the pointer dict `{"$ref": relative_path}`.
-- `read_markdown_ref(story_root: Path, ref: dict | str) -> str` — resolves
-  either a pointer dict or a legacy inline string, returning the markdown
-  body. Used everywhere code currently reads `.sheet`, `.chunks[k]`,
-  `.recap`, etc.
+- `read_markdown_ref(story_root: Path, ref: dict[str, str]) -> str` — resolves
+  a pointer dict and returns the markdown body. Raw legacy strings now raise
+  `ValueError`, so callers must guard pointer reads explicitly and migrate old
+  stories before use.
 
 A small JSON Schema (`src/application/schemas/markdown_ref.json`) defines
 the pointer shape so contributors and external tools can validate.
@@ -160,11 +159,12 @@ the pointer shape so contributors and external tools can validate.
 - **Wiki pages:** already correctly stored as `.md` with YAML
   frontmatter; no change needed.
 
-### Backward compatibility
+### Migration completion
 
-`read_markdown_ref` accepts both the legacy plain-string form and the
-new pointer dict, so during the transition no read site breaks. Each
-write site is converted phase by phase.
+The transition window is closed. `read_markdown_ref` now accepts pointer
+dicts only, and legacy inline strings must be converted before runtime use.
+Callers guard pointer reads with `isinstance(ref, dict)` and fall back to
+empty or existing non-markdown structured values where appropriate.
 
 A one-shot migration script
 (`src/tools/migrate_inline_markdown.py`) walks every story's JSON files,
@@ -187,7 +187,7 @@ be short single-paragraph descriptions (chapter title, tag list, etc.).
 
 ## Acceptance Criteria
 
-- [ ] `persist_markdown` and `read_markdown_ref` helpers exist and are
+- [x] `persist_markdown` and `read_markdown_ref` helpers exist and are
       typed.
 - [x] All character-sheet writes produce JSON with pointer refs and
       markdown sibling files.
@@ -197,13 +197,13 @@ be short single-paragraph descriptions (chapter title, tag list, etc.).
       proper JSON sub-document — no fenced `` ```json `` strings remain.
 - [x] Per-chapter recap files use pointer refs.
 - [x] `state.json::story_prompt` is a pointer to `prompt.md`.
-- [ ] Migration script converts every existing story under `stories/`
+- [x] Migration script converts every existing story under `stories/`
       without data loss; a round-trip read returns identical bodies.
-- [ ] Lint script flags any reintroduction of inline markdown / fenced
+- [x] Lint script flags any reintroduction of inline markdown / fenced
       JSON in stories' JSON files; CI fails when triggered.
-- [ ] Read-site code continues to function on legacy inline-format
-      stories until they are migrated.
-- [ ] No regression in the end-to-end happy path; generated story
+- [x] Read-site code rejects legacy inline-format stories with a clear
+  migration error, and all pointer-backed callers guard reads.
+- [x] No regression in the end-to-end happy path; generated story
       output is byte-identical vs. baseline.
 
 ## Open Questions
