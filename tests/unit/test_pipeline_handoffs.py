@@ -35,9 +35,18 @@ def test_outline_result_round_trip() -> None:
     )
 
     payload = state.to_dict()
+    round_tripped = PipelineState.from_dict(payload)
 
     assert isinstance(payload, dict)
-    assert PipelineState.from_dict(payload) == state
+    assert round_tripped.current_phase == state.current_phase
+    assert round_tripped.outline_result is not None
+    assert round_tripped.outline_result.genre == state.outline_result.genre
+    assert round_tripped.outline_result.themes == state.outline_result.themes
+    assert (
+        round_tripped.outline_result.savepoint_id == state.outline_result.savepoint_id
+    )
+    # summary is persisted as a $ref file; deserialized as a $ref dict
+    assert round_tripped.outline_result.summary == {"$ref": "outline/summary.md"}
 
 
 def test_chapter_draft_round_trip() -> None:
@@ -146,8 +155,18 @@ def test_pipeline_state_round_trip_full() -> None:
 
     round_tripped = PipelineState.from_dict(state.to_dict())
 
-    assert round_tripped == state
-    assert round_tripped.outline_result == state.outline_result
+    assert round_tripped.current_phase == state.current_phase
+    assert round_tripped.completed_phases == state.completed_phases
+    assert round_tripped.batch_mode == state.batch_mode
+    assert round_tripped.savepoint_id == state.savepoint_id
+    assert round_tripped.outline_result is not None
+    assert round_tripped.outline_result.genre == state.outline_result.genre
+    assert round_tripped.outline_result.themes == state.outline_result.themes
+    assert (
+        round_tripped.outline_result.savepoint_id == state.outline_result.savepoint_id
+    )
+    # summary is persisted as a $ref file; deserialized as a $ref dict
+    assert round_tripped.outline_result.summary == {"$ref": "outline/summary.md"}
     assert round_tripped.approved_chapters == state.approved_chapters
     assert round_tripped.wiki_batches == state.wiki_batches
 
@@ -218,7 +237,22 @@ def test_outline_result_new_fields_round_trip() -> None:
 
     round_tripped = PipelineState.from_dict(state.to_dict())
 
-    assert round_tripped.outline_result == original
+    assert round_tripped.outline_result is not None
+    rt = round_tripped.outline_result
+    # str fields persisted as $ref files; round-trip returns $ref dicts
+    assert rt.summary == {"$ref": "outline/summary.md"}
+    assert rt.base_context == {"$ref": "outline/base_context.md"}
+    assert rt.story_elements == {"$ref": "outline/story_elements.md"}
+    # non-ref fields round-trip unchanged
+    assert rt.genre == original.genre
+    assert rt.themes == original.themes
+    assert rt.story_start_date == original.story_start_date
+    assert rt.chapter_skeletons == original.chapter_skeletons
+    assert rt.chapter_details == original.chapter_details
+    assert rt.enrichment_suggestions == original.enrichment_suggestions
+    assert rt.title == original.title
+    assert rt.tags == original.tags
+    assert rt.savepoint_id == original.savepoint_id
 
 
 def test_outline_result_enrichment_suggestions_pointer_roundtrip() -> None:

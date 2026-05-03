@@ -8,6 +8,8 @@ from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import ArcAnalysisResult, PipelineState
+from tools._io import STORIES_DIR
+from tools._persist import read_markdown_ref
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
@@ -75,7 +77,13 @@ class StoryPlannerAgent:
             )
         )
 
-        outline_text = outline_result.summary
+        _raw_summary = outline_result.summary
+        story_root = STORIES_DIR / state.story_name
+        outline_text = (
+            read_markdown_ref(story_root, _raw_summary)
+            if isinstance(_raw_summary, dict)
+            else (_raw_summary or "")
+        )
         if outline_result.chapter_outlines:
             outline_text += "\n\n" + json.dumps(
                 outline_result.chapter_outlines, ensure_ascii=False, indent=2

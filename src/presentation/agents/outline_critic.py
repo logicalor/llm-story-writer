@@ -20,6 +20,7 @@ from presentation.pipeline_primitives import (
     WikiContextEvent,
 )
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
+from tools._persist import read_markdown_ref
 from tools.critique_parser import CritiqueParser, CritiqueResult
 
 # Keep in sync with src/tools/critique_runner.py::OUTLINE_CRITIC_TYPES
@@ -40,7 +41,14 @@ def _build_model_config(config: dict[str, Any], role: str, default: str) -> Mode
 
 
 def _build_outline_text(outline_result: OutlineResult) -> str:
-    parts = [outline_result.summary.strip()]
+    story_root = STORIES_DIR / outline_result.story_name
+    _raw_summary = outline_result.summary
+    resolved_summary = (
+        read_markdown_ref(story_root, _raw_summary)
+        if isinstance(_raw_summary, dict)
+        else (_raw_summary or "")
+    )
+    parts = [resolved_summary.strip()]
     if outline_result.chapter_outlines:
         parts.append(
             json.dumps(outline_result.chapter_outlines, ensure_ascii=False, indent=2)

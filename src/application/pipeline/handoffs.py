@@ -33,7 +33,7 @@ class OutlineResult:
 
     story_name: str
     chapter_outlines: list[dict[str, Any]]
-    summary: str
+    summary: str | dict[str, str]
     genre: str
     themes: list[str]
     base_context: str | dict[str, str] = ""
@@ -212,12 +212,12 @@ class PipelineState:
             outline = OutlineResult(
                 story_name=outline_data["story_name"],
                 chapter_outlines=outline_data.get("chapter_outlines", []),
-                summary=_resolve(outline_data.get("summary", "")),
+                summary=outline_data.get("summary", ""),
                 genre=outline_data.get("genre", ""),
                 themes=outline_data.get("themes", []),
-                base_context=_resolve(outline_data.get("base_context", "")),
+                base_context=outline_data.get("base_context", ""),
                 story_start_date=outline_data.get("story_start_date", ""),
-                story_elements=_resolve(outline_data.get("story_elements", "")),
+                story_elements=outline_data.get("story_elements", ""),
                 chapter_skeletons=outline_data.get("chapter_skeletons", []),
                 chapter_details=outline_data.get("chapter_details", []),
                 enrichment_suggestions=outline_data.get("enrichment_suggestions", ""),

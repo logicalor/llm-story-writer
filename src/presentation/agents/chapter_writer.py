@@ -125,8 +125,13 @@ class ChapterWriterAgent:
             chapter_outline = outline_result.chapter_outlines[chapter_number - 1]
 
         title = f"Chapter {chapter_number}"
-        chapter_summary = outline_result.summary
         story_root = STORIES_DIR / story_name
+        _raw_outline_summary = outline_result.summary
+        chapter_summary: str = (
+            read_markdown_ref(story_root, _raw_outline_summary)
+            if isinstance(_raw_outline_summary, dict)
+            else (_raw_outline_summary or "")
+        )
         if isinstance(chapter_outline, dict):
             raw_summary = (
                 chapter_outline.get("summary")

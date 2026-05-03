@@ -326,7 +326,13 @@ def _extract_output_content(text: str) -> str:
 
 def _build_story_elements(outline_result: OutlineResult, story_root: Path) -> str:
     """Build story_elements string from OutlineResult for prompt injection."""
-    parts = [outline_result.summary]
+    _summary = outline_result.summary
+    resolved_summary = (
+        read_markdown_ref(story_root, _summary)
+        if isinstance(_summary, dict)
+        else (_summary or "")
+    )
+    parts = [resolved_summary]
     if outline_result.chapter_outlines:
         resolved_outlines: list[dict[str, Any]] = []
         for chapter in outline_result.chapter_outlines:
