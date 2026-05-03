@@ -20,6 +20,7 @@ if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
 from src.tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
+from tools._persist import persist_markdown, read_markdown_ref  # noqa: E402
 
 
 def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str:
@@ -153,6 +154,8 @@ def cmd_generate_sheet(args: argparse.Namespace) -> None:
 
     _validate_story_name(args.name)
     char_path = _validate_character_name(args.character, args.name)
+    story_root = char_path.parent.parent
+    slug = char_path.stem
 
     if args.data is not None:
         # Escape hatch: direct storage of caller-provided content
@@ -210,10 +213,19 @@ def cmd_generate_sheet(args: argparse.Namespace) -> None:
 
     sheet_data = {
         "name": args.character,
-        "sheet": sheet_text,
-        "chunks": chunks,
-        "summary": summary,
-        "abridged": abridged,
+        "sheet": persist_markdown(
+            story_root, f"characters/{slug}/sheet.md", sheet_text
+        ),
+        "chunks": {
+            k: persist_markdown(story_root, f"characters/{slug}/chunks/{k}.md", v)
+            for k, v in chunks.items()
+        },
+        "summary": persist_markdown(
+            story_root, f"characters/{slug}/summary.md", summary
+        ),
+        "abridged": persist_markdown(
+            story_root, f"characters/{slug}/abridged.md", abridged
+        ),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -240,6 +252,8 @@ def cmd_update_sheet(args: argparse.Namespace) -> None:
 
     _validate_story_name(args.name)
     char_path = _validate_character_name(args.character, args.name)
+    story_root = char_path.parent.parent
+    slug = char_path.stem
 
     if not char_path.exists():
         print(f"Error: character sheet not found: {args.character}", file=sys.stderr)
@@ -262,16 +276,24 @@ def cmd_update_sheet(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     if "sheet" in updates:
-        existing["sheet"] = updates["sheet"]
+        existing["sheet"] = persist_markdown(
+            story_root, f"characters/{slug}/sheet.md", updates["sheet"]
+        )
     if "summary" in updates:
-        existing["summary"] = updates["summary"]
+        existing["summary"] = persist_markdown(
+            story_root, f"characters/{slug}/summary.md", updates["summary"]
+        )
     if "abridged" in updates:
-        existing["abridged"] = updates["abridged"]
+        existing["abridged"] = persist_markdown(
+            story_root, f"characters/{slug}/abridged.md", updates["abridged"]
+        )
     if "chunks" in updates and isinstance(updates["chunks"], dict):
         if "chunks" not in existing or not isinstance(existing.get("chunks"), dict):
             existing["chunks"] = {}
         for key, value in updates["chunks"].items():
-            existing["chunks"][key] = value
+            existing["chunks"][key] = persist_markdown(
+                story_root, f"characters/{slug}/chunks/{key}.md", value
+            )
 
     existing["updated_at"] = datetime.now(timezone.utc).isoformat()
 
@@ -299,6 +321,14 @@ def cmd_load_sheet(args: argparse.Namespace) -> None:
     except json.JSONDecodeError:
         print(f"Error: corrupted character sheet: {args.character}", file=sys.stderr)
         sys.exit(1)
+
+    story_root = char_path.parent.parent
+    data["sheet"] = read_markdown_ref(story_root, data.get("sheet", ""))
+    data["chunks"] = {
+        k: read_markdown_ref(story_root, v) for k, v in data.get("chunks", {}).items()
+    }
+    data["summary"] = read_markdown_ref(story_root, data.get("summary", ""))
+    data["abridged"] = read_markdown_ref(story_root, data.get("abridged", ""))
 
     if args.abridged:
         data = {
@@ -338,6 +368,8 @@ def cmd_generate_chunks(args: argparse.Namespace) -> None:
 
     _validate_story_name(args.name)
     char_path = _validate_character_name(args.character, args.name)
+    story_root = char_path.parent.parent
+    slug = char_path.stem
 
     if not char_path.exists():
         print(f"Error: character sheet not found: {args.character}", file=sys.stderr)
@@ -349,7 +381,7 @@ def cmd_generate_chunks(args: argparse.Namespace) -> None:
         print(f"Error: corrupted character sheet: {args.character}", file=sys.stderr)
         sys.exit(1)
 
-    sheet_text = data.get("sheet", "")
+    sheet_text = read_markdown_ref(story_root, data.get("sheet", ""))
     if not sheet_text.strip():
         print(
             "Error: character sheet is empty — run generate-sheet first",
@@ -396,7 +428,10 @@ def cmd_generate_chunks(args: argparse.Namespace) -> None:
             print(f"Error: LLM call failed for '{chunk_key}': {exc}", file=sys.stderr)
             sys.exit(1)
 
-        chunks[chunk_key] = _extract_output_content(result)
+        chunk_text = _extract_output_content(result)
+        chunks[chunk_key] = persist_markdown(
+            story_root, f"characters/{slug}/chunks/{chunk_key}.md", chunk_text
+        )
         generated.append(chunk_key)
 
     data["chunks"] = chunks
@@ -419,6 +454,8 @@ def cmd_generate_summary(args: argparse.Namespace) -> None:
 
     _validate_story_name(args.name)
     char_path = _validate_character_name(args.character, args.name)
+    story_root = char_path.parent.parent
+    slug = char_path.stem
 
     if not char_path.exists():
         print(f"Error: character sheet not found: {args.character}", file=sys.stderr)
@@ -430,7 +467,8 @@ def cmd_generate_summary(args: argparse.Namespace) -> None:
         print(f"Error: corrupted character sheet: {args.character}", file=sys.stderr)
         sys.exit(1)
 
-    chunks: dict[str, str] = data.get("chunks", {})
+    chunks_raw: dict = data.get("chunks", {})
+    chunks = {k: read_markdown_ref(story_root, v) for k, v in chunks_raw.items()}
     valid_chunks = {
         k: v
         for k, v in chunks.items()
@@ -465,7 +503,11 @@ def cmd_generate_summary(args: argparse.Namespace) -> None:
         print(f"Error: LLM call failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    data["summary"] = _extract_output_content(summary)
+    data["summary"] = persist_markdown(
+        story_root,
+        f"characters/{slug}/summary.md",
+        _extract_output_content(summary),
+    )
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     _atomic_write(char_path, json.dumps(data, indent=2))
 
@@ -481,6 +523,8 @@ def cmd_generate_abridged(args: argparse.Namespace) -> None:
 
     _validate_story_name(args.name)
     char_path = _validate_character_name(args.character, args.name)
+    story_root = char_path.parent.parent
+    slug = char_path.stem
 
     if not char_path.exists():
         print(f"Error: character sheet not found: {args.character}", file=sys.stderr)
@@ -494,7 +538,9 @@ def cmd_generate_abridged(args: argparse.Namespace) -> None:
 
     if args.data is not None:
         # Escape hatch: store caller-provided content directly to abridged
-        data["abridged"] = args.data
+        data["abridged"] = persist_markdown(
+            story_root, f"characters/{slug}/abridged.md", args.data
+        )
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
         _atomic_write(char_path, json.dumps(data, indent=2))
         rel_path = str(char_path.relative_to(STORIES_DIR.resolve().parent))
@@ -527,7 +573,11 @@ def cmd_generate_abridged(args: argparse.Namespace) -> None:
         print(f"Error: LLM call failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    data["abridged"] = _extract_output_content(abridged)
+    data["abridged"] = persist_markdown(
+        story_root,
+        f"characters/{slug}/abridged.md",
+        _extract_output_content(abridged),
+    )
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     _atomic_write(char_path, json.dumps(data, indent=2))
 

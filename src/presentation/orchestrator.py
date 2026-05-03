@@ -49,6 +49,7 @@ from presentation.pipeline_primitives import (
     WikiContextEvent,
 )
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
+from tools._persist import persist_markdown, read_markdown_ref
 from tools.wiki_extract import bootstrap_wiki_from_story
 from tools.wiki_init import _init_wiki_for_story
 
@@ -293,6 +294,7 @@ async def _generate_character_sheets(
 ) -> list[Path]:
     """Generate character sheets from outline and write to disk."""
     sbus = status_bus if status_bus is not None else NullStatusBus()
+    story_root = stories_dir / story_name
     project_root = Path(__file__).resolve().parents[2]
     loader = PromptLoader(prompts_dir=str(project_root / "prompts"))
     models = config.get("models", {})
@@ -369,7 +371,7 @@ async def _generate_character_sheets(
             sheet_data.setdefault("abridged", "")
             if not isinstance(sheet_data.get("chunks"), dict):
                 sheet_data["chunks"] = {}
-            sheet_text = str(sheet_data.get("sheet") or "")
+            sheet_text = read_markdown_ref(story_root, sheet_data.get("sheet") or "")
         else:
             try:
                 create_prompt = loader.load_prompt(
@@ -391,7 +393,9 @@ async def _generate_character_sheets(
 
             sheet_data = {
                 "name": character_name,
-                "sheet": sheet_text,
+                "sheet": persist_markdown(
+                    story_root, f"characters/{slug}/sheet.md", sheet_text
+                ),
                 "chunks": {},
                 "summary": "",
                 "abridged": "",
@@ -404,8 +408,8 @@ async def _generate_character_sheets(
             await _mark_work_item_done(state, "characters", char_item_sheet)
 
         chunk_results = dict(cast(dict[str, str], sheet_data.get("chunks", {})))
-        abridged_text = str(sheet_data.get("abridged") or "")
-        summary_text = str(sheet_data.get("summary") or "")
+        abridged_text = read_markdown_ref(story_root, sheet_data.get("abridged") or "")
+        summary_text = read_markdown_ref(story_root, sheet_data.get("summary") or "")
 
         try:
             chunk_items = list(chunk_prompts.items())
@@ -421,8 +425,8 @@ async def _generate_character_sheets(
                 if _work_item_done(state, "characters", chunk_item_id):
                     existing_chunks = sheet_data.get("chunks", {})
                     if isinstance(existing_chunks, dict):
-                        chunk_results[chunk_key] = str(
-                            existing_chunks.get(chunk_key) or ""
+                        chunk_results[chunk_key] = read_markdown_ref(
+                            story_root, existing_chunks.get(chunk_key) or ""
                         )
                     else:
                         chunk_results[chunk_key] = ""
@@ -446,7 +450,12 @@ async def _generate_character_sheets(
                     chunk_results[chunk_key] = ""
                     continue
 
-                sheet_data["chunks"] = chunk_results
+                sheet_data["chunks"] = {
+                    k: persist_markdown(
+                        story_root, f"characters/{slug}/chunks/{k}.md", v
+                    )
+                    for k, v in chunk_results.items()
+                }
                 sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
                 _atomic_write(
                     char_path,
@@ -462,7 +471,9 @@ async def _generate_character_sheets(
             )
             abridged_item_id = f"characters/{slug}/abridged"
             if _work_item_done(state, "characters", abridged_item_id):
-                abridged_text = str(sheet_data.get("abridged") or "")
+                abridged_text = read_markdown_ref(
+                    story_root, sheet_data.get("abridged") or ""
+                )
             else:
                 try:
                     abridged_prompt = loader.load_prompt(
@@ -480,7 +491,9 @@ async def _generate_character_sheets(
                 except Exception:
                     abridged_text = ""
 
-                sheet_data["abridged"] = abridged_text
+                sheet_data["abridged"] = persist_markdown(
+                    story_root, f"characters/{slug}/abridged.md", abridged_text
+                )
                 sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
                 _atomic_write(
                     char_path,
@@ -504,7 +517,9 @@ async def _generate_character_sheets(
             )
             summary_item_id = f"characters/{slug}/summary"
             if _work_item_done(state, "characters", summary_item_id):
-                summary_text = str(sheet_data.get("summary") or "")
+                summary_text = read_markdown_ref(
+                    story_root, sheet_data.get("summary") or ""
+                )
             else:
                 try:
                     summary_prompt = loader.load_prompt(
@@ -522,7 +537,9 @@ async def _generate_character_sheets(
                 except Exception:
                     summary_text = ""
 
-                sheet_data["summary"] = summary_text
+                sheet_data["summary"] = persist_markdown(
+                    story_root, f"characters/{slug}/summary.md", summary_text
+                )
                 sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
                 _atomic_write(
                     char_path,
@@ -537,9 +554,16 @@ async def _generate_character_sheets(
                 )
 
         enriched_data = dict(sheet_data)
-        enriched_data["chunks"] = chunk_results
-        enriched_data["abridged"] = abridged_text
-        enriched_data["summary"] = summary_text
+        enriched_data["chunks"] = {
+            k: persist_markdown(story_root, f"characters/{slug}/chunks/{k}.md", v)
+            for k, v in chunk_results.items()
+        }
+        enriched_data["abridged"] = persist_markdown(
+            story_root, f"characters/{slug}/abridged.md", abridged_text
+        )
+        enriched_data["summary"] = persist_markdown(
+            story_root, f"characters/{slug}/summary.md", summary_text
+        )
         enriched_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         _atomic_write(
             char_path,
@@ -569,6 +593,7 @@ async def _generate_setting_sheets(
 ) -> list[Path]:
     """Generate setting sheets from outline and write to disk."""
     sbus = status_bus if status_bus is not None else NullStatusBus()
+    story_root = stories_dir / story_name
     project_root = Path(__file__).resolve().parents[2]
     loader = PromptLoader(prompts_dir=str(project_root / "prompts"))
     models = config.get("models", {})
@@ -644,7 +669,7 @@ async def _generate_setting_sheets(
             sheet_data.setdefault("abridged", "")
             if not isinstance(sheet_data.get("chunks"), dict):
                 sheet_data["chunks"] = {}
-            sheet_text = str(sheet_data.get("sheet") or "")
+            sheet_text = read_markdown_ref(story_root, sheet_data.get("sheet") or "")
         else:
             try:
                 create_prompt = loader.load_prompt(
@@ -666,7 +691,9 @@ async def _generate_setting_sheets(
 
             sheet_data = {
                 "name": setting_name,
-                "sheet": sheet_text,
+                "sheet": persist_markdown(
+                    story_root, f"settings/{slug}/sheet.md", sheet_text
+                ),
                 "chunks": {},
                 "summary": "",
                 "abridged": "",
@@ -679,8 +706,8 @@ async def _generate_setting_sheets(
             await _mark_work_item_done(state, "settings", setting_item_sheet)
 
         chunk_results = dict(cast(dict[str, str], sheet_data.get("chunks", {})))
-        abridged_text = str(sheet_data.get("abridged") or "")
-        summary_text = str(sheet_data.get("summary") or "")
+        abridged_text = read_markdown_ref(story_root, sheet_data.get("abridged") or "")
+        summary_text = read_markdown_ref(story_root, sheet_data.get("summary") or "")
 
         try:
             chunk_items = list(chunk_prompts.items())
@@ -696,8 +723,8 @@ async def _generate_setting_sheets(
                 if _work_item_done(state, "settings", chunk_item_id):
                     existing_chunks = sheet_data.get("chunks", {})
                     if isinstance(existing_chunks, dict):
-                        chunk_results[chunk_key] = str(
-                            existing_chunks.get(chunk_key) or ""
+                        chunk_results[chunk_key] = read_markdown_ref(
+                            story_root, existing_chunks.get(chunk_key) or ""
                         )
                     else:
                         chunk_results[chunk_key] = ""
@@ -721,7 +748,10 @@ async def _generate_setting_sheets(
                     chunk_results[chunk_key] = ""
                     continue
 
-                sheet_data["chunks"] = chunk_results
+                sheet_data["chunks"] = {
+                    k: persist_markdown(story_root, f"settings/{slug}/chunks/{k}.md", v)
+                    for k, v in chunk_results.items()
+                }
                 sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
                 _atomic_write(
                     setting_path,
@@ -737,7 +767,9 @@ async def _generate_setting_sheets(
             )
             abridged_item_id = f"settings/{slug}/abridged"
             if _work_item_done(state, "settings", abridged_item_id):
-                abridged_text = str(sheet_data.get("abridged") or "")
+                abridged_text = read_markdown_ref(
+                    story_root, sheet_data.get("abridged") or ""
+                )
             else:
                 try:
                     abridged_prompt = loader.load_prompt(
@@ -755,7 +787,9 @@ async def _generate_setting_sheets(
                 except Exception:
                     abridged_text = ""
 
-                sheet_data["abridged"] = abridged_text
+                sheet_data["abridged"] = persist_markdown(
+                    story_root, f"settings/{slug}/abridged.md", abridged_text
+                )
                 sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
                 _atomic_write(
                     setting_path,
@@ -779,7 +813,9 @@ async def _generate_setting_sheets(
             )
             summary_item_id = f"settings/{slug}/summary"
             if _work_item_done(state, "settings", summary_item_id):
-                summary_text = str(sheet_data.get("summary") or "")
+                summary_text = read_markdown_ref(
+                    story_root, sheet_data.get("summary") or ""
+                )
             else:
                 try:
                     summary_prompt = loader.load_prompt(
@@ -797,7 +833,9 @@ async def _generate_setting_sheets(
                 except Exception:
                     summary_text = ""
 
-                sheet_data["summary"] = summary_text
+                sheet_data["summary"] = persist_markdown(
+                    story_root, f"settings/{slug}/summary.md", summary_text
+                )
                 sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
                 _atomic_write(
                     setting_path,
@@ -812,9 +850,16 @@ async def _generate_setting_sheets(
                 )
 
         enriched_data = dict(sheet_data)
-        enriched_data["chunks"] = chunk_results
-        enriched_data["abridged"] = abridged_text
-        enriched_data["summary"] = summary_text
+        enriched_data["chunks"] = {
+            k: persist_markdown(story_root, f"settings/{slug}/chunks/{k}.md", v)
+            for k, v in chunk_results.items()
+        }
+        enriched_data["abridged"] = persist_markdown(
+            story_root, f"settings/{slug}/abridged.md", abridged_text
+        )
+        enriched_data["summary"] = persist_markdown(
+            story_root, f"settings/{slug}/summary.md", summary_text
+        )
         enriched_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         _atomic_write(
             setting_path,

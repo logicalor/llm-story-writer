@@ -100,7 +100,10 @@ async def test_setting_evolver_updates_sheet_on_material_changes(
 
     assert result == {"Castle": "updated"}
     updated_data = json.loads(setting_path.read_text(encoding="utf-8"))
-    assert "Damaged fortress." in updated_data["sheet"]
+    sheet_ref = updated_data["sheet"]
+    assert isinstance(sheet_ref, dict) and "$ref" in sheet_ref
+    sheet_content = (tmp_path / "my-story" / sheet_ref["$ref"]).read_text(encoding="utf-8")
+    assert "Damaged fortress." in sheet_content
     assert provider.generate_text.call_count == 3
 
 
