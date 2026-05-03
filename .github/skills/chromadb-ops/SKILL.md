@@ -35,6 +35,20 @@ See `.github/instructions/chromadb.instructions.md` for collection schemas, ID c
 | `codebase` | Code structure facts |
 | `tests` | Test patterns and conventions |
 
+### Source-Sync Helpers
+
+When indexing story-related Markdown files into a per-story collection, use the helpers in `src/tools/_chroma_sync.py` instead of calling `collection.upsert()` directly. This ensures every indexed document carries the `source_path`, `source_mtime`, and `source_sha256` metadata required by ADR 012.
+
+```python
+from tools._chroma_sync import upsert_from_source, refresh_if_stale, reconcile_collection
+```
+
+- **`upsert_from_source`** — index a source-backed Markdown file with fingerprint metadata
+- **`refresh_if_stale`** — refresh a single entry if its source has changed since last index
+- **`reconcile_collection`** — full filesystem-first sweep: add missing, update stale, delete orphaned entries
+
+See `.github/instructions/chromadb.instructions.md` (Source-Sync Contract section) for the full metadata schema and usage guidance.
+
 ### CLI Invocation Requirement
 
 `chroma-mcp` in `.github/mcp.json` uses `cwd: "."` with `--data-dir .chromadb`.
