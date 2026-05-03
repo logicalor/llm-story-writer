@@ -20,6 +20,7 @@ if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
 
 from src.tools._io import STORIES_DIR, _atomic_write, _validate_story_name  # noqa: E402
+from tools._persist import persist_markdown, read_markdown_ref  # noqa: E402
 
 
 def _extract_output_content(text: str) -> str:
@@ -188,6 +189,8 @@ def cmd_generate_sheet(args: argparse.Namespace) -> None:
 
     _validate_story_name(args.name)
     setting_path = _validate_setting_name(args.setting, args.name)
+    story_root = setting_path.parent.parent
+    slug = setting_path.stem
 
     if args.data is not None:
         # Escape hatch: direct storage of caller-provided content
@@ -255,10 +258,15 @@ def cmd_generate_sheet(args: argparse.Namespace) -> None:
 
     sheet_data = {
         "name": args.setting,
-        "sheet": sheet_text,
-        "chunks": chunks,
-        "summary": summary,
-        "abridged": abridged,
+        "sheet": persist_markdown(story_root, f"settings/{slug}/sheet.md", sheet_text),
+        "chunks": {
+            k: persist_markdown(story_root, f"settings/{slug}/chunks/{k}.md", v)
+            for k, v in chunks.items()
+        },
+        "summary": persist_markdown(story_root, f"settings/{slug}/summary.md", summary),
+        "abridged": persist_markdown(
+            story_root, f"settings/{slug}/abridged.md", abridged
+        ),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -285,6 +293,8 @@ def cmd_update_sheet(args: argparse.Namespace) -> None:
 
     _validate_story_name(args.name)
     setting_path = _validate_setting_name(args.setting, args.name)
+    story_root = setting_path.parent.parent
+    slug = setting_path.stem
 
     if not setting_path.exists():
         print(f"Error: setting sheet not found: {args.setting}", file=sys.stderr)
@@ -307,16 +317,24 @@ def cmd_update_sheet(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     if "sheet" in updates:
-        existing["sheet"] = updates["sheet"]
+        existing["sheet"] = persist_markdown(
+            story_root, f"settings/{slug}/sheet.md", updates["sheet"]
+        )
     if "summary" in updates:
-        existing["summary"] = updates["summary"]
+        existing["summary"] = persist_markdown(
+            story_root, f"settings/{slug}/summary.md", updates["summary"]
+        )
     if "abridged" in updates:
-        existing["abridged"] = updates["abridged"]
+        existing["abridged"] = persist_markdown(
+            story_root, f"settings/{slug}/abridged.md", updates["abridged"]
+        )
     if "chunks" in updates and isinstance(updates["chunks"], dict):
         if "chunks" not in existing or not isinstance(existing.get("chunks"), dict):
             existing["chunks"] = {}
         for key, value in updates["chunks"].items():
-            existing["chunks"][key] = value
+            existing["chunks"][key] = persist_markdown(
+                story_root, f"settings/{slug}/chunks/{key}.md", value
+            )
 
     existing["updated_at"] = datetime.now(timezone.utc).isoformat()
 
@@ -344,6 +362,14 @@ def cmd_load_sheet(args: argparse.Namespace) -> None:
     except json.JSONDecodeError:
         print(f"Error: corrupted setting sheet: {args.setting}", file=sys.stderr)
         sys.exit(1)
+
+    story_root = setting_path.parent.parent
+    data["sheet"] = read_markdown_ref(story_root, data.get("sheet", ""))
+    data["chunks"] = {
+        k: read_markdown_ref(story_root, v) for k, v in data.get("chunks", {}).items()
+    }
+    data["summary"] = read_markdown_ref(story_root, data.get("summary", ""))
+    data["abridged"] = read_markdown_ref(story_root, data.get("abridged", ""))
 
     if args.abridged:
         data = {
@@ -383,6 +409,8 @@ def cmd_generate_chunks(args: argparse.Namespace) -> None:
 
     _validate_story_name(args.name)
     setting_path = _validate_setting_name(args.setting, args.name)
+    story_root = setting_path.parent.parent
+    slug = setting_path.stem
 
     if not setting_path.exists():
         print(f"Error: setting sheet not found: {args.setting}", file=sys.stderr)
@@ -394,7 +422,7 @@ def cmd_generate_chunks(args: argparse.Namespace) -> None:
         print(f"Error: corrupted setting sheet: {args.setting}", file=sys.stderr)
         sys.exit(1)
 
-    sheet_text = data.get("sheet", "")
+    sheet_text = read_markdown_ref(story_root, data.get("sheet", ""))
     if not sheet_text.strip():
         print(
             "Error: setting sheet is empty — run generate-sheet first",
@@ -441,7 +469,10 @@ def cmd_generate_chunks(args: argparse.Namespace) -> None:
             print(f"Error: LLM call failed for '{chunk_key}': {exc}", file=sys.stderr)
             sys.exit(1)
 
-        chunks[chunk_key] = _extract_output_content(result)
+        chunk_text = _extract_output_content(result)
+        chunks[chunk_key] = persist_markdown(
+            story_root, f"settings/{slug}/chunks/{chunk_key}.md", chunk_text
+        )
         generated.append(chunk_key)
 
     data["chunks"] = chunks
@@ -465,6 +496,8 @@ def cmd_generate_summary(args: argparse.Namespace) -> None:
 
     _validate_story_name(args.name)
     setting_path = _validate_setting_name(args.setting, args.name)
+    story_root = setting_path.parent.parent
+    slug = setting_path.stem
 
     if not setting_path.exists():
         print(f"Error: setting sheet not found: {args.setting}", file=sys.stderr)
@@ -476,7 +509,8 @@ def cmd_generate_summary(args: argparse.Namespace) -> None:
         print(f"Error: corrupted setting sheet: {args.setting}", file=sys.stderr)
         sys.exit(1)
 
-    chunks: dict[str, str] = data.get("chunks", {})
+    chunks_raw: dict = data.get("chunks", {})
+    chunks = {k: read_markdown_ref(story_root, v) for k, v in chunks_raw.items()}
     valid_chunks = {
         k: v
         for k, v in chunks.items()
@@ -512,7 +546,11 @@ def cmd_generate_summary(args: argparse.Namespace) -> None:
         print(f"Error: LLM call failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    data["summary"] = _extract_output_content(summary)
+    data["summary"] = persist_markdown(
+        story_root,
+        f"settings/{slug}/summary.md",
+        _extract_output_content(summary),
+    )
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     _atomic_write(setting_path, json.dumps(data, indent=2))
 
@@ -528,6 +566,8 @@ def cmd_generate_abridged(args: argparse.Namespace) -> None:
 
     _validate_story_name(args.name)
     setting_path = _validate_setting_name(args.setting, args.name)
+    story_root = setting_path.parent.parent
+    slug = setting_path.stem
 
     if not setting_path.exists():
         print(f"Error: setting sheet not found: {args.setting}", file=sys.stderr)
@@ -541,7 +581,9 @@ def cmd_generate_abridged(args: argparse.Namespace) -> None:
 
     if args.data is not None:
         # Escape hatch: store caller-provided content directly to abridged
-        data["abridged"] = args.data
+        data["abridged"] = persist_markdown(
+            story_root, f"settings/{slug}/abridged.md", args.data
+        )
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
         _atomic_write(setting_path, json.dumps(data, indent=2))
         rel_path = str(setting_path.relative_to(STORIES_DIR.resolve().parent))
@@ -574,7 +616,11 @@ def cmd_generate_abridged(args: argparse.Namespace) -> None:
         print(f"Error: LLM call failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    data["abridged"] = _extract_output_content(abridged)
+    data["abridged"] = persist_markdown(
+        story_root,
+        f"settings/{slug}/abridged.md",
+        _extract_output_content(abridged),
+    )
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     _atomic_write(setting_path, json.dumps(data, indent=2))
 

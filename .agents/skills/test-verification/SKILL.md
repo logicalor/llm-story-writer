@@ -22,6 +22,7 @@ Tests verify implemented behavior. They should be meaningful, isolated, and alig
 - For argparse validation, assert `returncode == 2` and useful stderr.
 - For LLM JSON parsing, cover invalid JSON, valid non-dict JSON, null sections, and mixed list items when relevant.
 - For disk-writing code, patch storage roots and avoid real story data.
+- For fields written as pointer format (`{"$ref": "path/to/file.md"}`): never assert directly on `data["field"]`. Resolve via `ref_path = data["field"]["$ref"]`, read the `.md` file from disk, then assert on the file content.
 
 ## Handoff
 

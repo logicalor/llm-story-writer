@@ -19,9 +19,9 @@ Issue #318 / PR #330 implements ADR 010 Tasks 4, 5, and 6 across three loop-heav
 The phase now checkpoints these persisted artefacts:
 
 - `stories/<story>/characters/_names.json` after successful name extraction (`characters/_extract_names`)
-- `stories/<story>/characters/<slug>.json` after each base sheet write (`characters/<slug>/sheet`)
-- The same JSON file after each chunk write (`characters/<slug>/chunk:<chunk-name>`)
-- The same JSON file after `abridged` and `summary` writes (`characters/<slug>/abridged`, `characters/<slug>/summary`)
+- `stories/<story>/characters/<slug>.json` plus `stories/<story>/characters/<slug>/sheet.md` after each base sheet write (`characters/<slug>/sheet`)
+- The same JSON file plus `stories/<story>/characters/<slug>/chunks/<chunk-name>.md` after each chunk write (`characters/<slug>/chunk:<chunk-name>`)
+- The same JSON file plus `stories/<story>/characters/<slug>/abridged.md` and `summary.md` after `abridged` and `summary` writes (`characters/<slug>/abridged`, `characters/<slug>/summary`)
 
 Current character chunk keys:
 
@@ -33,7 +33,7 @@ Current character chunk keys:
 - `arc`
 - `current_state`
 
-On resume, the orchestrator loads `_names.json` instead of re-running name extraction when `characters/_extract_names` is already present, then reads any already-written sheet JSON from disk and continues at the next missing chunk or summary step.
+On resume, the orchestrator loads `_names.json` instead of re-running name extraction when `characters/_extract_names` is already present, then reads any already-written sheet JSON from disk and resolves its pointer refs to continue at the next missing chunk or summary step.
 
 ### Settings Phase
 
@@ -42,9 +42,9 @@ On resume, the orchestrator loads `_names.json` instead of re-running name extra
 The phase now checkpoints these persisted artefacts:
 
 - `stories/<story>/settings/_names.json` after successful location extraction (`settings/_extract_locations`)
-- `stories/<story>/settings/<slug>.json` after each base sheet write (`settings/<slug>/sheet`)
-- The same JSON file after each chunk write (`settings/<slug>/chunk:<chunk-name>`)
-- The same JSON file after `abridged` and `summary` writes (`settings/<slug>/abridged`, `settings/<slug>/summary`)
+- `stories/<story>/settings/<slug>.json` plus `stories/<story>/settings/<slug>/sheet.md` after each base sheet write (`settings/<slug>/sheet`)
+- The same JSON file plus `stories/<story>/settings/<slug>/chunks/<chunk-name>.md` after each chunk write (`settings/<slug>/chunk:<chunk-name>`)
+- The same JSON file plus `stories/<story>/settings/<slug>/abridged.md` and `summary.md` after `abridged` and `summary` writes (`settings/<slug>/abridged`, `settings/<slug>/summary`)
 
 Current setting chunk keys:
 
@@ -55,7 +55,7 @@ Current setting chunk keys:
 - `connections_relationships`
 - `rules_constraints`
 
-On resume, completed settings are read back from the existing JSON files and only the missing work items run.
+On resume, completed settings are read back from the existing JSON files, their pointer refs are resolved to markdown bodies, and only the missing work items run.
 
 ### Per-Scene Chapter Drafting
 
@@ -81,15 +81,15 @@ The newly implemented IDs from this PR are:
 | Phase key | Work-item ID pattern | Persisted artefact |
 |---|---|---|
 | `characters` | `characters/_extract_names` | `stories/<story>/characters/_names.json` |
-| `characters` | `characters/<slug>/sheet` | `stories/<story>/characters/<slug>.json` |
-| `characters` | `characters/<slug>/chunk:<chunk-name>` | `stories/<story>/characters/<slug>.json` |
-| `characters` | `characters/<slug>/abridged` | `stories/<story>/characters/<slug>.json` |
-| `characters` | `characters/<slug>/summary` | `stories/<story>/characters/<slug>.json` |
+| `characters` | `characters/<slug>/sheet` | `stories/<story>/characters/<slug>.json` + `stories/<story>/characters/<slug>/sheet.md` |
+| `characters` | `characters/<slug>/chunk:<chunk-name>` | `stories/<story>/characters/<slug>.json` + `stories/<story>/characters/<slug>/chunks/<chunk-name>.md` |
+| `characters` | `characters/<slug>/abridged` | `stories/<story>/characters/<slug>.json` + `stories/<story>/characters/<slug>/abridged.md` |
+| `characters` | `characters/<slug>/summary` | `stories/<story>/characters/<slug>.json` + `stories/<story>/characters/<slug>/summary.md` |
 | `settings` | `settings/_extract_locations` | `stories/<story>/settings/_names.json` |
-| `settings` | `settings/<slug>/sheet` | `stories/<story>/settings/<slug>.json` |
-| `settings` | `settings/<slug>/chunk:<chunk-name>` | `stories/<story>/settings/<slug>.json` |
-| `settings` | `settings/<slug>/abridged` | `stories/<story>/settings/<slug>.json` |
-| `settings` | `settings/<slug>/summary` | `stories/<story>/settings/<slug>.json` |
+| `settings` | `settings/<slug>/sheet` | `stories/<story>/settings/<slug>.json` + `stories/<story>/settings/<slug>/sheet.md` |
+| `settings` | `settings/<slug>/chunk:<chunk-name>` | `stories/<story>/settings/<slug>.json` + `stories/<story>/settings/<slug>/chunks/<chunk-name>.md` |
+| `settings` | `settings/<slug>/abridged` | `stories/<story>/settings/<slug>.json` + `stories/<story>/settings/<slug>/abridged.md` |
+| `settings` | `settings/<slug>/summary` | `stories/<story>/settings/<slug>.json` + `stories/<story>/settings/<slug>/summary.md` |
 | `chapter-<N>` | `chapter-<N>/scenes/decomposition` | `stories/<story>/chapters/chapter_<N>_scenes.json` |
 | `chapter-<N>` | `chapter-<N>/scene:<M>` | `stories/<story>/chapters/chapter_<N>/scene_<M>.md` |
 
@@ -105,7 +105,7 @@ With these ADR 010 tasks implemented:
 - Settings resume from the next missing extraction, chunk, abridged, or summary item.
 - Scene-based chapter drafting resumes from the next missing scene instead of restarting the whole chapter.
 
-The safety rule is unchanged and critical: write the artefact first, then mark the work item done. If the process dies before the ledger write, that sub-step reruns. If it dies after the ledger write, the artefact is already on disk and can be loaded safely on resume.
+The safety rule is unchanged and critical: write the markdown body and rewrite the JSON pointer first, then mark the work item done. If the process dies before the ledger write, that sub-step reruns. If it dies after the ledger write, both artefacts are already on disk and can be loaded safely on resume.
 
 Legacy savepoints remain compatible. Older `pipeline_state.json` files load with an empty `completed_work_items` dict, so pre-ledger runs fall back to the older phase-level behavior until the converted phase writes a new savepoint.
 

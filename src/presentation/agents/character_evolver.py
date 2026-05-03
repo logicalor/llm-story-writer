@@ -14,6 +14,7 @@ from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
+from tools._persist import persist_markdown, read_markdown_ref
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -73,6 +74,7 @@ class CharacterEvolverAgent:
         settings: GenerationSettings,
     ) -> dict[str, str]:
         _validate_story_name(story_name)
+        story_root = STORIES_DIR / story_name
         characters_dir = STORIES_DIR / story_name / "characters"
         if not characters_dir.exists():
             return {}
@@ -92,6 +94,20 @@ class CharacterEvolverAgent:
                 if not isinstance(sheet_data, dict):
                     raise ValueError("Character sheet JSON must be an object")
                 character_name = str(sheet_data.get("name") or character_path.stem)
+                resolved_data = {
+                    **sheet_data,
+                    "sheet": read_markdown_ref(story_root, sheet_data.get("sheet", "")),
+                    "chunks": {
+                        k: read_markdown_ref(story_root, v)
+                        for k, v in sheet_data.get("chunks", {}).items()
+                    },
+                    "summary": read_markdown_ref(
+                        story_root, sheet_data.get("summary", "")
+                    ),
+                    "abridged": read_markdown_ref(
+                        story_root, sheet_data.get("abridged", "")
+                    ),
+                }
 
                 extracted_events = await self._run_prompt(
                     "characters/extract_from_chapter",
@@ -108,7 +124,7 @@ class CharacterEvolverAgent:
                     {
                         "character_name": character_name,
                         "current_character_sheet": json.dumps(
-                            sheet_data, ensure_ascii=False
+                            resolved_data, ensure_ascii=False
                         ),
                         "chapter_outline": extracted_events,
                     },
@@ -124,7 +140,7 @@ class CharacterEvolverAgent:
                     {
                         "character_name": character_name,
                         "current_character_sheet": json.dumps(
-                            sheet_data, ensure_ascii=False
+                            resolved_data, ensure_ascii=False
                         ),
                         "changes_to_apply": changes_analysis,
                     },
@@ -135,9 +151,12 @@ class CharacterEvolverAgent:
                     results[character_name] = "unchanged"
                     continue
 
+                slug = character_path.stem
                 updated_data = {
                     "name": character_name,
-                    "sheet": updated_sheet,
+                    "sheet": persist_markdown(
+                        story_root, f"characters/{slug}/sheet.md", updated_sheet
+                    ),
                     "abridged": sheet_data.get("abridged", ""),
                     "summary": sheet_data.get("summary", ""),
                     "chunks": sheet_data.get("chunks", {}),
