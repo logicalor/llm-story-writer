@@ -46,7 +46,7 @@ See [Legacy Dependency Cleanup](./features/legacy-dependency-cleanup.md) for the
 
 ## Testing
 
-- [Integration Tests](./testing/integration-tests.md) — Live integration suite covering wiki E2E, headless batch E2E, `slow` marker usage, LLM endpoint requirements, and manual verification steps
+- [Integration Tests](./testing/integration-tests.md) — Integration suite covering offline granular resume tests, live wiki E2E, headless batch E2E, `slow` marker usage, LLM endpoint requirements, and manual verification steps
 
 ## Features
 
