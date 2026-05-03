@@ -4,7 +4,7 @@
 
 **Date:** 2026-05-03
 **Author:** Planner agent
-**Status:** In progress — Tasks 1 and 2 implemented in issue #324 / PR #336
+**Status:** In progress — Tasks 1 and 2 implemented in issue #324 / PR #336; Tasks 3, 4, and 8 implemented in issue #325 / PR #337
 
 ## Problem Statement
 
@@ -149,7 +149,7 @@ sub-cases:
   the sha256 of the resolved slice, not the whole file. Mtime still
   comes from the file.
 - **Synthetic content with no source file** (rare; legacy upsert paths
-  that pass raw strings). Helper falls back to `source_path = None` and
+  that pass raw strings). Helper falls back to `source_path = ""` and
   records only a content sha256 of the supplied body. These entries
   cannot go stale via source edit; they are refreshed only when the
   pipeline re-upserts.
@@ -167,12 +167,12 @@ metadata.
       `reconcile_collection` exist with type hints and unit tests
 - [x] All wiki-page upserts go through `upsert_from_source` (or a tiny
       wrapper) and record `source_path`, `source_mtime`, `source_sha256`
-- [ ] All `stories-<story>` upserts whose body originates from a known
-      file do the same; synthetic entries explicitly record
-      `source_path: null`
-- [ ] `wiki_search`, `wiki_snapshot`, `rag_query` call `refresh_if_stale`
+- [x] All `stories-<story>` upserts whose body originates from a known
+  file do the same; synthetic entries explicitly record
+  `source_path: ""`
+- [x] `wiki_search`, `wiki_snapshot`, `rag_query` call `refresh_if_stale`
       on returned ids before returning
-- [ ] A test that hand-edits a wiki markdown file and then issues a
+- [x] A test that hand-edits a wiki markdown file and then issues a
       query asserts the retrieved document body matches the edited file
 - [ ] `story-writer rag reconcile --story X` exists, is idempotent, and
       its `--dry-run` mode never writes

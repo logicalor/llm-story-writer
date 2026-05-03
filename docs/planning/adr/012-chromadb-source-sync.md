@@ -1,7 +1,7 @@
 # ADR 012: ChromaDB Source-Sync Metadata
 
 **Date:** 2026-05-03
-**Status:** Accepted — initial implementation landed for Tasks 1 and 2 in issue #324 / PR #336
+**Status:** Accepted — Tasks 1 and 2 landed in issue #324 / PR #336; Tasks 3, 4, and 8 landed in issue #325 / PR #337
 
 ## Context
 
@@ -68,8 +68,26 @@ site adoption:
   `upsert_from_source()` and records `source_path`, `source_mtime`, and
   `source_sha256` for wiki pages.
 
-Read-side refresh hooks, reconcile CLI wiring, and broader `stories-<story>`
-upsert migration remain follow-on work from the PRD task list.
+Issue #325 / PR #337 extended the contract to read paths and `stories-<story>`
+indexing:
+
+- `src/tools/rag_query.py` now routes `index` writes through
+  `upsert_from_source()`, accepts optional `--source-path`, and treats
+  synthetic content as `source_path = ""`.
+- `src/tools/wiki_search.py` refreshes stale semantic and metadata hits
+  before returning results, then re-fetches refreshed document bodies and
+  metadata.
+- `src/tools/rag_query.py` refreshes stale query hits before returning
+  results, then re-fetches refreshed document bodies and metadata.
+- `src/tools/wiki_snapshot.py` now calls `refresh_if_stale()` in its tier-2
+  metadata and tier-3 semantic retrieval helpers as a fire-and-forget
+  consistency hook.
+- Query-path regression coverage now includes a hand-edit test that updates a
+  wiki markdown file, issues a query, and asserts the returned document body
+  matches the edited file.
+
+Reconcile CLI wiring and broader collection backfill remain follow-on work
+from the PRD task list.
 
 ## Consequences
 
