@@ -1,24 +1,27 @@
 # Integration Tests
 
-> How to run the live integration suite for the story pipeline, including the headless batch E2E test and slow-test marker workflow.
+> How to run the integration suite for the story pipeline, including mock-backed interrupt-resume coverage and live LLM end-to-end checks.
 
 ## Overview
 
-The integration suite verifies the story pipeline against a real OpenAI-compatible LLM endpoint. It exercises story state initialisation, wiki setup, outline generation, character and setting sheet generation, wiki population, scene writing, recap generation, wiki linting, savepoint creation, and final story assembly.
+The integration suite now has two layers. One layer is mock-backed and verifies resume correctness end to end without a live model. The other layer verifies the story pipeline and provider integration against a real OpenAI-compatible LLM endpoint.
 
-The integration area includes one end-to-end path and a focused live smoke test for `OpenAIAsyncProvider`. `test_end_to_end_headless.py` covers the headless Python CLI batch runner by invoking `python -m src.presentation.cli.main run --story e2e_test_ --batch` in a subprocess and asserting that savepoints and approved chapter outputs are created. `test_openai_async_provider_live.py` covers streaming behaviour against a live endpoint.
+`test_resume_granularity.py` covers granular interrupt and resume behavior by building partial `PipelineState` savepoints, resuming through `resume_pipeline()`, and asserting that already-persisted work is not re-run. `test_end_to_end_headless.py` covers the headless Python CLI batch runner by invoking `python -m src.presentation.cli.main run --story e2e_test_ --batch` in a subprocess and asserting that savepoints and approved chapter outputs are created. `test_openai_async_provider_live.py` covers streaming behaviour against a live endpoint.
 
-These tests are intentionally heavier than unit tests. They make live model calls, create temporary story and ChromaDB directories, and validate real runtime behaviour instead of mocking tool boundaries.
+These tests are heavier than unit tests because they exercise multi-phase orchestration, filesystem persistence, and savepoint behavior. Only the live subset requires a running LLM service.
 
 ## Scope
 
 The suite currently lives in `tests/integration/` and includes:
 
 - `tests/integration/conftest.py` — registers the `integration` pytest marker and provides the session-scoped `llm_available` fixture.
+- `tests/integration/test_resume_granularity.py` — mock-backed end-to-end resume coverage for granular checkpointing. It runs a 1-chapter pipeline baseline, resumes from representative saved states after the characters phase, after chapter draft persistence, and after final-edit persistence, then checks byte-identical output and no duplicate chapter-writer or final-editor calls on resume.
 - `tests/integration/test_end_to_end_headless.py` — a slow headless E2E test that creates `stories/e2e-test/state.json`, runs the Python CLI in batch mode, auto-skips when LM Studio is unavailable, and checks savepoints, `pipeline_state.json`, approved chapter count, chapter titles, chapter content, and a 600-second wall-clock budget.
 - `tests/integration/test_openai_async_provider_live.py` — a live streaming smoke test for `OpenAIAsyncProvider` that asserts multiple streamed chunks are received from a real endpoint.
 
 The `llm_available` fixture checks `GET {LLM_API_BASE}/models` before the end-to-end pipeline suite starts. If the endpoint is unreachable or returns a non-200 status, pytest skips that suite instead of failing it.
+
+`test_resume_granularity.py` does not use `llm_available`. It uses `AsyncMock` and `MagicMock` providers plus patched agent boundaries, so it runs entirely offline.
 
 `test_end_to_end_headless.py` does not use `llm_available`. Its `require_lm_studio` fixture probes `http://127.0.0.1:1234/v1/models` directly with `httpx` and skips the test when LM Studio is not reachable there.
 
@@ -36,6 +39,12 @@ Run the integration suite explicitly:
 
 ```bash
 pytest tests/integration/ -v -m integration
+```
+
+Run only the mock-backed granular resume integration file:
+
+```bash
+pytest tests/integration/test_resume_granularity.py -v -m integration
 ```
 
 Run only slow integration coverage:
@@ -78,20 +87,20 @@ pytest tests/unit tests/integration -v
 
 ## Pytest Markers
 
-Pytest uses two markers for live integration coverage:
+Pytest uses two markers for integration coverage:
 
-- `@pytest.mark.integration` — marks tests that require a live LLM service and should not be treated like fast unit coverage.
+- `@pytest.mark.integration` — marks orchestration-level integration coverage. In practice this includes both live LLM tests and the mock-backed `test_resume_granularity.py` file.
 - `@pytest.mark.slow` — marks tests that may take multiple minutes. This marker is registered in `pyproject.toml` under `[tool.pytest.ini_options]`.
 
 Use marker expressions to control runtime:
 
-- `pytest tests/integration/ -m integration` — all live integration tests
+- `pytest tests/integration/ -m integration` — all integration tests, including offline and live coverage
 - `pytest tests/integration/ -m slow` — only slow tests
-- `pytest tests/integration/ -m "integration and not slow"` — live tests except slow coverage
+- `pytest tests/integration/ -m "integration and not slow"` — non-slow integration tests, including the offline resume file
 
 ## LLM Endpoint Configuration
 
-The integration suite requires a live OpenAI-compatible LLM API.
+Only the live integration subset requires a live OpenAI-compatible LLM API.
 
 `LLM_API_BASE` controls which endpoint the tests call:
 
@@ -165,6 +174,11 @@ Across the current integration files, coverage includes these checkpoints:
 15. At least two approved chapters are present with `Chapter` in the title and non-empty content.
 16. Headless runtime stays within the 600-second budget.
 17. Wiki artifacts (`wiki/index.md`, `wiki/log.md`, `wiki/_schema.md`, `wiki/contradictions.md`, `wiki/timeline/`) exist after the headless run and `pipeline_state.json` contains `wiki_batches` with per-chapter `updated_pages` and `new_pages` entries.
+18. An interrupted run can resume after a saved characters-phase boundary without re-running character generation.
+19. An interrupted run can resume after a saved chapter-draft boundary without re-running `ChapterWriterAgent` for the already-written chapter.
+20. An interrupted run can resume after a saved final-edit boundary without re-running the per-chapter final edit.
+21. Resumed output for the covered interrupt points is byte-identical to the uninterrupted baseline output.
+22. Covered interrupt-resume scenarios do not introduce duplicate chapter-writer calls relative to the uninterrupted baseline.
 
 ## Manual Verification
 
@@ -190,5 +204,7 @@ Manual checks worth doing:
 ## Notes
 
 The pytest configuration keeps default discovery focused on `tests/unit`. That keeps `pytest` fast for normal development, while integration runs stay explicit and opt-in through `tests/integration/` and marker selection.
+
+The `integration` marker description in `pyproject.toml` still reflects the older live-only suite. Treat `tests/integration/test_resume_granularity.py` as the current exception: it is integration coverage, but it runs fully offline.
 
 Related: [Documentation Index](../README.md), [Tools Reference](../tools.md), [Story Orchestrator](../features/story-orchestrator.md)
