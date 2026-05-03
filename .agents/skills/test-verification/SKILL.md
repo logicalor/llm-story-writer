@@ -23,6 +23,8 @@ Tests verify implemented behavior. They should be meaningful, isolated, and alig
 - For LLM JSON parsing, cover invalid JSON, valid non-dict JSON, null sections, and mixed list items when relevant.
 - For disk-writing code, patch storage roots and avoid real story data.
 - For fields written as pointer format (`{"$ref": "path/to/file.md"}`): never assert directly on `data["field"]`. Resolve via `ref_path = data["field"]["$ref"]`, read the `.md` file from disk, then assert on the file content.
+- For filesystem fingerprint / stale-refresh tests: advance mtime explicitly with `os.utime(path, (t+10, t+10))` after writing the edited content — never rely on the filesystem clock advancing between write and check (see gotcha #050).
+- For subprocess integration tests: include all module-level `os.environ.get(...)` vars (e.g. `CHROMADB_DIR`, `STORIES_DIR`) in the `env` dict passed to `subprocess.run` — they are baked in at subprocess import time and cannot be patched in-process (see gotcha #051).
 
 ## Handoff
 
