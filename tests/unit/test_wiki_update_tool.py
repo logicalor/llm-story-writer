@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -572,33 +573,116 @@ class TestLog:
 
 class TestChromaDB:
     def test_chromadb_upsert_on_create(
-        self, story_dir: Path, chromadb_dir: Path
+        self, chromadb_dir: Path
     ) -> None:
         import chromadb
 
-        result = _run_tool(
-            "--operation",
-            "create",
-            "--name",
-            "test-story",
-            "--slug",
-            "chroma-char",
-            "--page-type",
-            "character",
-            "--page-name",
-            "Chroma Char",
-            "--body",
-            "A character for ChromaDB testing.",
-            stories_dir=story_dir,
-            chromadb_dir=chromadb_dir,
-        )
-        assert result.returncode == 0, f"stderr: {result.stderr}"
+        with tempfile.TemporaryDirectory(dir=PROJECT_ROOT) as temp_dir:
+            stories_dir = Path(temp_dir) / "stories"
+            story = stories_dir / "test-story"
+            wiki = story / "wiki"
+            wiki.mkdir(parents=True)
+            for subdir in [
+                "characters",
+                "locations",
+                "events",
+                "factions",
+                "items",
+                "plot-threads",
+                "world-rules",
+                "themes",
+                "relationships",
+                "timeline",
+                "chapters",
+            ]:
+                (wiki / subdir).mkdir()
+            (wiki / "index.md").write_text(
+                "# Wiki Index\n\n<!-- slug | type | name | aliases -->\n\n"
+            )
+            (wiki / "log.md").write_text("# Wiki Change Log\n")
+            (wiki / "timeline" / "main-timeline.md").write_text("# Main Timeline\n\n")
 
-        client = chromadb.PersistentClient(path=str(chromadb_dir))
-        collection = client.get_collection(name="wiki-test-story")
-        docs = collection.get(ids=["chroma-char"])
-        assert len(docs["ids"]) == 1
-        assert docs["ids"][0] == "chroma-char"
+            result = _run_tool(
+                "--operation",
+                "create",
+                "--name",
+                "test-story",
+                "--slug",
+                "chroma-char",
+                "--page-type",
+                "character",
+                "--page-name",
+                "Chroma Char",
+                "--body",
+                "A character for ChromaDB testing.",
+                stories_dir=stories_dir,
+                chromadb_dir=chromadb_dir,
+            )
+            assert result.returncode == 0, f"stderr: {result.stderr}"
+
+            client = chromadb.PersistentClient(path=str(chromadb_dir))
+            collection = client.get_collection(name="wiki-test-story")
+            docs = collection.get(ids=["chroma-char"])
+            assert len(docs["ids"]) == 1
+            assert docs["ids"][0] == "chroma-char"
+
+    def test_chromadb_upsert_carries_source_metadata(
+        self, chromadb_dir: Path
+    ) -> None:
+        import chromadb
+
+        with tempfile.TemporaryDirectory(dir=PROJECT_ROOT) as temp_dir:
+            stories_dir = Path(temp_dir) / "stories"
+            story = stories_dir / "test-story"
+            wiki = story / "wiki"
+            wiki.mkdir(parents=True)
+            for subdir in [
+                "characters",
+                "locations",
+                "events",
+                "factions",
+                "items",
+                "plot-threads",
+                "world-rules",
+                "themes",
+                "relationships",
+                "timeline",
+                "chapters",
+            ]:
+                (wiki / subdir).mkdir()
+            (wiki / "index.md").write_text(
+                "# Wiki Index\n\n<!-- slug | type | name | aliases -->\n\n"
+            )
+            (wiki / "log.md").write_text("# Wiki Change Log\n")
+            (wiki / "timeline" / "main-timeline.md").write_text("# Main Timeline\n\n")
+
+            result = _run_tool(
+                "--operation",
+                "create",
+                "--name",
+                "test-story",
+                "--slug",
+                "source-meta-char",
+                "--page-type",
+                "character",
+                "--page-name",
+                "Source Meta Char",
+                "--body",
+                "Metadata-backed body.",
+                stories_dir=stories_dir,
+                chromadb_dir=chromadb_dir,
+            )
+            assert result.returncode == 0, f"stderr: {result.stderr}"
+
+            client = chromadb.PersistentClient(path=str(chromadb_dir))
+            collection = client.get_collection(name="wiki-test-story")
+            docs = collection.get(ids=["source-meta-char"], include=["metadatas"])
+            metadata = docs["metadatas"][0]
+
+            assert metadata["source_path"].endswith(".md")
+            assert isinstance(metadata["source_mtime"], float)
+            assert isinstance(metadata["source_sha256"], str)
+            assert len(metadata["source_sha256"]) == 64
 
 
 class TestValidation:

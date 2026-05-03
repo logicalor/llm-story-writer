@@ -17,6 +17,7 @@ if _src not in sys.path:
     sys.path.insert(0, _src)
 
 from tools._io import _atomic_write, _validate_story_name  # noqa: E402
+from tools._chroma_sync import upsert_from_source  # noqa: E402
 from tools._wiki import (  # noqa: E402
     _TYPE_TO_DIR,
     _validate_slug,
@@ -39,7 +40,13 @@ _VALID_PAGE_TYPES = set(_TYPE_TO_DIR.keys()) - {"contradiction"}
 # ---------------------------------------------------------------------------
 
 
-def _upsert_to_chromadb(story_name: str, slug: str, body: str, metadata: dict) -> None:
+def _upsert_to_chromadb(
+    story_name: str,
+    slug: str,
+    body: str,
+    metadata: dict,
+    page_path: Path | None = None,
+) -> None:
     """Upsert a page into the ChromaDB wiki collection. Graceful on failure."""
     try:
         import chromadb  # type: ignore[import-not-found]
@@ -48,20 +55,24 @@ def _upsert_to_chromadb(story_name: str, slug: str, body: str, metadata: dict) -
         collection_name = f"wiki-{story_name}"
         collection = client.get_or_create_collection(name=collection_name)
 
-        # Build metadata — only string/int/float/bool values for ChromaDB
-        chroma_meta: dict[str, str | int | float | bool] = {}
+        # Build extra_metadata — only scalar fields for ChromaDB
+        extra_meta: dict[str, str | int | float | bool] = {}
         for key in ("type", "name", "slug", "confidence", "first_appearance"):
             if key in metadata:
-                chroma_meta[key] = metadata[key]
-        # Type-specific fields
+                extra_meta[key] = metadata[key]
         for key in ("role", "status", "region", "chapter", "impact"):
             if key in metadata:
-                chroma_meta[key] = metadata[key]
+                extra_meta[key] = metadata[key]
 
-        collection.upsert(
-            ids=[slug],
-            documents=[body],
-            metadatas=[chroma_meta],
+        source_path = (
+            str(page_path.relative_to(PROJECT_ROOT)) if page_path is not None else ""
+        )
+        upsert_from_source(
+            collection,
+            doc_id=slug,
+            source_path=source_path,
+            extra_metadata=extra_meta,
+            body=body,
         )
     except Exception as exc:
         print(
@@ -212,7 +223,7 @@ def cmd_create(args: argparse.Namespace) -> None:
     _append_log(wiki_dir, f"[create] {slug}: Created {page_type} page")
 
     # ChromaDB upsert
-    _upsert_to_chromadb(story_dir.name, slug, body, metadata)
+    _upsert_to_chromadb(story_dir.name, slug, body, metadata, page_path=page_path)
 
     print(json.dumps({"status": "ok", "slug": slug, "path": str(page_path)}))
 
@@ -310,7 +321,7 @@ def cmd_update(args: argparse.Namespace) -> None:
     _append_log(wiki_dir, f"[update] {slug}: Updated to version {metadata['version']}")
 
     # ChromaDB upsert
-    _upsert_to_chromadb(story_dir.name, slug, body, metadata)
+    _upsert_to_chromadb(story_dir.name, slug, body, metadata, page_path=pages[0])
 
     print(json.dumps({"status": "ok", "slug": slug, "version": metadata["version"]}))
 
@@ -505,7 +516,13 @@ def run_batch(
             created_files.append(page_path)
             created_count += 1
 
-            _upsert_to_chromadb(story_dir.name, slug, body, metadata)
+            _upsert_to_chromadb(
+                story_dir.name,
+                slug,
+                body,
+                metadata,
+                page_path=page_path,
+            )
 
         if creates:
             index_path = wiki_dir / "index.md"
@@ -581,7 +598,13 @@ def run_batch(
             _atomic_write(page_path, new_content)
             updated_count += 1
 
-            _upsert_to_chromadb(story_dir.name, slug, body, metadata)
+            _upsert_to_chromadb(
+                story_dir.name,
+                slug,
+                body,
+                metadata,
+                page_path=pages[0],
+            )
 
         needs_index_sync = False
         for item in updates:
