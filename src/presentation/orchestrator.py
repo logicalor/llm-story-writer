@@ -99,8 +99,8 @@ def _create_provider(config: dict[str, Any]) -> ModelProvider:
     )
 
 
-def _load_story_prompt(story_name: str) -> str:
-    story_state_path = STORIES_DIR / story_name / "state.json"
+def _load_story_prompt(story_name: str, story_root: Path) -> str:
+    story_state_path = story_root / "state.json"
     if not story_state_path.exists():
         return ""
 
@@ -112,6 +112,8 @@ def _load_story_prompt(story_name: str) -> str:
         value = data.get(key)
         if isinstance(value, str):
             return value
+        if isinstance(value, dict):
+            return read_markdown_ref(story_root, value)
     return ""
 
 
@@ -264,11 +266,18 @@ def _extract_output_content(text: str) -> str:
     return text.strip()
 
 
-def _build_story_elements(outline_result: OutlineResult) -> str:
+def _build_story_elements(outline_result: OutlineResult, story_root: Path) -> str:
     """Build story_elements string from OutlineResult for prompt injection."""
     parts = [outline_result.summary]
     if outline_result.chapter_outlines:
-        parts.append(json.dumps(outline_result.chapter_outlines, ensure_ascii=False))
+        resolved_outlines: list[dict[str, Any]] = []
+        for chapter in outline_result.chapter_outlines:
+            chapter_copy = dict(chapter)
+            summary = chapter_copy.get("summary")
+            if isinstance(summary, str | dict):
+                chapter_copy["summary"] = read_markdown_ref(story_root, summary)
+            resolved_outlines.append(chapter_copy)
+        parts.append(json.dumps(resolved_outlines, ensure_ascii=False))
     return "\n\n".join(parts)
 
 
@@ -306,7 +315,7 @@ async def _generate_character_sheets(
     models = config.get("models", {})
     model_name = models.get("chapter_writer", "openai-compat://default")
     model_config = ModelConfig.from_string(model_name)
-    story_elements = _build_story_elements(outline_result)
+    story_elements = _build_story_elements(outline_result, story_root)
 
     extract_prompt = loader.load_prompt(
         "characters/extract_names", {"story_elements": story_elements}
@@ -605,7 +614,7 @@ async def _generate_setting_sheets(
     models = config.get("models", {})
     model_name = models.get("chapter_writer", "openai-compat://default")
     model_config = ModelConfig.from_string(model_name)
-    story_elements = _build_story_elements(outline_result)
+    story_elements = _build_story_elements(outline_result, story_root)
 
     extract_prompt = loader.load_prompt(
         "settings/extract_names", {"story_elements": story_elements}
@@ -927,7 +936,7 @@ async def _continue_pipeline(
 
     story_dir = STORIES_DIR / state.story_name
     (story_dir / "savepoints").mkdir(parents=True, exist_ok=True)
-    story_prompt = _load_story_prompt(state.story_name)
+    story_prompt = _load_story_prompt(state.story_name, story_dir)
 
     async def _banner(phase: str, message: str) -> None:
         """Emit a status event AND a visible banner line into the token log."""
@@ -1014,6 +1023,49 @@ async def _continue_pipeline(
                     base_context=_foundation_base_context,
                     story_elements=_foundation_story_elements,
                 )
+                for index, chapter in enumerate(
+                    state.outline_result.chapter_outlines,
+                    start=1,
+                ):
+                    summary = chapter.get("summary")
+                    if isinstance(summary, str) and summary:
+                        chapter["summary"] = persist_markdown(
+                            story_dir,
+                            f"outline/chapter_{index}_summary.md",
+                            summary,
+                        )
+                enrichment_suggestions = state.outline_result.enrichment_suggestions
+                if (
+                    isinstance(enrichment_suggestions, str)
+                    and enrichment_suggestions.strip()
+                ):
+                    match = re.search(
+                        r"```json\s*(.*?)\s*```",
+                        enrichment_suggestions,
+                        re.DOTALL,
+                    )
+                    enrichment_text = (
+                        match.group(1) if match else enrichment_suggestions.strip()
+                    )
+                    try:
+                        parsed_enrichment = (
+                            json.loads(enrichment_text) if enrichment_text else {}
+                        )
+                    except json.JSONDecodeError:
+                        parsed_enrichment = {}
+                    if not isinstance(parsed_enrichment, dict):
+                        parsed_enrichment = {}
+                    _atomic_write(
+                        story_dir / "outline" / "enrichment_suggestions.json",
+                        json.dumps(
+                            parsed_enrichment,
+                            indent=2,
+                            ensure_ascii=False,
+                        ),
+                    )
+                    state.outline_result.enrichment_suggestions = {
+                        "$ref": "outline/enrichment_suggestions.json"
+                    }
                 if not state.outline_result.base_context:
                     state.outline_result.base_context = _foundation_base_context
                 if not state.outline_result.story_start_date:
@@ -1074,7 +1126,9 @@ async def _continue_pipeline(
                     metadata_agent = StoryMetadataAgent(
                         resolved_provider, resolved_config, bus, wiki_bus
                     )
-                    outline_text = _build_story_elements(state.outline_result)
+                    outline_text = _build_story_elements(
+                        state.outline_result, story_dir
+                    )
                     metadata_result = await metadata_agent.run(
                         state.story_name,
                         outline_text,
@@ -1427,9 +1481,18 @@ async def _continue_pipeline(
                         )
                         if isinstance(previous_recap_data, dict):
                             previous_recap = (
-                                previous_recap_data.get("sanitised")
-                                or previous_recap_data.get("compact")
-                                or previous_recap_data.get("events")
+                                read_markdown_ref(
+                                    story_dir,
+                                    previous_recap_data.get("sanitised") or "",
+                                )
+                                or read_markdown_ref(
+                                    story_dir,
+                                    previous_recap_data.get("compact") or "",
+                                )
+                                or read_markdown_ref(
+                                    story_dir,
+                                    previous_recap_data.get("events") or "",
+                                )
                                 or ""
                             )
                         elif isinstance(previous_recap_data, str):
@@ -1450,7 +1513,15 @@ async def _continue_pipeline(
                             settings=settings,
                         )
                         if recap_result.get("events"):
-                            state.recaps[str(chapter_number)] = recap_result
+                            recap_pointers = {
+                                field: persist_markdown(
+                                    story_dir,
+                                    f"chapters/chapter_{chapter_number}/recap_{field}.md",
+                                    str(recap_result.get(field, "")),
+                                )
+                                for field in ("events", "compact", "sanitised")
+                            }
+                            state.recaps[str(chapter_number)] = recap_pointers
                             recap_path = (
                                 story_dir
                                 / "chapters"
@@ -1459,7 +1530,7 @@ async def _continue_pipeline(
                             _atomic_write(
                                 recap_path,
                                 json.dumps(
-                                    recap_result,
+                                    recap_pointers,
                                     indent=2,
                                     ensure_ascii=False,
                                 ),
@@ -1483,7 +1554,8 @@ async def _continue_pipeline(
                                 resolved_provider, resolved_config, bus, wiki_bus
                             )
                             outline_text_ch1 = _build_story_elements(
-                                state.outline_result
+                                state.outline_result,
+                                story_dir,
                             )
                             metadata_result_ch1 = await metadata_agent_ch1.run(
                                 state.story_name,
@@ -1598,7 +1670,10 @@ async def _continue_pipeline(
                     metadata_agent_final = StoryMetadataAgent(
                         resolved_provider, resolved_config, bus, wiki_bus
                     )
-                    outline_text_final = _build_story_elements(state.outline_result)
+                    outline_text_final = _build_story_elements(
+                        state.outline_result,
+                        story_dir,
+                    )
                     chapter_1_final = next(
                         (
                             chapter.content

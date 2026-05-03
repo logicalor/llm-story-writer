@@ -19,6 +19,8 @@ if str(_src_dir) not in sys.path:
 
 def _apply_prompt(story: str, prompt_path: str) -> None:
     """Read a prompt file, initialise the story if needed, and write the prompt to state."""
+    from tools._io import STORIES_DIR
+    from tools._persist import persist_markdown
     from tools.story_state import cmd_init, cmd_write
 
     prompt_file = Path(prompt_path)
@@ -40,7 +42,9 @@ def _apply_prompt(story: str, prompt_path: str) -> None:
             else:
                 raise
 
-    cmd_write(story, "story_prompt", json.dumps(story_text))
+    story_root = STORIES_DIR / story
+    pointer = persist_markdown(story_root, "prompt.md", story_text)
+    cmd_write(story, "story_prompt", json.dumps(pointer))
 
 
 def _cmd_tui(

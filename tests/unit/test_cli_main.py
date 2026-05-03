@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,11 +13,16 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+_src_dir = str(PROJECT_ROOT / "src")
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
 
 from src.presentation.cli.argument_parser import build_parser  # noqa: E402
+from src.presentation.cli.main import _apply_prompt  # noqa: E402
 from src.presentation.cli.main import _cmd_run  # noqa: E402
 from src.presentation.cli.main import _cmd_tui  # noqa: E402
 from src.presentation.cli.main import main  # noqa: E402
+from presentation.orchestrator import _load_story_prompt  # noqa: E402
 
 
 class TestBuildParser:
@@ -247,3 +253,68 @@ class TestCmdRun:
 
         captured = capsys.readouterr()
         assert "headless" not in captured.out.lower()
+
+
+class TestPromptPointer:
+    def test_apply_prompt_writes_pointer_to_state_json(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        stories_dir = tmp_path / "stories"
+        story_root = stories_dir / "my-story"
+        story_root.mkdir(parents=True, exist_ok=True)
+        (story_root / "state.json").write_text("{}\n", encoding="utf-8")
+        prompt_file = tmp_path / "prompt.txt"
+        prompt_file.write_text("Prompt body", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        with (
+            patch("tools._io.STORIES_DIR", stories_dir),
+            patch("src.tools._io.STORIES_DIR", stories_dir),
+        ):
+            _apply_prompt("my-story", str(prompt_file))
+
+        state = json.loads((story_root / "state.json").read_text(encoding="utf-8"))
+        assert state["story_prompt"] == {"$ref": "prompt.md"}
+        assert (story_root / "prompt.md").read_text(encoding="utf-8") == "Prompt body"
+
+    def test_apply_prompt_creates_prompt_md(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        stories_dir = tmp_path / "stories"
+        story_root = stories_dir / "my-story"
+        story_root.mkdir(parents=True, exist_ok=True)
+        (story_root / "state.json").write_text("{}\n", encoding="utf-8")
+        prompt_file = tmp_path / "prompt.txt"
+        prompt_file.write_text("Prompt body", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        with (
+            patch("tools._io.STORIES_DIR", stories_dir),
+            patch("src.tools._io.STORIES_DIR", stories_dir),
+        ):
+            _apply_prompt("my-story", str(prompt_file))
+
+        prompt_md = story_root / "prompt.md"
+        assert prompt_md.exists()
+        assert prompt_md.read_text(encoding="utf-8") == "Prompt body"
+
+    def test_load_story_prompt_resolves_pointer(self, tmp_path: Path) -> None:
+        story_root = tmp_path / "my-story"
+        story_root.mkdir(parents=True, exist_ok=True)
+        (story_root / "prompt.md").write_text("Once upon a time", encoding="utf-8")
+        (story_root / "state.json").write_text(
+            json.dumps({"story_prompt": {"$ref": "prompt.md"}}),
+            encoding="utf-8",
+        )
+
+        assert _load_story_prompt("my-story", story_root) == "Once upon a time"
+
+    def test_load_story_prompt_legacy_inline_string(self, tmp_path: Path) -> None:
+        story_root = tmp_path / "my-story"
+        story_root.mkdir(parents=True, exist_ok=True)
+        (story_root / "state.json").write_text(
+            json.dumps({"story_prompt": "Inline prompt text"}),
+            encoding="utf-8",
+        )
+
+        assert _load_story_prompt("my-story", story_root) == "Inline prompt text"

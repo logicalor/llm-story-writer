@@ -221,6 +221,49 @@ def test_outline_result_new_fields_round_trip() -> None:
     assert round_tripped.outline_result == original
 
 
+def test_outline_result_enrichment_suggestions_pointer_roundtrip() -> None:
+    original = OutlineResult(
+        story_name="x",
+        chapter_outlines=[],
+        summary="summary",
+        genre="genre",
+        themes=["theme"],
+        enrichment_suggestions={"$ref": "outline/enrichment_suggestions.json"},
+    )
+    state = PipelineState(
+        story_name="x",
+        current_phase="outline",
+        outline_result=original,
+    )
+
+    round_tripped = PipelineState.from_dict(state.to_dict())
+
+    assert round_tripped.outline_result is not None
+    assert round_tripped.outline_result.enrichment_suggestions == {
+        "$ref": "outline/enrichment_suggestions.json"
+    }
+
+
+def test_outline_result_enrichment_suggestions_legacy_string_preserved() -> None:
+    state = PipelineState.from_dict(
+        {
+            "story_name": "x",
+            "current_phase": "outline",
+            "outline_result": {
+                "story_name": "x",
+                "chapter_outlines": [],
+                "summary": "summary",
+                "genre": "genre",
+                "themes": ["theme"],
+                "enrichment_suggestions": "some legacy string",
+            },
+        }
+    )
+
+    assert state.outline_result is not None
+    assert state.outline_result.enrichment_suggestions == "some legacy string"
+
+
 def test_chapter_draft_new_fields_defaults() -> None:
     draft = ChapterDraft(
         story_name="x",
