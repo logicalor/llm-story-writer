@@ -14,6 +14,7 @@ if _src not in sys.path:
     sys.path.insert(0, _src)
 
 from src.tools._io import _validate_story_name  # noqa: E402
+from tools._chroma_sync import refresh_if_stale, upsert_from_source  # noqa: E402
 
 CHROMADB_DIR = os.environ.get("CHROMADB_DIR", str(PROJECT_ROOT / ".chromadb"))
 
@@ -53,8 +54,10 @@ def cmd_index(args: argparse.Namespace) -> None:
     if not args.doc_id:
         print("Error: --doc-id is required for index", file=sys.stderr)
         sys.exit(2)
-    if not args.content:
-        print("Error: --content is required for index", file=sys.stderr)
+    if not args.content and not args.source_path:
+        print(
+            "Error: --content or --source-path is required for index", file=sys.stderr
+        )
         sys.exit(2)
     if args.content_type and args.content_type not in CONTENT_TYPES:
         print(
@@ -68,18 +71,20 @@ def cmd_index(args: argparse.Namespace) -> None:
     try:
         collection = _get_or_create_collection(story_name)
 
-        metadata: dict[str, str | int | float | bool] = {
+        extra_metadata: dict[str, str | int | float | bool] = {
             "story": story_name,
             "content_type": content_type,
             "doc_id": args.doc_id,
         }
         if args.chapter_num is not None:
-            metadata["chapter_num"] = args.chapter_num
+            extra_metadata["chapter_num"] = args.chapter_num
 
-        collection.upsert(
-            ids=[args.doc_id],
-            documents=[args.content],
-            metadatas=[metadata],
+        upsert_from_source(
+            collection,
+            doc_id=args.doc_id,
+            source_path=args.source_path or "",
+            extra_metadata=extra_metadata,
+            body=args.content or None,
         )
     except Exception as exc:
         print(f"Error: ChromaDB index failed: {exc}", file=sys.stderr)
@@ -149,15 +154,42 @@ def cmd_query(args: argparse.Namespace) -> None:
         metadatas = (
             query_result["metadatas"][0] if query_result.get("metadatas") else []
         )
+        refreshed_map: dict = {}
+        refreshed_ids = [
+            doc_id for doc_id in ids if refresh_if_stale(collection, doc_id)
+        ]
+        if refreshed_ids:
+            re_fetch = collection.get(
+                ids=refreshed_ids,
+                include=["documents", "metadatas"],
+            )
+            refreshed_map = {
+                re_fetch["ids"][i]: {
+                    "document": (re_fetch.get("documents") or [])[i]
+                    if i < len(re_fetch.get("documents") or [])
+                    else "",
+                    "metadata": (re_fetch.get("metadatas") or [])[i]
+                    if i < len(re_fetch.get("metadatas") or [])
+                    else {},
+                }
+                for i in range(len(re_fetch["ids"]))
+            }
 
         for i, doc_id in enumerate(ids):
+            fresh = refreshed_map.get(doc_id)
             entry: dict = {
                 "doc_id": doc_id,
                 "score": round(1.0 / (1.0 + distances[i]), 4)
                 if i < len(distances)
                 else 0.0,
-                "excerpt": documents[i][:1000] if i < len(documents) else "",
-                "metadata": metadatas[i] if i < len(metadatas) else {},
+                "excerpt": (
+                    fresh["document"]
+                    if fresh
+                    else (documents[i] if i < len(documents) else "")
+                )[:1000],
+                "metadata": fresh["metadata"]
+                if fresh
+                else (metadatas[i] if i < len(metadatas) else {}),
             }
             results.append(entry)
 
@@ -182,7 +214,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--content",
-        help="Text content to index (required for index)",
+        help="Text content to index (required for index when --source-path is absent)",
+    )
+    parser.add_argument(
+        "--source-path",
+        default="",
+        help="Relative path from project root to source .md file (optional; omit for synthetic content)",
     )
     parser.add_argument(
         "--content-type",

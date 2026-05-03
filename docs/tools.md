@@ -81,7 +81,7 @@ The orchestrator also now produces intermediate story artefacts directly in the 
 | `src/tools/wiki_extract.py` | Run initial wiki population and post-chapter extraction, generate detail levels, and apply batch-ready wiki updates |
 | `src/tools/wiki_update.py` | Apply wiki page updates |
 | `src/tools/wiki_lint.py` | Validate wiki pages against formatting and consistency rules |
-| `src/tools/rag_query.py` | Query ChromaDB collections for story context |
+| `src/tools/rag_query.py` | Index or query ChromaDB collections for story context; `index` accepts optional `--source-path` so source-backed entries record provenance metadata while synthetic entries use an empty source path |
 | `src/tools/migrate_inline_markdown.py` | One-shot migration tool that rewrites legacy inline-markdown story JSON into pointer-backed markdown files; supports `--name`, `--all`, and `--dry-run` |
 
 ### Shared Internal Helpers
@@ -156,9 +156,12 @@ Individual tools still expose argparse-based interfaces for shell use. Example:
 ```bash
 python -m src.tools.story_state --operation list
 python -m src.tools.wiki_search --story test_story --query "chapter summary"
+python -m src.tools.rag_query --operation index --name test_story --doc-id chapter-1 --content-type chapter --source-path stories/test_story/chapters/chapter_1.md
 ```
 
 The exact arguments differ per tool module. Read the module's `cmd_*` function or argparse setup before documenting or scripting against its JSON output.
+
+`src/tools/rag_query.py` currently exposes two operations: `index` and `query`. For `index`, pass either `--content` for synthetic content or `--source-path` for markdown-backed content. When `--source-path` is present, the helper records `source_path`, `source_mtime`, and `source_sha256` in Chroma metadata; when omitted, the upsert is treated as synthetic and stores an empty `source_path`.
 
 ## Adding Or Updating A Tool
 
