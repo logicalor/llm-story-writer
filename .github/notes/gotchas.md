@@ -1760,3 +1760,141 @@ for n in chapter_numbers:
 
 ChromaDB ID: `gotcha-ledger-guard-per-chapter-checkpointing-048`
 
+---
+
+## Testing
+
+### 050 — mtime race condition in filesystem fingerprint tests: use `os.utime` to advance mtime explicitly
+
+**Source:** issue #327, PR #339
+**Severity:** warning
+
+Writing a file and immediately reading its `st_mtime` can return the same timestamp as before if
+the write and the read fall within the same filesystem clock-resolution window (ext4 default: 1 s,
+some tmpfs: nanosecond, macOS HFS+: 1 s, APFS: nanosecond). Code that uses mtime to detect
+staleness (e.g. `refresh_if_stale` in `_chroma_sync.py`) compares the stored mtime against the
+current `st_mtime`; if both are equal, the entry is considered fresh and the refresh is skipped.
+
+**Pattern: always use `os.utime` to advance mtime explicitly in tests that exercise stale-refresh logic.**
+
+```python
+def _bump_mtime(path: Path) -> None:
+    """Advance mtime by 10 s so refresh_if_stale sees the file as stale."""
+    updated = path.stat().st_mtime + 10
+    os.utime(path, (updated, updated))
+
+# Usage after writing the "edited" content:
+hero_md.write_text("The hero has green eyes.", encoding="utf-8")
+_bump_mtime(hero_md)   # ← without this, refresh_if_stale may see no change
+```
+
+**Why `+10` and not `+1`?** A 1-second increment can still land within the same coarse resolution
+window on slow CI machines. A 10-second increment guarantees the new mtime is strictly greater
+than the stored fingerprint regardless of OS or filesystem resolution.
+
+**Scope:** Any test that writes a file and then asserts that an index entry is refreshed (stale),
+or that an entry is NOT refreshed (fresh), must control mtime explicitly. Never rely on the wall
+clock advancing between the write and the check.
+
+ChromaDB ID: `gotcha-mtime-race-filesystem-resolution-050`
+
+---
+
+### 051 — `CHROMADB_DIR` (and other import-time env vars) must be forwarded to subprocesses explicitly
+
+**Source:** issue #327, PR #339
+**Severity:** warning
+
+`src/tools/wiki_search.py` reads `CHROMADB_DIR` at **module-level** (import time), not lazily
+inside a function:
+
+```python
+# wiki_search.py (simplified)
+CHROMADB_DIR = os.environ.get("CHROMADB_DIR", str(PROJECT_ROOT / ".chromadb"))
+client = chromadb.PersistentClient(path=CHROMADB_DIR)
+```
+
+When a test spawns `wiki_search.py` as a subprocess, the value is baked in at the moment the
+interpreter imports the module — before any `monkeypatch` or parent-process patching can take
+effect. The subprocess must receive `CHROMADB_DIR` via its own environment.
+
+**Wrong — subprocess uses default `.chromadb` path, pollutes project root:**
+```python
+result = subprocess.run([sys.executable, WIKI_SEARCH_SCRIPT, ...], capture_output=True)
+```
+
+**Right — explicit env dict with CHROMADB_DIR:**
+```python
+result = subprocess.run(
+    [sys.executable, WIKI_SEARCH_SCRIPT, ...],
+    env={**os.environ, "CHROMADB_DIR": str(chromadb_dir), "STORIES_DIR": str(stories_dir)},
+    capture_output=True,
+)
+```
+
+**General rule:** Any environment variable read at module import time by a subprocess target must
+be included in the `env` dict for every `subprocess.run` / `subprocess.Popen` call in tests.
+Variables read lazily (inside a function, on first call) can be patched in-process — but if the
+target runs in a subprocess, patching has no effect regardless of when the variable is read.
+
+**Checklist for new subprocess integration tests:**
+- Identify all module-level `os.environ.get(...)` calls in the target script
+- Include every such variable in the `env` dict
+- Use `{**os.environ, "VAR": str(tmp_path)}` to inherit parent env safely
+
+ChromaDB ID: `gotcha-chromadb-dir-subprocess-env-051`
+
+---
+
+### 052 — `upsert_from_source` path traversal guard: source files must be under `PROJECT_ROOT`
+
+**Source:** issue #327, PR #339
+**Severity:** warning
+
+`upsert_from_source` in `src/tools/_chroma_sync.py` enforces a path containment guard before
+indexing a source file:
+
+```python
+def upsert_from_source(collection, slug: str, source_path: str, metadata: dict) -> None:
+    path = Path(source_path).resolve()
+    if not path.is_relative_to(PROJECT_ROOT):
+        raise ValueError(f"Source path {path} is outside PROJECT_ROOT")
+    ...
+```
+
+Integration tests that call `upsert_from_source` directly (not through `reconcile_story`) must
+therefore create source files under the **real `PROJECT_ROOT`** — not under `tmp_path` — because
+`tmp_path` is typically `/tmp/pytest-…/` which is outside the project tree.
+
+**Wrong — path traversal guard rejects the file:**
+```python
+wiki_page = tmp_path / "wiki" / "characters" / "hero.md"
+wiki_page.write_text("The hero.", encoding="utf-8")
+upsert_from_source(collection, "hero", str(wiki_page), {})  # ValueError
+```
+
+**Right — create under PROJECT_ROOT / "stories" / story_name:**
+```python
+@pytest.fixture()
+def story_dir() -> Path:
+    path = PROJECT_ROOT / "stories" / _TEST_STORY
+    (path / "wiki" / "characters").mkdir(parents=True)
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
+
+# In the test:
+hero_md = story_dir / "wiki" / "characters" / "hero.md"
+hero_md.write_text("The hero.", encoding="utf-8")
+upsert_from_source(collection, "hero", str(hero_md), {})  # OK
+```
+
+**Why the guard exists:** Allowing arbitrary paths would let a caller index files outside the
+project (e.g. `/etc/passwd`) — a path traversal / information-disclosure risk (CWE-22).
+
+**Companion:** use a unique story name per test run (e.g. include `uuid4().hex[:8]`) and clean up
+the fixture directory in `finally` to prevent test contamination on repeated runs.
+
+ChromaDB ID: `gotcha-upsert-source-project-root-constraint-052`
+
