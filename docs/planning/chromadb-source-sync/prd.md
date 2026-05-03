@@ -4,7 +4,7 @@
 
 **Date:** 2026-05-03
 **Author:** Planner agent
-**Status:** In progress — Tasks 1 and 2 implemented in issue #324 / PR #336; Tasks 3, 4, and 8 implemented in issue #325 / PR #337
+**Status:** In progress — Tasks 1 and 2 implemented in issue #324 / PR #336; Tasks 3 and 4 implemented in issue #325 / PR #337; Tasks 5 and 7 implemented in issue #326 / PR #338
 
 ## Problem Statement
 

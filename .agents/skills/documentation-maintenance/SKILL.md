@@ -45,3 +45,4 @@ For architecture changes, ADRs, layer renames, tool changes, or workflow changes
 - Tables must match body prose.
 - README updates are required for user-visible CLI, workflow, or setup changes.
 - Scan every occurrence of changed terms across the full document, not just the sections being edited.
+- When implementing tasks from a planning document (`docs/planning/*/tasks.md`), mark each completed acceptance criterion with `- [x]` and add or update the task's **Status:** line to reference the completing issue and PR number. Also update the PRD Status line at the top of the companion `prd.md`.
