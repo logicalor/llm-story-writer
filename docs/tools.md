@@ -82,6 +82,7 @@ The orchestrator also now produces intermediate story artefacts directly in the 
 | `src/tools/wiki_update.py` | Apply wiki page updates |
 | `src/tools/wiki_lint.py` | Validate wiki pages against formatting and consistency rules |
 | `src/tools/rag_query.py` | Index or query ChromaDB collections for story context; `index` accepts optional `--source-path` so source-backed entries record provenance metadata while synthetic entries use an empty source path |
+| `src/tools/rag_reconcile.py` | Reconcile per-story ChromaDB collections against on-disk markdown sources; supports `--dry-run`, `--all`, `--collection`, and `--json` flags; idempotent |
 | `src/tools/migrate_inline_markdown.py` | One-shot migration tool that rewrites legacy inline-markdown story JSON into pointer-backed markdown files; supports `--name`, `--all`, and `--dry-run` |
 
 ### Shared Internal Helpers

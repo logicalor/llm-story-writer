@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
@@ -125,6 +126,59 @@ def _cmd_resume(story: str, savepoint: str | None, prompt: str | None = None) ->
     print(f"Pipeline resumed: status={state.status}")
 
 
+def _cmd_rag_reconcile(args: argparse.Namespace) -> None:
+    from tools._io import STORIES_DIR, _validate_story_name
+    from tools.rag_reconcile import format_reports, reconcile_story
+
+    if not args.all and not args.story:
+        print("Error: --story or --all is required", file=sys.stderr)
+        raise SystemExit(2)
+
+    chromadb_dir = os.environ.get(
+        "CHROMADB_DIR",
+        str(Path(__file__).resolve().parents[3] / ".chromadb"),
+    )
+
+    stories: list[str] = []
+    if args.all:
+        stories = [d.name for d in sorted(STORIES_DIR.iterdir()) if d.is_dir()]
+    else:
+        stories = [_validate_story_name(args.story).name]
+
+    all_ok = True
+    for story_name in stories:
+        try:
+            reports = reconcile_story(
+                story_name=story_name,
+                collection_filter=args.collection,
+                dry_run=args.dry_run,
+                chromadb_dir=chromadb_dir,
+            )
+            if getattr(args, "output_json", False):
+                out = {
+                    "story": story_name,
+                    **{
+                        key: {
+                            "added": value.added,
+                            "updated": value.updated,
+                            "deleted": value.deleted,
+                            "unchanged": value.unchanged,
+                            "log": value.log,
+                        }
+                        for key, value in reports.items()
+                    },
+                }
+                print(json.dumps(out, indent=2))
+            else:
+                print(format_reports(story_name, reports))
+        except Exception as exc:
+            print(f"Error reconciling {story_name}: {exc}", file=sys.stderr)
+            all_ok = False
+
+    if not all_ok:
+        raise SystemExit(1)
+
+
 def main() -> None:
     from presentation.cli.argument_parser import build_parser
 
@@ -144,6 +198,12 @@ def main() -> None:
         _cmd_run(args.story, batch=args.batch, prompt=args.prompt)
     elif args.subcommand == "resume":
         _cmd_resume(args.story, args.savepoint, prompt=args.prompt)
+    elif args.subcommand == "rag":
+        if args.rag_subcommand == "reconcile":
+            _cmd_rag_reconcile(args)
+        else:
+            parser.print_help()
+            raise SystemExit(1)
     else:
         parser.print_help()
         raise SystemExit(1)

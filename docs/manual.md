@@ -1030,6 +1030,7 @@ Available subcommands:
 | `story-writer tui --story <name> [--prompt <path>] [--resume] [--savepoint <name>]` | Launch the interactive Textual TUI. `--prompt` auto-initialises the story and writes the prompt file to state. |
 | `story-writer run --story <name> [--prompt <path>] [--batch]` | Run the headless Python-native pipeline. `--prompt` auto-initialises the story and writes the prompt file to state. |
 | `story-writer resume --story <name> [--prompt <path>] [--savepoint <name>]` | Resume from the latest persisted pipeline state. `--prompt` overwrites the existing story prompt. `--savepoint` validates the name exists but does not restore an older snapshot. |
+| `story-writer rag reconcile --story <name> [--collection <wiki|stories>] [--dry-run] [--json]` | Reconcile per-story ChromaDB collections against on-disk markdown sources. Use `--all` instead of `--story` to backfill every story under `stories/`. |
 
 `run` always uses `NullApprovalGate` internally, so it behaves headlessly even when `--batch` is omitted. When you omit `--batch`, the CLI prints a headless notice before starting the run. The flag remains for forward compatibility with later interactive surfaces.
 
@@ -1055,6 +1056,34 @@ Keybindings:
 - `Ctrl+C` — cancel workers, preserve the savepoint from the last completed phase, and print the resume command
 
 See [Textual TUI](./features/textual-tui.md) for the thread model, approval-gate bridge, and test coverage.
+
+#### RAG Reconcile
+
+Use the reconcile command when you need to bring ChromaDB back into sync with the markdown files on disk:
+
+```bash
+story-writer rag reconcile --story NAME [options]
+```
+
+Flags:
+
+- `--story NAME` — reconcile one story. Required unless you pass `--all`.
+- `--collection {wiki,stories}` — limit the run to one collection family. Omit it to reconcile both `wiki-<story>` and `stories-<story>`.
+- `--dry-run` — preview additions, updates, and deletions without writing to ChromaDB.
+- `--all` — reconcile every story directory under `stories/` instead of a single story.
+- `--json` — emit machine-readable JSON instead of the default human-readable report.
+
+Examples:
+
+```bash
+story-writer rag reconcile --story test_story
+story-writer rag reconcile --story test_story --collection wiki --dry-run
+story-writer rag reconcile --all --json
+```
+
+By default the command prints a human-readable report per story. Each report includes Added, Updated, Deleted, and Unchanged counts for the selected collections, followed by per-document log lines such as `added <doc-id>` or `deleted <doc-id>`. When you pass `--json`, the command prints the same data as JSON so shell scripts or automation can consume it directly.
+
+The command is idempotent. Re-running it against unchanged source files leaves counts stable and avoids duplicate ChromaDB entries. For wiki collections, reconciliation is filesystem-first and walks `stories/<name>/wiki/**/*.md`. For story collections, reconciliation is collection-first and removes or refreshes entries based on each document's recorded `source_path` metadata.
 
 ### 9.2 Prompt Asset Locations
 
@@ -2104,6 +2133,10 @@ python -m src.tools.story_assembler assemble --story-name story-name
 
 # Search the wiki
 python -m src.tools.wiki_search --story story-name --query "ancient AI"
+
+# Reconcile RAG indexes against markdown sources
+story-writer rag reconcile --story story-name
+story-writer rag reconcile --story story-name --dry-run --collection wiki
 
 # Read a wiki page
 python -m src.tools.wiki_read --story story-name --page character:yuki --level L2

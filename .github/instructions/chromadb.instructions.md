@@ -244,3 +244,48 @@ To rebuild the index from scratch:
 6. Index `tests` — `docs/testing.md`, `docs/testing/*.md`, test class summaries
 
 To reindex a single collection: delete it, recreate it, re-run its bootstrap step.
+
+## Source-Sync Contract (ADR 012)
+
+All indexed documents that originate from on-disk Markdown files must carry three metadata fields:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `source_path` | `str` | Relative path from project root to the source `.md` file |
+| `source_mtime` | `float` | `stat().st_mtime` of the file at index time |
+| `source_sha256` | `str` | SHA-256 hex digest of the file contents at index time |
+
+Synthetic entries (no source file) use `source_path = ""` and omit the mtime/sha256 fields.
+
+### When to Use the Helpers
+
+Never call `collection.upsert()` directly for source-backed documents. Use `upsert_from_source()` from `src/tools/_chroma_sync.py`:
+
+```python
+from tools._chroma_sync import upsert_from_source
+upsert_from_source(collection, doc_id="wiki-elena", source_path="stories/my-story/wiki/characters/elena.md", extra_metadata={...})
+```
+
+### Staleness Check (Read-Side)
+
+Before returning query results to callers, check staleness:
+
+```python
+from tools._chroma_sync import refresh_if_stale
+for doc_id in returned_ids:
+  refresh_if_stale(collection, doc_id)
+```
+
+### Reconcile (Eager Full Rebuild)
+
+Run `story-writer rag reconcile --story <name>` to walk all source files and synchronise the collection:
+- Adds entries for new source files
+- Re-embeds entries whose source content changed
+- Deletes orphaned entries (source file removed)
+- Reports unchanged entries (source content matches index)
+
+Use `--dry-run` to preview changes without writing. Use `--all` to reconcile every story. Use `--collection wiki` or `--collection stories` to target a specific collection.
+
+### Idempotence Guarantee
+
+Running reconcile twice in a row with no intervening changes produces zero adds, updates, and deletes on the second run.
