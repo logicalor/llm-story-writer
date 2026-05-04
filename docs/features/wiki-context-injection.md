@@ -6,6 +6,8 @@
 
 Before issue #342, `ChapterWriterAgent` built its `base_context` entirely from the story-foundation fields extracted at pipeline startup (`outline_result.base_context`). After issue #342, the agent first attempts to assemble a fresh, token-budgeted wiki snapshot for the specific chapter and scene being written, and uses that snapshot as `base_context` when one is available.
 
+Issue #344 tightens that contract: `_build_entity_context()` is now fallback-only. The chapter writer reads flat character and setting sheets from disk only when no wiki snapshot is available, making the live wiki the primary source of chapter-generation context.
+
 The snapshot is produced by the four-tier retrieval pipeline already implemented in `src/tools/wiki_snapshot.py` ([ADR 005](../planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md)). Calling `get_snapshot()` from inside the agent makes that pipeline an active participant in generation rather than a passive reference tool.
 
 ## Behaviour
@@ -16,8 +18,8 @@ In `ChapterWriterAgent.run()`, after building the initial entity context but bef
 
 1. Checks whether `stories/<name>/wiki/` exists.
 2. Calls `get_snapshot(story_name, chapter=N, scene=0, outline=chapter_summary)`.
-3. If the call returns a non-`None` string, replaces `base_context` with the snapshot.
-4. Falls back silently to the original `base_context` when:
+3. If the call returns a non-`None` string, uses that snapshot as the chapter `base_context` and skips `_build_entity_context()` entirely.
+4. Falls back silently to `_build_entity_context()` when:
    - The wiki directory is absent.
    - The ChromaDB collection for the story is empty or missing.
    - `get_snapshot()` returns `None` for any other reason (it never raises).

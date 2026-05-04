@@ -10,6 +10,8 @@ Issue #144 refined that workflow to fix context bloat in the subagent. The most 
 
 Issue #183 completes the post-chapter persistence path. `WikiMaintainerAgent` no longer streams a free-form response that the pipeline cannot apply. It now calls `update_wiki_from_chapter()` in `src/tools/wiki_extract.py`, which runs the `wiki/extract_from_chapter` prompt, applies the resulting batch through `run_batch()`, writes markdown pages under `stories/<name>/wiki/`, and returns the actual created and updated slug lists. That makes ADR 004's structured wiki pages and ADR 005's retrieval-ready detail levels operational during the live chapter loop rather than design-only.
 
+Issue #344 completes ADR 004's authority shift. Initial wiki bootstrap now treats character and setting sheet JSON as the canonical pre-chapter entity source, with outline extraction used only as supplementary input when outline text exists. During the chapter loop, `WikiMaintainerAgent` is now the sole post-chapter entity state manager; the orchestrator no longer runs separate character or setting sheet evolvers after each chapter.
+
 The agent operates in two distinct modes, mapped to pipeline phases:
 
 - **Mode 1: Initial Wiki Population** (wiki-bootstrap phase, before Chapter 1) — Seeds the wiki from the approved outline savepoint plus character and setting sheets before chapter generation begins.
@@ -47,7 +49,7 @@ See [Tools Reference](../tools.md) for full documentation of each tool's argumen
 
 Called once after wiki initialization and character/setting sheet generation, before Chapter 1. The heavy extraction pass is tool-owned so the runtime does not have to carry the full outline, every sheet, every detail level, and the complete batch payload in agent context.
 
-1. **Run `bootstrap_wiki_from_story()`** — The tool loads the approved outline savepoint plus character and setting sheets from disk; extracts entities from each source; deduplicates them by slug; assigns `planned` confidence by default; generates L1/L2/L3 detail levels; skips already-existing slugs for idempotent reruns; assembles the batch payload; and applies it through `wiki-update`'s internal `run_batch()` helper.
+1. **Run `bootstrap_wiki_from_story()`** — The tool loads character and setting sheets from disk as the canonical bootstrap source, adds outline-derived entities only when the approved outline savepoint is non-empty, deduplicates everything by slug, assigns `planned` confidence by default, generates L1/L2/L3 detail levels, skips already-existing slugs for idempotent reruns, assembles the batch payload, and applies it through `wiki-update`'s internal `run_batch()` helper.
 2. **Review returned counts** — The bootstrap call returns `{created, skipped, entity_counts}` so the orchestrator or operator can see how many pages were seeded versus already present.
 3. **Proceed even on failure** — The orchestrator treats this phase as non-fatal. If bootstrap raises, it logs the error, still marks `wiki_populated`, and continues into the chapter loop.
 4. **Spot-check seeded pages** — If counts or created pages look wrong, rerun with a model override or follow up with targeted `wiki-update` edits.
@@ -62,6 +64,8 @@ Called after each approved chapter is assembled. Updates the wiki with `verified
 4. **Emit wiki context events per page** — The agent publishes one `WikiContextEvent` for each created or updated slug so the surrounding pipeline and TUI surfaces can show concrete wiki mutations instead of placeholder status text.
 
 The extraction rules themselves do not change: the tool still follows the wiki-maintenance skill's schema, confidence taxonomy, alias rules, and detail-level targets. The change is ownership, not output format.
+
+Recap-derived wiki event pages are handled adjacent to this workflow rather than inside `WikiMaintainerAgent` itself. After `RecapWriterAgent` finishes, `src/presentation/orchestrator.py` parses recap `events` and creates or updates wiki `event` pages with verified provenance fields including `timestamp`, `participants`, `importance`, `emotional_state`, `causal_context`, and `chapter_provenance`.
 
 The tool retry contract is explicit for this workflow: savepoints are written after each completed extraction or detail-generation step, so no agent-level recovery flow is required. Retrying the same `wiki-extract` call with the same parameters continues from the last cached step until the apply succeeds. If the source inputs (sheets, outline, or chapter text) were edited between the original run and the retry, delete `stories/<story-name>/.wiki-extract-cache.json` first to ensure a fresh extraction.
 

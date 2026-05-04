@@ -427,7 +427,7 @@ Init -> Story Foundation -> Outline -> [Outline Critique] -> Narrative Arc Analy
 - **Foundation** extracts the story's base context, story start date, and story elements from the prompt before outline generation begins. Those fields seed `OutlineResult` and survive savepoints and resume.
 - **Outline Structure** turns the prompt plus foundation context into the chapter-by-chapter outline, using either direct, expanded, or chunked outline generation depending on the active settings. The approved outline becomes the structural source for downstream character, setting, wiki, and chapter work.
 - **Outline Critique** runs the outline review loop when `enable_outline_critique` is enabled. The outline phase now checkpoints the draft and critique sub-steps separately, so resume can return to the approval gate or skip critique when those artefacts are already persisted.
-- **Chapter Loop (Recap -> Chapter Write)** carries forward recap context from the prior approved chapter, writes the next chapter from the outline plus accumulated story state, then updates wiki pages, sheets, metadata, and the new recap for the following chapter. Drafting, consistency, wiki update, sheet evolution, recap, and Chapter 1 metadata refresh are now resumable as separate chapter-local ledger items.
+- **Chapter Loop (Recap -> Chapter Write)** carries forward recap context from the prior approved chapter, writes the next chapter from the outline plus accumulated story state, then updates wiki pages, refreshes metadata, and writes the new recap for the following chapter. Drafting, consistency, wiki update, recap, and Chapter 1 metadata refresh are now resumable as separate chapter-local ledger items.
 - **Final Edit** performs the last prose-polish pass across approved chapters, optionally running scrub and voice-consistency diagnostics before editing. Each edited chapter is now checkpointed independently before assembly writes the final manuscript.
 
 In addition to the primary phases, the orchestrator now runs three advisory metadata checkpoints that never block progress:
@@ -604,7 +604,7 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
 Runs immediately after wiki initialization and before the chapter loop.
 
 What this phase does:
-- Calls `_list_wiki_entities()` in `src/tools/wiki_extract.py` to extract and deduplicate entities from the approved outline plus character and setting JSON sheets
+- Calls `_list_wiki_entities()` in `src/tools/wiki_extract.py` to extract and deduplicate entities from `characters/*.json` and `settings/*.json` first, using outline extraction only when the saved outline text is non-empty
 - Drives `_bootstrap_single_wiki_entity()` in a per-entity loop so each created wiki page has its own ledger item
 - Skips already-completed work items and already-existing wiki slugs for idempotent reruns
 - Leaves `bootstrap_wiki_from_story()` available for direct CLI or ad-hoc one-shot bootstrap usage
@@ -621,21 +621,20 @@ What this phase does:
 
 **What the system does:**
 - For each chapter (1 to `wanted_chapters`):
-  1. **Scene Generation (7b)** — Loads abridged character and setting sheet context; prefers the chapter's detailed outline block when available; forwards the prior chapter recap from `state.recaps[str(N-1)]` (preferring `compact`, then `sanitised`, then `events`); and generates chapter text via the `chapter-writer` agent. Before building the chapter prompt, `ChapterWriterAgent` calls `get_snapshot()` in `src/tools/wiki_snapshot.py` with the chapter summary as the retrieval query; if the story has a populated wiki collection in ChromaDB, the resulting token-budgeted wiki snapshot replaces `base_context` for that chapter. For each individual scene, a second `get_snapshot()` call is made with the scene description, POV character, characters, and primary location; the result replaces `base_context` at the scene level and falls back silently when the wiki is absent or retrieval returns nothing. If `scene_generation_pipeline: true`, the agent expands the chapter into `stories/<name>/chapters/chapter_<N>_scenes.json`, then drafts scenes sequentially with position-aware prompts for first, middle, and final scenes. Each completed scene is written to `stories/<name>/chapters/chapter_<N>/scene_<M>.md` before the corresponding work item is marked done. Otherwise, the full chapter is generated in one LLM call. Once the draft is approved, `stories/<name>/chapters/chapter_<N>.md` is written before `chapter-<N>/draft` is recorded.
+  1. **Scene Generation (7b)** — Prefers the chapter's detailed outline block when available; forwards the prior chapter recap from `state.recaps[str(N-1)]` (preferring `compact`, then `sanitised`, then `events`); and generates chapter text via the `chapter-writer` agent. Before building the chapter prompt, `ChapterWriterAgent` calls `get_snapshot()` in `src/tools/wiki_snapshot.py` with the chapter summary as the retrieval query; when the story has a populated wiki collection in ChromaDB, that token-budgeted wiki snapshot becomes the primary `base_context` for the chapter. Only when no snapshot is available does the agent fall back to `_build_entity_context()` and load flat character and setting sheet summaries from disk. For each individual scene, a second `get_snapshot()` call is made with the scene description, POV character, characters, and primary location; the result replaces `base_context` at the scene level and falls back silently when the wiki is absent or retrieval returns nothing. If `scene_generation_pipeline: true`, the agent expands the chapter into `stories/<name>/chapters/chapter_<N>_scenes.json`, then drafts scenes sequentially with position-aware prompts for first, middle, and final scenes. Each completed scene is written to `stories/<name>/chapters/chapter_<N>/scene_<M>.md` before the corresponding work item is marked done. Otherwise, the full chapter is generated in one LLM call. Once the draft is approved, `stories/<name>/chapters/chapter_<N>.md` is written before `chapter-<N>/draft` is recorded.
   2. **Approval Gate** — Presents the chapter for user approval (interactive mode only)
   3. **Consistency Check (7e)** — Runs `consistency_checker`; findings stream to the token bus but do not block chapter persistence
   4. **Chapter Persistence** — Appends the approved draft to `state.approved_chapters` and writes `stories/<name>/chapters/chapter_<N>.md`
-  5. **Wiki Update (7c)** — Calls `WikiMaintainerAgent` to extract structured data and persist wiki pages; failures are logged and do not block the loop
-  6. **Sheet Evolution** — Calls `CharacterEvolverAgent` and `SettingEvolverAgent` after the wiki step. Each agent runs `extract_from_chapter` → `analyze_changes` → `update` over the existing sheet files, rewrites `sheet` when a change is needed, and records per-entity `updated` or `unchanged` results in `state.evolved_sheets[str(N)]`.
-  7. **Recap Generation (7d)** — Calls `RecapWriterAgent` after sheet evolution. The default path runs six LLM stages (`extract_chapter_events` → `recap/assign_event_timing` → `recap/enrich_event_details` → `recap/format_json` → `recap/compact_events` → optional `recap/sanitize`). When `use_multi_stage_recap_sanitizer: false`, the agent takes the short path (`extract_chapter_events` → `recap/format_json`). On success, the orchestrator writes the recap bodies to `stories/<name>/chapters/chapter_<N>/recap_events.md`, `recap_compact.md`, and `recap_sanitised.md`, then stores `{"$ref": ...}` pointers for those files in both `state.recaps[str(N)]` and `chapter_<N>_recap.json`. Recap failures are advisory and do not block later chapters.
-  8. **Metadata Refresh (`metadata-chapter-1`)** — Immediately after Chapter 1 is approved, the orchestrator re-runs `StoryMetadataAgent` with the approved Chapter 1 prose. This refresh is advisory, updates `OutlineResult.title` plus `OutlineResult.tags` on success, and rewrites `stories/<name>/metadata.json`.
-  9. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
+  5. **Wiki Update (7c)** — Calls `WikiMaintainerAgent` to extract structured data and persist wiki pages; failures are logged and do not block the loop. This is now the sole post-chapter entity state management step; character and setting sheet JSON files remain Phase 5 bootstrap inputs and chapter-writer fallback material.
+  6. **Recap Generation (7d)** — Calls `RecapWriterAgent` after wiki maintenance. The default path runs six LLM stages (`extract_chapter_events` → `recap/assign_event_timing` → `recap/enrich_event_details` → `recap/format_json` → `recap/compact_events` → optional `recap/sanitize`). When `use_multi_stage_recap_sanitizer: false`, the agent takes the short path (`extract_chapter_events` → `recap/format_json`). On success, the orchestrator writes the recap bodies to `stories/<name>/chapters/chapter_<N>/recap_events.md`, `recap_compact.md`, and `recap_sanitised.md`, then stores `{"$ref": ...}` pointers for those files in both `state.recaps[str(N)]` and `chapter_<N>_recap.json`. It then creates or updates wiki `event` pages from the recap `events` payload, populating `timestamp`, `participants`, `importance`, `emotional_state`, `causal_context`, and `chapter_provenance` alongside the verified event body. Recap failures are advisory and do not block later chapters.
+  7. **Metadata Refresh (`metadata-chapter-1`)** — Immediately after Chapter 1 is approved, the orchestrator re-runs `StoryMetadataAgent` with the approved Chapter 1 prose. This refresh is advisory, updates `OutlineResult.title` plus `OutlineResult.tags` on success, and rewrites `stories/<name>/metadata.json`.
+  8. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
 
 **Resume behavior:**
 - If an approved draft already exists in `state.approved_chapters` from a legacy savepoint, resume backfills `chapter-<N>/draft` and continues with the next missing post-processing item
 - If scene decomposition already completed, resume reloads `chapter_<N>_scenes.json` instead of regenerating the scene list
 - If one or more scenes already completed, resume reloads `chapter_<N>/scene_<M>.md` files and continues from the first missing scene
-- If the chapter draft already completed, resume independently skips completed consistency, wiki update, sheet evolution, recap, and Chapter 1 metadata sub-steps
+- If the chapter draft already completed, resume independently skips completed consistency, wiki update, recap, and Chapter 1 metadata sub-steps
 - Direct whole-chapter fallback still behaves as a single-shot draft; granular resume here applies only to the scene pipeline path
 
 > **Future work (not yet wired):** Phase 7a (chapter-outline-expander), Phase 7f (quality-reviewer / critique-revision loop), Phase 7.5 (prose-scrubber), Phase 7g (handoff artifact generation).
@@ -1150,7 +1149,7 @@ Phase 7: Wiki Bootstrap
   → Mark `wiki_populated` even if bootstrap raises, then continue pipeline
 
 Phase 8: Chapter Loop
-  → Generate approved chapters one at a time, then run wiki maintenance, sheet evolution, recap generation, and consistency checks
+  → Generate approved chapters one at a time, then run consistency checks, wiki maintenance, recap generation, and recap-to-wiki event sync
   → After Chapter 1 approval, run `metadata-chapter-1` to refresh `stories/<name>/metadata.json`
 
 Phase 9: Final Edit
@@ -1323,10 +1322,11 @@ Wiki pages support three hierarchical summary levels:
 
 ### 11.5 Wiki Update Lifecycle
 
-1. **Initial bootstrap** (Phase 7, before Chapter 1): `bootstrap_wiki_from_story()` reads the approved outline savepoint plus character and setting sheets, creates the first wiki page set, and writes retrieval-ready L1/L2/L3 detail levels
+1. **Initial bootstrap** (Phase 7, before Chapter 1): `_list_wiki_entities()` reads `characters/*.json` and `settings/*.json` as the canonical entity source, adds outline-derived entities only when the saved outline text is non-empty, then `_bootstrap_single_wiki_entity()` writes retrieval-ready L1/L2/L3 detail levels page by page
 2. **Post-chapter persistence** (after each accepted chapter): `wiki-maintainer` calls `update_wiki_from_chapter()`, the `wiki/extract_from_chapter` prompt returns structured JSON, and `run_batch()` persists new pages, state changes, aliases, and timeline events under `stories/<name>/wiki/`
-3. **Chapter-level lint** (after each chapter): `wiki-lint` checks consistency against the ConStory-Bench error taxonomy
-4. **Pre-generation snapshot** (before each scene): `wiki-snapshot` assembles a token-budgeted world state snapshot from the current wiki
+3. **Recap event sync** (after each accepted chapter recap): the orchestrator parses recap `events` and creates or updates wiki `event` pages with verified provenance fields including `timestamp`, `participants`, `importance`, `emotional_state`, `causal_context`, and `chapter_provenance`
+4. **Chapter-level lint** (after each chapter): `wiki-lint` checks consistency against the ConStory-Bench error taxonomy
+5. **Pre-generation snapshot** (before each scene): `wiki-snapshot` assembles a token-budgeted world state snapshot from the current wiki
 
 ### 11.6 Wikilink Syntax
 
