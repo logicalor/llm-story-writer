@@ -13,7 +13,7 @@ Tests verify implemented behavior. They should be meaningful, isolated, and alig
 2. Read nearby tests before adding new ones.
 3. Prefer extending existing test files over creating isolated new files.
 4. Write focused tests for the changed behavior.
-5. Run the smallest useful test command first, then broader checks as risk increases.
+5. Run the smallest useful test command first, then broader checks as risk increases. Always run `pytest` without `-p no:asyncio` — disabling the asyncio plugin causes all `@pytest.mark.asyncio` tests to fail silently (see gotcha #054).
 
 ## Assertions
 
