@@ -77,7 +77,7 @@ The orchestrator also now produces intermediate story artefacts directly in the 
 | `src/tools/wiki_init.py` | Initialize wiki structure and seed pages |
 | `src/tools/wiki_read.py` | Read wiki pages at requested detail levels |
 | `src/tools/wiki_search.py` | Search wiki content |
-| `src/tools/wiki_snapshot.py` | Assemble token-budgeted wiki context |
+| `src/tools/wiki_snapshot.py` | Assemble token-budgeted wiki context via the four-tier retrieval pipeline (entity match → metadata → semantic → wikilink); exposes `get_snapshot(story_name, chapter, scene, outline, *, pov_character, characters, primary_location, locations, scene_type, budget) -> str \| None` as an in-process Python API — returns a structured markdown snapshot or `None` (never raises); used by `ChapterWriterAgent` to inject live wiki context into chapter and scene generation (see [wiki-context-injection](features/wiki-context-injection.md)) |
 | `src/tools/wiki_extract.py` | Run initial wiki population and post-chapter extraction, generate detail levels, and apply batch-ready wiki updates |
 | `src/tools/wiki_update.py` | Apply wiki page updates |
 | `src/tools/wiki_lint.py` | Validate wiki pages against formatting and consistency rules |
