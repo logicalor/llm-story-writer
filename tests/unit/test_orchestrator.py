@@ -2233,7 +2233,6 @@ async def test_chapter_loop_resumes_at_recap(tmp_path: Path) -> None:
                 "chapter-1/draft",
                 "chapter-1/consistency-check",
                 "chapter-1/wiki-update",
-                "chapter-1/sheet-evolution",
             ]
         },
     )
@@ -2287,6 +2286,84 @@ async def test_chapter_loop_resumes_at_recap(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_recap_persisted_when_events_empty(tmp_path: Path) -> None:
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    state = _resume_state(
+        current_phase="chapter-1",
+        completed_work_items={
+            "chapter-1": [
+                "chapter-1/draft",
+                "chapter-1/consistency-check",
+                "chapter-1/wiki-update",
+            ]
+        },
+    )
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    story_dir = tmp_path / "test-story"
+    story_dir.mkdir(parents=True, exist_ok=True)
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
+        patch("presentation.orchestrator.FinalEditorAgent") as final_editor_cls,
+        patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
+    ):
+        chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
+        consistency_cls.return_value.run = AsyncMock(
+            return_value={"issues": [], "passed": True}
+        )
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+        recap_cls.return_value.run = AsyncMock(
+            return_value={
+                "compact": "Compact summary",
+                "sanitised": "Sanitised summary",
+                "events": [],
+            }
+        )
+        metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
+        final_editor_cls.return_value.build_prior_summaries = MagicMock(
+            return_value=[""]
+        )
+        final_editor_cls.return_value.edit_single_chapter = AsyncMock(
+            return_value=_chapter_draft()
+        )
+
+        await _write_savepoint(state)
+
+        resumed = await resume_pipeline(
+            "test-story",
+            None,
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config(),
+            provider=provider,
+        )
+
+    recap_entry = resumed.recaps["1"]
+    compact_ref = recap_entry["compact"]["$ref"]
+    sanitised_ref = recap_entry["sanitised"]["$ref"]
+
+    assert (story_dir / compact_ref).read_text(encoding="utf-8") == "Compact summary"
+    assert (story_dir / sanitised_ref).read_text(
+        encoding="utf-8"
+    ) == "Sanitised summary"
+    recap_cls.return_value.run.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_chapter_loop_metadata_skipped_for_chapter_2(tmp_path: Path) -> None:
     provider = MagicMock()
     bus = TokenStreamBus()
@@ -2319,7 +2396,6 @@ async def test_chapter_loop_metadata_skipped_for_chapter_2(tmp_path: Path) -> No
                 "chapter-2/draft",
                 "chapter-2/consistency-check",
                 "chapter-2/wiki-update",
-                "chapter-2/sheet-evolution",
             ]
         },
     )

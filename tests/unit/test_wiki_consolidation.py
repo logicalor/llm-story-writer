@@ -69,7 +69,9 @@ def test_list_wiki_entities_returns_entities_without_outline(tmp_path: Path) -> 
                 }
             ],
         ) as extract_sheet_entities,
-        patch("tools.wiki_extract._extract_outline_entities") as extract_outline_entities,
+        patch(
+            "tools.wiki_extract._extract_outline_entities"
+        ) as extract_outline_entities,
     ):
         entities = wiki_extract._list_wiki_entities("test-story")
 
