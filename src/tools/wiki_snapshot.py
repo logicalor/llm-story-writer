@@ -899,6 +899,217 @@ def _update_cache(
 # ---------------------------------------------------------------------------
 
 
+def _build_snapshot(
+    story_dir: Path,
+    chapter: int,
+    scene: int,
+    outline: str,
+    wiki_dir: Path,
+    pov_character: str | None,
+    primary_location: str | None,
+    extra_characters: list[str],
+    extra_locations: list[str],
+    scene_type: str | None,
+    budget: int,
+) -> tuple[str, dict]:  # type: ignore[type-arg]
+    """Core pipeline: run all retrieval tiers, assemble context, return (snapshot, stats)."""
+    story_name = story_dir.name
+
+    # --- Stage 1: Hybrid Multi-Tier Retrieval ---
+    t1_results = _tier1_entity_match(
+        outline,
+        wiki_dir,
+        pov_character,
+        primary_location,
+    )
+
+    # Ensure extra characters/locations are in T1
+    for slug in extra_characters:
+        if slug not in t1_results:
+            page_path = _find_page_by_slug(wiki_dir, slug)
+            if page_path:
+                loaded = _read_page(page_path)
+                if loaded:
+                    t1_results[slug] = {
+                        **loaded,
+                        "tiers": {1},
+                        "entity_match_score": 1.0,
+                        "semantic_similarity": 0.0,
+                        "wikilink_proximity": 0.0,
+                    }
+
+    for slug in extra_locations:
+        if slug not in t1_results:
+            page_path = _find_page_by_slug(wiki_dir, slug)
+            if page_path:
+                loaded = _read_page(page_path)
+                if loaded:
+                    t1_results[slug] = {
+                        **loaded,
+                        "tiers": {1},
+                        "entity_match_score": 1.0,
+                        "semantic_similarity": 0.0,
+                        "wikilink_proximity": 0.0,
+                    }
+
+    t2_results = _tier2_metadata_query(story_name)
+    t3_results = _tier3_semantic_search(story_name, outline)
+
+    # Build pre-T4 page set for wikilink traversal
+    pre_t4: dict[str, dict] = dict(t1_results)  # type: ignore[type-arg]
+    for entry in t2_results:
+        if entry["slug"] not in pre_t4:
+            page_path = _find_page_by_slug(wiki_dir, entry["slug"])
+            if page_path:
+                loaded = _read_page(page_path)
+                if loaded:
+                    pre_t4[entry["slug"]] = loaded
+    for entry in t3_results:
+        if entry["slug"] not in pre_t4:
+            page_path = _find_page_by_slug(wiki_dir, entry["slug"])
+            if page_path:
+                loaded = _read_page(page_path)
+                if loaded:
+                    pre_t4[entry["slug"]] = loaded
+
+    t4_results = _tier4_wikilink_traversal(pre_t4, wiki_dir)
+
+    # Merge, score, deduplicate
+    pages = _merge_and_score(t1_results, t2_results, t3_results, t4_results, wiki_dir)
+
+    # Count tier contributions
+    tier_counts: dict[str, int] = {"t1": 0, "t2": 0, "t3": 0, "t4": 0}
+    for page in pages.values():
+        for t in page.get("tiers", set()):
+            tier_counts[f"t{t}"] += 1
+
+    pages_retrieved = len(pages)
+
+    # --- Delta Caching ---
+    cache = _load_cache(wiki_dir)
+    cached_content, cache_hits, cache_misses = _apply_cache(
+        cache,
+        chapter,
+        pages,
+        wiki_dir,
+    )
+
+    # --- Stage 2: Detail Level Selection ---
+    pages = _assign_detail_levels(
+        pages,
+        pov_character,
+        primary_location,
+        scene_type,
+        chapter,
+        budget,
+    )
+
+    # --- Stage 3: Render content and assemble ---
+    rendered_content: dict[str, str] = {}
+    for slug, page in pages.items():
+        level = page.get("detail_level", "L1")
+        if slug in cached_content:
+            rendered_content[slug] = cached_content[slug]
+        else:
+            rendered_content[slug] = _get_page_content_at_level(page, level)
+
+    # Assemble structured markdown
+    snapshot = _assemble_context(
+        pages,
+        pov_character,
+        primary_location,
+        chapter,
+        scene,
+        outline,
+        scene_type,
+        cached_content=rendered_content,
+    )
+
+    # Optional LLM synthesis
+    snapshot = _maybe_synthesize(snapshot, pages, outline)
+
+    token_count = count_tokens(snapshot)
+
+    # Update cache
+    stats: dict[str, object] = {
+        "pages_retrieved": pages_retrieved,
+        "pages_included": len(pages),
+        "token_count": token_count,
+        "cache_hits": cache_hits,
+        "cache_misses": cache_misses,
+        "tiers": tier_counts,
+    }
+    _update_cache(
+        wiki_dir,
+        chapter,
+        scene,
+        pages,
+        rendered_content,
+        stats,
+    )
+
+    return snapshot, stats
+
+
+def get_snapshot(
+    story_name: str,
+    chapter: int,
+    scene: int,
+    outline: str,
+    pov_character: str | None = None,
+    characters: list[str] | None = None,
+    primary_location: str | None = None,
+    locations: list[str] | None = None,
+    scene_type: str | None = None,
+    budget: int = DEFAULT_BUDGET,
+) -> str | None:
+    """Run the four-tier retrieval pipeline and return a snapshot string.
+
+    Returns None if the wiki collection is absent, empty, or if any
+    import/runtime error occurs (caller should fall back to flat-sheet context).
+    """
+    try:
+        story_dir = _validate_story_name(story_name)
+        wiki_dir = get_wiki_dir(story_dir)
+        if not wiki_dir.exists():
+            return None
+
+        collection = _get_collection(story_dir.name)
+        if collection is None or collection.count() == 0:
+            return None
+
+        if pov_character:
+            _validate_slug(pov_character)
+        if primary_location:
+            _validate_slug(primary_location)
+
+        extra_characters: list[str] = [
+            s.strip() for s in (characters or []) if s.strip()
+        ]
+        for slug in extra_characters:
+            _validate_slug(slug)
+        extra_locations: list[str] = [s.strip() for s in (locations or []) if s.strip()]
+        for slug in extra_locations:
+            _validate_slug(slug)
+
+        snapshot, _ = _build_snapshot(
+            story_dir=story_dir,
+            chapter=chapter,
+            scene=scene,
+            outline=outline,
+            wiki_dir=wiki_dir,
+            pov_character=pov_character,
+            primary_location=primary_location,
+            extra_characters=extra_characters,
+            extra_locations=extra_locations,
+            scene_type=scene_type,
+            budget=budget,
+        )
+        return snapshot if snapshot.strip() else None
+    except (Exception, SystemExit):
+        return None
+
+
 def cmd_snapshot(args: argparse.Namespace) -> None:
     """Execute the full snapshot pipeline."""
     # Validate required args
@@ -955,137 +1166,18 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
     budget = args.budget or DEFAULT_BUDGET
     scene_type = args.scene_type
 
-    # --- Stage 1: Hybrid Multi-Tier Retrieval ---
-    t1_results = _tier1_entity_match(
-        args.outline,
-        wiki_dir,
-        pov_character,
-        primary_location,
-    )
-
-    # Ensure extra characters/locations are in T1
-    for slug in extra_characters:
-        if slug not in t1_results:
-            page_path = _find_page_by_slug(wiki_dir, slug)
-            if page_path:
-                loaded = _read_page(page_path)
-                if loaded:
-                    t1_results[slug] = {
-                        **loaded,
-                        "tiers": {1},
-                        "entity_match_score": 1.0,
-                        "semantic_similarity": 0.0,
-                        "wikilink_proximity": 0.0,
-                    }
-
-    for slug in extra_locations:
-        if slug not in t1_results:
-            page_path = _find_page_by_slug(wiki_dir, slug)
-            if page_path:
-                loaded = _read_page(page_path)
-                if loaded:
-                    t1_results[slug] = {
-                        **loaded,
-                        "tiers": {1},
-                        "entity_match_score": 1.0,
-                        "semantic_similarity": 0.0,
-                        "wikilink_proximity": 0.0,
-                    }
-
-    t2_results = _tier2_metadata_query(story_dir.name)
-    t3_results = _tier3_semantic_search(story_dir.name, args.outline)
-
-    # Build pre-T4 page set for wikilink traversal
-    pre_t4: dict[str, dict] = dict(t1_results)
-    for entry in t2_results:
-        if entry["slug"] not in pre_t4:
-            page_path = _find_page_by_slug(wiki_dir, entry["slug"])
-            if page_path:
-                loaded = _read_page(page_path)
-                if loaded:
-                    pre_t4[entry["slug"]] = loaded
-    for entry in t3_results:
-        if entry["slug"] not in pre_t4:
-            page_path = _find_page_by_slug(wiki_dir, entry["slug"])
-            if page_path:
-                loaded = _read_page(page_path)
-                if loaded:
-                    pre_t4[entry["slug"]] = loaded
-
-    t4_results = _tier4_wikilink_traversal(pre_t4, wiki_dir)
-
-    # Merge, score, deduplicate
-    pages = _merge_and_score(t1_results, t2_results, t3_results, t4_results, wiki_dir)
-
-    # Count tier contributions
-    tier_counts = {"t1": 0, "t2": 0, "t3": 0, "t4": 0}
-    for page in pages.values():
-        for t in page.get("tiers", set()):
-            tier_counts[f"t{t}"] += 1
-
-    pages_retrieved = len(pages)
-
-    # --- Delta Caching ---
-    cache = _load_cache(wiki_dir)
-    cached_content, cache_hits, cache_misses = _apply_cache(
-        cache,
-        args.chapter,
-        pages,
-        wiki_dir,
-    )
-
-    # --- Stage 2: Detail Level Selection ---
-    pages = _assign_detail_levels(
-        pages,
-        pov_character,
-        primary_location,
-        scene_type,
-        args.chapter,
-        budget,
-    )
-
-    # --- Stage 3: Render content and assemble ---
-    rendered_content: dict[str, str] = {}
-    for slug, page in pages.items():
-        level = page.get("detail_level", "L1")
-        if slug in cached_content:
-            rendered_content[slug] = cached_content[slug]
-        else:
-            rendered_content[slug] = _get_page_content_at_level(page, level)
-
-    # Assemble structured markdown
-    snapshot = _assemble_context(
-        pages,
-        pov_character,
-        primary_location,
-        args.chapter,
-        args.scene,
-        args.outline,
-        scene_type,
-        cached_content=rendered_content,
-    )
-
-    # Optional LLM synthesis
-    snapshot = _maybe_synthesize(snapshot, pages, args.outline)
-
-    token_count = count_tokens(snapshot)
-
-    # Update cache
-    stats = {
-        "pages_retrieved": pages_retrieved,
-        "pages_included": len(pages),
-        "token_count": token_count,
-        "cache_hits": cache_hits,
-        "cache_misses": cache_misses,
-        "tiers": tier_counts,
-    }
-    _update_cache(
-        wiki_dir,
-        args.chapter,
-        args.scene,
-        pages,
-        rendered_content,
-        stats,
+    snapshot, stats = _build_snapshot(
+        story_dir=story_dir,
+        chapter=args.chapter,
+        scene=args.scene,
+        outline=args.outline,
+        wiki_dir=wiki_dir,
+        pov_character=pov_character,
+        primary_location=primary_location,
+        extra_characters=extra_characters,
+        extra_locations=extra_locations,
+        scene_type=scene_type,
+        budget=budget,
     )
 
     print(json.dumps({"snapshot": snapshot, "stats": stats}, indent=2))

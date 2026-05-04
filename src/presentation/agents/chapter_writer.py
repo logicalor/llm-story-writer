@@ -39,6 +39,7 @@ from presentation.pipeline_primitives import (
 )
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools._persist import read_markdown_ref
+from tools.wiki_snapshot import get_snapshot
 
 
 def _savepoint_path(story_name: str) -> Path:
@@ -167,6 +168,29 @@ class ChapterWriterAgent:
         base_context, character_context, setting_context = self._build_entity_context(
             story_name
         )
+
+        wiki_snapshot: str | None = None
+        if (STORIES_DIR / story_name / "wiki").exists():
+            try:
+                wiki_snapshot = get_snapshot(
+                    story_name=story_name,
+                    chapter=chapter_number,
+                    scene=0,
+                    outline=chapter_summary,
+                )
+            except Exception as exc:
+                await self.bus.emit(
+                    f"\n[Wiki] snapshot failed ({type(exc).__name__}: {exc})\n"
+                )
+        if wiki_snapshot:
+            base_context = wiki_snapshot
+            await self.wiki_bus.emit(
+                WikiContextEvent(
+                    phase="chapter",
+                    event_type="semantic_search",
+                    content=f"Wiki snapshot assembled for chapter {chapter_number}",
+                )
+            )
 
         previous_chapter_recap = ""
         if chapter_number > 1:
@@ -535,11 +559,41 @@ class ChapterWriterAgent:
             else:
                 scenes_completed_summary = "(none yet — this is the opening scene)"
 
+            scene_base_context = base_context  # default: chapter-level context
+            try:
+                scene_snapshot = get_snapshot(
+                    story_name=story_name,
+                    chapter=chapter_number,
+                    scene=index,
+                    outline=(
+                        scene.get("description", "")
+                        or scene.get("summary", "")
+                        or chapter_summary
+                    ),
+                    pov_character=(
+                        scene.get("characters", [None])[0]
+                        if scene.get("characters")
+                        else None
+                    ),
+                    characters=(
+                        scene.get("characters", [])[1:]
+                        if scene.get("characters")
+                        else None
+                    ),
+                    primary_location=(
+                        scene.get("setting") or scene.get("location") or None
+                    ),
+                )
+                if scene_snapshot:
+                    scene_base_context = scene_snapshot
+            except Exception:
+                pass  # silently fall back to chapter-level base_context
+
             scene_prompt = loader.load_prompt(
                 scene_prompt_key,
                 variables={
                     "current_scene_summary": json.dumps(scene, ensure_ascii=False),
-                    "base_context": base_context,
+                    "base_context": scene_base_context,
                     "scene_index": str(index),
                     "scene_total": str(total_scenes),
                     "previous_scene_tail": prev_tail,
