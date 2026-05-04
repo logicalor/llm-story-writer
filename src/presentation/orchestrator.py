@@ -1829,7 +1829,7 @@ async def _continue_pipeline(
                             field: persist_markdown(
                                 story_dir,
                                 f"chapters/chapter_{chapter_number}/recap_{field}.md",
-                                str(recap_result.get(field, "")),
+                                str(recap_result.get(field, "") or ""),
                             )
                             for field in ("events", "compact", "sanitised")
                         }

@@ -2028,7 +2028,7 @@ async def test_chapter_loop_resumes_at_consistency_check(tmp_path: Path) -> None
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        recap_cls.return_value.run = AsyncMock(return_value={"events": []})
+        recap_cls.return_value.run = AsyncMock(return_value={"events": ""})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
             return_value=[""]
@@ -2131,7 +2131,7 @@ async def test_chapter_loop_resumes_at_wiki_update(tmp_path: Path) -> None:
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        recap_cls.return_value.run = AsyncMock(return_value={"events": []})
+        recap_cls.return_value.run = AsyncMock(return_value={"events": ""})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
             return_value=[""]
@@ -2196,7 +2196,7 @@ async def test_chapter_loop_resumes_at_recap_after_wiki_update(tmp_path: Path) -
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        recap_cls.return_value.run = AsyncMock(return_value={"events": []})
+        recap_cls.return_value.run = AsyncMock(return_value={"events": ""})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
             return_value=[""]
@@ -2260,7 +2260,7 @@ async def test_chapter_loop_resumes_at_recap(tmp_path: Path) -> None:
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        recap_cls.return_value.run = AsyncMock(return_value={"events": ["event"]})
+        recap_cls.return_value.run = AsyncMock(return_value={"events": "event"})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
             return_value=[""]
@@ -2329,7 +2329,7 @@ async def test_recap_persisted_when_events_empty(tmp_path: Path) -> None:
             return_value={
                 "compact": "Compact summary",
                 "sanitised": "Sanitised summary",
-                "events": [],
+                "events": "",
             }
         )
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
@@ -2423,7 +2423,7 @@ async def test_chapter_loop_metadata_skipped_for_chapter_2(tmp_path: Path) -> No
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        recap_cls.return_value.run = AsyncMock(return_value={"events": ["event"]})
+        recap_cls.return_value.run = AsyncMock(return_value={"events": "event"})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
             return_value=["", "Chapter 1 summary"]
@@ -2480,7 +2480,7 @@ async def test_chapter_loop_backfills_draft_for_legacy_approved_chapter(
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        recap_cls.return_value.run = AsyncMock(return_value={"events": []})
+        recap_cls.return_value.run = AsyncMock(return_value={"events": ""})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
             return_value=[""]

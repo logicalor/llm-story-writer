@@ -96,7 +96,6 @@ New per-chapter work items:
 - `chapter-<N>/draft` — chapter generation plus persisted chapter write
 - `chapter-<N>/consistency-check` — `ConsistencyCheckerAgent`
 - `chapter-<N>/wiki-update` — `WikiMaintainerAgent`
-- `chapter-<N>/sheet-evolution` — character and setting sheet evolvers
 - `chapter-<N>/recap` — `RecapWriterAgent`
 - `chapter-<N>/metadata` — `StoryMetadataAgent` refresh after Chapter 1 only
 
@@ -169,7 +168,6 @@ The implemented IDs now cover:
 | `chapter-<N>` | `chapter-<N>/draft` | `stories/<story>/chapters/chapter_<N>.md` |
 | `chapter-<N>` | `chapter-<N>/consistency-check` | `stories/<story>/savepoints/pipeline_state.json` with advisory consistency output already surfaced |
 | `chapter-<N>` | `chapter-<N>/wiki-update` | Updated wiki pages plus `state.wiki_batches` saved in `pipeline_state.json` |
-| `chapter-<N>` | `chapter-<N>/sheet-evolution` | Updated sheet JSON/markdown plus `state.evolved_sheets[str(N)]` |
 | `chapter-<N>` | `chapter-<N>/recap` | `stories/<story>/chapters/chapter_<N>_recap.json` and `state.recaps[str(N)]` when recap data exists |
 | `chapter-<N>` | `chapter-<N>/metadata` | `stories/<story>/metadata.json` after the Chapter 1 metadata refresh |
 | `final-edit` | `final-edit/chapter:<N>` | `stories/<story>/chapters/chapter_<N>_edited.md` |
@@ -186,7 +184,7 @@ With these ADR 010 tasks implemented:
 - Characters resume from the next missing extraction, chunk, abridged, or summary item.
 - Settings resume from the next missing extraction, chunk, abridged, or summary item.
 - Wiki bootstrap resumes from the next missing entity slug.
-- Chapter drafting resumes from the next missing scene when the scene pipeline is active, and chapter post-processing resumes from the next missing draft, consistency, wiki, sheet-evolution, recap, or metadata item.
+- Chapter drafting resumes from the next missing scene when the scene pipeline is active, and chapter post-processing resumes from the next missing draft, consistency, wiki, recap, or metadata item.
 - Final edit resumes from the next missing chapter edit.
 - The TUI resume banner now surfaces the last completed work item for partially completed phases when ledger data exists.
 
