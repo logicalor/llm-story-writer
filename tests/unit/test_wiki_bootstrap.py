@@ -148,8 +148,8 @@ def test_bootstrap_creates_pages_from_character_sheet(
     _set_fake_llm(
         monkeypatch,
         [
-            json.dumps([]),
             json.dumps(_sheet_response("Captain Vale")),
+            json.dumps([]),
             json.dumps(_detail_levels()),
         ],
     )
@@ -186,16 +186,30 @@ def test_bootstrap_idempotent_skips_existing(
     assert result["skipped"] == 1
 
 
-def test_bootstrap_returns_empty_when_no_outline(
+def test_bootstrap_uses_sheet_entities_when_no_outline(
     story_env: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _init_story_wiki(story_env)
+    wiki_dir = _init_story_wiki(story_env)
+    _write_character_sheet(
+        story_env,
+        "Captain Vale",
+        "Captain Vale commands a courier ship through hostile space.",
+    )
     monkeypatch.setattr(wiki_extract, "_load_outline_savepoint", lambda story_dir: "")
+    _set_fake_llm(
+        monkeypatch,
+        [
+            json.dumps(_sheet_response("Captain Vale")),
+            json.dumps(_detail_levels()),
+        ],
+    )
 
     result = wiki_extract.bootstrap_wiki_from_story("test-story")
 
-    assert result == {"created": 0, "skipped": 0, "entity_counts": {}}
+    assert result["created"] == 1
+    assert result["skipped"] == 0
+    assert (wiki_dir / "characters" / "captain-vale.md").exists()
 
 
 def test_bootstrap_is_resumable_after_partial_run(

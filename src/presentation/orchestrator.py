@@ -27,13 +27,11 @@ from domain.exceptions import StoryGenerationError
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
-from presentation.agents.character_evolver import CharacterEvolverAgent
 from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.agents.consistency_checker import ConsistencyCheckerAgent
 from presentation.agents.final_editor import FinalEditorAgent
 from presentation.agents.outline_critic import OutlineCriticAgent
 from presentation.agents.outline_planner import OutlinePlannerAgent
-from presentation.agents.setting_evolver import SettingEvolverAgent
 from presentation.agents.story_foundation import StoryFoundationAgent
 from presentation.agents.story_metadata import StoryMetadataAgent
 from presentation.agents.story_planner import StoryPlannerAgent
@@ -50,9 +48,10 @@ from presentation.pipeline_primitives import (
 )
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools._persist import persist_markdown, read_markdown_ref
-from tools._wiki import slugify as wiki_slugify
+from tools._wiki import find_pages, get_wiki_dir, slugify as wiki_slugify
 from tools.wiki_extract import _bootstrap_single_wiki_entity, _list_wiki_entities
 from tools.wiki_init import _init_wiki_for_story
+from tools.wiki_update import run_batch as wiki_update_run_batch
 
 
 def _savepoint_path(story_name: str) -> Path:
@@ -64,6 +63,194 @@ async def _write_savepoint(state: PipelineState) -> None:
     """Write PipelineState to disk as JSON savepoint (atomic)."""
     path = _savepoint_path(state.story_name)
     _atomic_write(path, state.to_json())
+
+
+def _coerce_event_list(value: Any) -> list[dict[str, Any]]:
+    """Parse recap event output into a list of event objects."""
+    if isinstance(value, str):
+        if not value.strip():
+            return []
+        try:
+            return _coerce_event_list(json.loads(value))
+        except json.JSONDecodeError:
+            return []
+
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+
+    if isinstance(value, dict):
+        nested = value.get("events")
+        if isinstance(nested, list):
+            return [item for item in nested if isinstance(item, dict)]
+
+    return []
+
+
+def _coerce_string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+    if not isinstance(value, list):
+        return []
+
+    values: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        stripped = item.strip()
+        if stripped and stripped not in values:
+            values.append(stripped)
+    return values
+
+
+def _importance_to_impact(value: str) -> str:
+    return {"high": "major", "medium": "moderate", "low": "minor"}.get(
+        value,
+        "moderate",
+    )
+
+
+def _build_recap_event_detail_levels(
+    event: dict[str, Any], title: str
+) -> dict[str, str]:
+    summary = str(event.get("summary") or event.get("description") or title).strip()
+    impact_text = str(event.get("impact") or "").strip()
+    timestamp = str(
+        event.get("timestamp")
+        or event.get("date_start")
+        or event.get("date")
+        or event.get("time")
+        or ""
+    ).strip()
+    key_events = _coerce_string_list(event.get("key_events"))
+    locations = _coerce_string_list(event.get("locations"))
+    character_development = _coerce_string_list(event.get("character_development"))
+
+    l1 = summary or title
+
+    l2_parts = [part for part in (summary, impact_text) if part]
+    if timestamp:
+        l2_parts.append(f"Timestamp: {timestamp}")
+    l2 = " ".join(l2_parts) or title
+
+    l3_parts = [f"Summary: {summary or title}"]
+    if timestamp:
+        l3_parts.append(f"Timestamp: {timestamp}")
+    if key_events:
+        l3_parts.append("Key events: " + "; ".join(key_events))
+    if character_development:
+        l3_parts.append("Character development: " + "; ".join(character_development))
+    if locations:
+        l3_parts.append("Locations: " + ", ".join(locations))
+    if impact_text:
+        l3_parts.append(f"Impact: {impact_text}")
+
+    return {
+        "L1": l1,
+        "L2": l2,
+        "L3": "\n\n".join(l3_parts),
+    }
+
+
+def _sync_recap_events_to_wiki(
+    story_name: str,
+    chapter_number: int,
+    recap_events: Any,
+) -> dict[str, Any]:
+    """Create or update wiki event pages from recap output."""
+    events = _coerce_event_list(recap_events)
+    if not events:
+        return {"created": 0, "updated": 0, "timeline_events": 0, "entity_counts": {}}
+
+    story_dir = _validate_story_name(story_name)
+    wiki_dir = get_wiki_dir(story_dir)
+    creates: list[dict[str, Any]] = []
+    updates: list[dict[str, Any]] = []
+
+    for index, event in enumerate(events, start=1):
+        title = str(
+            event.get("name")
+            or event.get("title")
+            or event.get("summary")
+            or event.get("description")
+            or f"Chapter {chapter_number} Event {index}"
+        ).strip()
+        if not title:
+            continue
+
+        slug = wiki_slugify(title)
+        if not slug:
+            continue
+
+        importance = str(event.get("importance") or "medium").strip().lower()
+        if importance not in {"high", "medium", "low"}:
+            importance = "medium"
+
+        timestamp = str(
+            event.get("timestamp")
+            or event.get("date_start")
+            or event.get("date")
+            or event.get("time")
+            or ""
+        ).strip()
+        participant_names = _coerce_string_list(
+            event.get("participants")
+            or event.get("characters")
+            or event.get("key_characters")
+        )
+        participants = [wiki_slugify(name) for name in participant_names if name]
+        emotional_state = str(
+            event.get("emotional_state")
+            or event.get("emotion")
+            or event.get("mood")
+            or ""
+        ).strip()
+        causal_context = str(
+            event.get("causal_context") or event.get("cause") or ""
+        ).strip()
+        detail_levels = _build_recap_event_detail_levels(event, title)
+        body = detail_levels["L3"]
+
+        payload_item = {
+            "slug": slug,
+            "page_type": "event",
+            "page_name": title,
+            "confidence": "verified",
+            "first_appearance": chapter_number,
+            "chapter": chapter_number,
+            "impact": _importance_to_impact(importance),
+            "detail_levels": detail_levels,
+            "body": body,
+            "frontmatter": {
+                "name": title,
+                "confidence": "verified",
+                "chapter": chapter_number,
+                "impact": _importance_to_impact(importance),
+                "timestamp": timestamp,
+                "participants": participants,
+                "importance": importance,
+                "emotional_state": emotional_state,
+                "causal_context": causal_context,
+                "chapter_provenance": chapter_number,
+            },
+        }
+
+        if find_pages(wiki_dir, slug=slug):
+            updates.append(payload_item)
+        else:
+            creates.append(payload_item)
+
+    if not creates and not updates:
+        return {"created": 0, "updated": 0, "timeline_events": 0, "entity_counts": {}}
+
+    return wiki_update_run_batch(
+        story_name,
+        {
+            "creates": creates,
+            "updates": updates,
+            "timeline_events": [],
+        },
+    )
 
 
 def _work_item_done(state: PipelineState, phase: str, item_id: str) -> bool:
@@ -1495,12 +1682,6 @@ async def _continue_pipeline(
             chapter_agent = ChapterWriterAgent(
                 resolved_provider, resolved_config, bus, wiki_bus, sbus
             )
-            char_evolver = CharacterEvolverAgent(
-                resolved_provider, resolved_config, bus, wiki_bus
-            )
-            setting_evolver = SettingEvolverAgent(
-                resolved_provider, resolved_config, bus, wiki_bus
-            )
             wiki_agent = WikiMaintainerAgent(
                 resolved_provider, resolved_config, bus, wiki_bus
             )
@@ -1587,33 +1768,6 @@ async def _continue_pipeline(
                             f"({type(exc).__name__}: {exc})\n"
                         )
 
-                sheet_item_id = f"chapter-{chapter_number}/sheet-evolution"
-                if not _work_item_done(state, phase, sheet_item_id):
-                    try:
-                        char_changes = await char_evolver.run(
-                            state.story_name,
-                            draft,
-                            chapter_number,
-                            settings,
-                        )
-                        setting_changes = await setting_evolver.run(
-                            state.story_name,
-                            draft,
-                            chapter_number,
-                            settings,
-                        )
-                        state.evolved_sheets[str(chapter_number)] = {
-                            "characters": char_changes,
-                            "settings": setting_changes,
-                        }
-                        await _write_savepoint(state)
-                        await _mark_work_item_done(state, phase, sheet_item_id)
-                    except Exception as exc:
-                        await bus.emit(
-                            f"\n[Sheet Evolution] chapter {chapter_number} skipped "
-                            f"({type(exc).__name__}: {exc})\n"
-                        )
-
                 recap_item_id = f"chapter-{chapter_number}/recap"
                 if not _work_item_done(state, phase, recap_item_id):
                     try:
@@ -1672,6 +1826,12 @@ async def _continue_pipeline(
                             settings=settings,
                         )
                         if recap_result.get("events"):
+                            wiki_event_result = await asyncio.to_thread(
+                                _sync_recap_events_to_wiki,
+                                state.story_name,
+                                chapter_number,
+                                recap_result.get("events"),
+                            )
                             recap_pointers = {
                                 field: persist_markdown(
                                     story_dir,
@@ -1693,6 +1853,11 @@ async def _continue_pipeline(
                                     indent=2,
                                     ensure_ascii=False,
                                 ),
+                            )
+                            await bus.emit(
+                                "[Recap] Wiki events synced — "
+                                f"created {wiki_event_result['created']}, "
+                                f"updated {wiki_event_result['updated']}\n"
                             )
                         await _mark_work_item_done(state, phase, recap_item_id)
                     except Exception as exc:

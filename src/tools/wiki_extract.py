@@ -594,20 +594,7 @@ def _list_wiki_entities(story_name: str, *, model: str | None = None) -> list[An
     cache = _load_extract_cache(story_dir)
 
     outline_text = _load_outline_savepoint(story_dir)
-    if not outline_text.strip():
-        return []
-
     entities: list[dict[str, Any]] = []
-    entities.extend(
-        _extract_outline_entities(
-            outline_text,
-            story_name=story_name,
-            model=model,
-            cache=cache,
-            story_dir=story_dir,
-        )
-    )
-
     for sheet in _read_sheet_files(story_dir / "characters"):
         entities.extend(
             _extract_sheet_entities(
@@ -629,6 +616,17 @@ def _list_wiki_entities(story_name: str, *, model: str | None = None) -> list[An
                 entity_name=sheet["name"],
                 model=model,
                 sheet_path=sheet["path"],
+                cache=cache,
+                story_dir=story_dir,
+            )
+        )
+
+    if outline_text.strip():
+        entities.extend(
+            _extract_outline_entities(
+                outline_text,
+                story_name=story_name,
+                model=model,
                 cache=cache,
                 story_dir=story_dir,
             )

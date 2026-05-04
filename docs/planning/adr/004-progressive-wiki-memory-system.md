@@ -1,7 +1,9 @@
 # ADR 004: Progressive Wiki Memory System
 
 **Date:** 2026-04-12
-**Status:** Proposed
+**Status:** Accepted
+
+Implementation completed via issue #344 and PR #345. The active Python orchestrator now boots the wiki from sheets plus outline data and pushes recap-derived event pages into the wiki during the chapter loop.
 
 ## Context
 
