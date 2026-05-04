@@ -1898,3 +1898,58 @@ the fixture directory in `finally` to prevent test contamination on repeated run
 
 ChromaDB ID: `gotcha-upsert-source-project-root-constraint-052`
 
+---
+
+## Wiki / Context Injection
+
+### 053 — `get_snapshot()` never raises — no defensive `try/except` needed at call sites
+
+**Source:** issue #342, PR #343
+**Severity:** info
+
+`tools.wiki_snapshot.get_snapshot()` catches `(Exception, SystemExit)` internally and returns
+`None`. It is guaranteed never to raise. Call sites must **not** wrap it in a `try/except` for
+safety — the function already handles all error cases by returning `None`, which callers treat as
+"use fallback context".
+
+An outer `try/except` is only appropriate when the **caller** wants to emit user-visible
+diagnostic feedback on failure (e.g. streaming an error token to the UI). Do not add one purely
+as a defensive measure.
+
+**Standard injection pattern for prose agents:**
+
+```python
+wiki_snapshot: str | None = None
+if (STORIES_DIR / story_name / "wiki").exists():
+    wiki_snapshot = get_snapshot(
+        story_name=story_name,
+        chapter=chapter_number,
+        scene=scene_number,        # use 0 for chapter-level; actual scene index for scene-level
+        outline=outline_text,
+        pov_character=pov_slug,    # optional wiki slug
+        characters=extra_slugs,    # optional list of wiki slugs
+        primary_location=loc_slug, # optional wiki slug
+        scene_type="dialogue",     # optional: "dialogue" | "action" | None
+        budget=15000,              # default token budget
+    )
+if wiki_snapshot:
+    base_context = wiki_snapshot
+# else: base_context already set from flat-sheet context — fallback is automatic
+```
+
+**Fallback contract:**
+
+| Condition | Result |
+|-----------|--------|
+| `wiki/` directory absent | `None` |
+| ChromaDB collection empty or missing | `None` |
+| Any internal exception | `None` (swallowed) |
+| Snapshot assembled but empty string | `None` |
+| Snapshot assembled successfully | `str` |
+
+**Agents that currently inject wiki context:** `ChapterWriterAgent.run()` (chapter-level),
+`ChapterWriterAgent._run_scene_pipeline()` (per-scene). Candidates for future injection:
+`QualityReviewerAgent`, `ConsistencyCheckerAgent`, `ProseScrubberAgent`.
+
+ChromaDB ID: `gotcha-get-snapshot-never-raises-053`
+

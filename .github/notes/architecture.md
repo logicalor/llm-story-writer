@@ -43,7 +43,9 @@
    - Generate chapter outline expansion
    - Generate chapter synopsis
    - Load previous chapter recap (from savepoint)
+   - **Wiki snapshot injection** (issue #342): call `get_snapshot(chapter=N, scene=0, outline=chapter_summary)` → replace `base_context` with snapshot if non-`None`, else keep flat-sheet context
    - Parse scene definitions from chapter outline
+   - Per-scene: **wiki snapshot injection** at scene level — call `get_snapshot(chapter=N, scene=S, outline=scene_description, pov_character=..., scene_type=...)` before drafting
    - Per-scene: load relevant character/setting sheets → generate scene content
    - Assemble scenes into chapter
    - Generate chapter recap

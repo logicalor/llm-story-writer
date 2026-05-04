@@ -353,3 +353,95 @@ def test_extract_json_array_returns_empty_on_garbage() -> None:
 def test_extract_json_array_filters_non_dict_entries() -> None:
     payload = '[{"title": "A"}, "stray string", 42, {"title": "B"}]'
     assert _extract_json_array(payload) == [{"title": "A"}, {"title": "B"}]
+
+
+@pytest.mark.asyncio
+async def test_scene_pipeline_calls_get_snapshot_per_scene(tmp_path: Path) -> None:
+    """get_snapshot is called for each scene in the pipeline (plus chapter level)."""
+    wiki_dir = tmp_path / "test-story" / "wiki"
+    wiki_dir.mkdir(parents=True)
+
+    scenes_payload = json.dumps(
+        [
+            {"title": "Scene A", "description": "First beat."},
+            {"title": "Scene B", "description": "Second beat."},
+        ]
+    )
+    provider, _ = _make_provider(
+        [
+            "Synopsis text.",
+            f"```json\n{scenes_payload}\n```",
+            "Scene A prose.",
+            "Scene B prose.",
+        ]
+    )
+
+    config = {
+        "models": {
+            "chapter_writer": "openai-compat://test",
+            "chapter_outline_writer": "openai-compat://test",
+            "scene_writer": "openai-compat://test",
+        }
+    }
+    agent = ChapterWriterAgent(provider, config, TokenStreamBus(), WikiContextBus())
+
+    call_count = 0
+
+    def _snapshot_side_effect(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        return f"## Wiki snapshot {call_count}"
+
+    with (
+        patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
+        patch(
+            "presentation.agents.chapter_writer.get_snapshot",
+            side_effect=_snapshot_side_effect,
+        ),
+    ):
+        draft = await agent.run("test-story", 1, _outline_result(), _settings())
+
+    # Chapter-level call (scene=0) + 2 per-scene calls = 3 total.
+    assert call_count >= 2
+    assert draft.content
+
+
+@pytest.mark.asyncio
+async def test_scene_pipeline_falls_back_per_scene_when_wiki_unavailable(
+    tmp_path: Path,
+) -> None:
+    """When get_snapshot returns None for scenes, generation still produces output."""
+    wiki_dir = tmp_path / "test-story" / "wiki"
+    wiki_dir.mkdir(parents=True)
+
+    scenes_payload = json.dumps(
+        [{"title": "Only Scene", "description": "The one and only beat."}]
+    )
+    provider, _ = _make_provider(
+        [
+            "Synopsis text.",
+            f"```json\n{scenes_payload}\n```",
+            "Scene prose content.",
+        ]
+    )
+
+    config = {
+        "models": {
+            "chapter_writer": "openai-compat://test",
+            "chapter_outline_writer": "openai-compat://test",
+            "scene_writer": "openai-compat://test",
+        }
+    }
+    agent = ChapterWriterAgent(provider, config, TokenStreamBus(), WikiContextBus())
+
+    with (
+        patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
+        patch(
+            "presentation.agents.chapter_writer.get_snapshot",
+            return_value=None,
+        ),
+    ):
+        draft = await agent.run("test-story", 1, _outline_result(), _settings())
+
+    assert draft.content
+    assert "Scene prose content." in draft.content
