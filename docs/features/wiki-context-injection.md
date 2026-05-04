@@ -68,6 +68,16 @@ snapshot: str | None = get_snapshot(
 
 Results are merged with Reciprocal Rank Fusion (RRF, k=60) and pages below `SCORE_THRESHOLD=0.15` are dropped. Detail levels (L1/L2/L3) are assigned by relevance percentile; POV character and primary location are always L3. Token budgeting demotes lowest-scoring pages until the assembled context fits within `budget` tokens.
 
+## Bootstrap Coverage Limitation
+
+The snapshot pipeline can only retrieve what the wiki bootstrap phase managed to seed into `stories/<name>/wiki/`.
+
+Entities with dedicated sheet files in `stories/<name>/characters/*.json` and `stories/<name>/settings/*.json` are bootstrapped from those structured sheets plus outline data, so initial coverage is strongest for characters and settings.
+
+Other entity types such as `faction`, `item`, `plot_thread`, `location_detail`, and story-specific custom types do not have dedicated sheet files. During bootstrap they are seeded from outline-text extraction only. Their initial wiki coverage therefore depends on mention frequency and extraction accuracy; entities mentioned rarely, indirectly, or ambiguously in the outline may be missed.
+
+Consequence: wiki bootstrap is most reliable for characters and settings. Other entity types may begin with incomplete coverage until later chapter updates introduce or clarify them.
+
 ## Fallback Contract
 
 The injection is always non-blocking:

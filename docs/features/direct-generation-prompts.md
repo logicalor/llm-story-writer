@@ -48,8 +48,8 @@ system_prompt = loader.load_prompt(
         "chapter_summary": "...",
         "story_name": "my-story",
         "base_context": "...",
-        "character_context": "...",
-        "setting_context": "...",
+    "character_context_block": "...",
+    "setting_context_block": "...",
     },
 )
 ```
@@ -103,8 +103,8 @@ Each active direct-generation prompt is loaded by a specific Python-native agent
   - `chapter_number`, `chapter_title` — from the current chapter outline
   - `chapter_summary` — prefers `OutlineResult.chapter_details[N-1]["detail"]` when available, otherwise falls back to the current chapter outline summary/content
   - `story_name` — the story identifier
-  - `character_context` — aggregated from JSON sheets in `stories/{story}/characters/*.json` (reads `name`, prefers `abridged`, falls back to `summary`, then falls back to the first 300 chars of `sheet`)
-  - `setting_context` — aggregated from JSON sheets in `stories/{story}/settings/*.json` (same logic as characters)
+  - `character_context_block` — a pre-built `<CHARACTER_CONTEXT>...</CHARACTER_CONTEXT>` XML block derived from aggregated JSON sheet context in `stories/{story}/characters/*.json`; empty string when no character context exists or wiki context is active
+  - `setting_context_block` — a pre-built `<SETTING_CONTEXT>...</SETTING_CONTEXT>` XML block derived from aggregated JSON sheet context in `stories/{story}/settings/*.json`; empty string when no setting context exists or wiki context is active
   - `base_context` — combined `## Characters` and `## Settings` sections
   - `previous_chapter_summary` — actually populated from `PipelineState.recaps[str(N-1)]`, preferring `compact`, then `sanitised`, then `events`; empty for Chapter 1
   - `next_chapter_summary` — from the next chapter outline summary/content when present
@@ -149,8 +149,8 @@ This test verifies that character and setting context are correctly injected int
 
 - **Assertion target change:** Tests now inspect the `system` message content instead of the `user` message, reflecting the shift from workflow-spec prompts (previously loaded via `load_agent_prompt` into user messages) to direct-generation prompts (loaded via `PromptLoader` into system messages).
 - **Covered scenarios:**
-  - Character sheet context injection (`test_chapter_writer_includes_character_context`)
-  - Setting sheet context injection (`test_chapter_writer_includes_setting_context`)
+  - Character context block injection (`test_chapter_writer_includes_character_context`)
+  - Setting context block injection (`test_chapter_writer_includes_setting_context`)
   - Graceful handling when no sheets exist (`test_chapter_writer_no_context_when_no_sheets`)
 
 ### `tests/unit/test_consistency_checker.py`

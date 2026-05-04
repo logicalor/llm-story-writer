@@ -1825,34 +1825,34 @@ async def _continue_pipeline(
                             story_start_date=story_start_date,
                             settings=settings,
                         )
+                        recap_pointers = {
+                            field: persist_markdown(
+                                story_dir,
+                                f"chapters/chapter_{chapter_number}/recap_{field}.md",
+                                str(recap_result.get(field, "") or ""),
+                            )
+                            for field in ("events", "compact", "sanitised")
+                        }
+                        state.recaps[str(chapter_number)] = recap_pointers
+                        recap_path = (
+                            story_dir
+                            / "chapters"
+                            / f"chapter_{chapter_number}_recap.json"
+                        )
+                        _atomic_write(
+                            recap_path,
+                            json.dumps(
+                                recap_pointers,
+                                indent=2,
+                                ensure_ascii=False,
+                            ),
+                        )
                         if recap_result.get("events"):
                             wiki_event_result = await asyncio.to_thread(
                                 _sync_recap_events_to_wiki,
                                 state.story_name,
                                 chapter_number,
                                 recap_result.get("events"),
-                            )
-                            recap_pointers = {
-                                field: persist_markdown(
-                                    story_dir,
-                                    f"chapters/chapter_{chapter_number}/recap_{field}.md",
-                                    str(recap_result.get(field, "")),
-                                )
-                                for field in ("events", "compact", "sanitised")
-                            }
-                            state.recaps[str(chapter_number)] = recap_pointers
-                            recap_path = (
-                                story_dir
-                                / "chapters"
-                                / f"chapter_{chapter_number}_recap.json"
-                            )
-                            _atomic_write(
-                                recap_path,
-                                json.dumps(
-                                    recap_pointers,
-                                    indent=2,
-                                    ensure_ascii=False,
-                                ),
                             )
                             await bus.emit(
                                 "[Recap] Wiki events synced — "

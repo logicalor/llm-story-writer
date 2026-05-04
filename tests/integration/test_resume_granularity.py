@@ -426,7 +426,6 @@ def _state_after_final_edit(
                 "chapter-1/draft",
                 "chapter-1/consistency-check",
                 "chapter-1/wiki-update",
-                "chapter-1/sheet-evolution",
                 "chapter-1/recap",
                 "chapter-1/metadata",
             ],

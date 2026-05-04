@@ -175,6 +175,59 @@ async def test_scene_pipeline_disabled_uses_direct_path(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_scene_snapshot_appears_in_base_context(tmp_path: Path) -> None:
+    provider = MagicMock()
+    captured_messages: list[str] = []
+
+    async def fake_stream(messages, model_config, seed=None):
+        captured_messages.append(
+            next(m["content"] for m in messages if m["role"] == "system")
+        )
+        yield "Direct chapter prose."
+
+    provider.stream_text = fake_stream
+
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    config = {"models": {"chapter_writer": "openai-compat://test"}}
+
+    agent = ChapterWriterAgent(provider, config, bus, wiki_bus)
+    captured_variables: list[dict[str, str]] = []
+
+    def fake_load_prompt(prompt_key: str, variables: dict[str, str]) -> str:
+        captured_variables.append(dict(variables))
+        return json.dumps(
+            {
+                "prompt_key": prompt_key,
+                "base_context": variables.get("base_context", ""),
+            }
+        )
+
+    agent._loader.load_prompt = fake_load_prompt
+
+    wiki_dir = tmp_path / "test-story" / "wiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+
+    with (
+        patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
+        patch(
+            "presentation.agents.chapter_writer.get_snapshot",
+            return_value="WIKI_SNAPSHOT_CONTENT",
+        ),
+    ):
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(scene_generation_pipeline=False),
+        )
+
+    assert draft.content == "Direct chapter prose."
+    assert captured_variables[0]["base_context"] == "WIKI_SNAPSHOT_CONTENT"
+    assert "WIKI_SNAPSHOT_CONTENT" in captured_messages[0]
+
+
+@pytest.mark.asyncio
 async def test_revision_feedback_uses_direct_path(tmp_path: Path) -> None:
     """Revision feedback always routes through the single-shot direct path."""
     provider, captured = _make_provider(["Revised chapter prose."])

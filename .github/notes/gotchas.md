@@ -1982,3 +1982,30 @@ pytest
 
 ChromaDB ID: `gotcha-pytest-no-asyncio-plugin-masks-failures-054`
 
+### 055 — `PromptLoader.load_prompt()` uses string `.replace()` — unresolved `{variable}` placeholders pass silently to the LLM
+
+**Source:** issue #346, PR #347
+**Severity:** critical
+
+`PromptLoader` resolves template variables via `str.replace("{variable_name}", value)` — NOT Python's `str.format()` or f-string substitution. The practical consequence: if a `{variable_name}` in the template file does NOT match any key passed to `load_prompt()`, it is passed through unchanged as the literal string `{variable_name}` in the prompt sent to the LLM. No exception is raised. No warning is logged. Tests that mock the LLM response independently of prompt content will pass while the LLM receives a malformed prompt containing unreplaced placeholders.
+
+**Trigger conditions** — this failure mode is triggered by any of:
+- Renaming a template variable in Python code (e.g., `{"chapter_events": ...}` → `{"events_list": ...}`) without updating the template file
+- Renaming a `{variable_name}` in the template file without updating the Python `load_prompt()` call site
+- Adding a new `{variable_name}` to a template without passing that key to `load_prompt()`
+- Renaming a variable and updating Python code + template, but forgetting to update integration/prompt-verification tests that construct the variable dict
+
+**Three-surface rule:** When renaming or adding a template variable in `prompts/`, always update ALL THREE surfaces in the same commit:
+1. The `prompts/*.md` template file (the `{variable_name}` placeholder)
+2. The Python code passing the key to `load_prompt()` / `PromptLoader`
+3. Integration or prompt-verification tests that construct the variable dict
+
+**Test guard pattern:** To detect unreplaced placeholders, add an assertion to prompt-rendering tests:
+```python
+rendered = loader.load_prompt("template_name", {"new_name": "value"})
+assert "{" not in rendered, f"Unresolved placeholder in rendered prompt: {rendered[:200]}"
+```
+This catches the silent failure mode that ordinary content assertions miss — a test asserting expected words appear in the prompt will still pass if those words are in the static (non-variable) parts of the template.
+
+ChromaDB ID: `gotcha-promptloader-replace-silent-placeholder-failure-055`
+

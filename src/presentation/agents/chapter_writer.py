@@ -653,6 +653,16 @@ class ChapterWriterAgent:
         feedback: str | None,
     ) -> str:
         loader = self._loader
+        character_context_block = (
+            f"<CHARACTER_CONTEXT>\n{character_context}\n</CHARACTER_CONTEXT>"
+            if character_context
+            else ""
+        )
+        setting_context_block = (
+            f"<SETTING_CONTEXT>\n{setting_context}\n</SETTING_CONTEXT>"
+            if setting_context
+            else ""
+        )
         system_prompt = loader.load_prompt(
             "chapters/write_chapter_direct",
             variables={
@@ -664,8 +674,8 @@ class ChapterWriterAgent:
                 "story_elements": story_elements,
                 "previous_chapter_summary": previous_chapter_summary,
                 "next_chapter_summary": next_chapter_summary,
-                "character_context": character_context,
-                "setting_context": setting_context,
+                "character_context_block": character_context_block,
+                "setting_context_block": setting_context_block,
             },
         )
         if feedback:

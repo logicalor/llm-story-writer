@@ -27,13 +27,9 @@ You are a skilled fiction writer composing a complete chapter of a long-form nar
 </NEXT_CHAPTER>
 
 ## CHARACTER & SETTING CONTEXT
-<CHARACTER_CONTEXT>
-{character_context}
-</CHARACTER_CONTEXT>
+{character_context_block}
 
-<SETTING_CONTEXT>
-{setting_context}
-</SETTING_CONTEXT>
+{setting_context_block}
 
 ## YOUR TASK
 Write the complete prose for this chapter. The chapter should be **approximately 3000-5000 words** (longer if the story genre calls for it, but avoid excessive bloat).

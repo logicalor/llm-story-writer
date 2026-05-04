@@ -149,8 +149,8 @@ class TestPromptVerification:
                 "story_elements": "",
                 "previous_chapter_summary": "",
                 "next_chapter_summary": "",
-                "character_context": "",
-                "setting_context": "",
+                "character_context_block": "",
+                "setting_context_block": "",
             },
         )
         messages = [
