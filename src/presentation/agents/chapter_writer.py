@@ -165,10 +165,6 @@ class ChapterWriterAgent:
             if isinstance(outline_result.story_elements, dict)
             else (outline_result.story_elements or "")
         )
-        base_context, character_context, setting_context = self._build_entity_context(
-            story_name
-        )
-
         wiki_snapshot: str | None = None
         if (STORIES_DIR / story_name / "wiki").exists():
             try:
@@ -184,6 +180,8 @@ class ChapterWriterAgent:
                 )
         if wiki_snapshot:
             base_context = wiki_snapshot
+            character_context = ""
+            setting_context = ""
             await self.wiki_bus.emit(
                 WikiContextEvent(
                     phase="chapter",
@@ -191,6 +189,12 @@ class ChapterWriterAgent:
                     content=f"Wiki snapshot assembled for chapter {chapter_number}",
                 )
             )
+        else:
+            (
+                base_context,
+                character_context,
+                setting_context,
+            ) = self._build_entity_context(story_name)
 
         previous_chapter_recap = ""
         if chapter_number > 1:

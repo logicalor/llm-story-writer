@@ -2019,8 +2019,6 @@ async def test_chapter_loop_resumes_at_consistency_check(tmp_path: Path) -> None
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
-        patch("presentation.orchestrator.CharacterEvolverAgent") as char_evolver_cls,
-        patch("presentation.orchestrator.SettingEvolverAgent") as setting_evolver_cls,
         patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
         patch("presentation.orchestrator.FinalEditorAgent") as final_editor_cls,
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
@@ -2030,8 +2028,6 @@ async def test_chapter_loop_resumes_at_consistency_check(tmp_path: Path) -> None
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        char_evolver_cls.return_value.run = AsyncMock(return_value=[])
-        setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": []})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
@@ -2126,8 +2122,6 @@ async def test_chapter_loop_resumes_at_wiki_update(tmp_path: Path) -> None:
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
-        patch("presentation.orchestrator.CharacterEvolverAgent") as char_evolver_cls,
-        patch("presentation.orchestrator.SettingEvolverAgent") as setting_evolver_cls,
         patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
         patch("presentation.orchestrator.FinalEditorAgent") as final_editor_cls,
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
@@ -2137,8 +2131,6 @@ async def test_chapter_loop_resumes_at_wiki_update(tmp_path: Path) -> None:
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        char_evolver_cls.return_value.run = AsyncMock(return_value=[])
-        setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": []})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
@@ -2166,7 +2158,7 @@ async def test_chapter_loop_resumes_at_wiki_update(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_chapter_loop_resumes_at_sheet_evolution(tmp_path: Path) -> None:
+async def test_chapter_loop_resumes_at_recap_after_wiki_update(tmp_path: Path) -> None:
     provider = MagicMock()
     bus = TokenStreamBus()
     wiki_bus = WikiContextBus()
@@ -2195,8 +2187,6 @@ async def test_chapter_loop_resumes_at_sheet_evolution(tmp_path: Path) -> None:
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
-        patch("presentation.orchestrator.CharacterEvolverAgent") as char_evolver_cls,
-        patch("presentation.orchestrator.SettingEvolverAgent") as setting_evolver_cls,
         patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
         patch("presentation.orchestrator.FinalEditorAgent") as final_editor_cls,
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
@@ -2206,8 +2196,6 @@ async def test_chapter_loop_resumes_at_sheet_evolution(tmp_path: Path) -> None:
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        char_evolver_cls.return_value.run = AsyncMock(return_value=[{"name": "Alice"}])
-        setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": []})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
@@ -2230,8 +2218,7 @@ async def test_chapter_loop_resumes_at_sheet_evolution(tmp_path: Path) -> None:
         )
 
     wiki_cls.return_value.run.assert_not_awaited()
-    char_evolver_cls.return_value.run.assert_awaited_once()
-    setting_evolver_cls.return_value.run.assert_awaited_once()
+    recap_cls.return_value.run.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -2265,8 +2252,6 @@ async def test_chapter_loop_resumes_at_recap(tmp_path: Path) -> None:
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
-        patch("presentation.orchestrator.CharacterEvolverAgent") as char_evolver_cls,
-        patch("presentation.orchestrator.SettingEvolverAgent") as setting_evolver_cls,
         patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
         patch("presentation.orchestrator.FinalEditorAgent") as final_editor_cls,
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
@@ -2276,8 +2261,6 @@ async def test_chapter_loop_resumes_at_recap(tmp_path: Path) -> None:
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        char_evolver_cls.return_value.run = AsyncMock(return_value=[])
-        setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": ["event"]})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
@@ -2300,8 +2283,6 @@ async def test_chapter_loop_resumes_at_recap(tmp_path: Path) -> None:
         )
 
     wiki_cls.return_value.run.assert_not_awaited()
-    char_evolver_cls.return_value.run.assert_not_awaited()
-    setting_evolver_cls.return_value.run.assert_not_awaited()
     recap_cls.return_value.run.assert_awaited_once()
 
 
@@ -2357,8 +2338,6 @@ async def test_chapter_loop_metadata_skipped_for_chapter_2(tmp_path: Path) -> No
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
-        patch("presentation.orchestrator.CharacterEvolverAgent") as char_evolver_cls,
-        patch("presentation.orchestrator.SettingEvolverAgent") as setting_evolver_cls,
         patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
         patch("presentation.orchestrator.FinalEditorAgent") as final_editor_cls,
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
@@ -2368,8 +2347,6 @@ async def test_chapter_loop_metadata_skipped_for_chapter_2(tmp_path: Path) -> No
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        char_evolver_cls.return_value.run = AsyncMock(return_value=[])
-        setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": ["event"]})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(
@@ -2418,8 +2395,6 @@ async def test_chapter_loop_backfills_draft_for_legacy_approved_chapter(
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
-        patch("presentation.orchestrator.CharacterEvolverAgent") as char_evolver_cls,
-        patch("presentation.orchestrator.SettingEvolverAgent") as setting_evolver_cls,
         patch("presentation.orchestrator.StoryMetadataAgent") as metadata_cls,
         patch("presentation.orchestrator.FinalEditorAgent") as final_editor_cls,
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
@@ -2429,8 +2404,6 @@ async def test_chapter_loop_backfills_draft_for_legacy_approved_chapter(
             return_value={"issues": [], "passed": True}
         )
         wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
-        char_evolver_cls.return_value.run = AsyncMock(return_value=[])
-        setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(return_value={"events": []})
         metadata_cls.return_value.run = AsyncMock(return_value=_story_metadata_result())
         final_editor_cls.return_value.build_prior_summaries = MagicMock(

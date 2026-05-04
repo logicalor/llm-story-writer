@@ -152,17 +152,14 @@ Execute these phases sequentially. Each phase completes fully before the next be
 
 ### Phase 6: Wiki Population
 
-> **Not yet implemented in active orchestrator.** The wiki directory is created in Phase 4, but the full initial-populate pass from outline + character/setting sheet data is not wired.
+> **Implemented in active orchestrator.** `src/presentation/orchestrator.py` seeds the wiki via `_init_wiki_for_story()` and `_list_wiki_entities()`. Bootstrap now iterates `characters/*.json` and `settings/*.json` as the canonical entity source, with outline extraction used as supplementary input.
 
 **Purpose:** Populate the wiki with initial entity pages derived from the outline, character sheets, and setting sheets.
 
-1. Delegate to the `wiki-maintainer` subagent with instructions to:
-   - Create wiki pages for all characters (from character sheets)
-   - Create wiki pages for all locations (from setting sheets)
-   - Create wiki pages for plot threads, world rules, and timeline entries (from outline)
-   - Establish wikilinks between related entities
-   - Generate L1/L2/L3 detail levels for each page ([ADR 005](../../docs/planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md))
-2. The `wiki_populated` savepoint is written automatically by `wiki-extract initial-populate` when the batch applies successfully. Do not write it yourself.
+1. Initialise the wiki via `_init_wiki_for_story()` before any chapter-loop wiki work.
+2. Call `_list_wiki_entities()` to gather bootstrap entities from character sheets, setting sheets, and the outline.
+3. For each deduplicated entity, call `_bootstrap_single_wiki_entity()` to generate detail levels and create the page if the slug is not already present.
+4. Track per-entity completion in the orchestrator work ledger so the phase is resumable and idempotent.
 
 ### Phase 7: Chapter Expansion + Per-Chapter Loop
 
@@ -193,7 +190,7 @@ After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases
 
 #### Per-Chapter Required Sequence (7b → 7h)
 
-> **Active orchestrator runs a reduced slice.** Steps 7a, 7d, 7f, 7g, and 7.5 are defined in this spec but are **not yet dispatched or wired** in `src/presentation/orchestrator.py`. The active loop runs: 7b → 7c → 7e → 7h.
+> **Active orchestrator runs a reduced slice with recap generation enabled.** Steps 7a, 7f, 7g, and 7.5 remain outside the active dispatch path in `src/presentation/orchestrator.py`. The active loop runs: 7b → 7c → 7d → 7e → 7h.
 
 **For every chapter N from 1 to `wanted_chapters`, every phase below must execute before the `chapter_{N}_complete` savepoint is created. Skipping any of 7c, 7d, 7e, 7f, 7g, or 7.5 is a workflow defect — even under context pressure.** If you find yourself tempted to write only `savepoint-mgr save chapter_{N}_complete` after 7b, stop and run the missing phases first.
 
@@ -201,7 +198,7 @@ After Phase 7a completes, iterate from chapter 1 to `wanted_chapters` for Phases
 |------|-------|------------------|
 | 1 | 7b | `chapter-writer` subagent **or** `scene-writer generate-chapter` (prose stays on disk; receive only compact reference) |
 | 2 | 7c | `wiki-maintainer` subagent (post-chapter wiki update) |
-| 3 | 7d | `savepoint-mgr load story_start_date` then `recap-manager generate` — **not yet wired in active orchestrator** |
+| 3 | 7d | `RecapWriterAgent.run()` then wiki event-page sync for recap events |
 | 4 | 7e | Dispatch `consistency-checker` with `chapter_file_path` pointing to the savepoint |
 | 5 | 7f | `quality-reviewer` (only if `enable_chapter_revisions` true; otherwise skip) — **not yet dispatched by active orchestrator** |
 | 6 | 7g | `story-assembler generate-handoff` then `rag-query index` for `chapter-{N}-raw` — **not yet wired in active orchestrator** |
@@ -236,11 +233,11 @@ If `scene_generation_pipeline` is false:
 
 #### 7d. Recap Generation
 
-> **Not yet implemented in active orchestrator.** Recap generation is defined in this spec but not wired in the chapter loop.
+> **Implemented in active orchestrator.** The post-chapter loop dispatches `RecapWriterAgent`, persists recap outputs, and pushes recap events into wiki event pages immediately after recap generation.
 
-1. Read the story start date: call `savepoint-mgr` (operation: `load`, name: story name, step: `story_start_date`) to retrieve `storyStartDate`. This was saved during Phase 1 by the `analyze-prompt` operation. Format as `YYYY-MM-DD`.
-2. Call `recap-manager` (operation: `generate`) for the completed chapter, passing `storyStartDate` so timeline annotations are consistent.
-3. Store the recap via `story-state`
+1. Read the story start date from the current outline result when available and pass it to `RecapWriterAgent.run()`.
+2. Persist the returned `events`, `compact`, and `sanitised` recap outputs as markdown refs under `chapters/chapter_{N}/` and store the pointers in orchestrator state.
+3. Parse the recap `events` payload and create or update wiki `event` pages with verified provenance for the current chapter.
 
 #### 7e. Consistency Check
 

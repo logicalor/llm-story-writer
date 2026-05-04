@@ -56,6 +56,12 @@ last_updated: "2026-01-01T00:00:00Z"
 version: 1
 chapter: 1                   # chapter where event occurs
 impact: major | moderate | minor
+timestamp: ""             # ISO-8601 or narrative date/time for when the event occurred
+participants: []          # list of character slugs involved in this event
+importance: "medium"      # high | medium | low (importance score from recap pipeline)
+emotional_state: ""       # emotional tenor / dominant mood of the event
+causal_context: ""        # what caused this event to occur
+chapter_provenance: 1     # chapter number where this event was first recorded
 detail_levels:
   L1: "One-line summary (~30 tokens)"
   L2: "Three-sentence summary (~150 tokens)"

@@ -1953,3 +1953,32 @@ if wiki_snapshot:
 
 ChromaDB ID: `gotcha-get-snapshot-never-raises-053`
 
+---
+
+## Testing
+
+### 054 — `pytest -p no:asyncio` masks passing async tests as failures — never disable the asyncio plugin
+
+**Source:** issue #344, PR #345
+**Severity:** warning
+
+All async test functions in this project (`test_chapter_writer.py`, `test_setting_evolver.py`, `test_character_evolver.py`, etc.) use `@pytest.mark.asyncio` and depend on the `pytest-asyncio` plugin to run. Passing `-p no:asyncio` to pytest disables the plugin entirely, causing every `async def test_*` function to fail or error — silently masking results that would otherwise pass.
+
+**Wrong (silently breaks all async tests):**
+```bash
+pytest -p no:asyncio
+```
+
+**Right:**
+```bash
+pytest
+```
+
+`pytest-asyncio` 1.3.0 is installed in `.venv` and auto-registered as a pytest plugin. The `pyproject.toml` does NOT configure `asyncio_mode = "auto"`, so each async test must carry an explicit `@pytest.mark.asyncio` decorator — removing the decorator silently converts the test into a no-op coroutine that is never awaited.
+
+**When verifying PR implementations:** always run `pytest` (no flags) against `tests/unit/`. Adding `-p no:asyncio` does not improve test isolation; it corrupts all async test results without raising a helpful diagnostic.
+
+**Relation to gotcha #007 / #026:** #007 covers `sys.path.insert` bootstrap in tool test files; #026 covers `@pytest.mark.asyncio` requirements for Textual `run_test()` tests. This entry (#054) covers the global consequence of disabling the plugin at the invocation level.
+
+ChromaDB ID: `gotcha-pytest-no-asyncio-plugin-masks-failures-054`
+

@@ -212,12 +212,6 @@ def _patched_pipeline(
         metadata_cls = stack.enter_context(
             patch("presentation.orchestrator.StoryMetadataAgent")
         )
-        char_evolver_cls = stack.enter_context(
-            patch("presentation.orchestrator.CharacterEvolverAgent")
-        )
-        setting_evolver_cls = stack.enter_context(
-            patch("presentation.orchestrator.SettingEvolverAgent")
-        )
         recap_cls = stack.enter_context(
             patch("presentation.agents.recap_writer.RecapWriterAgent")
         )
@@ -265,10 +259,6 @@ def _patched_pipeline(
         consistency_cls.return_value.run = AsyncMock(
             return_value={"issues": [], "passed": True}
         )
-        char_evolver_cls.return_value.run = AsyncMock(
-            return_value=[{"name": "Alice", "change": "updated"}]
-        )
-        setting_evolver_cls.return_value.run = AsyncMock(return_value=[])
         recap_cls.return_value.run = AsyncMock(
             return_value={
                 "events": "Event one.",
@@ -296,8 +286,6 @@ def _patched_pipeline(
             "consistency": consistency_cls.return_value.run,
             "characters": generate_char_sheets,
             "settings": generate_setting_sheets,
-            "char_evolver": char_evolver_cls.return_value.run,
-            "setting_evolver": setting_evolver_cls.return_value.run,
             "recap": recap_cls.return_value.run,
             "metadata": metadata_cls.return_value.run,
             "final_edit": final_editor_cls.return_value.edit_single_chapter,
@@ -458,6 +446,8 @@ async def test_baseline_run_completes_successfully(tmp_path: Path) -> None:
     assert state.approved_chapters
     assert output == "Chapter one final.\n"
     assert counts["chapter_writer"] == 1
+    assert counts.get("char_evolver", 0) == 0
+    assert counts.get("setting_evolver", 0) == 0
     assert counts["final_edit"] == 1
 
 
