@@ -3,6 +3,8 @@
 **Date:** 2026-04-12
 **Status:** Accepted
 
+> Correction (2026-05-04): This ADR originally described per-scene wiki updates. The implemented system invokes `WikiMaintainerAgent` once per chapter with the full chapter draft content.
+
 Implementation completed via issue #344 and PR #345. The active Python orchestrator now boots the wiki from sheets plus outline data and pushes recap-derived event pages into the wiki during the chapter loop.
 
 ## Context
@@ -26,7 +28,7 @@ Implement a progressive wiki-based memory system as an integral part of the stor
 Key architectural decisions:
 
 - **Storage format:** Markdown files with YAML frontmatter, stored in `stories/<name>/wiki/`, version-controlled via git
-- **Update granularity:** Scene-level updates (extract entities/state changes after each scene), chapter-level lint (consistency checks after each chapter)
+- **Update granularity:** `WikiMaintainerAgent` is invoked once per chapter with the full chapter draft content, followed by chapter-level lint (consistency checks after each chapter)
 - **Dedicated agent:** A `wiki-maintainer` subagent (separate from the creative generator, using a smaller/faster model) handles all wiki updates to avoid polluting the creative agent's context
 - **Pre-generation snapshots:** A `wiki-snapshot` tool assembles a token-budgeted "world state snapshot" before each scene, injecting relevant characters, locations, plot threads, world rules, and timeline events into the generation prompt as authoritative constraints
 - **Consistency enforcement:** Wiki lint uses the ConStory-Bench error taxonomy (5 categories, 19 subtypes) and DOME-style temporal fact tracking to detect contradictions
@@ -45,7 +47,7 @@ Key architectural decisions:
 
 ### Negative
 
-- **Increased LLM call overhead:** Each scene triggers 5-15 wiki page updates via the wiki-maintainer agent, adding ~1000+ LLM calls for a 100-scene novel
+- **Increased LLM call overhead:** Each chapter triggers a wiki-maintainer pass over the full chapter draft, so total update cost scales with chapter count rather than scene count
 - **Entity extraction quality risk:** NER on fictional text (fantasy names, invented locations) with local 7b models is untested and may require the 24b model
 - **Persistent error propagation:** If the wiki records something incorrectly, all subsequent generation builds on that error (mitigated by confidence scoring and provenance tracking, but not eliminated)
 - **Schema evolution complexity:** The wiki schema must evolve as the story develops; new page types may be needed mid-story
