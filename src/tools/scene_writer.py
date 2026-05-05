@@ -409,6 +409,59 @@ def cmd_scrub_analyze(
     _success("scrub-analyze", {"issues": issues, "issues_found": len(issues)})
 
 
+def cmd_scrub_scene(
+    name: str,
+    chapter_num: int,
+    scene_num: int,
+    *,
+    scene_content: str | None = None,
+    scene_definition: str | None = None,
+    model: str | None = None,
+    include_content: bool = False,
+) -> None:
+    """Inline prose scrub for a single scene; overwrites the scene savepoint with the cleaned text."""
+    _validate_story_name(name)
+    repo = _make_repo(name)
+    step = f"chapter_{chapter_num}/scene_{scene_num}"
+
+    if scene_content is None:
+        if _has_savepoint(repo, step):
+            loaded = _load_savepoint(repo, step)
+            if isinstance(loaded, str):
+                scene_content = loaded
+            else:
+                _error(
+                    f"savepoint {step!r} does not contain a string - pass --scene-content explicitly"
+                )
+        else:
+            _error(f"--scene-content is required: no savepoint found at {step!r}")
+
+    prompt_text = _load_prompt(
+        "scenes/scrub_content",
+        {
+            "chapter_num": str(chapter_num),
+            "scene_num": str(scene_num),
+            "scene_content": scene_content,
+            "scene_definition": scene_definition or "",
+        },
+    )
+
+    try:
+        scrubbed = _call_llm(prompt_text, model=model)
+    except RuntimeError as exc:
+        _error(f"scene scrub failed: {exc}")
+
+    _save_savepoint(repo, step, scrubbed)
+    result: dict[str, Any] = {
+        "scene_ref": step,
+        "savepoint_step": step,
+        "char_count": len(scrubbed),
+    }
+    if include_content:
+        result["content"] = scrubbed
+    _success("scrub-scene", result)
+
+
 def cmd_voice_analyze(
     name: str,
     chapter_num: int,
@@ -552,6 +605,7 @@ def main() -> None:
             "revise",
             "assemble-chapter",
             "scrub-analyze",
+            "scrub-scene",
             "voice-analyze",
             "generate-chapter",
         ],
@@ -705,6 +759,25 @@ def main() -> None:
             args.chapter_num,
             args.chapter_text,
             model=args.model,
+        )
+
+    elif op == "scrub-scene":
+        if args.chapter_num is None:
+            _error("--chapter-num is required for scrub-scene")
+        if args.chapter_num < 1:
+            _error("--chapter-num must be >= 1")
+        if args.scene_num is None:
+            _error("--scene-num is required for scrub-scene")
+        if args.scene_num < 1:
+            _error("--scene-num must be >= 1")
+        cmd_scrub_scene(
+            args.name,
+            args.chapter_num,
+            args.scene_num,
+            scene_content=args.scene_content,
+            scene_definition=args.scene_definition,
+            model=args.model,
+            include_content=args.include_content,
         )
 
     elif op == "voice-analyze":

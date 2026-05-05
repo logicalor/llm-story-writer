@@ -616,6 +616,50 @@ class ChapterWriterAgent:
             if not scene_text:
                 continue
 
+            if settings.enable_scrubbing:
+                await self.status_bus.emit(
+                    StatusEvent(
+                        phase=phase,
+                        message=(
+                            f"Ch {chapter_number}: scrubbing scene "
+                            f"{index}/{total_scenes}"
+                        ),
+                        kind="step",
+                    )
+                )
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] Scrubbing scene {index}...\n"
+                )
+                scrub_prompt = loader.load_prompt(
+                    "scenes/scrub_content",
+                    variables={
+                        "chapter_num": str(chapter_number),
+                        "scene_num": str(index),
+                        "scene_content": scene_text,
+                        "scene_definition": json.dumps(scene, ensure_ascii=False),
+                    },
+                )
+                try:
+                    scrubbed = await self._stream_to_bus(
+                        [
+                            {"role": "system", "content": scrub_prompt},
+                            {
+                                "role": "user",
+                                "content": "Return the corrected scene now.",
+                            },
+                        ],
+                        scene_model,
+                        settings.seed,
+                    )
+                    scrubbed = scrubbed.strip()
+                    if scrubbed:
+                        scene_text = scrubbed
+                except Exception as exc:
+                    await self.bus.emit(
+                        f"\n[Chapter {chapter_number}] scene {index} scrub "
+                        f"failed ({type(exc).__name__}: {exc}); using raw draft.\n"
+                    )
+
             scene_prose.append(scene_text)
             scenes_completed_meta.append(scene)
             if state is not None:
