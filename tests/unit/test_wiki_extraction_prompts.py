@@ -23,7 +23,6 @@ PROMPT_IDS = [
     "wiki/extract_world_rules_from_chapter",
     "wiki/extract_themes_from_chapter",
     "wiki/extract_relationships_from_chapter",
-    "wiki/extract_timeline_from_chapter",
 ]
 
 PROMPT_FILES = [
@@ -33,7 +32,6 @@ PROMPT_FILES = [
     "extract_world_rules_from_chapter.md",
     "extract_themes_from_chapter.md",
     "extract_relationships_from_chapter.md",
-    "extract_timeline_from_chapter.md",
 ]
 
 SAMPLE_CHAPTER_TEXT = "Sample chapter text. Mara finds the key at dawn."
@@ -92,13 +90,6 @@ class TestWikiExtractionPrompts:
 
     def test_extract_relationships_loads_without_error(self) -> None:
         content = _load_prompt("wiki/extract_relationships_from_chapter")
-
-        assert len(content) > 0
-        assert "{chapter_text}" not in content
-        assert "{existing_pages_index}" not in content
-
-    def test_extract_timeline_loads_without_error(self) -> None:
-        content = _load_prompt("wiki/extract_timeline_from_chapter")
 
         assert len(content) > 0
         assert "{chapter_text}" not in content

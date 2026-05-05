@@ -123,9 +123,12 @@ async def test_chapter_writer_skips_entity_context_when_wiki_snapshot_available(
     with (
         patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
         patch(
-            "presentation.agents.chapter_writer.get_snapshot",
-            return_value="## Wiki Context\nAlice facts",
-        ) as mock_get_snapshot,
+            "presentation.agents.chapter_writer.assemble_context",
+            return_value={
+                "wiki_snapshot": "## Wiki Context\nAlice facts",
+                "recap_snippets": [],
+            },
+        ) as mock_assemble_context,
         patch.object(
             agent,
             "_draft_direct",
@@ -134,7 +137,7 @@ async def test_chapter_writer_skips_entity_context_when_wiki_snapshot_available(
     ):
         draft = await agent.run("test-story", 1, _outline_result(), _settings())
 
-    mock_get_snapshot.assert_called_once()
+    mock_assemble_context.assert_called()
     assert draft.content == "Generated chapter content."
 
 
