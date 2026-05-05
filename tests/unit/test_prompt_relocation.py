@@ -46,7 +46,6 @@ def test_prompt_subdirectories_exist():
         "recap",
         "scenes",
         "settings",
-        "story_state",
         "_unused",
     ]
     for subdir in expected_subdirs:
