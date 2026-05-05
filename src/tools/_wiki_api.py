@@ -21,6 +21,7 @@ from tools._wiki import (
     slugify,
     write_index,
 )
+from tools.recap_index import query_recap
 from tools.wiki_update import run_batch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -309,6 +310,7 @@ def _extract_type_candidates(
     *,
     model: str | None = None,
     base_url: str | None = None,
+    prior_recap_context: str = "",
 ) -> list[dict[str, Any]]:
     _ = story_name
     prompt_suffix = _TYPE_TO_PROMPT.get(page_type)
@@ -318,16 +320,19 @@ def _extract_type_candidates(
     filtered_entries = [
         entry for entry in index_entries if entry.get("type") == page_type
     ]
+    prompt_vars: dict[str, Any] = {
+        "chapter_text": chapter_text,
+        "existing_pages_index": json.dumps(
+            filtered_entries,
+            indent=2,
+            ensure_ascii=True,
+        ),
+    }
+    if page_type == "event":
+        prompt_vars["prior_recap_context"] = prior_recap_context
     prompt = _load_prompt(
         f"wiki/extract_{prompt_suffix}_from_chapter",
-        {
-            "chapter_text": chapter_text,
-            "existing_pages_index": json.dumps(
-                filtered_entries,
-                indent=2,
-                ensure_ascii=True,
-            ),
-        },
+        prompt_vars,
     )
     result = _parse_json_response(
         _chat_completion(prompt, model=model, base_url=base_url),
@@ -685,6 +690,27 @@ def update_wiki_full_pass(
     wiki_dir = get_wiki_dir(story_dir)
     index_entries = read_index(wiki_dir) if wiki_dir.exists() else []
 
+    _prior_recap_context = ""
+    try:
+        _recap_results = query_recap(
+            story_name,
+            query_text=chapter_text[:500],
+            n_results=3,
+        )
+        if _recap_results:
+            _snippets = [
+                recap_result["document"]
+                for recap_result in _recap_results
+                if recap_result.get("document")
+            ]
+            _prior_recap_context = "\n\n---\n\n".join(_snippets)
+    except Exception as _recap_exc:
+        logging.warning(
+            "[Wiki] WARNING event recap context unavailable: %s",
+            _recap_exc,
+        )
+        _prior_recap_context = ""
+
     pass_a_types = list(_TYPE_TO_PROMPT.keys())
     type_candidates: dict[str, list[dict[str, Any]]] = {
         page_type: [] for page_type in pass_a_types
@@ -701,6 +727,11 @@ def update_wiki_full_pass(
                     index_entries,
                     model=model,
                     base_url=base_url,
+                    **(
+                        {"prior_recap_context": _prior_recap_context}
+                        if page_type == "event"
+                        else {}
+                    ),
                 ): page_type
                 for page_type in pass_a_types
             }

@@ -3,6 +3,9 @@ Analyze Chapter {chapter_number} for sentence-level and paragraph-level prose pr
 Chapter text:
 {chapter_text}
 
+Character names and aliases in this chapter (do not "correct" these back to a different form):
+{character_aliases}
+
 Targets:
 - Adverb overuse, especially common offenders such as quickly, suddenly, softly, quietly, sharply, immediately, slowly, carefully, finally, and heavily.
 - Filter words and phrases such as "he saw that", "she felt that", "she noticed that", "he heard", "she watched", and similar distancing constructions.
