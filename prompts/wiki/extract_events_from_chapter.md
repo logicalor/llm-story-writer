@@ -10,6 +10,10 @@ You are extracting events from a completed chapter.
 {chapter_text}
 </CHAPTER_TEXT>
 
+<PRIOR_CHAPTER_CONTEXT>
+{prior_recap_context}
+</PRIOR_CHAPTER_CONTEXT>
+
 ## Task
 
 Return a JSON array of candidate event page objects extracted from the chapter.
@@ -40,6 +44,7 @@ Return a JSON array of candidate event page objects extracted from the chapter.
 - Use `verified` confidence only. This operates on completed chapter text.
 - Do not invent facts not stated in the chapter.
 - Do not create duplicates of entries already listed in `existing_pages_index`.
+- Use `prior_recap_context` to distinguish a "continuation of prior event" from a genuinely new event. If the context is empty, treat all extracted events as potentially new.
 - Keep descriptions concise, factual, and grounded in what the chapter states.
 - Set `frontmatter.event_type` only from explicit chapter evidence. If not explicit, use an empty string.
 - Set `frontmatter.status` only from explicit chapter evidence. If not explicit, use `completed`.

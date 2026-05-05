@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
@@ -15,6 +16,8 @@ from presentation.pipeline_primitives import (
     WikiContextEvent,
 )
 from tools.context_assembly import assemble_context
+from tools._io import _validate_story_name
+from tools._wiki import get_wiki_dir, match_entities_in_text, read_index
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -85,11 +88,60 @@ class FinalEditorAgent:
         )
 
         if settings.enable_scrubbing:
+            character_aliases = ""
+            try:
+                _story_dir: Path = _validate_story_name(draft.story_name)
+                _wiki_dir = get_wiki_dir(_story_dir)
+                if _wiki_dir.exists():
+                    _index_entries = read_index(_wiki_dir)
+                    _char_entries = [
+                        entry
+                        for entry in _index_entries
+                        if entry.get("type") == "character"
+                    ]
+                    _matches = match_entities_in_text(draft.content, _char_entries)
+                    _matched_slugs = {match.get("slug") for match in _matches}
+                    _alias_lines: list[str] = []
+                    for _entry in _char_entries:
+                        if _entry.get("slug") not in _matched_slugs:
+                            continue
+                        _name = _entry.get("name", "")
+                        _aliases = [
+                            alias
+                            for alias in _entry.get("aliases", [])
+                            if isinstance(alias, str) and alias.strip()
+                        ]
+                        if _aliases:
+                            _alias_lines.append(
+                                f"{_name} (aliases: {', '.join(_aliases)})"
+                            )
+                        elif _name:
+                            _alias_lines.append(_name)
+                    character_aliases = "\n".join(_alias_lines)
+                else:
+                    await self.wiki_bus.emit(
+                        WikiContextEvent(
+                            phase="final-edit",
+                            event_type="warning",
+                            content="character alias lookup skipped: wiki unavailable",
+                        )
+                    )
+            except Exception as _alias_exc:
+                await self.wiki_bus.emit(
+                    WikiContextEvent(
+                        phase="final-edit",
+                        event_type="error",
+                        content=f"character alias lookup failed: {_alias_exc}",
+                    )
+                )
+                character_aliases = ""
+
             prose_prompt = self._loader.load_prompt(
                 "final_edit/prose_scrub",
                 variables={
                     "chapter_text": draft.content,
                     "chapter_number": str(chapter_number),
+                    "character_aliases": character_aliases,
                 },
             )
             messages = [
