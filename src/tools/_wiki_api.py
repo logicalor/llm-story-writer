@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -716,36 +715,29 @@ def update_wiki_full_pass(
         page_type: [] for page_type in pass_a_types
     }
 
-    if pass_a_types:
-        with ThreadPoolExecutor(max_workers=min(9, len(pass_a_types))) as executor:
-            future_to_type = {
-                executor.submit(
-                    _extract_type_candidates,
-                    story_name,
-                    page_type,
-                    chapter_text,
-                    index_entries,
-                    model=model,
-                    base_url=base_url,
-                    **(
-                        {"prior_recap_context": _prior_recap_context}
-                        if page_type == "event"
-                        else {}
-                    ),
-                ): page_type
-                for page_type in pass_a_types
-            }
-            for future in as_completed(future_to_type):
-                page_type = future_to_type[future]
-                try:
-                    type_candidates[page_type] = future.result()
-                except Exception as exc:
-                    logging.warning(
-                        "[Wiki] WARNING type=%s extraction failed: %s",
-                        page_type,
-                        exc,
-                    )
-                    type_candidates[page_type] = []
+    for page_type in pass_a_types:
+        extra_kwargs: dict[str, Any] = (
+            {"prior_recap_context": _prior_recap_context}
+            if page_type == "event"
+            else {}
+        )
+        try:
+            type_candidates[page_type] = _extract_type_candidates(
+                story_name,
+                page_type,
+                chapter_text,
+                index_entries,
+                model=model,
+                base_url=base_url,
+                **extra_kwargs,
+            )
+        except Exception as exc:
+            logging.warning(
+                "[Wiki] WARNING type=%s extraction failed: %s",
+                page_type,
+                exc,
+            )
+            type_candidates[page_type] = []
 
     for page_type in pass_a_types:
         type_index = [
