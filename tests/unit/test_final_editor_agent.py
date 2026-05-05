@@ -64,10 +64,16 @@ async def test_scrubbing_enabled_invokes_prose_scrub_and_voice_pass() -> None:
         wiki_bus=wiki_bus,
     )
 
-    with patch(
-        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
-        return_value="system",
-    ) as mock_load_prompt:
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            return_value="system",
+        ) as mock_load_prompt,
+        patch(
+            "presentation.agents.final_editor.assemble_context",
+            return_value={"wiki_snapshot": "", "recap_snippets": []},
+        ),
+    ):
         await agent.run(
             "s",
             [_draft(1)],
@@ -105,9 +111,15 @@ async def test_scrubbing_enabled_passes_findings_to_edit_chapter_direct() -> Non
             captured_edit_variables.update(variables or {})
         return "system"
 
-    with patch(
-        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
-        side_effect=capture_prompt,
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=capture_prompt,
+        ),
+        patch(
+            "presentation.agents.final_editor.assemble_context",
+            return_value={"wiki_snapshot": "", "recap_snippets": []},
+        ),
     ):
         await agent.run(
             "s",
@@ -138,10 +150,16 @@ async def test_scrubbing_disabled_skips_stage1_calls_only_edit_chapter_direct() 
             captured_edit_variables.update(variables or {})
         return "system"
 
-    with patch(
-        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
-        side_effect=capture_prompt,
-    ) as mock_load_prompt:
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=capture_prompt,
+        ) as mock_load_prompt,
+        patch(
+            "presentation.agents.final_editor.assemble_context",
+            return_value={"wiki_snapshot": "", "recap_snippets": []},
+        ),
+    ):
         await agent.run(
             "s",
             [_draft(1)],
@@ -171,9 +189,15 @@ async def test_edit_single_chapter_returns_chapter_draft() -> None:
         wiki_bus=wiki_bus,
     )
 
-    with patch(
-        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
-        return_value="system",
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            return_value="system",
+        ),
+        patch(
+            "presentation.agents.final_editor.assemble_context",
+            return_value={"wiki_snapshot": "", "recap_snippets": []},
+        ),
     ):
         result = await agent.edit_single_chapter(
             _draft(1),
@@ -219,11 +243,17 @@ async def test_run_delegates_to_edit_single_chapter() -> None:
     )
     chapters = [_draft(1), _draft(2)]
 
-    with patch.object(
-        agent,
-        "edit_single_chapter",
-        new=AsyncMock(side_effect=chapters),
-    ) as edit_single:
+    with (
+        patch.object(
+            agent,
+            "edit_single_chapter",
+            new=AsyncMock(side_effect=chapters),
+        ) as edit_single,
+        patch(
+            "presentation.agents.final_editor.assemble_context",
+            return_value={"wiki_snapshot": "", "recap_snippets": []},
+        ),
+    ):
         result = await agent.run(
             "s",
             chapters,
@@ -235,3 +265,86 @@ async def test_run_delegates_to_edit_single_chapter() -> None:
 
     assert edit_single.await_count == 2
     assert result.edited_chapters == chapters
+
+
+@pytest.mark.asyncio
+async def test_edit_single_chapter_calls_assemble_context_with_final_edit_scope() -> (
+    None
+):
+    """FinalEditorAgent calls assemble_context with scope='final_edit'."""
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = FinalEditorAgent(
+        provider=_ProviderStub("polished"),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            return_value="system",
+        ),
+        patch(
+            "presentation.agents.final_editor.assemble_context",
+            return_value={"wiki_snapshot": "wiki data", "recap_snippets": ["recap 1"]},
+        ) as mock_ctx,
+    ):
+        await agent.run(
+            "s",
+            [_draft(1)],
+            GenerationSettings.from_dict({}),
+        )
+
+    bus.close()
+    wiki_bus.close()
+
+    mock_ctx.assert_called_once()
+    call_kwargs = mock_ctx.call_args
+    assert call_kwargs.args[0] == "s"
+    assert call_kwargs.kwargs["scope"] == "final_edit"
+    assert call_kwargs.kwargs["chapter"] == 1
+    assert call_kwargs.kwargs["recap_window"] == ("chapter", 3)
+
+
+@pytest.mark.asyncio
+async def test_edit_single_chapter_passes_wiki_recap_to_edit_chapter_direct() -> None:
+    """wiki_context and recap_context are passed to final_edit/edit_chapter_direct prompt."""
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = FinalEditorAgent(
+        provider=_ProviderStub("polished"),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    captured_edit_variables: dict[str, str] = {}
+
+    def capture_prompt(name: str, variables: dict | None = None) -> str:
+        if name == "final_edit/edit_chapter_direct":
+            captured_edit_variables.update(variables or {})
+        return "system"
+
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=capture_prompt,
+        ),
+        patch(
+            "presentation.agents.final_editor.assemble_context",
+            return_value={"wiki_snapshot": "wiki data", "recap_snippets": ["recap 1"]},
+        ),
+    ):
+        await agent.run(
+            "s",
+            [_draft(1)],
+            GenerationSettings.from_dict({}),
+        )
+
+    bus.close()
+    wiki_bus.close()
+
+    assert captured_edit_variables.get("wiki_context") == "wiki data"
+    assert captured_edit_variables.get("recap_context") == "recap 1"

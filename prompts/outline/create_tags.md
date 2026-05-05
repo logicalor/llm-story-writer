@@ -10,6 +10,16 @@ Based on this story outline and first chapter, generate relevant tags:
 {first_chapter}
 </FIRST_CHAPTER>
 
+## Wiki Context
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+## Recap Context
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 Generate a list of tags that describe:
 - Genre and subgenre
 - Themes and topics

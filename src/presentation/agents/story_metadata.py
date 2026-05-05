@@ -16,6 +16,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
+from tools.context_assembly import assemble_context
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -103,6 +104,18 @@ class StoryMetadataAgent:
             )
         )
 
+        _ctx = assemble_context(
+            story_name,
+            scope="metadata",
+            focus=outline_text[:500] if outline_text else "",
+            recap_window=("chapter", 20),
+            token_budget=20000,
+        )
+        wiki_context: str = _ctx["wiki_snapshot"]
+        recap_context: str = (
+            "\n\n".join(_ctx["recap_snippets"]) if _ctx["recap_snippets"] else ""
+        )
+
         model_config = _build_model_config(
             self.config, "story_metadata", "openai-compat://default"
         )
@@ -112,7 +125,12 @@ class StoryMetadataAgent:
         try:
             prompt = self._loader.load_prompt(
                 "outline/create_title",
-                {"outline": outline_text, "first_chapter": first_chapter},
+                {
+                    "outline": outline_text,
+                    "first_chapter": first_chapter,
+                    "wiki_context": wiki_context,
+                    "recap_context": recap_context,
+                },
             )
             response = await self.provider.generate_text(
                 [{"role": "user", "content": prompt}],
@@ -130,7 +148,12 @@ class StoryMetadataAgent:
         try:
             prompt = self._loader.load_prompt(
                 "outline/create_summary",
-                {"outline": outline_text, "chapter_content": first_chapter},
+                {
+                    "outline": outline_text,
+                    "chapter_content": first_chapter,
+                    "wiki_context": wiki_context,
+                    "recap_context": recap_context,
+                },
             )
             response = await self.provider.generate_text(
                 [{"role": "user", "content": prompt}],
@@ -148,7 +171,12 @@ class StoryMetadataAgent:
         try:
             prompt = self._loader.load_prompt(
                 "outline/create_tags",
-                {"outline": outline_text, "first_chapter": first_chapter},
+                {
+                    "outline": outline_text,
+                    "first_chapter": first_chapter,
+                    "wiki_context": wiki_context,
+                    "recap_context": recap_context,
+                },
             )
             response = await self.provider.generate_text(
                 [{"role": "user", "content": prompt}],
