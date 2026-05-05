@@ -74,6 +74,7 @@ The current implementation is intentionally smaller than the original planning t
 
 - `outline_critique_iterations` is validated and persisted as configuration, but `OutlineCriticAgent` currently performs one critic pass per generated outline.
 - `outline_min_revisions` and `outline_max_revisions` remain part of the broader outline revision configuration, but this phase does not trigger automatic outline rewrites on critic severity.
+- When the outline approval gate requests `revise <feedback>`, the orchestrator now forwards `PipelineState.critic_summary`, `PipelineState.arc_distribution`, and `PipelineState.promise_payoff` back into the outline planner as critique context alongside the user's feedback.
 - If a single critic prompt fails, the agent emits a skip message and continues with the remaining critics.
 - If the provider is a `unittest.mock` object, the agent skips the phase entirely so unit tests can exercise orchestrator flow without live model output.
 
