@@ -363,25 +363,6 @@ stories/my-first-story/
 ├── output/
 │   ├── story.md                  # Final assembled manuscript
 │   └── story_edited.md           # Post-final-edit manuscript (optional)
-├── characters/
-│   ├── yuki-tanaka-oduya.json    # Character sheet metadata + {"$ref": ...} pointers
-│   ├── yuki-tanaka-oduya/
-│   │   ├── sheet.md              # Full markdown body
-│   │   ├── summary.md            # Summary markdown body
-│   │   ├── abridged.md           # Prompt-safe markdown body
-│   │   └── chunks/
-│   │       └── ...               # One markdown file per character chunk
-│   ├── commander-voss.json
-│   └── ...
-├── settings/
-│   ├── europa-research-base.json # Setting sheet metadata + {"$ref": ...} pointers
-│   ├── europa-research-base/
-│   │   ├── sheet.md
-│   │   ├── summary.md
-│   │   ├── abridged.md
-│   │   └── chunks/
-│   │       └── ...               # One markdown file per setting chunk
-│   └── ...
 ├── savepoints/
 │   ├── pipeline_state.json       # Resume state (single JSON file)
 │   ├── outline_complete          # Milestone marker
@@ -421,11 +402,11 @@ The story generation pipeline is divided into primary phases. Each phase writes 
 The current restored pipeline runs in this order:
 
 ```text
-Init -> Story Foundation -> Outline -> [Outline Critique] -> Narrative Arc Analysis -> Characters & Settings -> Wiki Initialization -> Wiki Bootstrap -> Chapter Loop -> Final Edit -> Assembly
+Init -> Story Foundation -> Outline -> [Outline Critique] -> Narrative Arc Analysis -> Wiki Generation -> Wiki Initialization -> Wiki Bootstrap -> Chapter Loop -> Final Edit -> Assembly
 ```
 
 - **Foundation** extracts the story's base context, story start date, and story elements from the prompt before outline generation begins. Those fields seed `OutlineResult` and survive savepoints and resume.
-- **Outline Structure** turns the prompt plus foundation context into the chapter-by-chapter outline, using either direct, expanded, or chunked outline generation depending on the active settings. The approved outline becomes the structural source for downstream character, setting, wiki, and chapter work.
+- **Outline Structure** turns the prompt plus foundation context into the chapter-by-chapter outline, using either direct, expanded, or chunked outline generation depending on the active settings. The approved outline becomes the structural source for downstream wiki generation, wiki bootstrap, and chapter work.
 - **Outline Critique** runs the outline review loop when `enable_outline_critique` is enabled. The outline phase now checkpoints the draft and critique sub-steps separately, so resume can return to the approval gate or skip critique when those artefacts are already persisted.
 - **Chapter Loop (Recap -> Chapter Write)** carries forward recap context from the prior approved chapter, writes the next chapter from the outline plus accumulated story state, then updates wiki pages, refreshes metadata, and writes the new recap for the following chapter. Drafting, consistency, wiki update, recap, and Chapter 1 metadata refresh are now resumable as separate chapter-local ledger items.
 - **Final Edit** performs the last prose-polish pass across approved chapters, optionally running scrub and voice-consistency diagnostics before editing. Each edited chapter is now checkpointed independently before assembly writes the final manuscript.
@@ -452,14 +433,18 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
                  │   Analysis      │
                  └─────────────────┘
                       │
-          ┌─────────────────────────────┼─────────────────────────────┐
-          ▼                             ▼                             ▼
-      ┌────────────┐                ┌──────────┐                  ┌───────────┐
-      │ Characters │                │ Settings │                  │ Wiki Init │
-      │  (sheets)  │                │ (sheets) │                  │           │
-      └────────────┘                └──────────┘                  └───────────┘
-          │                             │                             │
-          └─────────────────────────────┴─────────────────────────────┘
+                │
+                ▼
+              ┌──────────────────┐
+              │  Wiki Generation │
+              │ (characters &    │
+              │  locations)      │
+              └──────────────────┘
+                │
+                ▼
+              ┌──────────────────┐
+              │   Wiki Init      │
+              └──────────────────┘
                       │
                       ▼
                  ┌──────────────────┐
@@ -554,28 +539,21 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
 
 **Approximate duration:** 2–5 minutes
 
-### Phase 5: Characters & Settings
+### Phase 5: Wiki Generation
 
 **What the system does:**
-- Extracts character names from the approved outline and generates one JSON sheet per character
-- Extracts setting/location names from the approved outline and generates one JSON sheet per setting
-- Caches extracted names to `stories/<name>/characters/_names.json` and `stories/<name>/settings/_names.json` before the per-entity loop continues
-- Uses the work-item ledger inside `pipeline_state.json` to checkpoint each base sheet, each chunk, each abridged write, and each summary write
-- Uses orchestrator helpers rather than standalone character or setting presentation agents
-- If name extraction returns invalid JSON, the phase degrades gracefully and the pipeline continues
+- For each character named in the approved outline, invokes a direct-to-wiki prompt that produces a full wiki page with YAML frontmatter, L1 summary (≤ 300 chars), L2 abridged dossier (~1500 chars), and L3 full-body sections.
+- For each location named in the approved outline, generates an equivalent wiki location page.
+- Writes pages directly via `wiki_update.run_batch` create payloads; no intermediate sheet artefacts are created on disk.
+- Uses the work-item ledger inside `pipeline_state.json` to checkpoint each page write individually.
 
 **Resume behavior:**
-- Already-cached name lists are loaded from `_names.json` instead of being re-extracted
-- Completed character and setting JSON files are read back from disk
-- Resume continues from the next missing chunk or summary step instead of restarting the whole phase
+- Already-written wiki pages are skipped (idempotent by slug); a partial run resumes from the next missing entity.
 
 **Artefacts produced:**
-- `stories/<name>/savepoints/characters`
-- `stories/<name>/savepoints/settings`
-- `stories/<name>/characters/_names.json`
-- `stories/<name>/characters/<slug>.json` (one per character)
-- `stories/<name>/settings/_names.json`
-- `stories/<name>/settings/<slug>.json` (one per setting)
+- `stories/<name>/wiki/characters/<slug>.md` (one per outline character)
+- `stories/<name>/wiki/locations/<slug>.md` (one per outline location)
+- `stories/<name>/savepoints/pipeline_state.json` with wiki-generation ledger items
 
 **User action needed:** None
 
@@ -604,7 +582,7 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
 Runs immediately after wiki initialization and before the chapter loop.
 
 What this phase does:
-- Calls `_list_wiki_entities()` in `src/tools/wiki_extract.py` to extract and deduplicate entities from `characters/*.json` and `settings/*.json` first, using outline extraction only when the saved outline text is non-empty
+- Calls `_list_wiki_entities()` in `src/tools/wiki_extract.py` to extract and deduplicate additional entities from the outline (factions, items, plot threads, world rules, themes, relationships, and timeline entries) not already created by the `wiki-generation` phase
 - Drives `_bootstrap_single_wiki_entity()` in a per-entity loop so each created wiki page has its own ledger item
 - Skips already-completed work items and already-existing wiki slugs for idempotent reruns
 - Leaves `bootstrap_wiki_from_story()` available for direct CLI or ad-hoc one-shot bootstrap usage
@@ -621,11 +599,11 @@ What this phase does:
 
 **What the system does:**
 - For each chapter (1 to `wanted_chapters`):
-  1. **Scene Generation (7b)** — Prefers the chapter's detailed outline block when available; forwards the prior chapter recap from `state.recaps[str(N-1)]` (preferring `compact`, then `sanitised`, then `events`); and generates chapter text via the `chapter-writer` agent. Before building the chapter prompt, `ChapterWriterAgent` calls `get_snapshot()` in `src/tools/wiki_snapshot.py` with the chapter summary as the retrieval query; when the story has a populated wiki collection in ChromaDB, that token-budgeted wiki snapshot becomes the primary `base_context` for the chapter. Only when no snapshot is available does the agent fall back to `_build_entity_context()` and load flat character and setting sheet summaries from disk. For each individual scene, a second `get_snapshot()` call is made with the scene description, POV character, characters, and primary location; the result replaces `base_context` at the scene level and falls back silently when the wiki is absent or retrieval returns nothing. If `scene_generation_pipeline: true`, the agent expands the chapter into `stories/<name>/chapters/chapter_<N>_scenes.json`, then drafts scenes sequentially with position-aware prompts for first, middle, and final scenes. Each completed scene is written to `stories/<name>/chapters/chapter_<N>/scene_<M>.md` before the corresponding work item is marked done. Otherwise, the full chapter is generated in one LLM call. Once the draft is approved, `stories/<name>/chapters/chapter_<N>.md` is written before `chapter-<N>/draft` is recorded.
+  1. **Scene Generation (7b)** — Prefers the chapter's detailed outline block when available; forwards the prior chapter recap from `state.recaps[str(N-1)]` (preferring `compact`, then `sanitised`, then `events`); and generates chapter text via the `chapter-writer` agent. Before building the chapter prompt, `ChapterWriterAgent` calls `get_snapshot()` in `src/tools/wiki_snapshot.py` with the chapter summary as the retrieval query; when the story has a populated wiki collection in ChromaDB, that token-budgeted wiki snapshot becomes the primary `base_context` for the chapter. Wiki snapshot absence raises `StoryGenerationError` — there is no sheet fallback. For each individual scene, a second `get_snapshot()` call is made with the scene description, POV character, characters, and primary location; the result replaces `base_context` at the scene level. If `scene_generation_pipeline: true`, the agent expands the chapter into `stories/<name>/chapters/chapter_<N>_scenes.json`, then drafts scenes sequentially with position-aware prompts for first, middle, and final scenes. Each completed scene is written to `stories/<name>/chapters/chapter_<N>/scene_<M>.md` before the corresponding work item is marked done. Otherwise, the full chapter is generated in one LLM call. Once the draft is approved, `stories/<name>/chapters/chapter_<N>.md` is written before `chapter-<N>/draft` is recorded.
   2. **Approval Gate** — Presents the chapter for user approval (interactive mode only)
   3. **Consistency Check (7e)** — Runs `consistency_checker`; findings stream to the token bus but do not block chapter persistence
   4. **Chapter Persistence** — Appends the approved draft to `state.approved_chapters` and writes `stories/<name>/chapters/chapter_<N>.md`
-  5. **Wiki Update (7c)** — Calls `WikiMaintainerAgent` to extract structured data and persist wiki pages; failures are logged and do not block the loop. This is now the sole post-chapter entity state management step; character and setting sheet JSON files remain Phase 5 bootstrap inputs and chapter-writer fallback material.
+  5. **Wiki Update (7c)** — Calls `WikiMaintainerAgent` to extract structured data and persist wiki pages; failures are logged and do not block the loop. This is now the sole post-chapter entity state management step.
   6. **Recap Generation (7d)** — Calls `RecapWriterAgent` after wiki maintenance. The default path runs six LLM stages (`extract_chapter_events` → `recap/assign_event_timing` → `recap/enrich_event_details` → `recap/format_json` → `recap/compact_events` → optional `recap/sanitize`). When `use_multi_stage_recap_sanitizer: false`, the agent takes the short path (`extract_chapter_events` → `recap/format_json`). On success, the orchestrator writes the recap bodies to `stories/<name>/chapters/chapter_<N>/recap_events.md`, `recap_compact.md`, and `recap_sanitised.md`, then stores `{"$ref": ...}` pointers for those files in both `state.recaps[str(N)]` and `chapter_<N>_recap.json`. It then creates or updates wiki `event` pages from the recap `events` payload, populating `timestamp`, `participants`, `importance`, `emotional_state`, `causal_context`, and `chapter_provenance` alongside the verified event body. Recap failures are advisory and do not block later chapters.
   7. **Metadata Refresh (`metadata-chapter-1`)** — Immediately after Chapter 1 is approved, the orchestrator re-runs `StoryMetadataAgent` with the approved Chapter 1 prose. This refresh is advisory, updates `OutlineResult.title` plus `OutlineResult.tags` on success, and rewrites `stories/<name>/metadata.json`.
   8. **Savepoint (7h)** — Saves a chapter-level savepoint (`chapter-{N}`); after the last chapter, the orchestrator also marks `chapter-loop`
@@ -1094,8 +1072,8 @@ Reusable prompt content used by the Python-native pipeline lives in these locati
 - `prompts/final_edit/` — Final editing direct-generation prompts
 - `prompts/chapter_review/` — Consistency checking and review direct-generation prompts
 - `prompts/skills/` — Reusable skill reference material
-- `prompts/characters/` — Character sheet direct-generation prompts
-- `prompts/settings/` — Setting/location direct-generation prompts
+- `prompts/characters/` — Legacy character-sheet prompts kept as reference; not loaded by the active pipeline
+- `prompts/settings/` — Legacy setting-sheet prompts kept as reference; not loaded by the active pipeline
 - `prompts/scenes/` — Scene generation direct-generation prompts
 - `prompts/wiki/` — Wiki extraction and maintenance direct-generation prompts
 
@@ -1131,10 +1109,10 @@ Phase 4: Narrative Arc Analysis
   → Persist `state.arc_result` and write `arc_analysis_complete`
   → On agent error, emit skip message and continue
 
-Phase 5: Characters & Settings
-  → Extract character and setting names from outline
-  → Generate one JSON sheet per entity, then enrich it with `summary`, `abridged`, and per-aspect `chunks`
-  → Write per-entity JSON sheets to `stories/<name>/characters/` and `settings/`
+Phase 5: Wiki Generation
+  → Extract character and location names from outline
+  → Generate one wiki page per entity directly under `stories/<name>/wiki/`
+  → Checkpoint each page write in the work-item ledger
   → If name extraction returns invalid JSON, phase degrades gracefully
 
 Phase 6: Wiki Initialization
@@ -1144,7 +1122,7 @@ Phase 6: Wiki Initialization
 
 Phase 7: Wiki Bootstrap
   → Call `bootstrap_wiki_from_story()` after wiki init and before chapter generation
-  → Seed wiki pages from the outline savepoint plus character and setting sheets
+  → Seed remaining non-character and non-location wiki pages from the outline savepoint
   → Skip existing slugs so resume and rerun stay idempotent
   → Mark `wiki_populated` even if bootstrap raises, then continue pipeline
 
@@ -1201,7 +1179,8 @@ llm-story-writer/
 │       ├── scene_writer.py
 │       ├── critique_runner.py
 │       ├── recap_manager.py
-│       ├── rag_query.py
+│       ├── context_assembly.py
+│       ├── wiki_generation.py
 │       └── ...
 │
 ├── prompts/                  # 100+ prompt templates
@@ -1225,10 +1204,10 @@ llm-story-writer/
 │   │   ├── narrative-arc/
 │   │   └── ...
 │   ├── chapters/             # Chapter generation prompts
-│   ├── characters/          # Character sheet prompts
+│   ├── characters/          # Legacy character-sheet prompts retained as reference
 │   ├── outline/              # Outline generation prompts
 │   ├── scenes/              # Scene generation prompts
-│   ├── settings/            # Setting/location prompts
+│   ├── settings/            # Legacy setting prompts retained as reference
 │   ├── recap/               # Recap generation prompts
 │   └── ...
 │
@@ -1238,8 +1217,6 @@ llm-story-writer/
 │       ├── outline.json      # Story outline
 │       ├── chapters/         # Generated chapter files
 │       ├── output/           # Final assembled manuscript output
-│       ├── characters/       # Character JSON sheets
-│       ├── settings/         # Setting JSON sheets
 │       ├── savepoints/       # Savepoint files
 │       │   └── pipeline_state.json  # Resume checkpoint
 │       └── wiki/             # Progressive wiki
@@ -1322,7 +1299,7 @@ Wiki pages support three hierarchical summary levels:
 
 ### 11.5 Wiki Update Lifecycle
 
-1. **Initial bootstrap** (Phase 7, before Chapter 1): `_list_wiki_entities()` reads `characters/*.json` and `settings/*.json` as the canonical entity source, adds outline-derived entities only when the saved outline text is non-empty, then `_bootstrap_single_wiki_entity()` writes retrieval-ready L1/L2/L3 detail levels page by page
+1. **Initial bootstrap** (Phase 7, before Chapter 1): `_list_wiki_entities()` reads the saved outline and extracts non-character and non-location entity types not already created during wiki generation, then `_bootstrap_single_wiki_entity()` writes retrieval-ready L1/L2/L3 detail levels page by page
 2. **Post-chapter persistence** (after each accepted chapter): `wiki-maintainer` calls `update_wiki_from_chapter()`, the `wiki/extract_from_chapter` prompt returns structured JSON, and `run_batch()` persists new pages, state changes, aliases, and timeline events under `stories/<name>/wiki/`
 3. **Recap event sync** (after each accepted chapter recap): the orchestrator parses recap `events` and creates or updates wiki `event` pages with verified provenance fields including `timestamp`, `participants`, `importance`, `emotional_state`, `causal_context`, and `chapter_provenance`
 4. **Chapter-level lint** (after each chapter): `wiki-lint` checks consistency against the ConStory-Bench error taxonomy
@@ -1365,7 +1342,7 @@ The orchestrator may dispatch exactly these subagents for creative work:
 | `prose-scrubber` | Sentence/paragraph-level prose cleanup | Phase 7.5 ⏳ |
 | `final-editor` | Post-assembly voice, pacing, and coherence pass | Phase 9 |
 
-**Orchestrator Pipeline Phases:** Init → Story Foundation → Outline → `metadata-outline` → Narrative Arc → Characters & Settings → Wiki Init → Chapter Loop (+ `metadata-chapter-1` after the first approved chapter) → Final Edit → `metadata-final` → Assembly
+**Orchestrator Pipeline Phases:** Init → Story Foundation → Outline → `metadata-outline` → Narrative Arc → Wiki Generation → Wiki Init → Wiki Bootstrap → Chapter Loop (+ `metadata-chapter-1` after the first approved chapter) → Final Edit → `metadata-final` → Assembly
 
 ### 12.2 Tools
 
@@ -1379,13 +1356,14 @@ Tools are Python modules under `src/tools/`. The runtime imports them directly o
 | `story_state.py` | Initialize and update story state JSON (`--operation init/read/write/list`) |
 | `story_assembler.py` | Assemble approved chapters into a single manuscript |
 | `savepoint_manager.py` | Create, inspect, and load savepoints (`list`, `list-full`, `next-phase`, `clear`) |
-| `character_manager.py` | Extract and manage character sheets |
-| `setting_manager.py` | Extract and manage setting sheets |
+| `character_manager.py` | Legacy character-sheet management helpers retained for manual or migration workflows |
+| `setting_manager.py` | Legacy setting-sheet management helpers retained for manual or migration workflows |
 | `recap_manager.py` | Generate and manage chapter recaps |
 | `scene_writer.py` | Generate scene-level content |
 | `critique_runner.py` | Run quality critique on outline or chapter |
 | `critique_parser.py` | Parse critique output into structured scores and feedback |
-| `rag_query.py` | Query ChromaDB for relevant story content chunks |
+| `context_assembly.py` | Assemble wiki and recap context for wiki-aware agents |
+| `wiki_generation.py` | Generate initial wiki character and location pages directly from the approved outline |
 | `outline_generator.py` | Generate and expand story outlines |
 
 #### Wiki Tools
@@ -1487,8 +1465,8 @@ Granular resume inside converted phases works by combining that ledger state wit
 
 ```
 stories/<name>/chapters/chapter_<N>.md
-stories/<name>/characters/_names.json
-stories/<name>/settings/_names.json
+stories/<name>/wiki/characters/<slug>.md
+stories/<name>/wiki/locations/<slug>.md
 stories/<name>/chapters/chapter_<N>_scenes.json
 stories/<name>/chapters/chapter_<N>/scene_<M>.md
 stories/<name>/chapters/chapter_<N>_edited.md
@@ -1708,42 +1686,40 @@ story-writer run --story my-story --batch
 story-writer tui --story my-story
 ```
 
-### 15.7 Working with Character and Setting Sheets
+### 15.7 Working with Wiki Entity Pages
 
-Character and setting sheets are split across pointer JSON plus sibling markdown files. Edit the markdown bodies directly when you want to change sheet content:
+Characters and locations now live directly in the wiki. Edit the page markdown when you want to inspect or correct generated entity state:
 
 ```bash
-# Edit a character sheet body
-vim stories/my-story/characters/yuki-tanaka-oduya/sheet.md
+# Edit a character wiki page
+vim stories/my-story/wiki/characters/yuki-tanaka-oduya.md
 
-# Edit a setting sheet body
-vim stories/my-story/settings/europa-research-base/sheet.md
+# Edit a location wiki page
+vim stories/my-story/wiki/locations/europa-research-base.md
 ```
 
-Each entity still has a companion JSON file, but markdown-bearing fields now store `{"$ref": ...}` pointers to sibling `.md` files:
+Each page is a standalone markdown document with YAML frontmatter plus the L1/L2/L3 detail sections used by retrieval:
 
-```json
-{
-  "name": "Yuki Tanaka-Oduya",
-  "sheet": {"$ref": "characters/yuki-tanaka-oduya/sheet.md"},
-  "chunks": {
-    "backstory": {"$ref": "characters/yuki-tanaka-oduya/chunks/backstory.md"},
-    "personality": {"$ref": "characters/yuki-tanaka-oduya/chunks/personality.md"},
-    "motivation": {"$ref": "characters/yuki-tanaka-oduya/chunks/motivation.md"},
-    "relationships": {"$ref": "characters/yuki-tanaka-oduya/chunks/relationships.md"},
-    "skills": {"$ref": "characters/yuki-tanaka-oduya/chunks/skills.md"},
-    "arc": {"$ref": "characters/yuki-tanaka-oduya/chunks/arc.md"},
-    "current_state": {"$ref": "characters/yuki-tanaka-oduya/chunks/current_state.md"}
-  },
-  "abridged": {"$ref": "characters/yuki-tanaka-oduya/abridged.md"},
-  "summary": {"$ref": "characters/yuki-tanaka-oduya/summary.md"},
-  "updated_at": "2026-04-30T12:00:00Z"
-}
+```md
+---
+type: character
+slug: yuki-tanaka-oduya
+confidence: verified
+---
+
+# Yuki Tanaka-Oduya
+
+## Summary
+One-line or short paragraph summary.
+
+## Abridged
+Prompt-safe dossier content.
+
+## Background
+Full wiki body sections continue here.
 ```
 
-Setting sheets use the same top-level pointer shape but different chunk keys: `physical_description`, `atmosphere_mood`, `function_purpose`, `history_background`, `connections_relationships`, and `rules_constraints`.
-
-After manual edits, the next chapter generation will pick up the updated sheets automatically. Runtime reads now expect pointer objects for markdown-backed fields, and new writes always persist markdown into sibling `.md` files. If an older story still has inline markdown in JSON, run `python3 src/tools/migrate_inline_markdown.py --name <story>` before continuing. Chapter prompts prefer `abridged`, then `summary`, then the first 300 characters of `sheet` when building character and setting context.
+After manual edits, refresh the corresponding ChromaDB wiki collection before relying on semantic retrieval from that page. Runtime chapter prompts read wiki snapshots assembled from `wiki_snapshot.py`; there is no sheet fallback.
 
 ### 15.8 Common Daily Workflows
 

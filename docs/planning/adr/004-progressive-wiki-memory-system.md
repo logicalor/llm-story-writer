@@ -6,6 +6,7 @@
 > Correction (2026-05-04): This ADR originally described per-scene wiki updates. The implemented system invokes `WikiMaintainerAgent` once per chapter with the full chapter draft content.
 
 Implementation completed via issue #344 and PR #345. The active Python orchestrator now boots the wiki from sheets plus outline data and pushes recap-derived event pages into the wiki during the chapter loop.
+Wiki source-of-truth consolidation (Tasks 0–11) completed via PRD [`docs/planning/wiki-source-of-truth-consolidation/prd.md`](../wiki-source-of-truth-consolidation/prd.md), fulfilling the unfulfilled Phase 7d/7e work described in the Consequences section.
 
 ## Context
 

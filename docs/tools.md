@@ -42,8 +42,7 @@ The orchestrator also now produces intermediate story artefacts directly in the 
 - `stories/<story>/outline/skeleton.md` plus `stories/<story>/outline/details/chapter_{N}.md` during Phase 3 when `generation.expand_outline` is enabled and the runtime stays on the per-chapter expansion path
 - `stories/<story>/outline/chunks/chunk_{start}_{end}.md`, `stories/<story>/outline/continuity/continuity_{start}_{end}.md`, and `stories/<story>/outline/enrichment.md` during Phase 3 when `generation.expand_outline`, `generation.use_chunked_outline_generation`, and `wanted_chapters > outline_chunk_size` select the chunked path
 - `stories/<story>/metadata.json` after each successful metadata checkpoint, with the latest generated title, summary, tags, and `updated_at`
-- `stories/<story>/characters/*.json` from the characters phase
-- `stories/<story>/settings/*.json` from the settings phase
+- `stories/<story>/wiki/characters/*.md` and `stories/<story>/wiki/locations/*.md` from the `wiki-generation` phase
 - `stories/<story>/chapters/chapter_{N}.md` during chapter approval
 - `stories/<story>/chapters/chapter_{N}_recap.json` after each approved chapter when recap generation returns non-empty events
 - `stories/<story>/output/story.md` during final assembly
@@ -87,8 +86,8 @@ The orchestrator also now produces intermediate story artefacts directly in the 
 | `src/tools/wiki_extract.py` | Run initial wiki population and post-chapter extraction, generate detail levels, and apply batch-ready wiki updates |
 | `src/tools/wiki_update.py` | Apply wiki page updates |
 | `src/tools/wiki_lint.py` | Validate wiki pages against formatting and consistency rules |
-| `src/tools/rag_query.py` | Index or query ChromaDB collections for story context; `index` accepts optional `--source-path` so source-backed entries record provenance metadata while synthetic entries use an empty source path |
-| `src/tools/rag_reconcile.py` | Reconcile per-story ChromaDB collections against on-disk markdown sources; supports `--dry-run`, `--all`, `--collection`, and `--json` flags; idempotent |
+| `src/tools/wiki_generation.py` | Generate initial wiki character and location pages directly from the approved outline; exposes `generate_character_pages(story_name, outline_result)` and `generate_location_pages(story_name, outline_result)` used by the `wiki-generation` orchestrator phase |
+| `src/tools/context_assembly.py` | Single entry point for wiki + recap context retrieval; `assemble_context(story_name, *, scope, focus, chapter, scene, pov_character, primary_location, characters, locations, keywords, recap_window, token_budget)` returns `{wiki_snapshot: str, recap_snippets: list[str]}`; used by all wiki/recap-aware agents |
 | `src/tools/migrate_inline_markdown.py` | One-shot migration tool that rewrites legacy inline-markdown story JSON into pointer-backed markdown files, including `outline_result.base_context` and `outline_result.story_elements`; supports `--name`, `--all`, and `--dry-run` |
 
 ### Shared Internal Helpers
@@ -118,17 +117,13 @@ Several runtime artefacts are written by the Python-native orchestrator and then
 | `stories/<story>/outline/enrichment.md` | `src/presentation/agents/outline_planner.py` after the final chunked window | Manual inspection, downstream enrichment review | Final enrichment suggestions from `outline/analyze_enrichment`; mirrored into `OutlineResult.enrichment_suggestions` |
 | `stories/<story>/outline/critic_summary.md` | `src/presentation/agents/outline_critic.py` when `generation.enable_outline_critique` is `true` | Manual inspection, debugging workflows | Concatenated summaries from the six outline-review critics. The separately synthesised arc summary is stored on `PipelineState.critic_summary` |
 | `stories/<story>/metadata.json` | `src/presentation/orchestrator.py` after `metadata-outline`, `metadata-chapter-1`, and `metadata-final` | Manual inspection, release metadata export, debugging workflows | JSON document with `title`, `summary`, `tags`, and `updated_at`. The orchestrator also mirrors `title` and `tags` into `PipelineState.outline_result`, but the summary lives on disk only |
-| `stories/<story>/characters/<slug>.json` | `src/presentation/orchestrator.py` characters phase | `src/presentation/agents/chapter_writer.py`, wiki-bootstrap workflows, character-management workflows | JSON document with `name`, pointer refs for `sheet`, `chunks`, `abridged`, and `summary`, plus `updated_at`. Bodies live under `stories/<story>/characters/<slug>/` as sibling `.md` files such as `sheet.md`, `summary.md`, `abridged.md`, and `chunks/<key>.md` |
-| `stories/<story>/settings/<slug>.json` | `src/presentation/orchestrator.py` settings phase | `src/presentation/agents/chapter_writer.py`, wiki-bootstrap workflows, setting-management workflows | Same pointer-based shape as character sheets, with markdown bodies under `stories/<story>/settings/<slug>/` |
 | `stories/<story>/chapters/chapter_{N}.md` | `src/presentation/orchestrator.py` chapter loop | `src/tools/story_assembler.py`, downstream review flows | Approved chapter manuscript |
 | `stories/<story>/chapters/chapter_{N}_recap.json` | `src/presentation/orchestrator.py` after `src/presentation/agents/recap_writer.py` returns a recap result | later chapter-loop continuity context, manual inspection, debugging workflows | JSON document with `events`, `compact`, and `sanitised` fields; the same object is also stored in `PipelineState.recaps[str(N)]` |
 | `stories/<story>/output/story.md` | `src/presentation/orchestrator.py` assembly phase | Manual export and downstream editing | Concatenated final manuscript |
 
-Characters and settings files are generated from prompt templates in `prompts/characters/` and `prompts/settings/`. The JSON files now keep only structured metadata plus `{"$ref": ...}` pointers for `sheet`, `chunks`, `summary`, and `abridged`; the markdown bodies live in sibling `.md` files under each entity slug directory. Filenames are slugified from the extracted entity names, and writes are atomic so later phases never read a half-written JSON file.
+`ChapterWriterAgent` builds chapter- and scene-specific wiki snapshots via `src/tools/wiki_snapshot.py`. Wiki snapshot absence raises `StoryGenerationError` — there is no sheet fallback. The `wiki-generation` phase ensures all outline characters and locations have wiki pages before the chapter loop begins.
 
-`ChapterWriterAgent` now treats those sheet directories as fallback context only. It first attempts to build a chapter- or scene-specific wiki snapshot via `src/tools/wiki_snapshot.py`; only when no snapshot is available does it read `characters/*.json` and `settings/*.json`. In that fallback path it prefers each sheet's stored `abridged` text, then falls back to `summary`, then falls back to the first 300 characters of the `sheet` body. Missing directories, malformed JSON files, or individual read failures are skipped instead of aborting chapter generation.
-
-`src/tools/wiki_extract.py` now exposes four programmatic entry points used by the runtime. `_list_wiki_entities(story_name, *, model=None)` performs entity extraction plus deduplication only, always reading `characters/*.json` and `settings/*.json` first and adding outline-derived entities only when the saved outline text is non-empty. `_bootstrap_single_wiki_entity(story_name, entity, *, model=None, wiki_dir=None)` generates detail levels and writes one missing wiki page. `bootstrap_wiki_from_story(story_name, *, model=None)` still supports the full one-shot bootstrap for CLI or ad-hoc use by seeding the wiki from the same sheet-first input set, deduplicating extracted entities, skipping already-existing slugs for idempotent upsert behavior, applying the batch through `run_batch()`, and returning `{created, skipped, entity_counts}`. `update_wiki_from_chapter(story_name, chapter_number, chapter_text, *, model=None)` handles the later incremental chapter updates.
+`src/tools/wiki_extract.py` now exposes four programmatic entry points used by the runtime. `_list_wiki_entities(story_name, *, model=None)` performs entity extraction plus deduplication from the outline, extracting non-character/non-location entity types such as factions, items, and plot threads not already covered by the `wiki-generation` phase. `_bootstrap_single_wiki_entity(story_name, entity, *, model=None, wiki_dir=None)` generates detail levels and writes one missing wiki page. `bootstrap_wiki_from_story(story_name, *, model=None)` still supports the full one-shot bootstrap for CLI or ad-hoc use by seeding the wiki from the same outline-derived input set, deduplicating extracted entities, skipping already-existing slugs for idempotent upsert behavior, applying the batch through `run_batch()`, and returning `{created, skipped, entity_counts}`. `update_wiki_from_chapter(story_name, chapter_number, chapter_text, *, model=None)` handles the later incremental chapter updates.
 
 `WikiMaintainerAgent` now uses `src/tools/wiki_extract.py` directly for post-chapter updates. The programmatic `update_wiki_from_chapter(story_name, chapter_number, chapter_text, *, model=None)` entry point runs the `wiki/extract_from_chapter` prompt, matches existing entities from the wiki index, generates detail levels for newly created pages, applies the batch through `run_batch()`, and returns both summary counts and the concrete created or updated slug lists. That keeps wiki persistence inside one Python boundary and gives the orchestrator a typed result instead of free-form model text.
 
@@ -163,12 +158,9 @@ Individual tools still expose argparse-based interfaces for shell use. Example:
 ```bash
 python -m src.tools.story_state --operation list
 python -m src.tools.wiki_search --story test_story --query "chapter summary"
-python -m src.tools.rag_query --operation index --name test_story --doc-id chapter-1 --content-type chapter --source-path stories/test_story/chapters/chapter_1.md
 ```
 
 The exact arguments differ per tool module. Read the module's `cmd_*` function or argparse setup before documenting or scripting against its JSON output.
-
-`src/tools/rag_query.py` currently exposes two operations: `index` and `query`. For `index`, pass either `--content` for synthetic content or `--source-path` for markdown-backed content. When `--source-path` is present, the helper records `source_path`, `source_mtime`, and `source_sha256` in Chroma metadata; when omitted, the upsert is treated as synthetic and stores an empty `source_path`.
 
 ## Adding Or Updating A Tool
 

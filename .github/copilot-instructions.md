@@ -6,7 +6,7 @@
 | ------------ | ---------- |
 | **Backend**  | Python 3.x (domain logic in `src/`) |
 | **Frontend** | CLI-only — Python CLI (`src/presentation/cli/main.py`) |
-| **Database** | ChromaDB (vector search, per-story collections), JSON files on disk (story state, savepoints) |
+| **Database** | ChromaDB (vector search, `wiki-{story}` and `recaps-{story}` per-story collections), JSON files on disk (story state, savepoints) |
 | **Testing**  | pytest (`tests/`) |
 | **Styling**  | N/A |
 | **HTTP**     | OpenAI-compatible REST API (local LLM inference), httpx |
@@ -26,6 +26,7 @@
 - Tools are Python scripts in `src/tools/` — no TypeScript or subprocess wrappers
 - **Progressive wiki memory system** ([ADR 004](docs/planning/adr/004-progressive-wiki-memory-system.md)): structured markdown pages with YAML frontmatter in `stories/<name>/wiki/`
 - **Three-stage context retrieval pipeline** ([ADR 005](docs/planning/adr/005-hybrid-wiki-context-retrieval-pipeline.md)): entity matching → metadata query → semantic search → wikilink traversal → detail level selection → structured assembly
+- **Wiki as entity source of truth** ([ADR 014](docs/planning/adr/014-wiki-as-entity-source-of-truth.md)): `wiki-generation` phase replaces character/setting sheet phases; `stories/` directories contain no `characters/` or `settings/` subdirectories; two ChromaDB collections per story — `wiki-{story}` and `recaps-{story}`
 
 ### Testing
 
