@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
@@ -14,7 +17,9 @@ from tools._wiki import (
     match_entities_in_text,
     parse_frontmatter,
     read_index,
+    render_frontmatter,
     slugify,
+    write_index,
 )
 from tools.wiki_update import run_batch
 
@@ -42,6 +47,18 @@ _TYPE_NORMALIZATION = {
     "relationships": "relationship",
     "items": "item",
     "factions": "faction",
+}
+
+_TYPE_TO_PROMPT = {
+    "character": "characters",
+    "location": "locations",
+    "event": "events",
+    "faction": "factions",
+    "item": "items",
+    "plot_thread": "plot_threads",
+    "theme": "themes",
+    "world_rule": "world_rules",
+    "relationship": "relationships",
 }
 
 _CONFIDENCE_ORDER = {"speculative": 0, "planned": 1, "verified": 2}
@@ -267,6 +284,183 @@ def _read_compact_page(story_dir: Path, slug: str) -> dict[str, Any] | None:
     return None
 
 
+def _read_full_page_body(
+    story_dir: Path, slug: str
+) -> tuple[dict[str, Any], str] | None:
+    wiki_dir = get_wiki_dir(story_dir)
+    if not wiki_dir.exists():
+        return None
+
+    resolved_wiki_dir = wiki_dir.resolve()
+    for page_path in wiki_dir.rglob(f"{slug}.md"):
+        if not page_path.resolve().is_relative_to(resolved_wiki_dir):
+            continue
+        raw_text = page_path.read_text()
+        metadata, _body = parse_frontmatter(raw_text)
+        return metadata, raw_text
+    return None
+
+
+def _extract_type_candidates(
+    story_name: str,
+    page_type: str,
+    chapter_text: str,
+    index_entries: list[dict[str, Any]],
+    *,
+    model: str | None = None,
+    base_url: str | None = None,
+) -> list[dict[str, Any]]:
+    _ = story_name
+    prompt_suffix = _TYPE_TO_PROMPT.get(page_type)
+    if prompt_suffix is None:
+        raise ValueError(f"unsupported page type: {page_type}")
+
+    filtered_entries = [
+        entry for entry in index_entries if entry.get("type") == page_type
+    ]
+    prompt = _load_prompt(
+        f"wiki/extract_{prompt_suffix}_from_chapter",
+        {
+            "chapter_text": chapter_text,
+            "existing_pages_index": json.dumps(
+                filtered_entries,
+                indent=2,
+                ensure_ascii=True,
+            ),
+        },
+    )
+    result = _parse_json_response(
+        _chat_completion(prompt, model=model, base_url=base_url),
+        f"{page_type} extraction",
+    )
+    if not isinstance(result, list):
+        raise ValueError(f"{page_type} extraction must return a JSON array")
+    return [item for item in result if isinstance(item, dict)]
+
+
+def _replace_markdown_section(body: str, heading: str, new_content: str) -> str:
+    lines = body.splitlines()
+    heading_text = heading.strip()
+    start_index: int | None = None
+
+    for index, line in enumerate(lines):
+        if line.strip() == heading_text:
+            start_index = index
+            break
+
+    replacement_lines = [heading_text]
+    stripped_content = new_content.strip()
+    if stripped_content:
+        replacement_lines.extend(["", *stripped_content.splitlines()])
+
+    if start_index is None:
+        if body.strip():
+            return body.rstrip("\n") + "\n\n" + "\n".join(replacement_lines) + "\n"
+        return "\n".join(replacement_lines) + "\n"
+
+    end_index = len(lines)
+    for index in range(start_index + 1, len(lines)):
+        if lines[index].startswith("#"):
+            end_index = index
+            break
+
+    updated_lines = lines[:start_index] + replacement_lines + lines[end_index:]
+    updated_body = "\n".join(updated_lines).rstrip("\n")
+    return updated_body + "\n"
+
+
+def _apply_merge_patch(story_dir: Path, slug: str, patch: dict[str, Any]) -> bool:
+    if patch.get("no_change") is True:
+        return False
+
+    wiki_dir = get_wiki_dir(story_dir)
+    resolved_wiki_dir = wiki_dir.resolve()
+    page_path: Path | None = None
+    for candidate_path in wiki_dir.rglob(f"{slug}.md"):
+        if candidate_path.resolve().is_relative_to(resolved_wiki_dir):
+            page_path = candidate_path
+            break
+
+    if page_path is None:
+        raise ValueError(f"page '{slug}' not found for merge")
+
+    original_text = page_path.read_text()
+    metadata, body = parse_frontmatter(original_text)
+
+    frontmatter_delta = patch.get("frontmatter_delta")
+    if isinstance(frontmatter_delta, dict):
+        metadata.update(frontmatter_delta)
+
+    aliases_add = patch.get("aliases_add")
+    if isinstance(aliases_add, list):
+        existing_aliases = metadata.get("aliases", [])
+        if not isinstance(existing_aliases, list):
+            existing_aliases = []
+        merged_aliases: list[str] = []
+        for alias in [*existing_aliases, *aliases_add]:
+            if isinstance(alias, str) and alias.strip() and alias not in merged_aliases:
+                merged_aliases.append(alias)
+        metadata["aliases"] = merged_aliases
+
+    body_append = patch.get("body_append")
+    if isinstance(body_append, str) and body_append.strip():
+        if body.strip():
+            body = body.rstrip("\n") + "\n\n" + body_append.strip() + "\n"
+        else:
+            body = body_append.strip() + "\n"
+
+    body_sections_replace = patch.get("body_sections_replace")
+    if isinstance(body_sections_replace, list):
+        for section_patch in body_sections_replace:
+            if not isinstance(section_patch, dict):
+                continue
+            heading = section_patch.get("heading")
+            new_content = section_patch.get("new_content")
+            if (
+                isinstance(heading, str)
+                and heading.strip()
+                and isinstance(new_content, str)
+            ):
+                body = _replace_markdown_section(body, heading, new_content)
+
+    candidate_text = render_frontmatter(metadata, body.rstrip("\n"))
+    if candidate_text == original_text:
+        return False
+
+    version = metadata.get("version", 0)
+    if not isinstance(version, int):
+        version = 0
+    metadata["version"] = version + 1
+    metadata["last_updated"] = datetime.now(timezone.utc).isoformat()
+
+    new_text = render_frontmatter(metadata, body.rstrip("\n"))
+
+    _atomic_write(page_path, new_text)
+
+    index_entries = read_index(wiki_dir)
+    index_changed = False
+    for entry in index_entries:
+        if entry.get("slug") != slug:
+            continue
+        name = metadata.get("name")
+        aliases = metadata.get("aliases")
+        if isinstance(name, str) and entry.get("name") != name:
+            entry["name"] = name
+            index_changed = True
+        if isinstance(aliases, list):
+            normalized_aliases = [
+                alias for alias in aliases if isinstance(alias, str) and alias.strip()
+            ]
+            if entry.get("aliases") != normalized_aliases:
+                entry["aliases"] = normalized_aliases
+                index_changed = True
+        break
+    if index_changed:
+        write_index(wiki_dir, index_entries)
+
+    return True
+
+
 def _merge_update_entries(
     state_changes: Any,
     new_aliases: Any,
@@ -474,4 +668,157 @@ def update_wiki_from_chapter(
         **summary,
         "new_slugs": [create["slug"] for create in creates],
         "updated_slugs": [update["slug"] for update in updates],
+    }
+
+
+def update_wiki_full_pass(
+    story_name: str,
+    chapter: int,
+    chapter_text: str,
+    *,
+    model: str | None = None,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    story_dir = _validate_story_name(story_name)
+    wiki_dir = get_wiki_dir(story_dir)
+    index_entries = read_index(wiki_dir) if wiki_dir.exists() else []
+
+    pass_a_types = list(_TYPE_TO_PROMPT.keys())
+    type_candidates: dict[str, list[dict[str, Any]]] = {
+        page_type: [] for page_type in pass_a_types
+    }
+
+    if pass_a_types:
+        with ThreadPoolExecutor(max_workers=min(9, len(pass_a_types))) as executor:
+            future_to_type = {
+                executor.submit(
+                    _extract_type_candidates,
+                    story_name,
+                    page_type,
+                    chapter_text,
+                    index_entries,
+                    model=model,
+                    base_url=base_url,
+                ): page_type
+                for page_type in pass_a_types
+            }
+            for future in as_completed(future_to_type):
+                page_type = future_to_type[future]
+                try:
+                    type_candidates[page_type] = future.result()
+                except Exception as exc:
+                    logging.warning(
+                        "[Wiki] WARNING type=%s extraction failed: %s",
+                        page_type,
+                        exc,
+                    )
+                    type_candidates[page_type] = []
+
+    for page_type in pass_a_types:
+        type_index = [
+            entry for entry in index_entries if entry.get("type") == page_type
+        ]
+        alias_matches = match_entities_in_text(chapter_text, type_index)
+        if not type_candidates[page_type] and alias_matches:
+            matched_names = [
+                match.get("name", match.get("slug", "?")) for match in alias_matches
+            ]
+            logging.warning(
+                "[Wiki] WARNING type=%s 0 candidates but aliases matched: %s",
+                page_type,
+                ", ".join(matched_names),
+            )
+
+    per_type_stats = {
+        page_type: {"created": 0, "updated": 0} for page_type in pass_a_types
+    }
+    cache = _load_extract_cache(story_dir)
+
+    try:
+        for page_type, candidates in type_candidates.items():
+            for candidate in candidates:
+                if not isinstance(candidate, dict):
+                    continue
+
+                candidate_name = candidate.get("name")
+                if not isinstance(candidate_name, str) or not candidate_name.strip():
+                    logging.warning(
+                        "[Wiki] WARNING type=%s candidate missing name; skipped",
+                        page_type,
+                    )
+                    continue
+
+                slug = slugify(candidate_name)
+                full_page = _read_full_page_body(story_dir, slug)
+
+                if full_page is None:
+                    entity = _normalize_entity(
+                        candidate,
+                        default_confidence="inferred",
+                        first_appearance=chapter,
+                    )
+                    entity_with_slug = {**entity, "slug": slug}
+                    detail_levels = _generate_detail_levels(
+                        entity_with_slug,
+                        model=model,
+                        cache=cache,
+                        story_dir=story_dir,
+                        base_url=base_url,
+                    )
+                    create_entry = _build_create_entry(entity, detail_levels)
+                    run_batch(
+                        story_name,
+                        {
+                            "creates": [create_entry],
+                            "updates": [],
+                            "timeline_events": [],
+                        },
+                    )
+                    per_type_stats[page_type]["created"] += 1
+                    index_entries.append(
+                        {
+                            "name": entity["name"],
+                            "slug": slug,
+                            "type": entity["type"],
+                            "aliases": entity["aliases"],
+                        }
+                    )
+                    continue
+
+                _existing_metadata, raw_page_text = full_page
+                merge_prompt = _load_prompt(
+                    "wiki/merge_page",
+                    {
+                        "existing_page_body": raw_page_text,
+                        "new_candidate": json.dumps(
+                            candidate,
+                            indent=2,
+                            ensure_ascii=True,
+                        ),
+                    },
+                )
+                raw_response = _chat_completion(
+                    merge_prompt,
+                    model=model,
+                    base_url=base_url,
+                )
+                patch = _parse_json_response(raw_response, "merge page")
+                if not isinstance(patch, dict):
+                    raise ValueError("merge page must return a JSON object")
+                if patch.get("no_change"):
+                    continue
+                changed = _apply_merge_patch(story_dir, slug, patch)
+                if changed:
+                    per_type_stats[page_type]["updated"] += 1
+                    refreshed_index = read_index(wiki_dir) if wiki_dir.exists() else []
+                    index_entries = refreshed_index
+    finally:
+        _delete_extract_cache(story_dir)
+
+    total_created = sum(stats["created"] for stats in per_type_stats.values())
+    total_updated = sum(stats["updated"] for stats in per_type_stats.values())
+    return {
+        "per_type": per_type_stats,
+        "total_created": total_created,
+        "total_updated": total_updated,
     }
