@@ -204,6 +204,29 @@ def test_refresh_if_stale_returns_false_when_not_stale(
     assert refresh_if_stale(collection, "fresh") is False
 
 
+def test_refresh_if_stale_deletes_row_when_source_missing(
+    collection, source_project_root: Path
+) -> None:
+    """When the source file has been renamed/deleted on disk, the stale row
+    should be removed from the collection rather than crashing the pipeline.
+    """
+    source_path = _write_source(source_project_root, "wiki/gone.md", "content")
+    relative_path = str(source_path.relative_to(source_project_root))
+
+    upsert_from_source(
+        collection,
+        doc_id="gone",
+        source_path=relative_path,
+        extra_metadata={"type": "wiki"},
+    )
+
+    source_path.unlink()
+
+    assert refresh_if_stale(collection, "gone") is True
+    result = collection.get(ids=["gone"])
+    assert result["ids"] == []
+
+
 def test_reconcile_adds_new_files(collection, source_project_root: Path) -> None:
     source_root = source_project_root / "wiki"
     _write_source(source_project_root, "wiki/alpha.md", "alpha")

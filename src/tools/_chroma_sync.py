@@ -124,6 +124,14 @@ def refresh_if_stale(collection: Any, doc_id: str) -> bool:
     if not isinstance(source_path, str):
         source_path = ""
 
+    # If the source file no longer exists (e.g. page renamed/deleted on disk),
+    # drop the stale row rather than crashing trying to re-read it.
+    if source_path:
+        resolved = _check_source_path(source_path)
+        if not resolved.exists():
+            collection.delete(ids=[doc_id])
+            return True
+
     upsert_from_source(
         collection,
         doc_id=doc_id,
