@@ -8,8 +8,6 @@ from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import ArcAnalysisResult, PipelineState
-from tools._io import STORIES_DIR
-from tools._persist import read_markdown_ref
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
@@ -18,6 +16,9 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
+from tools._io import STORIES_DIR
+from tools._persist import read_markdown_ref
+from tools.context_assembly import assemble_context
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -89,6 +90,30 @@ class StoryPlannerAgent:
                 outline_result.chapter_outlines, ensure_ascii=False, indent=2
             )
 
+        if state.approved_chapters:
+            try:
+                ctx = assemble_context(
+                    state.story_name,
+                    scope="outline",
+                    focus=outline_text[:800],
+                    recap_window=("chapter", 5),
+                )
+                wiki_context: str = ctx["wiki_snapshot"]
+                recap_context: str = "\n\n".join(ctx["recap_snippets"])
+            except Exception as exc:  # noqa: BLE001
+                await self.wiki_bus.emit(
+                    WikiContextEvent(
+                        phase="narrative-arc",
+                        event_type="retrieval_error",
+                        content=f"Context retrieval failed: {exc}",
+                    )
+                )
+                wiki_context = ""
+                recap_context = ""
+        else:
+            wiki_context = ""
+            recap_context = ""
+
         loader = self._loader
         system_prompt = loader.load_prompt(
             "outline/arc_assessment_direct",
@@ -97,6 +122,8 @@ class StoryPlannerAgent:
                 "critic_summary": state.critic_summary,
                 "arc_distribution": state.arc_distribution,
                 "promise_payoff": state.promise_payoff,
+                "wiki_context": wiki_context,
+                "recap_context": recap_context,
             },
         )
 

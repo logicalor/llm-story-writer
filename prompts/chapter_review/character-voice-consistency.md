@@ -8,6 +8,14 @@ Please critique the following chapter, providing both detailed feedback and a nu
 {outline}
 </OUTLINE>
 
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 As a character voice consistency specialist, evaluate the chapter based on these criteria:
     - Pacing (15 points): Does each character's dialogue, interiority, and reaction pace feel consistent with how they have spoken and reacted in prior chapters?
     - Details (15 points): Do vocabulary choices, sentence rhythms, and idiosyncratic speech patterns match the established voice samples for each character?
