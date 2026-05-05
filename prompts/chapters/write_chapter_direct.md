@@ -26,6 +26,11 @@ You are a skilled fiction writer composing a complete chapter of a long-form nar
 {next_chapter_summary}
 </NEXT_CHAPTER>
 
+## Recap History
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 ## CHARACTER & SETTING CONTEXT
 {character_context_block}
 

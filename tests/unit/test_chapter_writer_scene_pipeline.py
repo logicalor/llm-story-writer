@@ -22,18 +22,20 @@ from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
 
 
 @pytest.fixture(autouse=True)
-def _default_wiki_snapshot(tmp_path: Path):
-    """Create wiki dir and stub get_snapshot for all tests in this module.
+def stub_assemble_context(monkeypatch, tmp_path: Path):
+    """Create wiki dir and stub assemble_context for all tests in this module.
 
-    Tests that patch get_snapshot explicitly will override this stub.
+    Tests that patch assemble_context explicitly will override this stub.
     """
     wiki_dir = tmp_path / "test-story" / "wiki"
     wiki_dir.mkdir(parents=True, exist_ok=True)
-    with patch(
-        "presentation.agents.chapter_writer.get_snapshot",
-        return_value="## Wiki Context\nTest context",
-    ):
-        yield
+    monkeypatch.setattr(
+        "presentation.agents.chapter_writer.assemble_context",
+        lambda *args, **kwargs: {
+            "wiki_snapshot": "## Stub Wiki Context",
+            "recap_snippets": [],
+        },
+    )
 
 
 def _outline_result() -> OutlineResult:
@@ -226,8 +228,11 @@ async def test_scene_snapshot_appears_in_base_context(tmp_path: Path) -> None:
     with (
         patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
         patch(
-            "presentation.agents.chapter_writer.get_snapshot",
-            return_value="WIKI_SNAPSHOT_CONTENT",
+            "presentation.agents.chapter_writer.assemble_context",
+            return_value={
+                "wiki_snapshot": "WIKI_SNAPSHOT_CONTENT",
+                "recap_snippets": [],
+            },
         ),
     ):
         draft = await agent.run(
@@ -418,14 +423,64 @@ def test_extract_json_array_returns_empty_on_garbage() -> None:
     assert _extract_json_array("[malformed") == []
 
 
+@pytest.mark.asyncio
+async def test_scene_prompt_receives_scene_recap_context(tmp_path: Path) -> None:
+    provider, captured = _make_provider(
+        [
+            "Detailed synopsis content for chapter 1.",
+            json.dumps(
+                [
+                    {"title": "Opening", "description": "Hero arrives."},
+                    {"title": "Climax", "description": "Hero wins."},
+                ]
+            ),
+            "Scene 1 prose body.",
+            "Scene 2 prose body.",
+        ]
+    )
+
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    config = {
+        "models": {
+            "chapter_writer": "openai-compat://test",
+            "chapter_outline_writer": "openai-compat://test",
+            "scene_writer": "openai-compat://test",
+        }
+    }
+
+    def assemble_side_effect(*args, **kwargs):
+        if kwargs.get("scope") == "scene":
+            return {
+                "wiki_snapshot": "scene wiki",
+                "recap_snippets": ["scene recap A"],
+            }
+        return {
+            "wiki_snapshot": "wiki",
+            "recap_snippets": [],
+        }
+
+    agent = ChapterWriterAgent(provider, config, bus, wiki_bus)
+    with (
+        patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
+        patch(
+            "presentation.agents.chapter_writer.assemble_context",
+            side_effect=assemble_side_effect,
+        ),
+    ):
+        await agent.run("test-story", 1, _outline_result(), _settings())
+
+    assert any("scene recap A" in prompt for prompt in captured)
+
+
 def test_extract_json_array_filters_non_dict_entries() -> None:
     payload = '[{"title": "A"}, "stray string", 42, {"title": "B"}]'
     assert _extract_json_array(payload) == [{"title": "A"}, {"title": "B"}]
 
 
 @pytest.mark.asyncio
-async def test_scene_pipeline_calls_get_snapshot_per_scene(tmp_path: Path) -> None:
-    """get_snapshot is called for each scene in the pipeline (plus chapter level)."""
+async def test_scene_pipeline_calls_assemble_context_per_scene(tmp_path: Path) -> None:
+    """assemble_context runs at chapter scope and again for each scene."""
     wiki_dir = tmp_path / "test-story" / "wiki"
     wiki_dir.mkdir(parents=True, exist_ok=True)
 
@@ -455,33 +510,35 @@ async def test_scene_pipeline_calls_get_snapshot_per_scene(tmp_path: Path) -> No
 
     call_count = 0
 
-    def _snapshot_side_effect(**kwargs):
+    def _assemble_side_effect(*args, **kwargs):
         nonlocal call_count
         call_count += 1
-        return f"## Wiki snapshot {call_count}"
+        return {
+            "wiki_snapshot": f"## Wiki snapshot {call_count}",
+            "recap_snippets": [],
+        }
 
     with (
         patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
         patch(
-            "presentation.agents.chapter_writer.get_snapshot",
-            side_effect=_snapshot_side_effect,
+            "presentation.agents.chapter_writer.assemble_context",
+            side_effect=_assemble_side_effect,
         ),
     ):
         draft = await agent.run("test-story", 1, _outline_result(), _settings())
 
-    # Chapter-level call (scene=0) + 2 per-scene calls = 3 total.
-    assert call_count >= 2
+    assert call_count == 3
     assert draft.content
 
 
 @pytest.mark.asyncio
-async def test_scene_pipeline_falls_back_per_scene_when_wiki_unavailable(
+async def test_scene_pipeline_falls_back_per_scene_when_scene_context_unavailable(
     tmp_path: Path,
 ) -> None:
-    """When get_snapshot returns None for per-scene calls, generation still produces output.
+    """When scene-scope assembly fails, generation still produces output.
 
-    The chapter-level snapshot (scene=0) returns valid content; per-scene calls
-    return None to exercise the graceful fallback path in the scene pipeline.
+    The chapter-level context returns valid content; per-scene calls raise to
+    exercise the graceful fallback path in the scene pipeline.
     """
     scenes_payload = json.dumps(
         [{"title": "Only Scene", "description": "The one and only beat."}]
@@ -505,19 +562,20 @@ async def test_scene_pipeline_falls_back_per_scene_when_wiki_unavailable(
 
     call_count = 0
 
-    def _side_effect(**kwargs):
+    def _side_effect(*args, **kwargs):
         nonlocal call_count
         call_count += 1
-        # Chapter-level call (scene=0) returns valid content.
-        # Per-scene calls (scene>0) return None to test graceful fallback.
-        return (
-            "## Wiki Context\nChapter context" if kwargs.get("scene", 0) == 0 else None
-        )
+        if kwargs.get("scope") == "chapter":
+            return {
+                "wiki_snapshot": "## Wiki Context\nChapter context",
+                "recap_snippets": [],
+            }
+        raise RuntimeError("scene context unavailable")
 
     with (
         patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
         patch(
-            "presentation.agents.chapter_writer.get_snapshot",
+            "presentation.agents.chapter_writer.assemble_context",
             side_effect=_side_effect,
         ),
     ):

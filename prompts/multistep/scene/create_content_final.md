@@ -78,6 +78,10 @@ The previous scene's prose ends with the following passage. Your scene must begi
 
 {base_context}
 
+<RECAP_CONTEXT>
+{scene_recap_context}
+</RECAP_CONTEXT>
+
 ## Final Instructions
 1. Write AT LEAST 1000 words of pure scene content
 2. Begin by smoothly continuing from the previous scene

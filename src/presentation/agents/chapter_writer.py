@@ -26,7 +26,6 @@ from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import ChapterDraft, OutlineResult, PipelineState
-from domain.exceptions import StoryGenerationError
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
@@ -40,7 +39,7 @@ from presentation.pipeline_primitives import (
 )
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools._persist import read_markdown_ref
-from tools.wiki_snapshot import get_snapshot
+from tools.context_assembly import assemble_context
 
 
 def _savepoint_path(story_name: str) -> Path:
@@ -166,35 +165,46 @@ class ChapterWriterAgent:
             if isinstance(outline_result.story_elements, dict)
             else (outline_result.story_elements or "")
         )
-        wiki_snapshot: str | None = None
-        if (STORIES_DIR / story_name / "wiki").exists():
-            try:
-                wiki_snapshot = get_snapshot(
-                    story_name=story_name,
-                    chapter=chapter_number,
-                    scene=0,
-                    outline=chapter_summary,
-                )
-            except Exception as exc:
-                await self.bus.emit(
-                    f"\n[Wiki] snapshot failed ({type(exc).__name__}: {exc})\n"
-                )
-        if wiki_snapshot:
-            base_context = wiki_snapshot
-            character_context = ""
-            setting_context = ""
-            await self.wiki_bus.emit(
-                WikiContextEvent(
-                    phase="chapter",
-                    event_type="semantic_search",
-                    content=f"Wiki snapshot assembled for chapter {chapter_number}",
-                )
+        _pov_character: str | None = None
+        _primary_location: str | None = None
+        _chapter_characters: tuple[str, ...] = ()
+        if isinstance(chapter_outline, dict):
+            _ch_chars = chapter_outline.get("characters") or []
+            if isinstance(_ch_chars, list) and _ch_chars:
+                _pov_character = str(_ch_chars[0])
+                _chapter_characters = tuple(str(c) for c in _ch_chars)
+            _primary_location = (
+                chapter_outline.get("primary_location")
+                or chapter_outline.get("setting")
+                or chapter_outline.get("location")
+                or None
             )
-        else:
-            raise StoryGenerationError(
-                f"Wiki snapshot unavailable for story '{story_name}' chapter {chapter_number}. "
-                "Run the wiki-generation phase before writing chapters."
+
+        _chapter_ctx = assemble_context(
+            story_name,
+            scope="chapter",
+            focus=chapter_summary,
+            chapter=chapter_number,
+            pov_character=_pov_character,
+            primary_location=_primary_location,
+            characters=_chapter_characters,
+            recap_window=("character", 5),
+        )
+        base_context = _chapter_ctx["wiki_snapshot"]
+        recap_context = (
+            "\n\n".join(_chapter_ctx["recap_snippets"])
+            if _chapter_ctx["recap_snippets"]
+            else ""
+        )
+        character_context = ""
+        setting_context = ""
+        await self.wiki_bus.emit(
+            WikiContextEvent(
+                phase="chapter",
+                event_type="semantic_search",
+                content=f"Wiki snapshot assembled for chapter {chapter_number}",
             )
+        )
 
         previous_chapter_recap = ""
         if chapter_number > 1:
@@ -243,6 +253,7 @@ class ChapterWriterAgent:
                 chapter_summary=chapter_summary,
                 story_elements=actual_story_elements,
                 base_context=base_context,
+                recap_context=recap_context,
                 previous_chapter_recap=previous_chapter_recap,
                 next_chapter_summary=next_chapter_summary,
                 settings=settings,
@@ -297,6 +308,7 @@ class ChapterWriterAgent:
             chapter_summary=chapter_summary,
             story_elements=actual_story_elements,
             base_context=base_context,
+            recap_context=recap_context,
             previous_chapter_summary=previous_chapter_recap,
             next_chapter_summary=next_chapter_summary,
             character_context=character_context,
@@ -338,6 +350,7 @@ class ChapterWriterAgent:
         next_chapter_summary: str,
         settings: GenerationSettings,
         previous_chapter_recap: str = "",
+        recap_context: str = "",
         state: PipelineState | None = None,
     ) -> str:
         """Run synopsis → scene-decomposition → per-scene drafting.
@@ -387,6 +400,7 @@ class ChapterWriterAgent:
                     "story_elements": story_elements,
                     "base_context": base_context,
                     "previous_chapter": previous_chapter_recap,
+                    "recap_context": recap_context,
                 },
             )
             try:
@@ -537,35 +551,38 @@ class ChapterWriterAgent:
             else:
                 scenes_completed_summary = "(none yet — this is the opening scene)"
 
-            scene_base_context = base_context  # default: chapter-level context
+            scene_base_context = base_context
+            scene_recap_context = recap_context
+            _scene_pov = (
+                scene.get("characters", [None])[0] if scene.get("characters") else None
+            )
+            _scene_chars = tuple(
+                scene.get("characters", [])[1:] if scene.get("characters") else []
+            )
+            _scene_location = scene.get("setting") or scene.get("location") or None
+            _scene_focus = (
+                scene.get("description", "")
+                or scene.get("summary", "")
+                or chapter_summary
+            )
             try:
-                scene_snapshot = get_snapshot(
-                    story_name=story_name,
+                _scene_ctx = assemble_context(
+                    story_name,
+                    scope="scene",
+                    focus=_scene_focus,
                     chapter=chapter_number,
                     scene=index,
-                    outline=(
-                        scene.get("description", "")
-                        or scene.get("summary", "")
-                        or chapter_summary
-                    ),
-                    pov_character=(
-                        scene.get("characters", [None])[0]
-                        if scene.get("characters")
-                        else None
-                    ),
-                    characters=(
-                        scene.get("characters", [])[1:]
-                        if scene.get("characters")
-                        else None
-                    ),
-                    primary_location=(
-                        scene.get("setting") or scene.get("location") or None
-                    ),
+                    pov_character=_scene_pov,
+                    primary_location=_scene_location,
+                    characters=_scene_chars,
+                    recap_window=("character", 3),
                 )
-                if scene_snapshot:
-                    scene_base_context = scene_snapshot
+                if _scene_ctx["wiki_snapshot"]:
+                    scene_base_context = _scene_ctx["wiki_snapshot"]
+                if _scene_ctx["recap_snippets"]:
+                    scene_recap_context = "\n\n".join(_scene_ctx["recap_snippets"])
             except Exception:
-                pass  # silently fall back to chapter-level base_context
+                pass
 
             scene_prompt = loader.load_prompt(
                 scene_prompt_key,
@@ -576,6 +593,7 @@ class ChapterWriterAgent:
                     "scene_total": str(total_scenes),
                     "previous_scene_tail": prev_tail,
                     "scenes_completed_summary": scenes_completed_summary,
+                    "scene_recap_context": scene_recap_context,
                 },
             )
             try:
@@ -744,6 +762,7 @@ class ChapterWriterAgent:
         setting_context: str,
         settings: GenerationSettings,
         feedback: str | None,
+        recap_context: str = "",
     ) -> str:
         loader = self._loader
         character_context_block = (
@@ -769,6 +788,7 @@ class ChapterWriterAgent:
                 "next_chapter_summary": next_chapter_summary,
                 "character_context_block": character_context_block,
                 "setting_context_block": setting_context_block,
+                "recap_context": recap_context,
             },
         )
         if feedback:

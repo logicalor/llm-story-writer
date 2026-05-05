@@ -68,6 +68,10 @@ This is scene {scene_index} of {scene_total}. No prior scenes have been written 
 
 {base_context}
 
+<RECAP_CONTEXT>
+{scene_recap_context}
+</RECAP_CONTEXT>
+
 ## Final Instructions
 1. Write AT LEAST 1000 words of pure scene content
 2. Begin the chapter with an engaging opening

@@ -15,6 +15,9 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
+from tools._io import STORIES_DIR
+from tools._wiki import get_wiki_dir, match_entities_in_text, read_index
+from tools.context_assembly import assemble_context
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -84,6 +87,34 @@ class RecapWriterAgent:
             )
         )
 
+        _char_slugs: tuple[str, ...] = ()
+        _wiki_context: str = ""
+        _related_recap_history: str = ""
+        try:
+            _wiki_dir = get_wiki_dir(STORIES_DIR / story_name)
+            _index_entries = read_index(_wiki_dir)
+            _char_entries = [e for e in _index_entries if e.get("type") == "character"]
+            _matched = match_entities_in_text(chapter_content, _char_entries)
+            _char_slugs = tuple(e["slug"] for e in _matched)
+        except Exception:
+            pass
+
+        try:
+            _ctx = assemble_context(
+                story_name,
+                scope="recap",
+                focus=chapter_content[:2000],
+                chapter=chapter_number,
+                characters=_char_slugs,
+                recap_window=("character", 5),
+            )
+            _wiki_context = _ctx["wiki_snapshot"]
+            _recap_snippets = _ctx["recap_snippets"]
+            if _recap_snippets:
+                _related_recap_history = "\n\n".join(_recap_snippets)
+        except Exception:
+            pass
+
         model_config = _build_model_config(
             self.config,
             "recap_writer",
@@ -96,6 +127,8 @@ class RecapWriterAgent:
             {
                 "chapter_content": chapter_content,
                 "previous_chapter_recap": previous_recap,
+                "wiki_context": _wiki_context,
+                "related_recap_history": _related_recap_history,
             },
             model_config,
             settings,
@@ -162,6 +195,7 @@ class RecapWriterAgent:
                     "recap": compact,
                     "story_start_date": story_start_date,
                     "previous_chapter_recap": previous_recap,
+                    "related_recap_history": _related_recap_history,
                 },
                 model_config,
                 settings,

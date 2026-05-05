@@ -21,6 +21,10 @@ And here is the last chapter synopsis:
 <PREVIOUS_CHAPTER>
 {previous_chapter}
 </PREVIOUS_CHAPTER>
+
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
 _note: if this is empty, then this is the first chapter.
 
 IMPORTANT: 

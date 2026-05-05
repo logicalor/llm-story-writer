@@ -10,6 +10,14 @@ Extract events from provided chapter content. Follow these instructions exactly.
 {chapter_content}
 </CHAPTER_CONTENT>
 
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+<RELATED_RECAP_HISTORY>
+{related_recap_history}
+</RELATED_RECAP_HISTORY>
+
 ## MANDATORY PROCESS
 
 1. **Find each scene** in the chapter outline
@@ -68,5 +76,16 @@ Extract events from provided chapter content. Follow these instructions exactly.
 - Find scenes
 - Describe what happens
 - Output JSON
+
+## Input
+
+1. **Previous Chapter Recap**
+2. **Chapter Content**
+3. **Wiki Context** (canonical character names/slugs for tagging participants)
+4. **Related Recap History** (recent chapter aggregates for consistency context)
+
+## Processing Note
+
+Use {wiki_context} for canonical character names when tagging participants. Use {related_recap_history} to avoid duplicating events already captured in prior chapter recaps.
 
 **OUTPUT ONLY THE JSON ARRAY. NO OTHER TEXT.**
