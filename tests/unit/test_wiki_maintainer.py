@@ -15,12 +15,12 @@ from presentation.pipeline_primitives import WikiContextEvent
 
 
 _FAKE_SUMMARY = {
-    "created": 2,
-    "updated": 1,
-    "timeline_events": 0,
-    "entity_counts": {},
-    "new_slugs": ["priya", "ember-port"],
-    "updated_slugs": ["vale"],
+    "per_type": {
+        "character": {"created": 2, "updated": 0},
+        "location": {"created": 0, "updated": 1},
+    },
+    "total_created": 2,
+    "total_updated": 1,
 }
 
 
@@ -72,7 +72,7 @@ async def test_run_returns_populated_wiki_update_batch() -> None:
     agent, _ = _build_agent()
 
     with patch(
-        "presentation.agents.wiki_maintainer.update_wiki_from_chapter",
+        "presentation.agents.wiki_maintainer.update_wiki_full_pass",
         return_value=_FAKE_SUMMARY,
     ):
         result = await agent.run("test-story", 3, "Chapter text")
@@ -80,8 +80,8 @@ async def test_run_returns_populated_wiki_update_batch() -> None:
     assert isinstance(result, WikiUpdateBatch)
     assert result.story_name == "test-story"
     assert result.chapter_number == 3
-    assert result.new_pages == ["priya", "ember-port"]
-    assert result.updated_pages == ["vale"]
+    assert result.new_pages == []
+    assert result.updated_pages == []
     assert result.savepoint_id is None
 
 
@@ -89,16 +89,16 @@ async def test_run_returns_populated_wiki_update_batch() -> None:
 async def test_run_emits_wiki_context_events_for_each_page() -> None:
     agent, wiki_bus = _build_agent()
     summary = {
-        "created": 1,
-        "updated": 1,
-        "timeline_events": 0,
-        "entity_counts": {},
-        "new_slugs": ["priya"],
-        "updated_slugs": ["vale"],
+        "per_type": {
+            "character": {"created": 2, "updated": 0},
+            "location": {"created": 0, "updated": 1},
+        },
+        "total_created": 2,
+        "total_updated": 1,
     }
 
     with patch(
-        "presentation.agents.wiki_maintainer.update_wiki_from_chapter",
+        "presentation.agents.wiki_maintainer.update_wiki_full_pass",
         return_value=summary,
     ):
         await agent.run("test-story", 2, "Chapter text")
@@ -112,14 +112,14 @@ async def test_run_emits_wiki_context_events_for_each_page() -> None:
     assert wiki_bus.events[1] == WikiContextEvent(
         phase="wiki",
         event_type="entity_match",
-        content="Created wiki page: priya",
-        metadata={"slug": "priya", "action": "create"},
+        content="character: +2/~0",
+        metadata={"type": "character", "created": 2, "updated": 0},
     )
     assert wiki_bus.events[2] == WikiContextEvent(
         phase="wiki",
         event_type="entity_match",
-        content="Updated wiki page: vale",
-        metadata={"slug": "vale", "action": "update"},
+        content="location: +0/~1",
+        metadata={"type": "location", "created": 0, "updated": 1},
     )
 
 
@@ -127,16 +127,16 @@ async def test_run_emits_wiki_context_events_for_each_page() -> None:
 async def test_run_no_pages_returns_empty_batch() -> None:
     agent, wiki_bus = _build_agent()
     summary = {
-        "created": 0,
-        "updated": 0,
-        "timeline_events": 0,
-        "entity_counts": {},
-        "new_slugs": [],
-        "updated_slugs": [],
+        "per_type": {
+            "character": {"created": 0, "updated": 0},
+            "location": {"created": 0, "updated": 0},
+        },
+        "total_created": 0,
+        "total_updated": 0,
     }
 
     with patch(
-        "presentation.agents.wiki_maintainer.update_wiki_from_chapter",
+        "presentation.agents.wiki_maintainer.update_wiki_full_pass",
         return_value=summary,
     ):
         result = await agent.run("test-story", 4, "Chapter text")
@@ -162,7 +162,7 @@ async def test_run_does_not_call_provider_stream_text() -> None:
     agent, _ = _build_agent(provider=_UnexpectedProvider())
 
     with patch(
-        "presentation.agents.wiki_maintainer.update_wiki_from_chapter",
+        "presentation.agents.wiki_maintainer.update_wiki_full_pass",
         return_value=_FAKE_SUMMARY,
     ):
         await agent.run("test-story", 1, "Chapter text")
@@ -175,7 +175,7 @@ async def test_run_uses_model_config_from_eval_model() -> None:
     )
 
     with patch(
-        "presentation.agents.wiki_maintainer.update_wiki_from_chapter",
+        "presentation.agents.wiki_maintainer.update_wiki_full_pass",
         return_value=_FAKE_SUMMARY,
     ) as mock_update:
         await agent.run("test-story", 5, "Chapter text")
@@ -196,7 +196,7 @@ async def test_run_passes_base_url_when_host_is_configured() -> None:
     )
 
     with patch(
-        "presentation.agents.wiki_maintainer.update_wiki_from_chapter",
+        "presentation.agents.wiki_maintainer.update_wiki_full_pass",
         return_value=_FAKE_SUMMARY,
     ) as mock_update:
         await agent.run("test-story", 5, "Chapter text")
@@ -215,7 +215,7 @@ async def test_run_raises_runtime_error_with_context_on_failure() -> None:
     agent, _ = _build_agent()
 
     with patch(
-        "presentation.agents.wiki_maintainer.update_wiki_from_chapter",
+        "presentation.agents.wiki_maintainer.update_wiki_full_pass",
         side_effect=ValueError("wiki not initialised"),
     ):
         with pytest.raises(RuntimeError) as exc_info:
@@ -225,3 +225,77 @@ async def test_run_raises_runtime_error_with_context_on_failure() -> None:
     assert "test-story" in message
     assert "5" in message
     assert "wiki not initialised" in message
+
+
+@pytest.mark.asyncio
+async def test_run_emits_bus_summary_line_with_active_types() -> None:
+    agent, _ = _build_agent()
+
+    with patch(
+        "presentation.agents.wiki_maintainer.update_wiki_full_pass",
+        return_value=_FAKE_SUMMARY,
+    ):
+        await agent.run("test-story", 6, "Chapter text")
+
+    assert agent.bus.tokens == ["[Wiki] chapter 6 — character: +2/~0; location: +0/~1"]
+
+
+@pytest.mark.asyncio
+async def test_run_does_not_emit_bus_summary_when_no_changes() -> None:
+    agent, _ = _build_agent()
+    summary = {
+        "per_type": {
+            "character": {"created": 0, "updated": 0},
+            "location": {"created": 0, "updated": 0},
+        },
+        "total_created": 0,
+        "total_updated": 0,
+    }
+
+    with patch(
+        "presentation.agents.wiki_maintainer.update_wiki_full_pass",
+        return_value=summary,
+    ):
+        await agent.run("test-story", 7, "Chapter text")
+
+    assert agent.bus.tokens == []
+
+
+@pytest.mark.asyncio
+async def test_run_wiki_bus_only_gets_events_for_nonzero_types() -> None:
+    agent, wiki_bus = _build_agent()
+    summary = {
+        "per_type": {
+            "character": {"created": 2, "updated": 0},
+            "location": {"created": 0, "updated": 0},
+            "thread": {"created": 0, "updated": 1},
+        },
+        "total_created": 2,
+        "total_updated": 1,
+    }
+
+    with patch(
+        "presentation.agents.wiki_maintainer.update_wiki_full_pass",
+        return_value=summary,
+    ):
+        await agent.run("test-story", 8, "Chapter text")
+
+    assert wiki_bus.events == [
+        WikiContextEvent(
+            phase="wiki",
+            event_type="wikilink_traversal",
+            content="Processing chapter 8 wiki updates",
+        ),
+        WikiContextEvent(
+            phase="wiki",
+            event_type="entity_match",
+            content="character: +2/~0",
+            metadata={"type": "character", "created": 2, "updated": 0},
+        ),
+        WikiContextEvent(
+            phase="wiki",
+            event_type="entity_match",
+            content="thread: +0/~1",
+            metadata={"type": "thread", "created": 0, "updated": 1},
+        ),
+    ]

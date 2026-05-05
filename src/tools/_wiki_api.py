@@ -641,6 +641,8 @@ def update_wiki_from_chapter(
 ) -> dict[str, Any]:
     """Run wiki update for a chapter from chapter text string.
 
+    Deprecated: use update_wiki_full_pass instead.
+
     This is the programmatic API used by WikiMaintainerAgent.
     Unlike cmd_update_from_chapter, this accepts chapter text directly
     instead of requiring a file path.
