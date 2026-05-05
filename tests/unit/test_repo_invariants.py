@@ -17,6 +17,14 @@ NON_RUNTIME_PROMPT_FILES = {
     Path("prompts/multistep/outline/enrichment/understand_story_elements.md"),
 }
 
+# Prompts loaded via f-string interpolation. The grep test cannot find their
+# stems literally; instead we verify that the loader prefix appears in src/.
+DYNAMIC_PROMPT_PATTERNS: tuple[tuple[str, str], ...] = (
+    # (path-glob relative to repo root, src/ grep pattern proving the loader exists)
+    ("prompts/multistep/outline/create_*_chunk.md", "multistep/outline/create_"),
+    ("prompts/wiki/extract_*_from_chapter.md", "wiki/extract_"),
+)
+
 
 def _grep_has_output(search_term: str, search_root: Path, *extra_args: str) -> bool:
     result = subprocess.run(
@@ -48,6 +56,14 @@ def _is_runtime_prompt(prompt_path: Path) -> bool:
     return True
 
 
+def _is_dynamically_loaded(prompt_path: Path) -> bool:
+    for path_glob, src_pattern in DYNAMIC_PROMPT_PATTERNS:
+        if prompt_path.match(path_glob) and _grep_has_output(src_pattern, Path("src")):
+            return True
+
+    return False
+
+
 def test_no_dead_generation_settings():
     """Every field on GenerationSettings is referenced in src/ outside the dataclass file."""
     dead_fields = []
@@ -71,6 +87,9 @@ def test_no_orphan_prompts():
 
     for prompt_path in Path("prompts").rglob("*.md"):
         if not _is_runtime_prompt(prompt_path):
+            continue
+
+        if _is_dynamically_loaded(prompt_path):
             continue
 
         if not _grep_has_output(prompt_path.stem, Path("src")):
