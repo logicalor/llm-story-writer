@@ -2009,3 +2009,79 @@ This catches the silent failure mode that ordinary content assertions miss — a
 
 ChromaDB ID: `gotcha-promptloader-replace-silent-placeholder-failure-055`
 
+---
+
+### 056 — `RichLog.write()` word-wraps output — assert substrings, not full strings
+
+**Source:** issue #348, PR #349
+**Severity:** info
+
+`RichLog.write()` is synchronous but word-wraps its content based on the widget's current
+rendering width at call time. An assertion that checks the exact full message string against
+`RichLog.lines` or any rendered representation will fail because the content is split across
+multiple wrapped lines — each entry in `RichLog.lines` contains only a fragment of the written
+string.
+
+**Symptoms:** A test asserting `assert expected_message in log.lines` or
+`assert log.lines[0] == expected_message` fails even though the message was written. A debug
+script printing `log.lines` reveals the content exists across multiple entries.
+
+**Fix:** Always assert a shorter prefix, a distinct content substring, or use an `any()`
+membership check across lines — never exact full-string equality against `RichLog` output.
+
+```python
+# Bad — fails when content wraps
+assert "This is a long message that may wrap" in app.query_one(RichLog).lines
+
+# Good — checks that the prefix appears in any line
+log_lines = app.query_one(RichLog).lines
+assert any("This is a long" in line for line in log_lines)
+```
+
+To debug the actual wrapped output, print `log.lines` after `await pilot.pause()` to inspect
+the fragmented lines and identify a stable substring to assert against.
+
+**Note:** This is distinct from gotcha #024 (`markup=True`) — word-wrapping affects all strings
+regardless of `markup` setting.
+
+ChromaDB ID: `gotcha-richlog-write-wordwrap-assertion-056`
+
+---
+
+### 057 — `call_after_refresh(self.exit)` tears down Textual DOM before `pilot.pause()` returns
+
+**Source:** issue #348, PR #349
+**Severity:** warning
+
+When source code calls `self.call_after_refresh(self.exit)`, the deferred `exit` is processed
+by the Textual event loop during `await pilot.pause()` — which yields control to the loop and
+runs all pending callbacks. The DOM is torn down before any subsequent widget query or assertion
+can execute.
+
+**Symptoms:**
+- `NoMatches` or `QueryError` on widget queries that would otherwise succeed
+- `AssertionError` on `app.query_one(Widget).renderable` for a widget that clearly exists before exit
+- Test silently completes without running assertions because the pilot context has already exited
+
+**Fix in source code:** Use `self.exit()` directly rather than deferring via
+`call_after_refresh`. Immediate exit is processed at a defined synchronisation point that
+tests can sequence around more reliably.
+
+**Fix in test code:** If the source must defer, use `patch.object(app, "exit")` to prevent
+the real exit from firing during the test, assert the expected state, then let the `with` block
+release:
+
+```python
+with patch.object(app, "exit"):
+    await pilot.press("q")   # triggers call_after_refresh(self.exit)
+    await pilot.pause()      # deferred exit fires — but patched, so DOM survives
+    log_lines = app.query_one(RichLog).lines
+    assert any("Expected message" in line for line in log_lines)
+# DOM teardown now happens when run_test() context exits
+```
+
+**Note:** `call_after_refresh` is safe for non-exit callbacks; only `self.exit()` causes
+this DOM teardown race.
+
+ChromaDB ID: `gotcha-call-after-refresh-exit-dom-teardown-057`
+
