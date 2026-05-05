@@ -237,3 +237,174 @@ async def test_run_accepts_empty_previous_recap_and_start_date() -> None:
 
     assert isinstance(result, dict)
     assert result["events"] == "events text"
+
+
+@pytest.mark.asyncio
+async def test_assemble_context_called_with_recap_scope(tmp_path: Path) -> None:
+    provider = _ProviderStub(
+        [
+            "events text",
+            "timed events",
+            "enriched events",
+            '{"events": ["formatted"]}',
+            "compact recap",
+            "sanitised recap",
+        ]
+    )
+    bus = _StubBus()
+    wiki_bus = _StubWikiBus()
+    agent = RecapWriterAgent(provider, {}, bus, wiki_bus)
+    settings = GenerationSettings.from_dict({})
+
+    with (
+        patch(
+            "presentation.agents.recap_writer.assemble_context",
+            return_value={
+                "wiki_snapshot": "wiki text",
+                "recap_snippets": ["recap A", "recap B"],
+            },
+        ) as assemble_mock,
+        patch(
+            "presentation.agents.recap_writer.read_index",
+            return_value=[
+                {
+                    "name": "Alice",
+                    "slug": "alice",
+                    "type": "character",
+                    "aliases": [],
+                }
+            ],
+        ),
+        patch(
+            "presentation.agents.recap_writer.match_entities_in_text",
+            return_value=[
+                {
+                    "name": "Alice",
+                    "slug": "alice",
+                    "type": "character",
+                    "aliases": [],
+                }
+            ],
+        ),
+        patch("presentation.agents.recap_writer.STORIES_DIR", tmp_path),
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=lambda name, variables=None: f"prompt::{name}",
+        ),
+    ):
+        await agent.run(
+            "my-story",
+            3,
+            "Alice appeared in the chapter",
+            "prev recap",
+            "2024-01-15",
+            settings,
+        )
+
+    assemble_mock.assert_called_once_with(
+        "my-story",
+        scope="recap",
+        focus="Alice appeared in the chapter",
+        chapter=3,
+        characters=("alice",),
+        recap_window=("character", 5),
+    )
+
+
+@pytest.mark.asyncio
+async def test_related_recap_history_injected_in_extract_events_prompt() -> None:
+    provider = _ProviderStub(
+        [
+            "events text",
+            "timed events",
+            "enriched events",
+            '{"events": ["formatted"]}',
+            "compact recap",
+            "sanitised recap",
+        ]
+    )
+    bus = _StubBus()
+    wiki_bus = _StubWikiBus()
+    agent = RecapWriterAgent(provider, {}, bus, wiki_bus)
+    captured_variables: dict[str, object] = {}
+
+    def capture_prompt(name: str, variables: dict[str, object] | None = None) -> str:
+        if name == "extract_chapter_events":
+            captured_variables.update(variables or {})
+        return f"prompt::{name}"
+
+    with (
+        patch(
+            "presentation.agents.recap_writer.assemble_context",
+            return_value={
+                "wiki_snapshot": "",
+                "recap_snippets": ["prior event 1", "prior event 2"],
+            },
+        ),
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=capture_prompt,
+        ),
+    ):
+        await agent.run(
+            "my-story",
+            3,
+            "chapter body",
+            "prev recap",
+            "2024-01-15",
+            GenerationSettings.from_dict({}),
+        )
+
+    assert captured_variables["related_recap_history"] == "prior event 1\n\nprior event 2"
+
+
+@pytest.mark.asyncio
+async def test_related_recap_history_injected_in_sanitize_prompt() -> None:
+    provider = _ProviderStub(
+        [
+            "events text",
+            "timed events",
+            "enriched events",
+            '{"events": ["formatted"]}',
+            "compact recap",
+            "sanitised recap",
+        ]
+    )
+    bus = _StubBus()
+    wiki_bus = _StubWikiBus()
+    agent = RecapWriterAgent(provider, {}, bus, wiki_bus)
+    captured_variables: dict[str, object] = {}
+
+    def capture_prompt(name: str, variables: dict[str, object] | None = None) -> str:
+        if name == "recap/sanitize":
+            captured_variables.update(variables or {})
+        return f"prompt::{name}"
+
+    with (
+        patch(
+            "presentation.agents.recap_writer.assemble_context",
+            return_value={
+                "wiki_snapshot": "",
+                "recap_snippets": ["prior event"],
+            },
+        ),
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=capture_prompt,
+        ),
+    ):
+        await agent.run(
+            "my-story",
+            3,
+            "chapter body",
+            "prev recap",
+            "2024-01-15",
+            GenerationSettings.from_dict(
+                {
+                    "use_multi_stage_recap_sanitizer": True,
+                    "use_improved_recap_sanitizer": True,
+                }
+            ),
+        )
+
+    assert "prior event" in str(captured_variables["related_recap_history"])

@@ -13,6 +13,7 @@ if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
 from application.pipeline.handoffs import OutlineResult
+from domain.exceptions import StoryGenerationError
 from domain.value_objects.generation_settings import GenerationSettings
 from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
@@ -111,7 +112,8 @@ async def _run_agent(
     responses: list[str],
     recaps: dict[str, object] | None = None,
     settings: GenerationSettings | None = None,
-    wiki_snapshot: str | None = "## Wiki Context\nTest context",
+    assemble_context_result: dict[str, object] | None = None,
+    assemble_context_side_effect: object | None = None,
 ) -> tuple[object, list[str], list[str]]:
     provider, captured_systems = _make_provider(responses)
     bus = TokenStreamBus()
@@ -131,8 +133,13 @@ async def _run_agent(
         patch("presentation.agents.chapter_writer.PromptLoader") as loader_cls,
         patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
         patch(
-            "presentation.agents.chapter_writer.get_snapshot",
-            return_value=wiki_snapshot,
+            "presentation.agents.chapter_writer.assemble_context",
+            side_effect=assemble_context_side_effect,
+            return_value=assemble_context_result
+            or {
+                "wiki_snapshot": "## Wiki Context\nTest context",
+                "recap_snippets": [],
+            },
         ),
     ):
         loader = loader_cls.return_value
@@ -277,13 +284,16 @@ async def test_scene_pipeline_false_uses_direct_path(tmp_path: Path) -> None:
 async def test_chapter_writer_uses_wiki_snapshot_when_available(
     tmp_path: Path,
 ) -> None:
-    """When get_snapshot returns content, it becomes base_context."""
+    """When assemble_context returns content, it becomes base_context."""
     draft, captured_systems, _ = await _run_agent(
         tmp_path,
         chapter_number=1,
         outline_result=_outline_result(chapters=1),
         responses=_scene_pipeline_responses(scene_count=2),
-        wiki_snapshot="## Wiki Context\ncharacter info",
+        assemble_context_result={
+            "wiki_snapshot": "## Wiki Context\ncharacter info",
+            "recap_snippets": [],
+        },
     )
 
     assert any("## Wiki Context" in prompt for prompt in captured_systems)
@@ -291,17 +301,75 @@ async def test_chapter_writer_uses_wiki_snapshot_when_available(
 
 
 @pytest.mark.asyncio
-async def test_chapter_writer_raises_when_wiki_snapshot_returns_none(
+async def test_wiki_snapshot_failure_raises_story_generation_error(
     tmp_path: Path,
 ) -> None:
-    """When get_snapshot returns None, StoryGenerationError is raised."""
-    from domain.exceptions import StoryGenerationError
-
-    with pytest.raises(StoryGenerationError, match="Wiki snapshot unavailable"):
+    with pytest.raises(StoryGenerationError, match="no wiki"):
         await _run_agent(
             tmp_path,
             chapter_number=1,
             outline_result=_outline_result(chapters=1),
             responses=_scene_pipeline_responses(scene_count=2),
-            wiki_snapshot=None,
+            assemble_context_side_effect=StoryGenerationError("no wiki"),
         )
+
+
+@pytest.mark.asyncio
+async def test_recap_context_injected_in_chapter_prompts(tmp_path: Path) -> None:
+    _, captured_systems, _ = await _run_agent(
+        tmp_path,
+        chapter_number=2,
+        outline_result=_outline_result(),
+        responses=_scene_pipeline_responses(scene_count=2),
+        recaps={"1": {"compact": "prior chapter recap"}},
+        assemble_context_result={
+            "wiki_snapshot": "wiki text",
+            "recap_snippets": ["historic event 1", "historic event 2"],
+        },
+    )
+
+    assert any("historic event 1" in prompt for prompt in captured_systems)
+    assert any("historic event 2" in prompt for prompt in captured_systems)
+    assert any("prior chapter recap" in prompt for prompt in captured_systems)
+
+
+@pytest.mark.asyncio
+async def test_assemble_context_called_with_chapter_scope(tmp_path: Path) -> None:
+    provider, _ = _make_provider(_scene_pipeline_responses(scene_count=2))
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    config = {
+        "models": {
+            "chapter_writer": "openai-compat://test",
+            "chapter_outline_writer": "openai-compat://test",
+            "scene_writer": "openai-compat://test",
+        }
+    }
+
+    with (
+        patch("presentation.agents.chapter_writer.PromptLoader") as loader_cls,
+        patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
+        patch(
+            "presentation.agents.chapter_writer.assemble_context",
+            return_value={"wiki_snapshot": "## Wiki", "recap_snippets": []},
+        ) as assemble_mock,
+    ):
+        loader_cls.return_value.load_prompt.side_effect = _render_prompt
+        agent = ChapterWriterAgent(provider, config, bus, wiki_bus)
+        await agent.run(
+            story_name="test-story",
+            chapter_number=2,
+            outline_result=_outline_result(),
+            settings=_settings(),
+        )
+
+    assert assemble_mock.call_args_list[0].args == ("test-story",)
+    assert assemble_mock.call_args_list[0].kwargs == {
+        "scope": "chapter",
+        "focus": "Chapter 2 summary",
+        "chapter": 2,
+        "pov_character": None,
+        "primary_location": None,
+        "characters": (),
+        "recap_window": ("character", 5),
+    }

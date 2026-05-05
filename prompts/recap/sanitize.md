@@ -16,6 +16,10 @@ You are a story recap formatter. Your job is to take messy recap data and format
 {story_start_date}
 </STORY_START_DATE>
 
+<RELATED_RECAP_HISTORY>
+{related_recap_history}
+</RELATED_RECAP_HISTORY>
+
 ## Output Format
 Format the combined recap into this JSON structure:
 
@@ -122,6 +126,7 @@ Format the combined recap into this JSON structure:
 - Merge similar events that happen close together
 - Keep the most detailed version of each event
 - When merging, preserve the most important details from each
+- Use {related_recap_history} to ensure the new recap does not duplicate events already captured in prior chapter recaps
 
 ### 5. JSON Standards
 - Use valid JSON syntax throughout
