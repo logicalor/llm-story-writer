@@ -60,6 +60,22 @@ def _build_outline_excerpt(outline_result: OutlineResult, story_root: Path) -> s
     return "\n\n".join(part for part in parts if part)
 
 
+def _build_pre_story_excerpt(outline_result: OutlineResult, story_root: Path) -> str:
+    parts: list[str] = []
+
+    story_elements = _resolve_markdown(
+        outline_result.story_elements, story_root
+    ).strip()
+    if story_elements:
+        parts.append(story_elements)
+
+    base_context = _resolve_markdown(outline_result.base_context, story_root).strip()
+    if base_context:
+        parts.append(base_context)
+
+    return "\n\n".join(parts)
+
+
 def _invoke_provider(
     provider: Any,
     messages: list[dict[str, str]],
@@ -214,6 +230,7 @@ def generate_character_pages(
     story_root = stories_dir / story_name
     wiki_dir = get_wiki_dir(story_root)
     outline_excerpt = _build_outline_excerpt(outline_result, story_root)
+    pre_story_excerpt = _build_pre_story_excerpt(outline_result, story_root)
     model_config = _model_config(config)
     seed = _generation_seed(config)
     entities = _dedupe_entities(
@@ -231,7 +248,7 @@ def generate_character_pages(
             "wiki/generate_character_page",
             {
                 "story_name": story_name,
-                "outline_excerpt": outline_excerpt,
+                "pre_story_context": pre_story_excerpt,
                 "character_name": character_name,
             },
             provider,
@@ -311,6 +328,7 @@ def generate_location_pages(
     story_root = stories_dir / story_name
     wiki_dir = get_wiki_dir(story_root)
     outline_excerpt = _build_outline_excerpt(outline_result, story_root)
+    pre_story_excerpt = _build_pre_story_excerpt(outline_result, story_root)
     model_config = _model_config(config)
     seed = _generation_seed(config)
     entities = _dedupe_entities(
@@ -328,7 +346,7 @@ def generate_location_pages(
             "wiki/generate_location_page",
             {
                 "story_name": story_name,
-                "outline_excerpt": outline_excerpt,
+                "pre_story_context": pre_story_excerpt,
                 "location_name": location_name,
             },
             provider,

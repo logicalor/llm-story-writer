@@ -1,8 +1,8 @@
 You are generating a planned wiki page for location `{location_name}` in story `{story_name}`.
 
-<OUTLINE_EXCERPT>
-{outline_excerpt}
-</OUTLINE_EXCERPT>
+<PRE_STORY_CONTEXT>
+{pre_story_context}
+</PRE_STORY_CONTEXT>
 
 ## Task
 
@@ -22,13 +22,15 @@ Required keys:
   "L3_atmosphere": "Paragraph.",
   "L3_inhabitants": "Paragraph.",
   "L3_significance": "Paragraph.",
-  "L3_current_state": "Paragraph."
+  "L3_current_state": "Paragraph (condition at story opening)."
 }
 ```
 
 ## Rules
 
-- Base every field on the outline excerpt only.
+- Describe this location only as it exists at the **opening** of the story, before any story events alter it.
+- All fields must reflect the location's pre-story state.
+- Base every field on the pre-story context only.
 - Do not invent facts not supported by the outline.
 - `slug` must be snake_case derived from the location name.
 - `page_name` should be the display name used in the outline.
