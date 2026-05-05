@@ -14,7 +14,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
-from tools._wiki_api import update_wiki_from_chapter
+from tools._wiki_api import update_wiki_full_pass
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -63,7 +63,7 @@ class WikiMaintainerAgent:
 
         try:
             summary = await asyncio.to_thread(
-                update_wiki_from_chapter,
+                update_wiki_full_pass,
                 story_name,
                 chapter_number,
                 chapter_content,
@@ -75,33 +75,43 @@ class WikiMaintainerAgent:
                 f"Wiki update failed for story={story_name!r} chapter={chapter_number}: {exc}"
             ) from exc
 
-        new_slugs: list[str] = summary.get("new_slugs", [])
-        updated_slugs: list[str] = summary.get("updated_slugs", [])
+        per_type = summary.get("per_type") or {}
+        active_parts: list[str] = []
 
-        for slug in new_slugs:
+        for page_type, stats in per_type.items():
+            if not isinstance(page_type, str) or not isinstance(stats, dict):
+                continue
+
+            created = stats.get("created", 0)
+            updated = stats.get("updated", 0)
+            if not isinstance(created, int) or not isinstance(updated, int):
+                continue
+            if created <= 0 and updated <= 0:
+                continue
+
             await self.wiki_bus.emit(
                 WikiContextEvent(
                     phase="wiki",
                     event_type="entity_match",
-                    content=f"Created wiki page: {slug}",
-                    metadata={"slug": slug, "action": "create"},
+                    content=f"{page_type}: +{created}/~{updated}",
+                    metadata={
+                        "type": page_type,
+                        "created": created,
+                        "updated": updated,
+                    },
                 )
             )
+            active_parts.append(f"{page_type}: +{created}/~{updated}")
 
-        for slug in updated_slugs:
-            await self.wiki_bus.emit(
-                WikiContextEvent(
-                    phase="wiki",
-                    event_type="entity_match",
-                    content=f"Updated wiki page: {slug}",
-                    metadata={"slug": slug, "action": "update"},
-                )
+        if active_parts:
+            await self.bus.emit(
+                f"[Wiki] chapter {chapter_number} — {'; '.join(active_parts)}"
             )
 
         return WikiUpdateBatch(
             story_name=story_name,
             chapter_number=chapter_number,
-            updated_pages=updated_slugs,
-            new_pages=new_slugs,
+            updated_pages=[],
+            new_pages=[],
             savepoint_id=None,
         )
