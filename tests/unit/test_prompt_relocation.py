@@ -78,23 +78,6 @@ def test_prompt_loader_default_path():
     )
 
 
-def test_outline_chapter_prompt_directory():
-    """Verify OutlineChapterStrategy.get_prompt_directory() returns 'prompts'."""
-    strategy_file = (
-        PROJECT_ROOT
-        / "src"
-        / "application"
-        / "strategies"
-        / "outline_chapter"
-        / "strategy.py"
-    )
-    assert strategy_file.is_file(), f"Strategy file not found: {strategy_file}"
-    source = strategy_file.read_text(encoding="utf-8")
-    assert 'return "prompts"' in source, (
-        'get_prompt_directory() should return "prompts" but pattern not found in source'
-    )
-
-
 def test_prompt_file_count():
     """Count all .md files under prompts/ and verify relocation preserved the baseline set."""
     prompts_dir = PROJECT_ROOT / "prompts"

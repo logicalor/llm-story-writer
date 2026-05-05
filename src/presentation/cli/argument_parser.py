@@ -81,41 +81,4 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write a JSONL debug log of every LLM request and response to PATH.",
     )
 
-    rag_p = sub.add_parser("rag", help="RAG index management commands.")
-    rag_sub = rag_p.add_subparsers(dest="rag_subcommand", metavar="<rag-subcommand>")
-    rag_sub.required = True
-
-    reconcile_p = rag_sub.add_parser(
-        "reconcile",
-        help="Reconcile ChromaDB collections against on-disk markdown sources.",
-    )
-    reconcile_p.add_argument(
-        "--story",
-        metavar="NAME",
-        help="Story name to reconcile. Required unless --all is set.",
-    )
-    reconcile_p.add_argument(
-        "--collection",
-        choices=["wiki", "stories"],
-        default=None,
-        metavar="COLLECTION",
-        help="Collection to reconcile: 'wiki' or 'stories' (default: both).",
-    )
-    reconcile_p.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print what would change without writing to ChromaDB.",
-    )
-    reconcile_p.add_argument(
-        "--all",
-        action="store_true",
-        help="Reconcile all stories under stories/.",
-    )
-    reconcile_p.add_argument(
-        "--json",
-        action="store_true",
-        dest="output_json",
-        help="Output results as JSON.",
-    )
-
     return parser

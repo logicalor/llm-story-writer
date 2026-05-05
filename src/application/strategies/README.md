@@ -129,18 +129,11 @@ mkdir -p prompts/my_custom_strategy
 # etc.
 ```
 
-3. **Register the strategy** in `strategy_factory.py`:
+3. **Implement the strategy** following the `StoryStrategy` interface below.
 
-```python
-from .my_custom_strategy import MyCustomStrategy
+4. **Register the strategy** in `strategy_factory.py` (if using the factory).
 
-def _register_default_strategies(self):
-    self.register_strategy("outline-chapter", OutlineChapterStrategy)
-    self.register_strategy("stream-of-consciousness", StreamOfConsciousnessStrategy)
-    self.register_strategy("my-custom-strategy", MyCustomStrategy)  # Add your strategy
-```
-
-4. **Update the factory** to handle your strategy's dependencies:
+5. **Update the factory** to handle your strategy's dependencies:
 
 ```python
 elif strategy_name == "my-custom-strategy":
@@ -215,17 +208,4 @@ Potential strategy ideas:
 
 ## Testing Strategies
 
-To test a strategy:
-
-```python
-# Test strategy creation
-factory = StrategyFactory()
-strategy = factory.create_strategy_with_prompts("outline-chapter", model_provider, config)
-
-# Test strategy metadata
-print(f"Strategy: {strategy.get_strategy_name()}")
-print(f"Version: {strategy.get_strategy_version()}")
-print(f"Description: {strategy.get_strategy_description()}")
-print(f"Required models: {strategy.get_required_models()}")
-print(f"Prompt directory: {strategy.get_prompt_directory()}")
-``` 
+To test a strategy, instantiate it directly with mocked dependencies and call its interface methods. 

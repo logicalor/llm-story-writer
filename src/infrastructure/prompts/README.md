@@ -198,34 +198,6 @@ await handler.clear_all_savepoints()
 handler.set_story_directory("my_fantasy_novel")
 ```
 
-## Integration with Existing Strategy
-
-You can easily integrate this with your existing `OutlineChapterStrategy`:
-
-```python
-class EnhancedOutlineChapterStrategy:
-    def __init__(self, model_provider, prompt_loader, savepoint_repo):
-        self.prompt_handler = PromptHandler(
-            model_provider=model_provider,
-            prompt_loader=prompt_loader,
-            savepoint_repo=savepoint_repo
-        )
-    
-    async def extract_story_start_date(self, prompt: str, settings: GenerationSettings) -> str:
-        model_config = ModelConfig.from_string(settings.model)
-        
-        response = await execute_prompt_with_savepoint(
-            handler=self.prompt_handler,
-            prompt_id="extract_story_start_date",
-            variables={"prompt": prompt},
-            savepoint_id="extract_story_start_date",
-            model_config=model_config,
-            seed=settings.seed
-        )
-        
-        return response.content
-```
-
 ## Parameters
 
 ### PromptRequest Parameters
@@ -288,5 +260,4 @@ This is useful for:
 See the following files for complete examples:
 
 - `prompt_handler_example.py` - Basic usage examples
-- `usage_example.py` - Integration with existing strategy
 - `prompt_wrapper.py` - Simple wrapper functions 
