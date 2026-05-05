@@ -111,6 +111,7 @@ async def _run_agent(
     responses: list[str],
     recaps: dict[str, object] | None = None,
     settings: GenerationSettings | None = None,
+    wiki_snapshot: str | None = "## Wiki Context\nTest context",
 ) -> tuple[object, list[str], list[str]]:
     provider, captured_systems = _make_provider(responses)
     bus = TokenStreamBus()
@@ -123,9 +124,16 @@ async def _run_agent(
         }
     }
 
+    wiki_dir = tmp_path / "test-story" / "wiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+
     with (
         patch("presentation.agents.chapter_writer.PromptLoader") as loader_cls,
         patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path),
+        patch(
+            "presentation.agents.chapter_writer.get_snapshot",
+            return_value=wiki_snapshot,
+        ),
     ):
         loader = loader_cls.return_value
         loader.load_prompt.side_effect = _render_prompt
@@ -269,45 +277,31 @@ async def test_scene_pipeline_false_uses_direct_path(tmp_path: Path) -> None:
 async def test_chapter_writer_uses_wiki_snapshot_when_available(
     tmp_path: Path,
 ) -> None:
-    """When wiki dir exists and get_snapshot returns content, it becomes base_context."""
-    wiki_dir = tmp_path / "test-story" / "wiki"
-    wiki_dir.mkdir(parents=True)
+    """When get_snapshot returns content, it becomes base_context."""
+    draft, captured_systems, _ = await _run_agent(
+        tmp_path,
+        chapter_number=1,
+        outline_result=_outline_result(chapters=1),
+        responses=_scene_pipeline_responses(scene_count=2),
+        wiki_snapshot="## Wiki Context\ncharacter info",
+    )
 
-    with patch(
-        "presentation.agents.chapter_writer.get_snapshot",
-        return_value="## Wiki Context\ncharacter info",
-    ) as mock_get_snapshot:
-        draft, captured_systems, _ = await _run_agent(
-            tmp_path,
-            chapter_number=1,
-            outline_result=_outline_result(chapters=1),
-            responses=_scene_pipeline_responses(scene_count=2),
-        )
-
-    assert mock_get_snapshot.called
     assert any("## Wiki Context" in prompt for prompt in captured_systems)
     assert draft.content
 
 
 @pytest.mark.asyncio
-async def test_chapter_writer_falls_back_when_wiki_snapshot_returns_none(
+async def test_chapter_writer_raises_when_wiki_snapshot_returns_none(
     tmp_path: Path,
 ) -> None:
-    """When get_snapshot returns None, generation still proceeds without error."""
-    wiki_dir = tmp_path / "test-story" / "wiki"
-    wiki_dir.mkdir(parents=True)
+    """When get_snapshot returns None, StoryGenerationError is raised."""
+    from domain.exceptions import StoryGenerationError
 
-    with patch(
-        "presentation.agents.chapter_writer.get_snapshot",
-        return_value=None,
-    ) as mock_get_snapshot:
-        draft, captured_systems, _ = await _run_agent(
+    with pytest.raises(StoryGenerationError, match="Wiki snapshot unavailable"):
+        await _run_agent(
             tmp_path,
             chapter_number=1,
             outline_result=_outline_result(chapters=1),
             responses=_scene_pipeline_responses(scene_count=2),
+            wiki_snapshot=None,
         )
-
-    assert mock_get_snapshot.called
-    assert draft.content
-    assert len(captured_systems) > 0

@@ -103,12 +103,12 @@ async def test_recap_write_stores_pointer_dicts_in_state(tmp_path: Path) -> None
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
         patch(
-            "presentation.orchestrator._generate_character_sheets",
-            new=AsyncMock(return_value=_generated_character_paths()),
+            "tools.wiki_generation.generate_character_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
         ),
         patch(
-            "presentation.orchestrator._generate_setting_sheets",
-            new=AsyncMock(return_value=[]),
+            "tools.wiki_generation.generate_location_pages",
+            new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
     ):
@@ -165,12 +165,12 @@ async def test_recap_md_files_contain_correct_content(tmp_path: Path) -> None:
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
         patch(
-            "presentation.orchestrator._generate_character_sheets",
-            new=AsyncMock(return_value=_generated_character_paths()),
+            "tools.wiki_generation.generate_character_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
         ),
         patch(
-            "presentation.orchestrator._generate_setting_sheets",
-            new=AsyncMock(return_value=[]),
+            "tools.wiki_generation.generate_location_pages",
+            new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
     ):
@@ -244,12 +244,12 @@ async def test_recap_read_resolves_pointer_to_string(tmp_path: Path) -> None:
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
         patch("tools._io.STORIES_DIR", tmp_path),
         patch(
-            "presentation.orchestrator._generate_character_sheets",
-            new=AsyncMock(return_value=_generated_character_paths()),
+            "tools.wiki_generation.generate_character_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
         ),
         patch(
-            "presentation.orchestrator._generate_setting_sheets",
-            new=AsyncMock(return_value=[]),
+            "tools.wiki_generation.generate_location_pages",
+            new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
@@ -307,12 +307,12 @@ async def test_recap_legacy_inline_dict_still_loads(tmp_path: Path) -> None:
         patch("presentation.orchestrator.STORIES_DIR", tmp_path),
         patch("tools._io.STORIES_DIR", tmp_path),
         patch(
-            "presentation.orchestrator._generate_character_sheets",
-            new=AsyncMock(return_value=_generated_character_paths()),
+            "tools.wiki_generation.generate_character_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
         ),
         patch(
-            "presentation.orchestrator._generate_setting_sheets",
-            new=AsyncMock(return_value=[]),
+            "tools.wiki_generation.generate_location_pages",
+            new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,

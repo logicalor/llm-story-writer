@@ -26,6 +26,7 @@ from typing import Any, AsyncIterator, cast
 
 from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import ChapterDraft, OutlineResult, PipelineState
+from domain.exceptions import StoryGenerationError
 from domain.value_objects.generation_settings import GenerationSettings
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
@@ -190,11 +191,10 @@ class ChapterWriterAgent:
                 )
             )
         else:
-            (
-                base_context,
-                character_context,
-                setting_context,
-            ) = self._build_entity_context(story_name)
+            raise StoryGenerationError(
+                f"Wiki snapshot unavailable for story '{story_name}' chapter {chapter_number}. "
+                "Run the wiki-generation phase before writing chapters."
+            )
 
         previous_chapter_recap = ""
         if chapter_number > 1:
@@ -311,63 +311,6 @@ class ChapterWriterAgent:
             title=title,
             content=full_text,
             word_count=len(full_text.split()),
-        )
-
-    def _build_entity_context(self, story_name: str) -> tuple[str, str, str]:
-        """Read character/setting sheets from disk into prompt-ready strings.
-
-        Returns (base_context, character_context, setting_context).
-        """
-        character_context_parts: list[str] = []
-        setting_context_parts: list[str] = []
-        story_dir = STORIES_DIR / story_name
-        for entity_type, _label, target_list in (
-            ("characters", "Character", character_context_parts),
-            ("settings", "Setting", setting_context_parts),
-        ):
-            entity_dir = story_dir / entity_type
-            if not entity_dir.exists():
-                continue
-            for sheet_path in sorted(entity_dir.glob("*.json")):
-                try:
-                    data = json.loads(sheet_path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
-                    continue
-
-                if not isinstance(data, dict):
-                    continue
-
-                name = data.get("name", sheet_path.stem)
-                story_root = story_dir
-
-                def _resolve(val: Any) -> str:
-                    if isinstance(val, dict):
-                        return read_markdown_ref(story_root, val)
-                    return val or ""
-
-                sheet_text = _resolve(data.get("sheet", ""))
-                context_text = (
-                    _resolve(data.get("abridged"))
-                    or _resolve(data.get("summary"))
-                    or sheet_text[:300].strip()
-                )
-                if context_text:
-                    target_list.append(f"- {name}: {context_text}")
-
-        base_context_parts: list[str] = []
-        if character_context_parts:
-            base_context_parts.append(
-                "## Characters\n" + "\n".join(character_context_parts)
-            )
-        if setting_context_parts:
-            base_context_parts.append(
-                "## Settings\n" + "\n".join(setting_context_parts)
-            )
-        base_context = "\n\n".join(base_context_parts)
-        return (
-            base_context,
-            "\n".join(character_context_parts),
-            "\n".join(setting_context_parts),
         )
 
     async def _stream_to_bus(
