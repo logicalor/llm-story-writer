@@ -51,9 +51,15 @@ async def test_run_phase1_no_chapter_content() -> None:
     wiki_bus = _StubWikiBus()
     agent = StoryMetadataAgent(provider, {}, bus, wiki_bus)
 
-    with patch(
-        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
-        side_effect=lambda name, variables=None: f"prompt::{name}",
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=lambda name, variables=None: f"prompt::{name}",
+        ),
+        patch(
+            "presentation.agents.story_metadata.assemble_context",
+            return_value={"wiki_snapshot": "", "recap_snippets": []},
+        ),
     ):
         result = await agent.run(
             "my-story",
@@ -78,9 +84,15 @@ async def test_run_phase2_with_chapter_content() -> None:
     wiki_bus = _StubWikiBus()
     agent = StoryMetadataAgent(provider, {}, bus, wiki_bus)
 
-    with patch(
-        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
-        side_effect=lambda name, variables=None: f"prompt::{name}",
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=lambda name, variables=None: f"prompt::{name}",
+        ),
+        patch(
+            "presentation.agents.story_metadata.assemble_context",
+            return_value={"wiki_snapshot": "", "recap_snippets": []},
+        ),
     ):
         result = await agent.run(
             "my-story",
@@ -102,9 +114,15 @@ async def test_run_graceful_degradation_title_fails() -> None:
     wiki_bus = _StubWikiBus()
     agent = StoryMetadataAgent(provider, {}, bus, wiki_bus)
 
-    with patch(
-        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
-        side_effect=lambda name, variables=None: f"prompt::{name}",
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=lambda name, variables=None: f"prompt::{name}",
+        ),
+        patch(
+            "presentation.agents.story_metadata.assemble_context",
+            return_value={"wiki_snapshot": "", "recap_snippets": []},
+        ),
     ):
         result = await agent.run(
             "my-story",
@@ -125,9 +143,15 @@ async def test_run_graceful_degradation_all_fail() -> None:
     wiki_bus = _StubWikiBus()
     agent = StoryMetadataAgent(provider, {}, bus, wiki_bus)
 
-    with patch(
-        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
-        side_effect=lambda name, variables=None: f"prompt::{name}",
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=lambda name, variables=None: f"prompt::{name}",
+        ),
+        patch(
+            "presentation.agents.story_metadata.assemble_context",
+            return_value={"wiki_snapshot": "", "recap_snippets": []},
+        ),
     ):
         result = await agent.run(
             "my-story",
@@ -160,9 +184,15 @@ async def test_run_emits_phase_messages() -> None:
     wiki_bus = _StubWikiBus()
     agent = StoryMetadataAgent(provider, {}, bus, wiki_bus)
 
-    with patch(
-        "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
-        side_effect=lambda name, variables=None: f"prompt::{name}",
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=lambda name, variables=None: f"prompt::{name}",
+        ),
+        patch(
+            "presentation.agents.story_metadata.assemble_context",
+            return_value={"wiki_snapshot": "", "recap_snippets": []},
+        ),
     ):
         await agent.run(
             "my-story",
@@ -172,3 +202,72 @@ async def test_run_emits_phase_messages() -> None:
         )
 
     assert any("[Metadata]" in message for message in bus.messages)
+
+
+@pytest.mark.asyncio
+async def test_run_calls_assemble_context_with_metadata_scope() -> None:
+    """StoryMetadataAgent.run() calls assemble_context with scope='metadata'."""
+    provider = _ProviderStub(["T", "S", '["t"]'])
+    bus = _StubBus()
+    wiki_bus = _StubWikiBus()
+    agent = StoryMetadataAgent(provider, {}, bus, wiki_bus)
+
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=lambda name, variables=None: f"prompt::{name}",
+        ),
+        patch(
+            "presentation.agents.story_metadata.assemble_context",
+            return_value={"wiki_snapshot": "wiki data", "recap_snippets": ["recap 1"]},
+        ) as mock_ctx,
+    ):
+        await agent.run(
+            "my-story",
+            "outline text",
+            "",
+            GenerationSettings.from_dict({}),
+        )
+
+    mock_ctx.assert_called_once()
+    call_kwargs = mock_ctx.call_args
+    assert call_kwargs.args[0] == "my-story"
+    assert call_kwargs.kwargs["scope"] == "metadata"
+    assert call_kwargs.kwargs["recap_window"] == ("chapter", 20)
+
+
+@pytest.mark.asyncio
+async def test_run_passes_wiki_and_recap_context_to_prompts() -> None:
+    """wiki_context and recap_context from assemble_context are passed to load_prompt."""
+    provider = _ProviderStub(["T", "S", '["t"]'])
+    bus = _StubBus()
+    wiki_bus = _StubWikiBus()
+    agent = StoryMetadataAgent(provider, {}, bus, wiki_bus)
+
+    captured_variables: list[dict] = []
+
+    def capture_prompt(name: str, variables: dict | None = None) -> str:
+        if variables:
+            captured_variables.append(dict(variables))
+        return f"prompt::{name}"
+
+    with (
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=capture_prompt,
+        ),
+        patch(
+            "presentation.agents.story_metadata.assemble_context",
+            return_value={"wiki_snapshot": "wiki data", "recap_snippets": ["recap 1"]},
+        ),
+    ):
+        await agent.run(
+            "my-story",
+            "outline text",
+            "",
+            GenerationSettings.from_dict({}),
+        )
+
+    assert all("wiki_context" in v for v in captured_variables)
+    assert all("recap_context" in v for v in captured_variables)
+    assert all(v["wiki_context"] == "wiki data" for v in captured_variables)

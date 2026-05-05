@@ -14,6 +14,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
+from tools.context_assembly import assemble_context
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -71,6 +72,18 @@ class FinalEditorAgent:
             )
         )
 
+        _ctx = assemble_context(
+            draft.story_name,
+            scope="final_edit",
+            focus=draft.synopsis or draft.content[:500],
+            chapter=chapter_number,
+            recap_window=("chapter", 3),
+        )
+        wiki_context: str = _ctx["wiki_snapshot"]
+        recap_context: str = (
+            "\n\n".join(_ctx["recap_snippets"]) if _ctx["recap_snippets"] else ""
+        )
+
         if settings.enable_scrubbing:
             prose_prompt = self._loader.load_prompt(
                 "final_edit/prose_scrub",
@@ -124,6 +137,8 @@ class FinalEditorAgent:
                 "prior_chapters_summary": prior_summary,
                 "prose_findings": prose_findings,
                 "voice_findings": voice_findings,
+                "wiki_context": wiki_context,
+                "recap_context": recap_context,
             },
         )
 

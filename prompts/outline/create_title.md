@@ -10,6 +10,16 @@ Based on this story outline and first chapter, generate a compelling title:
 {first_chapter}
 </FIRST_CHAPTER>
 
+## Wiki Context
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+## Recap Context
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 Generate a title that captures the essence of this story. The title should be:
 - Engaging and memorable
 - Appropriate for the genre and tone

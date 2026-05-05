@@ -11,6 +11,16 @@ You are a senior prose editor performing a final polish pass on a single chapter
 {prior_chapters_summary}
 </PRIOR_CHAPTERS>
 
+## Wiki Context
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+## Recap Context
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 ## Chapter Text
 <CHAPTER_TEXT>
 {chapter_text}

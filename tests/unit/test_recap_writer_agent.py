@@ -355,7 +355,9 @@ async def test_related_recap_history_injected_in_extract_events_prompt() -> None
             GenerationSettings.from_dict({}),
         )
 
-    assert captured_variables["related_recap_history"] == "prior event 1\n\nprior event 2"
+    assert (
+        captured_variables["related_recap_history"] == "prior event 1\n\nprior event 2"
+    )
 
 
 @pytest.mark.asyncio
