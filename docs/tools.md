@@ -60,6 +60,12 @@ The orchestrator also now produces intermediate story artefacts directly in the 
 | `src/tools/character_manager.py` | Create and update character sheets; write markdown bodies to sibling `.md` files and store `{"$ref": ...}` pointers in JSON |
 | `src/tools/setting_manager.py` | Create and update setting sheets; write markdown bodies to sibling `.md` files and store `{"$ref": ...}` pointers in JSON |
 | `src/tools/recap_manager.py` | Persist chapter recap data |
+| `src/tools/recap_index.py` | Upsert and query one aggregate recap document per chapter in per-story `recaps-{story}` ChromaDB collections |
+
+`src/tools/recap_index.py` is an in-process helper module rather than a user-facing CLI. It exposes two programmatic entry points for recap retrieval:
+
+- `upsert_recap(story_name: str, chapter: int, payload: dict, participants: list[str] | None = None, locations: list[str] | None = None) -> None` — validates the story slug, opens or creates the per-story `recaps-{story}` collection, and upserts one aggregate chapter document with ID `aggregate/{chapter}`. The indexed body stores `compact` plus `sanitised` recap text, while metadata stores `chapter`, `kind="chapter_aggregate"`, `story`, and pipe-encoded `participants` / `locations` values for ChromaDB scalar compatibility.
+- `query_recap(story_name: str, *, character: str | None = None, location: str | None = None, query_text: str | None = None, chapter: int | None = None, chapter_range: tuple[int, int] | None = None, n_results: int = 10) -> list[dict]` — reads from the same collection and returns flattened `{id, document, metadata}` rows. Filters compose with logical AND across exact chapter match, inclusive chapter range, document-text character and location filters, and optional semantic `query_text` retrieval.
 
 ### Generation And Review Tools
 

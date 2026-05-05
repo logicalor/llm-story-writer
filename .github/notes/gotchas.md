@@ -2085,3 +2085,59 @@ this DOM teardown race.
 
 ChromaDB ID: `gotcha-call-after-refresh-exit-dom-teardown-057`
 
+---
+
+## ChromaDB
+
+### 058 — `where` only supports exact scalar equality — prepend slugs to document body and use `where_document=$contains` for substring/slug filtering
+
+**Source:** issue #351, PR #366
+**Severity:** warning
+
+ChromaDB's `where` clause supports **only exact scalar equality** (`{"field": "value"}`). It does
+NOT support substring, prefix, list-contains, or partial-match queries on metadata fields. Any
+attempt to filter by a slug that appears as part of a comma-separated string or list stored in
+metadata will silently return zero results — no error is raised, and no warning is emitted.
+
+**Wrong — `where` substring match (always returns zero results):**
+
+```python
+# Metadata stored as: {"participants": "alice,bob,carol"}
+results = collection.query(
+    query_texts=["recap text"],
+    where={"participants": "alice"},   # exact match fails — "alice" ≠ "alice,bob,carol"
+)
+# → [] silently
+```
+
+**Right — prepend slug to document body at index time; filter with `where_document=$contains`:**
+
+```python
+# At index time: prepend all slugs to the document body
+doc_body = f"participants:{','.join(participant_slugs)} locations:{','.join(location_slugs)}\n\n{recap_text}"
+collection.upsert(
+    ids=[doc_id],
+    documents=[doc_body],
+    metadatas=[{"chapter": chapter_num, "story": story_name}],
+)
+
+# At query time: use where_document for slug filtering
+results = collection.query(
+    query_texts=["recap text"],
+    where_document={"$contains": "participants:alice"},
+)
+# → returns all documents where "alice" appears as a participant slug
+```
+
+**Why this pattern exists:** `where_document={"$contains": text}` performs a substring search
+over the full document text — the only ChromaDB filter that supports partial/membership
+matching. By prepending slugs with a `participants:` / `locations:` prefix at index time,
+callers can distinguish participant slugs from arbitrary document content.
+
+**Applies to all ChromaDB index modules:** `recap_index.py`, `wiki_search.py`, and any future
+index module (e.g. `chapter_index.py`) that needs to filter by entity membership. Reaching
+for `where={"field": slug}` is a natural first instinct but will always fail silently when the
+stored value is a concatenated list.
+
+ChromaDB ID: `gotcha-chromadb-where-exact-only-where-document-contains-058`
+

@@ -73,6 +73,14 @@ Both JSON files contain the same three top-level keys: `events`, `compact`, and 
 
 The current implementation does not write per-stage recap savepoints. On resume, the orchestrator reloads the latest `PipelineState` snapshot and reruns recap generation for any chapter that has not yet completed the chapter loop in that snapshot.
 
+## Recap Index
+
+Issue #351 adds `src/tools/recap_index.py` as a retrieval helper for persisted chapter recaps. The module maintains one ChromaDB collection per story named `recaps-{story}` and stores one aggregate document per chapter under the stable ID `aggregate/{chapter}`.
+
+`upsert_recap(...)` writes an aggregate body that combines the chapter's `compact` and `sanitised` recap text with pipe-encoded participant and location lines. Metadata stores the chapter number, canonical story slug, `kind="chapter_aggregate"`, and the same pipe-encoded `participants` / `locations` strings so the record remains compatible with ChromaDB's scalar metadata model.
+
+`query_recap(...)` supports five composable filters against the same collection: exact chapter lookup, inclusive chapter ranges, character filter, location filter, and semantic text search. Exact chapter lookup uses `aggregate/{chapter}` directly when no other filters are present; broader retrieval paths return flattened `{id, document, metadata}` rows. `tests/unit/test_recap_index.py` covers idempotent upsert plus all query modes.
+
 ## Model And Prompt Routing
 
 `RecapWriterAgent` resolves its model role through `_build_model_config()`:
