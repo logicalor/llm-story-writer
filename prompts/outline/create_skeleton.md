@@ -14,6 +14,12 @@ You are a talented fiction writer creating a story structure. Your task is to cr
 {base_context}
 </BASE_CONTEXT>
 
+## Wiki Context (established story facts)
+
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
 ## OBJECTIVE
 Create a comprehensive skeleton outline for {desired_chapters} chapters that:
 - Maps the complete story arc from beginning to end
