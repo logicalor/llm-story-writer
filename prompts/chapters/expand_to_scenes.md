@@ -13,11 +13,16 @@ Before finalising, check the array: if you removed any scene, would the chapter 
 A useful test: read each scene's `setting` + `ending` in order. The endings should form a chain — the ending of scene N is the starting state of scene N+1. If two scenes share the same opening situation (e.g. "character wakes up", "character is briefed"), that is a duplication, not a decomposition.
 
 Maintain continuity with the surrounding material:
-- Previous chapter recap: {previous_chapter_recap}
-- Next chapter synopsis: {next_chapter_synopsis}
+<PREVIOUS_CHAPTER>
+{previous_chapter_recap}
+</PREVIOUS_CHAPTER>
 
-If {previous_chapter_recap} is empty, ignore that section entirely.
-If {next_chapter_synopsis} is empty, ignore that section entirely.
+<NEXT_CHAPTER>
+{next_chapter_synopsis}
+</NEXT_CHAPTER>
+
+If PREVIOUS_CHAPTER is empty, ignore that section entirely.
+If NEXT_CHAPTER is empty, ignore that section entirely.
 
 Use the following story grounding for voice, setting, tone, and continuity:
 

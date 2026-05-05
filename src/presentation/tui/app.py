@@ -400,6 +400,10 @@ class StoryWriterApp(App[None]):
         # Cancel workers and let Textual restore the terminal (cooked mode,
         # alt-screen leave). main.py force-exits the process after app.run()
         # returns, killing the pipeline worker thread.
+        self._flush_token_buffer()
+        self.query_one("#output-log", RichLog).write(
+            "\nCancellation requested. Pipeline will finish its current phase before stopping.\n"
+        )
         for worker in self.workers:
             worker.cancel()
         self.exit()

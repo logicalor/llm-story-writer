@@ -64,7 +64,7 @@ Execute these steps sequentially.
       - `chapterNum`: `N`
       - `scenesMin`: `scenes_per_chapter_min`
       - `scenesMax`: `scenes_per_chapter_max`
-      - `previousRecap`: chapter recap from `story-state chapters.{N-1}.recap` if `N > 1`, else omit
+      - Do **not** pass `previousRecap` — the tool auto-loads `recap_compact.md` (falling back to `recap_sanitised.md` then `recap_events.md`) from the story directory. Passing a raw `$ref` pointer from `story-state` will produce a literal unresolved string in the prompt.
       - `model`: `model`, if provided
 
       > **Do not pass `chapterSynopsis` or `nextChapterSynopsis`.** The tool auto-loads both from the `expanded_chapter_{N}_{N}` and `expanded_chapter_{N+1}_{N+1}` savepoints. This keeps multi-KB outline text off the orchestrator's tool-call context.

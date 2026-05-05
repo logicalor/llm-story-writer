@@ -291,7 +291,7 @@ Approval required. Type: approve / reject / revise <feedback>
 
 - **`approve`** — Accept the outline and continue to character generation
 - **`reject`** — Halt the pipeline cleanly. You can resume later or restart with a different prompt
-- **`revise <feedback>`** — Reject the outline, send your feedback back to the outline planner, and trigger a revision pass. Example:
+- **`revise <feedback>`** — Reject the outline, send your typed feedback back to the outline planner, and trigger a revision pass. When `enable_outline_critique` is `true`, the orchestrator automatically appends the latest critique findings alongside your feedback: arc synthesis, arc distribution, and promise/payoff analysis. Example:
   ```
   revise The pacing is too fast in the middle act. Add a chapter where Yuki discovers the corporate spy before the climax.
   ```
@@ -299,7 +299,7 @@ Approval required. Type: approve / reject / revise <feedback>
 **How the gate works:**
 - The outline quality threshold (`outline_quality`, default 87) is evaluated before the gate opens
 - If `enable_outline_critique` is `true`, the orchestrator runs `OutlineCriticAgent` before the gate opens and persists its findings into `pipeline_state.json`
-- Your `revise` feedback is injected directly into the next outline generation prompt
+- Your `revise` feedback is injected directly into the next outline generation prompt; when outline critique is enabled, that same revision prompt also includes a `Critique Analysis` block built from arc synthesis, arc distribution, and promise/payoff output
 - Rejecting does not delete savepoints; you can resume or inspect the generated outline at any time
 
 ### Step 6: Monitor Chapter Generation
@@ -1827,7 +1827,7 @@ curl http://127.0.0.1:1234/v1/models
 **Fix:**
 1. In the TUI, type `revise <specific feedback>` at the outline approval gate
 2. Example: `revise Chapter 5 needs a slower build-up. Add a scene where Elena discovers the letter before the confrontation.`
-3. The outline planner will regenerate the outline with your feedback injected
+3. The outline planner will regenerate the outline with your feedback injected; when `enable_outline_critique` is `true`, the same revision call also receives the latest arc synthesis, arc distribution, and promise/payoff analysis
 4. If the revised outline is still wrong, repeat the approval-gate revision flow with tighter feedback or disable outline critique to inspect the raw outline first
 5. If it never improves, reject the outline, edit your prompt file to add more constraints, clear savepoints, and restart
 

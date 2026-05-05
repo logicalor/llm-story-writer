@@ -5,10 +5,14 @@ from __future__ import annotations
 import json
 from typing import Any, AsyncIterator, cast
 
+from pathlib import Path
+
 from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import OutlineResult
 from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
+from tools._io import STORIES_DIR
+from tools._persist import read_markdown_ref
 from presentation.pipeline_primitives import (
     TokenStreamBus,
     WikiContextBus,
@@ -59,6 +63,7 @@ def _extract_consistency_result(text: str) -> dict[str, Any]:
                     "description": item.get("description", ""),
                     "severity": item.get("severity", "info"),
                     "location": item.get("location", ""),
+                    "scene_number": item.get("scene_number"),
                 }
             )
         passed = not data.get("has_critical_findings", False)
@@ -117,9 +122,21 @@ def _extract_consistency_result(text: str) -> dict[str, Any]:
     return {"issues": issues, "passed": passed}
 
 
+def _resolve_refs(obj: Any, story_root: Path) -> Any:
+    """Recursively resolve {"$ref": "path"} dicts to their file contents."""
+    if isinstance(obj, dict):
+        if "$ref" in obj:
+            return read_markdown_ref(story_root, obj)
+        return {k: _resolve_refs(v, story_root) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_resolve_refs(item, story_root) for item in obj]
+    return obj
+
+
 def _extract_outline_text(
     outline_result: OutlineResult | None,
     chapter_number: int,
+    story_root: Path | None = None,
 ) -> str:
     if outline_result is None:
         return ""
@@ -132,6 +149,8 @@ def _extract_outline_text(
         chapter_details = None
 
     if chapter_details:
+        if story_root is not None:
+            chapter_details = _resolve_refs(chapter_details, story_root)
         return json.dumps(chapter_details, ensure_ascii=False, indent=2)
 
     try:
@@ -140,6 +159,8 @@ def _extract_outline_text(
         chapter_outline = None
 
     if chapter_outline:
+        if story_root is not None:
+            chapter_outline = _resolve_refs(chapter_outline, story_root)
         return json.dumps(chapter_outline, ensure_ascii=False, indent=2)
 
     return ""
@@ -158,6 +179,49 @@ class ConsistencyCheckerAgent:
         self.bus = bus
         self.wiki_bus = wiki_bus
         self._loader = PromptLoader(prompts_dir="prompts")
+
+    @staticmethod
+    def _load_scene_definitions(story_name: str, chapter_number: int) -> str:
+        """Load the scene definitions JSON for a chapter, or return empty string."""
+        scenes_json_path: Path = (
+            STORIES_DIR
+            / story_name
+            / "chapters"
+            / f"chapter_{chapter_number}_scenes.json"
+        )
+        if not scenes_json_path.exists():
+            return ""
+        try:
+            return scenes_json_path.read_text(encoding="utf-8")
+        except OSError:
+            return ""
+
+    @staticmethod
+    def _build_delineated_content(
+        story_name: str, chapter_number: int, fallback: str
+    ) -> str:
+        """Assemble scene files with --- Scene N --- delimiters for the checker.
+
+        Falls back to the pre-assembled chapter text if scene files are absent.
+        """
+        scenes_dir: Path = (
+            STORIES_DIR / story_name / "chapters" / f"chapter_{chapter_number}"
+        )
+        scene_files = (
+            sorted(scenes_dir.glob("scene_*.md")) if scenes_dir.exists() else []
+        )
+        if not scene_files:
+            return fallback
+        parts: list[str] = []
+        for scene_file in scene_files:
+            # Extract scene number from filename (scene_1.md → 1)
+            try:
+                scene_num = int(scene_file.stem.split("_", 1)[1])
+            except (IndexError, ValueError):
+                scene_num = len(parts) + 1
+            prose = scene_file.read_text(encoding="utf-8").strip()
+            parts.append(f"--- Scene {scene_num} ---\n\n{prose}")
+        return "\n\n".join(parts)
 
     async def run(
         self,
@@ -179,14 +243,20 @@ class ConsistencyCheckerAgent:
         )
 
         loader = self._loader
-        outline = _extract_outline_text(outline_result, chapter_number)
+        story_root = STORIES_DIR / story_name
+        outline = _extract_outline_text(outline_result, chapter_number, story_root)
+        delineated = self._build_delineated_content(
+            story_name, chapter_number, chapter_content
+        )
+        scene_definitions = self._load_scene_definitions(story_name, chapter_number)
         system_prompt = loader.load_prompt(
             "chapter_review/consistency_check_direct",
             variables={
-                "chapter_content": chapter_content,
+                "chapter_content": delineated,
                 "story_name": story_name,
                 "chapter_number": str(chapter_number),
                 "outline": outline,
+                "scene_definitions": scene_definitions,
             },
         )
 

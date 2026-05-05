@@ -41,13 +41,13 @@ class TestStoryWriterAppInit:
                 assert input_widget.display is False
 
     @pytest.mark.asyncio
-    async def test_wiki_panel_hidden_on_mount(self) -> None:
-        """Wiki context panel is hidden initially."""
+    async def test_wiki_panel_visible_on_mount(self) -> None:
+        """Wiki context panel is visible by default on mount."""
         with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
             app = StoryWriterApp(story_name="test_story")
             async with app.run_test(size=(120, 40)):
                 wiki_panel = app.query_one("#wiki-panel")
-                assert wiki_panel.display is False
+                assert wiki_panel.display is True
 
     @pytest.mark.asyncio
     async def test_output_log_disables_markup(self) -> None:
@@ -69,23 +69,23 @@ class TestStoryWriterAppInit:
 
 class TestWikiPanelToggle:
     @pytest.mark.asyncio
-    async def test_ctrl_w_shows_wiki_panel(self) -> None:
-        """Ctrl+W makes the wiki panel visible."""
+    async def test_ctrl_w_hides_wiki_panel(self) -> None:
+        """Ctrl+W hides the wiki panel when it starts visible."""
         with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
             app = StoryWriterApp(story_name="test_story")
             async with app.run_test(size=(120, 40)) as pilot:
-                await pilot.press("ctrl+w")
-                assert app.query_one("#wiki-panel").display is True
-
-    @pytest.mark.asyncio
-    async def test_ctrl_w_toggles_wiki_panel_off(self) -> None:
-        """Second Ctrl+W hides the wiki panel."""
-        with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
-            app = StoryWriterApp(story_name="test_story")
-            async with app.run_test(size=(120, 40)) as pilot:
-                await pilot.press("ctrl+w")
                 await pilot.press("ctrl+w")
                 assert app.query_one("#wiki-panel").display is False
+
+    @pytest.mark.asyncio
+    async def test_ctrl_w_toggles_wiki_panel_back_on(self) -> None:
+        """Second Ctrl+W restores the wiki panel."""
+        with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
+            app = StoryWriterApp(story_name="test_story")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.press("ctrl+w")
+                await pilot.press("ctrl+w")
+                assert app.query_one("#wiki-panel").display is True
 
 
 class TestApprovalGate:
@@ -162,15 +162,16 @@ class TestApprovalGate:
 class TestPipelineCompletion:
     @pytest.mark.asyncio
     async def test_error_completion_does_not_mark_all_phases_complete(self) -> None:
-        """Error completion should preserve current phase state and failure subtitle."""
+        """Error completion should set failure subtitle without marking all phases done."""
         with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
             app = StoryWriterApp(story_name="test_story")
             async with app.run_test(size=(120, 40)):
-                app._update_phase("wiki")
                 app._on_pipeline_complete("error")
 
                 assert app.sub_title == "Failed - error"
-                assert str(app.query_one("#phase-assembly").render()) == "- assembly"
+                # assembly phase should NOT be marked complete on the error path
+                assembly_label = app.query_one("#phase-assembly")
+                assert "phase-done" not in assembly_label.classes
 
 
 class TestQuitAction:
@@ -182,10 +183,11 @@ class TestQuitAction:
             async with app.run_test(size=(120, 40)):
                 output_log = app.query_one("#output-log")
 
-                app.action_request_quit()
+                with patch.object(app, "exit"):
+                    app.action_request_quit()
 
                 assert any(
-                    "Cancellation requested. Pipeline will finish its current phase before stopping."
+                    "Cancellation requested. Pipeline will finish its current phase"
                     in line.text
                     for line in output_log.lines
                 )

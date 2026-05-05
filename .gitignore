@@ -187,3 +187,5 @@ node_modules/
 .wiki-extract-cache*.json
 
 stories/
+
+config.yml

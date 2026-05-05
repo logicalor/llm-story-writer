@@ -197,6 +197,8 @@ class OutlinePlannerAgent:
         settings: GenerationSettings,
         base_context: str,
         story_elements: str,
+        feedback: str = "",
+        critic_context: str = "",
     ) -> OutlineResult:
         story_dir = _validate_story_name(story_name, STORIES_DIR)
         outline_dir = story_dir / "outline"
@@ -218,6 +220,15 @@ class OutlinePlannerAgent:
             windows.append((start, end))
             start = end + 1
 
+        revision_context = ""
+        if feedback or critic_context:
+            parts: list[str] = []
+            if feedback:
+                parts.append(f"## Revision Feedback\n{feedback}")
+            if critic_context:
+                parts.append(f"## Critique Analysis\n{critic_context}")
+            revision_context = "\n\n".join(parts)
+
         for i, (chunk_start, chunk_end) in enumerate(windows):
             previous_chunks_text = "\n\n".join(accumulated_chunks)
             chunk_prompt = loader.load_prompt(
@@ -232,6 +243,8 @@ class OutlinePlannerAgent:
                     "continuity_summary": continuity_summary,
                 },
             )
+            if revision_context:
+                chunk_prompt = f"{chunk_prompt}\n\n{revision_context}"
             chunk_text = await self._stream_prompt(
                 chunk_prompt,
                 f"Please generate the outline for chapters {chunk_start} to {chunk_end}.",
@@ -282,6 +295,8 @@ class OutlinePlannerAgent:
                 "current_scope": current_scope,
             },
         )
+        if revision_context:
+            enrichment_prompt = f"{enrichment_prompt}\n\n{revision_context}"
         enrichment_text = await self._stream_prompt(
             enrichment_prompt,
             "Please analyze enrichment opportunities.",
@@ -309,15 +324,23 @@ class OutlinePlannerAgent:
         feedback: str | None = None,
         base_context: str = "",
         story_elements: str = "",
+        critic_context: str = "",
     ) -> OutlineResult:
         """Generate outline for the story.
 
         If feedback is provided (REVISE scenario), append it to the prompt
-        before calling the generator.
+        before calling the generator. critic_context (formatted critique output
+        from OutlineCriticAgent) is injected alongside the feedback so the LLM
+        understands *why* the revision is requested.
         """
         prompt = story_prompt
-        if feedback:
-            prompt = f"{story_prompt}\n\n## Revision Feedback\n{feedback}"
+        if feedback or critic_context:
+            parts: list[str] = [story_prompt]
+            if feedback:
+                parts.append(f"## Revision Feedback\n{feedback}")
+            if critic_context:
+                parts.append(f"## Critique Analysis\n{critic_context}")
+            prompt = "\n\n".join(parts)
 
         await self.wiki_bus.emit(
             WikiContextEvent(
@@ -369,6 +392,8 @@ class OutlinePlannerAgent:
                 settings,
                 base_context,
                 story_elements,
+                feedback=feedback or "",
+                critic_context=critic_context,
             )
 
         story_dir = _validate_story_name(story_name, STORIES_DIR)

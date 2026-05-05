@@ -74,8 +74,21 @@ The current implementation is intentionally smaller than the original planning t
 
 - `outline_critique_iterations` is validated and persisted as configuration, but `OutlineCriticAgent` currently performs one critic pass per generated outline.
 - `outline_min_revisions` and `outline_max_revisions` remain part of the broader outline revision configuration, but this phase does not trigger automatic outline rewrites on critic severity.
+- When the outline approval gate requests `revise <feedback>`, the orchestrator now forwards `PipelineState.critic_summary`, `PipelineState.arc_distribution`, and `PipelineState.promise_payoff` back into the outline planner as critique context alongside the user's feedback.
 - If a single critic prompt fails, the agent emits a skip message and continues with the remaining critics.
 - If the provider is a `unittest.mock` object, the agent skips the phase entirely so unit tests can exercise orchestrator flow without live model output.
+
+## Gate Revision Context
+
+Issue #348 and PR #349 extend the approval-gate revision path so critique findings are not dropped on regenerate.
+
+When the operator enters `revise <feedback>` at the outline gate, `src/presentation/orchestrator.py` rebuilds a `critic_context` string from three `PipelineState` fields before calling `OutlinePlannerAgent.run()`:
+
+- `state.critic_summary` under `### Arc & Synthesis Summary`
+- `state.arc_distribution` under `### Arc Distribution`
+- `state.promise_payoff` under `### Promise / Payoff Analysis`
+
+`src/presentation/agents/outline_planner.py` then appends that formatted block under `## Critique Analysis` beside the user's `## Revision Feedback`. The same combined revision context is also forwarded into chunked outline passes, so both `outline/create_chunk` and `outline/analyze_enrichment` receive the gate feedback plus the latest critique analysis.
 
 ## Story Planner Integration
 
