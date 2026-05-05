@@ -1,8 +1,8 @@
 You are generating a planned wiki page for character `{character_name}` in story `{story_name}`.
 
-<OUTLINE_EXCERPT>
-{outline_excerpt}
-</OUTLINE_EXCERPT>
+<PRE_STORY_CONTEXT>
+{pre_story_context}
+</PRE_STORY_CONTEXT>
 
 ## Task
 
@@ -20,16 +20,18 @@ Required keys:
   "L3_background": "Paragraph.",
   "L3_personality": "Paragraph.",
   "L3_motivations": "Paragraph.",
-  "L3_relationships": "Paragraph.",
+  "L3_relationships": "Paragraph (relationships as they stand at story start).",
   "L3_skills": "Paragraph.",
-  "L3_growth_arc": "Paragraph.",
-  "L3_current_state": "Paragraph."
+  "L3_growth_arc": "Paragraph (potential arc trajectory inferred from initial conditions — not events that will unfold).",
+  "L3_current_state": "Paragraph (character's condition at story opening)."
 }
 ```
 
 ## Rules
 
-- Base every field on the outline excerpt only.
+- Describe this character only as they exist at the **opening** of the story, before any story events occur. Do not describe events that happen during the story.
+- All fields must reflect the character's pre-story state.
+- Base every field on the pre-story context only.
 - Do not invent facts not supported by the outline.
 - `slug` must be snake_case derived from the character name.
 - `page_name` should be the display name used in the outline.
