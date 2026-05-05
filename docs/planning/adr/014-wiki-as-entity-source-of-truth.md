@@ -1,7 +1,7 @@
 # ADR 014: Wiki as Entity Source of Truth + Independent Recap Index
 
 **Date:** 2026-05-05
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 

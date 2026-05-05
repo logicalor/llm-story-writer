@@ -227,21 +227,22 @@ The retrieval pipeline is well-engineered, but the corpus it queries is impoveri
 
 ---
 
-## Recommended Actions (in priority order)
+## Resolution — Tasks 0–11 Complete
 
-1. **Fix [F-C-02]**. In `_coerce_event_list`, strip `\`\`\`json` / `\`\`\`` fences before `json.loads`, and tolerate trailing prose. Add an integration test that runs the full recap → sync → wiki path with realistic LLM-style fenced output. Backfill `breaking-amy` events to validate.
-2. **Fix [F-C-01]**. Decide one of:
-   - **(A — preferred per ADR 004)** Push sheet chunk markdown and recap markdown directly into the `wiki-{story}` collection as `type: character_chunk | setting_chunk | recap_compact | recap_sanitised | recap_events` documents, so semantic search retrieves them. Drop the `stories-{story}` collection entirely. Update T2/T3 wiki snapshot logic to filter on wiki page types only.
-   - **(B — minimum viable)** Wire the existing `outline_chapter/character_manager.index_character()` (or an equivalent thin helper) into `_generate_character_sheets`/`_generate_setting_sheets`/recap-write step, populating the `stories-{story}` collection. Then have `wiki_snapshot` query both `wiki-{story}` and `stories-{story}` (less clean — perpetuates the split).
-3. **Fix [F-W-02]**. At minimum, have `ConsistencyCheckerAgent` and `RecapWriterAgent` request a wiki snapshot (cheap one — POV character + primary location only) before composing their prompts.
-4. **Address [F-C-03]**. After wiki bootstrap, write a migration step that diffs sheet count against wiki page count per type, and fails the phase if any sheet was dropped. Or — if A above is adopted — bypass the lossy entity-extraction step entirely by upserting sheet chunks directly.
-5. **Resolve [F-W-04]**. Either delete `src/application/strategies/outline_chapter/` (the dead strategy) or rewire the strategy factory.
-6. **Backfill tool [F-I-03]**. Provide `python -m tools.backfill_wiki --story breaking-amy` that re-runs sheet→wiki extraction and recap→event sync for all existing chapters.
+All critical and warning findings from this audit were resolved through the Wiki Source-of-Truth Consolidation project ([PRD](../../../docs/planning/wiki-source-of-truth-consolidation/prd.md), [tasks](../../../docs/planning/wiki-source-of-truth-consolidation/tasks.md)):
 
----
+| Finding | Resolution | Issue |
+| ------- | ---------- | ----- |
+| [F-C-01] Sheets/recaps not in ChromaDB | Sheets retired; wiki-generation produces direct wiki pages; recaps indexed via `recaps-{story}` collection | #351 (Task 3), #352 (Task 1) |
+| [F-C-02] Recap→wiki event sync silently dead | `_coerce_event_list` fixed to strip fences and surface parse errors | #350 (Task 0) |
+| [F-C-03] Sheet/wiki page count divergence | Sheet phases removed entirely; wiki-generation is the sole entity creation path | #351 (Task 3) |
+| [F-W-01] Recap compact/sanitised not searchable | Indexed via `recap_index.upsert_recap` into `recaps-{story}` ChromaDB collection | #353 (Task 2) |
+| [F-W-02] Wiki consulted only by chapter writer | `assemble_context` wired into consistency checker, recap writer, outline planner, chapter writer, story metadata, final editor | #357, #358, #359, #360 (Tasks 7–10) |
+| [F-W-03] Sheet fallback re-introduces stale data | `_build_entity_context` deleted; wiki absence raises `StoryGenerationError` | #351 (Task 3) |
+| [F-W-04] Dead `outline_chapter/` strategy package | Package deleted; `stories-{story}` collection retired | #361 (Task 11) |
+| [F-W-05] Two parallel ChromaDB schemas | `stories-{story}` collection removed; only `wiki-{story}` and `recaps-{story}` remain | #361 (Task 11) |
+| [F-I-01] WikiMaintainerAgent ignores existing page bodies | Per-type extraction + page-body-aware merge prompt implemented | #354, #355, #356 (Tasks 4–6) |
+| [F-I-02] Recap writer returns fenced LLM text unparsed | Fixed in Task 0 (`_coerce_event_list`); recap index upserts parsed payloads | #350, #353 (Tasks 0, 2) |
+| [F-I-03] No backfill tool | Explicitly out of scope per ADR 014 §5; existing stories to be regenerated | — |
 
-## Actions Taken
-
-- Notes written: `.github/notes/audits/2026-05-05-wiki-consolidation-status.md`
-- ChromaDB: findings ready for embed into `audits` collection (pending user approval)
-- Issues created: **none** — pending user instruction on hand-off to Orchestrator
+Documentation refreshed in issue #362 (Task 12).
