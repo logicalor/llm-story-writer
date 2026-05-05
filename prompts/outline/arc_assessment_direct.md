@@ -20,6 +20,14 @@ You are a senior story editor assessing the dramatic arc of a completed story ou
 {promise_payoff}
 </PROMISE_PAYOFF>
 
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 ## ASSESSMENT CRITERIA
 Evaluate the outline across these dimensions:
 

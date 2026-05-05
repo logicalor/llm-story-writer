@@ -10,6 +10,14 @@ You are a literary fiction outline specialist. Your task is to take a single cha
 {base_context}
 </BASE_CONTEXT>
 
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 <APPROVED_OUTLINE>
 {previous_chunks}
 </APPROVED_OUTLINE>

@@ -6,6 +6,14 @@ Please critique the following chapter, providing both detailed feedback and a nu
 {outline}
 </OUTLINE>
 
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 As a character consistency specialist, evaluate the chapter based on these criteria:
     - Pacing (15 points): Do character reactions, decisions, and emotional shifts unfold at a believable pace within the chapter?
     - Details (15 points): Do dialogue, interiority, and behavioural details reinforce distinct character voice and established traits?

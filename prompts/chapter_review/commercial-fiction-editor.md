@@ -6,6 +6,14 @@ Please critique the following chapter, providing both detailed feedback and a nu
 {outline}
 </OUTLINE>
 
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 As a commercial fiction editor, evaluate the chapter based on these criteria:
     - Pacing (15 points): Does the prose-level pacing keep readers turning pages scene by scene? Are hooks, momentum, and reveals timed effectively within the chapter?
     - Details (15 points): Are descriptive details vivid, clear, and commercially appealing without bogging down the prose?

@@ -6,6 +6,14 @@ Please critique the following chapter, providing both detailed feedback and a nu
 {outline}
 </OUTLINE>
 
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 As a chapter pacing specialist, evaluate the chapter based on these criteria:
     - Pacing (15 points): Does each scene arrive at the right speed? Are buildup, conflict, and release distributed effectively across the chapter?
     - Details (15 points): Do descriptive and reflective passages support pacing rather than stall it? Are slower beats purposeful?
