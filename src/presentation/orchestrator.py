@@ -68,12 +68,17 @@ async def _write_savepoint(state: PipelineState) -> None:
 def _coerce_event_list(value: Any) -> list[dict[str, Any]]:
     """Parse recap event output into a list of event objects."""
     if isinstance(value, str):
-        if not value.strip():
+        stripped = value.strip()
+        if not stripped:
             return []
+
+        fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", stripped)
+        candidate = fence_match.group(1).strip() if fence_match else stripped
+
         try:
-            return _coerce_event_list(json.loads(value))
+            return _coerce_event_list(json.loads(candidate))
         except json.JSONDecodeError:
-            return []
+            raise ValueError(f"unparseable event list: {value[:120]!r}") from None
 
     if isinstance(value, list):
         return [item for item in value if isinstance(item, dict)]
@@ -380,6 +385,11 @@ async def _await_outline_approval(
     settings: GenerationSettings,
     base_context: str = "",
     story_elements: str = "",
+    provider: ModelProvider | None = None,
+    config: dict[str, Any] | None = None,
+    bus: TokenStreamBus | None = None,
+    wiki_bus: WikiContextBus | None = None,
+    sbus: StatusBus | None = None,
 ) -> PipelineState:
     while True:
         decision = await gate.await_decision()
@@ -410,7 +420,40 @@ async def _await_outline_approval(
             story_elements=story_elements,
             critic_context=critic_context,
         )
-        await _write_savepoint(state)
+
+        # Clear stale critique artefacts so the revised outline gets a fresh pass.
+        state.critic_summary = ""
+        state.arc_distribution = ""
+        state.promise_payoff = ""
+        if "outline-critique" in state.completed_phases:
+            state.completed_phases.remove("outline-critique")
+        outline_items = state.completed_work_items.get("outline", [])
+        if "outline/critique" in outline_items:
+            outline_items.remove("outline/critique")
+
+        if (
+            settings.enable_outline_critique
+            and provider is not None
+            and config is not None
+            and bus is not None
+            and wiki_bus is not None
+        ):
+            _sbus = sbus if sbus is not None else NullStatusBus()
+            await _emit_status(
+                _sbus,
+                "outline-critique",
+                "Re-running outline critics after revision",
+                kind="phase_start",
+            )
+            if bus is not None:
+                await bus.emit(
+                    "\n=== outline-critique: Re-running outline critics after revision ===\n"
+                )
+            critic_agent = OutlineCriticAgent(provider, config, bus, wiki_bus)
+            state = await critic_agent.run(state, settings)
+            await _mark_work_item_done(state, "outline", "outline/critique")
+        else:
+            await _write_savepoint(state)
 
 
 def _scene_tag(issue: dict[str, Any]) -> str:
@@ -1513,6 +1556,11 @@ async def _continue_pipeline(
                 settings,
                 base_context=_foundation_base_context,
                 story_elements=_foundation_story_elements,
+                provider=resolved_provider,
+                config=resolved_config,
+                bus=bus,
+                wiki_bus=wiki_bus,
+                sbus=sbus,
             )
             if state.status == "rejected":
                 return state
@@ -1903,17 +1951,21 @@ async def _continue_pipeline(
                             ),
                         )
                         if recap_result.get("events"):
-                            wiki_event_result = await asyncio.to_thread(
-                                _sync_recap_events_to_wiki,
-                                state.story_name,
-                                chapter_number,
-                                recap_result.get("events"),
-                            )
-                            await bus.emit(
-                                "[Recap] Wiki events synced — "
-                                f"created {wiki_event_result['created']}, "
-                                f"updated {wiki_event_result['updated']}\n"
-                            )
+                            try:
+                                wiki_event_result = await asyncio.to_thread(
+                                    _sync_recap_events_to_wiki,
+                                    state.story_name,
+                                    chapter_number,
+                                    recap_result.get("events"),
+                                )
+                            except ValueError as exc:
+                                await bus.emit(f"[Recap] event parse failed: {exc}\n")
+                            else:
+                                await bus.emit(
+                                    "[Recap] Wiki events synced — "
+                                    f"created {wiki_event_result['created']}, "
+                                    f"updated {wiki_event_result['updated']}\n"
+                                )
                         await _mark_work_item_done(state, phase, recap_item_id)
                     except Exception as exc:
                         await bus.emit(

@@ -162,6 +162,15 @@ for item in issues:
 
 (Source: issue #184, PR #197 — consistency-checker parser; see `gotchas.md` #032, #033, #034.)
 
+**LLM parse failure in orchestrator helpers — raise + bus emit:** When an orchestrator helper function parses LLM output (e.g. `_coerce_event_list`), raise `ValueError` on parse failure rather than returning a silent empty default (`[]`, `{}`, or `None`). The call site wraps in `try/except ValueError` and emits the error to the status bus. Pattern:
+```python
+try:
+    result = await asyncio.to_thread(_helper, story_name, chapter, raw_output)
+except ValueError as exc:
+    await bus.emit(f"[Stage] parse failed: {exc}\n")
+```
+This ensures failures surface through the bus observability layer rather than producing silent zero-output results that are invisible in logs and tests. Contrast with CLI tools, which call `_error()` / `sys.exit()` on parse failure — orchestrator helpers raise; the orchestrator emits. (Source: issue #350, PR #365 — `_coerce_event_list` previously returned `[]` silently on `JSONDecodeError`; fix raises `ValueError` and the call site emits `"[Recap] event parse failed: …"` to the bus.)
+
 **Exception wrapping during refactor:** When extracting a helper that previously surfaced a raised exception's text to the caller (CLI script, JSON output, external consumer), do NOT use `raise NewError(...) from None`. `from None` discards `__cause__` and the chained traceback, and any caller that prints `str(exc)` will see only the wrapper's payload — the original failure reason (`"wiki not initialised"`, `"duplicate slug"`, `"invalid page type"`) is silently lost. Use `raise NewError(...) from exc` to preserve the chain. When the new error encodes structured state for a non-Python consumer (JSON payload, external consumer output), include the original message explicitly: `raise RuntimeError(json.dumps({"rollback": rollback, "cause": str(exc)})) from exc` — and have the consumer surface the `cause` field rather than treating the entire JSON blob as the user-visible message. Unit tests that exercise only the happy path or assert the wrapper type will not catch this regression. (Source: issue #144, PR #145 — `run_batch()` extracted from `cmd_batch()` used `from None`, producing JSON-in-JSON error output with the original cause erased.)
 
 **CLI entry point isolation:** `cmd_*()` functions in `src/tools/` are CLI entry points — they call `_error()` which calls `sys.exit()` on any failure. This is safe when invoked from `if __name__ == "__main__"` or as a subprocess, but it terminates the host process if called from orchestration or library code (`src/presentation/`, `src/application/`, tests). When integrating tool logic into non-CLI code, call the underlying `_helper()` functions directly — never call `cmd_*()` entry points. If no helper exists, extract the shared logic into one that the `cmd_*()` entry point delegates to. (Source: issue #181, PR #192 — Coder correctly avoided calling `cmd_assemble()` from the orchestrator; implemented inline assembly using the orchestrator's in-memory `approved_chapters` instead.)
