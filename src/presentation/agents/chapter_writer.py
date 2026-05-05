@@ -200,11 +200,16 @@ class ChapterWriterAgent:
         if chapter_number > 1:
             recap_entry = recaps.get(str(chapter_number - 1), {})
             if isinstance(recap_entry, dict):
-                previous_chapter_recap = (
+                _raw_recap = (
                     recap_entry.get("compact")
                     or recap_entry.get("sanitised")
                     or recap_entry.get("events")
                     or ""
+                )
+                previous_chapter_recap = (
+                    read_markdown_ref(story_root, _raw_recap)
+                    if isinstance(_raw_recap, dict)
+                    else str(_raw_recap)
                 )
 
         next_chapter_summary = ""
@@ -256,8 +261,34 @@ class ChapterWriterAgent:
                 "falling back to single-shot drafting.\n"
             )
 
-        # Direct (single-shot) path: used for revisions, when the scene
-        # pipeline is disabled, or as a fallback when scene drafting
+        # Scene-by-scene revision: when feedback is set and saved scenes exist,
+        # revise each scene individually rather than regenerating the whole chapter.
+        if feedback is not None and settings.scene_generation_pipeline:
+            revised_text = await self._revise_scene_pipeline(
+                story_name=story_name,
+                chapter_number=chapter_number,
+                chapter_title=title,
+                chapter_summary=chapter_summary,
+                base_context=base_context,
+                feedback=feedback,
+                settings=settings,
+                next_chapter_synopsis=next_chapter_summary,
+            )
+            if revised_text:
+                return ChapterDraft(
+                    story_name=story_name,
+                    chapter_number=chapter_number,
+                    title=title,
+                    content=revised_text,
+                    word_count=len(revised_text.split()),
+                )
+            await self.bus.emit(
+                f"\n[Chapter {chapter_number}] scene revision pipeline unavailable "
+                "(no saved scenes) — falling back to single-shot rewrite.\n"
+            )
+
+        # Direct (single-shot) path: used for revisions when no scenes JSON exists,
+        # when the scene pipeline is disabled, or as a fallback when scene drafting
         # produced no usable prose.
         full_text = await self._draft_direct(
             story_name=story_name,
@@ -636,6 +667,125 @@ class ChapterWriterAgent:
 
         chapter_body = f"# {chapter_title}\n\n" + "\n\n".join(scene_prose)
         return chapter_body
+
+    async def _revise_scene_pipeline(
+        self,
+        story_name: str,
+        chapter_number: int,
+        chapter_title: str,
+        chapter_summary: str,
+        base_context: str,
+        feedback: str,
+        settings: GenerationSettings,
+        next_chapter_synopsis: str = "",
+    ) -> str:
+        """Revise a chapter scene-by-scene using saved scene definitions and prose.
+
+        Loads chapter_N_scenes.json and per-scene scene_M.md files, runs the
+        scenes/revise_content prompt for each scene individually, overwrites the
+        per-scene files with revised prose, and reassembles the chapter.
+
+        Returns the reassembled chapter text, or an empty string if no saved
+        scenes exist (caller should fall back to _draft_direct).
+        """
+        loader = self._loader
+        scene_model = _build_model_config(
+            self.config, "scene_writer", "openai-compat://default"
+        )
+        phase = f"chapter-{chapter_number}"
+
+        # Load saved scene definitions.
+        scenes_json_path = (
+            STORIES_DIR
+            / story_name
+            / "chapters"
+            / f"chapter_{chapter_number}_scenes.json"
+        )
+        if not scenes_json_path.exists():
+            return ""
+        try:
+            scenes = json.loads(scenes_json_path.read_text(encoding="utf-8"))
+            if not isinstance(scenes, list) or not scenes:
+                return ""
+        except (json.JSONDecodeError, OSError):
+            return ""
+
+        # Strip the appended "## Current Chapter Draft" block from feedback — the
+        # full draft is redundant here since each scene gets its own existing prose.
+        draft_marker = "\n\n## Current Chapter Draft\n"
+        scene_feedback = feedback
+        if draft_marker in scene_feedback:
+            scene_feedback = scene_feedback[: scene_feedback.index(draft_marker)]
+
+        scenes_dir = STORIES_DIR / story_name / "chapters" / f"chapter_{chapter_number}"
+        total_scenes = len(scenes)
+        scene_prose: list[str] = []
+
+        for index, scene in enumerate(scenes, start=1):
+            scene_title = scene.get("title", "") or f"scene {index}"
+            await self.status_bus.emit(
+                StatusEvent(
+                    phase=phase,
+                    message=(
+                        f"Ch {chapter_number}: revising scene {index}/{total_scenes}"
+                        f" — {scene_title}"
+                    ),
+                    kind="step",
+                )
+            )
+            await self.bus.emit(
+                f"\n\n--- Revising Chapter {chapter_number} Scene "
+                f"{index}/{total_scenes}: {scene_title} ---\n"
+            )
+
+            scene_file = scenes_dir / f"scene_{index}.md"
+            existing_prose = (
+                scene_file.read_text(encoding="utf-8") if scene_file.exists() else ""
+            )
+
+            previous_scene = scene_prose[-1] if scene_prose else ""
+            revision_prompt = loader.load_prompt(
+                "scenes/revise_content",
+                variables={
+                    "scene_content": existing_prose,
+                    "feedback": scene_feedback,
+                    "scene_definition": json.dumps(scene, ensure_ascii=False),
+                    "chapter_outline": chapter_summary,
+                    "previous_scene": previous_scene,
+                    "next_chapter_synopsis": next_chapter_synopsis
+                    if index == total_scenes
+                    else "",
+                    "scene_num": str(index),
+                    "chapter_num": str(chapter_number),
+                },
+            )
+            try:
+                revised_text = await self._stream_to_bus(
+                    [
+                        {"role": "system", "content": revision_prompt},
+                        {"role": "user", "content": "Revise the scene now."},
+                    ],
+                    scene_model,
+                    settings.seed,
+                )
+            except Exception as exc:
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] scene {index} revision failed "
+                    f"({type(exc).__name__}: {exc}); retaining original.\n"
+                )
+                revised_text = existing_prose
+
+            revised_text = revised_text.strip() or existing_prose
+            scene_prose.append(revised_text)
+
+            # Overwrite per-scene file with revised prose.
+            scene_file.parent.mkdir(parents=True, exist_ok=True)
+            _atomic_write(scene_file, revised_text)
+
+        if not scene_prose:
+            return ""
+
+        return f"# {chapter_title}\n\n" + "\n\n".join(scene_prose)
 
     async def _draft_direct(
         self,

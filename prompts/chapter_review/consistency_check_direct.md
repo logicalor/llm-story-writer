@@ -7,6 +7,9 @@ You are a meticulous narrative consistency editor. Your task is to analyze a sin
 - **Chapter Number:** {chapter_number}
 
 ## Chapter Content
+
+Each scene is delineated with `--- Scene N ---` markers when available. Use these markers to identify which scene contains each issue.
+
 <CHAPTER_CONTENT>
 {chapter_content}
 </CHAPTER_CONTENT>
@@ -16,8 +19,21 @@ You are a meticulous narrative consistency editor. Your task is to analyze a sin
 {outline}
 </OUTLINE>
 
+## Scene Definitions
+
+When present, each entry defines the intended narrative scope of that scene: its `key_events`, `ending`, and `lead_in_to_next_scene`.
+
+<SCENE_DEFINITIONS>
+{scene_definitions}
+</SCENE_DEFINITIONS>
+
 ## CONSISTENCY STANDARDS
 Evaluate the chapter against these criteria:
+
+### Narrative Scope Overrun
+- Compare each scene's prose against its definition's `ending` and `lead_in_to_next_scene` fields.
+- If a scene's prose narrates events that belong to the *next* scene (i.e. it writes past `ending` and into what `lead_in_to_next_scene` describes), flag this as a **critical** scope overrun.
+- This is the primary cause of duplicate or contradictory scene transitions — a scene that ends too late forces the following scene to repeat the same events.
 
 ### Character Voice Drift
 - Does each character's dialogue, interiority, and reaction pace match their established voice?
@@ -53,11 +69,14 @@ Return **only** a JSON object with this exact shape — no preamble, no markdown
       "type": "voice_drift|timeline|world_rule|character_behavior|continuity",
       "description": "clear explanation of the inconsistency",
       "severity": "critical|warning|info",
-      "location": "paragraph reference or approximate location"
+      "location": "paragraph reference or approximate location",
+      "scene_number": 2
     }
   ],
   "has_critical_findings": true|false
 }
+
+`scene_number` must be the integer scene number from the `--- Scene N ---` delimiter where the issue occurs. If the content has no scene delimiters, omit `scene_number` (set it to null).
 
 Severity definitions:
 - **critical:** The issue would confuse readers, break immersion, or contradict established facts in a way that undermines the story.

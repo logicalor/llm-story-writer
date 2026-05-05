@@ -168,6 +168,7 @@ def test_extract_consistency_result_direct_format_with_critical() -> None:
         "description": "gap",
         "severity": "critical",
         "location": "p3",
+        "scene_number": None,
     }
 
 
@@ -186,6 +187,7 @@ def test_extract_consistency_result_direct_format_with_warnings() -> None:
         "description": "late",
         "severity": "warning",
         "location": "",
+        "scene_number": None,
     }
 
 

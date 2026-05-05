@@ -270,6 +270,8 @@ def cmd_revise(
     scene_content: str | None = None,
     scene_definition: str | None = None,
     chapter_outline: str | None = None,
+    previous_scene: str | None = None,
+    next_chapter_synopsis: str | None = None,
     model: str | None = None,
     include_content: bool = False,
 ) -> None:
@@ -297,6 +299,10 @@ def cmd_revise(
             "feedback": feedback,
             "scene_definition": scene_definition or "",
             "chapter_outline": chapter_outline or "",
+            "previous_scene": previous_scene or "",
+            "next_chapter_synopsis": next_chapter_synopsis or "",
+            "scene_num": str(scene_num),
+            "chapter_num": str(chapter_num),
         },
     )
 
@@ -664,6 +670,8 @@ def main() -> None:
             scene_content=args.scene_content,
             scene_definition=args.scene_definition,
             chapter_outline=args.chapter_outline,
+            previous_scene=getattr(args, "previous_scene", None),
+            next_chapter_synopsis=getattr(args, "next_chapter_synopsis", None),
             model=args.model,
             include_content=args.include_content,
         )

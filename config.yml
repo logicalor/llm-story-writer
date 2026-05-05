@@ -27,7 +27,7 @@ models:
 # Generation Settings
 generation:
   seed: 12
-  wanted_chapters: 25
+  wanted_chapters: 30
   enable_final_edit: false
   enable_scrubbing: true
   expand_outline: true
@@ -40,7 +40,7 @@ generation:
   use_improved_recap_sanitizer: true
   use_multi_stage_recap_sanitizer: true
   use_chunked_outline_generation: true
-  outline_chunk_size: 10
+  outline_chunk_size: 5
   log_prompt_inputs: true
 
 # Translation Settings

@@ -389,6 +389,18 @@ async def _await_outline_approval(
             state.status = "rejected"
             await _write_savepoint(state)
             return state
+        # Build critic context from any critique output produced before the gate.
+        critic_parts: list[str] = []
+        if state.critic_summary:
+            critic_parts.append(f"### Arc & Synthesis Summary\n{state.critic_summary}")
+        if state.arc_distribution:
+            critic_parts.append(f"### Arc Distribution\n{state.arc_distribution}")
+        if state.promise_payoff:
+            critic_parts.append(
+                f"### Promise / Payoff Analysis\n{state.promise_payoff}"
+            )
+        critic_context = "\n\n".join(critic_parts)
+
         state.outline_result = await agent.run(
             story_name,
             story_prompt,
@@ -396,8 +408,14 @@ async def _await_outline_approval(
             feedback=decision.feedback,
             base_context=base_context,
             story_elements=story_elements,
+            critic_context=critic_context,
         )
         await _write_savepoint(state)
+
+
+def _scene_tag(issue: dict[str, Any]) -> str:
+    scene_num = issue.get("scene_number")
+    return f" [Scene {scene_num}]" if scene_num is not None else ""
 
 
 async def _emit_consistency_results(
@@ -409,13 +427,35 @@ async def _emit_consistency_results(
     if not consistency_result["passed"]:
         await bus.emit(f"\n[Consistency] Chapter {chapter_number} — issues found:\n")
         for issue in consistency_result["issues"]:
-            await bus.emit(f"  [{issue['severity'].upper()}] {issue['description']}\n")
+            tag = _scene_tag(issue)
+            await bus.emit(
+                f"  [{issue['severity'].upper()}]{tag} {issue['description']}\n"
+            )
     elif consistency_result["issues"]:
         await bus.emit(
             f"\n[Consistency] Chapter {chapter_number} — warnings/info found:\n"
         )
         for issue in consistency_result["issues"]:
-            await bus.emit(f"  [{issue['severity'].upper()}] {issue['description']}\n")
+            tag = _scene_tag(issue)
+            await bus.emit(
+                f"  [{issue['severity'].upper()}]{tag} {issue['description']}\n"
+            )
+
+
+def _format_consistency_results(
+    chapter_number: int, consistency_result: dict[str, Any]
+) -> str:
+    """Format consistency check findings as text for injection into revision feedback."""
+    issues = consistency_result.get("issues", [])
+    if not issues:
+        return ""
+    lines = [f"## Consistency Check Findings — Chapter {chapter_number}"]
+    for issue in issues:
+        severity = issue.get("severity", "info").upper()
+        description = issue.get("description", "")
+        tag = _scene_tag(issue)
+        lines.append(f"- [{severity}]{tag} {description}")
+    return "\n".join(lines)
 
 
 async def _generate_chapter_with_gate(
@@ -437,6 +477,7 @@ async def _generate_chapter_with_gate(
         recaps=state.recaps,
         state=state,
     )
+    last_consistency_text: str = ""
     if consistency_agent is not None and bus is not None:
         try:
             consistency_result = await consistency_agent.run(
@@ -446,6 +487,9 @@ async def _generate_chapter_with_gate(
                 outline_result=outline_result,
             )
             await _emit_consistency_results(bus, chapter_number, consistency_result)
+            last_consistency_text = _format_consistency_results(
+                chapter_number, consistency_result
+            )
             await _mark_work_item_done(
                 state,
                 f"chapter-{chapter_number}",
@@ -464,12 +508,20 @@ async def _generate_chapter_with_gate(
             state.status = "rejected"
             await _write_savepoint(state)
             return None
+        combined_feedback = decision.feedback
+        if last_consistency_text:
+            combined_feedback = f"{combined_feedback}\n\n{last_consistency_text}"
+        if draft.content:
+            combined_feedback = (
+                f"{combined_feedback}\n\n## Current Chapter Draft\n{draft.content}"
+            )
+        last_consistency_text = ""
         draft = await agent.run(
             story_name,
             chapter_number,
             outline_result,
             settings,
-            feedback=decision.feedback,
+            feedback=combined_feedback,
             recaps=state.recaps,
             state=state,
         )
@@ -482,6 +534,9 @@ async def _generate_chapter_with_gate(
                     outline_result=outline_result,
                 )
                 await _emit_consistency_results(bus, chapter_number, consistency_result)
+                last_consistency_text = _format_consistency_results(
+                    chapter_number, consistency_result
+                )
                 await _mark_work_item_done(
                     state,
                     f"chapter-{chapter_number}",

@@ -74,11 +74,23 @@ Reference these broader story elements for consistency.
 - Working notes or thought process
 - **Content from the guidance sections above** (story context, chapter outline, story elements, etc.)
 
+### Prose Style Pitfalls
+Avoid formulaic AI-sounding constructions:
+- **Negative parallelisms**: Do not frame descriptions as "It's not X, it's Y" or "Not just X, but Y" or "No X, no Y — just Z". These read as LLM-generated. State what something *is* directly, without first denying what it isn't.
+- **Contrast-correction framing**: Avoid writing as though clearing up a misconception the reader doesn't have. Don't construct false oppositions to make a point feel more emphatic.
+- **Banned words**: Never use the word "hitch" in relation to breath or breathing (e.g. "her breath hitched"). Find a specific, concrete alternative instead.
+
 ### Creative Boundaries
 - **WITHIN the outline**: Add depth, details, dialogue, and emotional richness
 - **BEYOND the outline**: Never add new events, actions, or plot developments
 - **Think of it as**: Expanding a skeleton into a full body, but not adding new limbs
 - **Guidance sections**: Use them like a style guide, not a content source
+
+### Scene Ending — Hard Stop
+The scene definition's `ending` field defines the **last moment** of this scene. Your prose must stop there.
+- Do not write past the `ending` into events that belong to the next scene.
+- The `lead_in_to_next_scene` field is a handoff note for the *next* scene's writer — do not narrate it. At most, let the final sentence of your prose gesture toward it atmospherically.
+- If you find yourself writing what the `lead_in_to_next_scene` describes, you have gone too far. Stop and cut back.
 
 ## Final Instructions
 1. Write 750-1500 words of pure scene content

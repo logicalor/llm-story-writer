@@ -611,6 +611,23 @@ def cmd_expand_to_scenes(
                 f"{chapter_num} first."
             )
 
+    if not previous_recap or not previous_recap.strip():
+        if chapter_num > 1:
+            _story_dir = STORIES_DIR / name
+            for _recap_file in (
+                "recap_compact.md",
+                "recap_sanitised.md",
+                "recap_events.md",
+            ):
+                _recap_path = (
+                    _story_dir / "chapters" / f"chapter_{chapter_num - 1}" / _recap_file
+                )
+                if _recap_path.exists():
+                    _loaded_recap = _recap_path.read_text(encoding="utf-8").strip()
+                    if _loaded_recap:
+                        previous_recap = _loaded_recap
+                        break
+
     if not next_chapter_synopsis or not next_chapter_synopsis.strip():
         next_step = f"expanded_chapter_{chapter_num + 1}_{chapter_num + 1}"
         if _has_savepoint(repo, next_step):
