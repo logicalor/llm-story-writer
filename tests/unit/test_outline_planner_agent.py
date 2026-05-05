@@ -404,7 +404,9 @@ async def test_chunked_revision_context_injected_into_chunk_prompt(
 
     assert chunk_prompts
     assert any("## Revision Feedback\nfix pacing" in prompt for prompt in chunk_prompts)
-    assert any("## Critique Analysis\narc is weak" in prompt for prompt in chunk_prompts)
+    assert any(
+        "## Critique Analysis\narc is weak" in prompt for prompt in chunk_prompts
+    )
 
 
 @pytest.mark.asyncio
