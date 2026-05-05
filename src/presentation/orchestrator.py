@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
-from typing import Any, cast
+from typing import Any
 
 from application.interfaces.model_provider import ModelProvider
 from application.pipeline.handoffs import (
@@ -25,8 +25,6 @@ from application.pipeline.handoffs import (
 from config.config_loader import ConfigLoader
 from domain.exceptions import StoryGenerationError
 from domain.value_objects.generation_settings import GenerationSettings
-from domain.value_objects.model_config import ModelConfig
-from infrastructure.prompts.prompt_loader import PromptLoader
 from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.agents.consistency_checker import ConsistencyCheckerAgent
 from presentation.agents.final_editor import FinalEditorAgent
@@ -46,7 +44,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
-from tools import recap_index
+from tools import recap_index, wiki_generation
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools._persist import persist_markdown, read_markdown_ref
 from tools._wiki import find_pages, get_wiki_dir, read_index, slugify as wiki_slugify
@@ -260,12 +258,10 @@ def _sync_recap_events_to_wiki(
 
 
 def _work_item_done(state: PipelineState, phase: str, item_id: str) -> bool:
-    """Return True if the given work item has already been completed."""
     return item_id in state.completed_work_items.get(phase, [])
 
 
 async def _mark_work_item_done(state: PipelineState, phase: str, item_id: str) -> None:
-    """Mark a work item as completed and atomically persist the savepoint."""
     state.completed_work_items.setdefault(phase, [])
     if item_id not in state.completed_work_items[phase]:
         state.completed_work_items[phase].append(item_id)
@@ -400,7 +396,7 @@ async def _await_outline_approval(
             state.status = "rejected"
             await _write_savepoint(state)
             return state
-        # Build critic context from any critique output produced before the gate.
+
         critic_parts: list[str] = []
         if state.critic_summary:
             critic_parts.append(f"### Arc & Synthesis Summary\n{state.critic_summary}")
@@ -422,7 +418,6 @@ async def _await_outline_approval(
             critic_context=critic_context,
         )
 
-        # Clear stale critique artefacts so the revised outline gets a fresh pass.
         state.critic_summary = ""
         state.arc_distribution = ""
         state.promise_payoff = ""
@@ -446,10 +441,9 @@ async def _await_outline_approval(
                 "Re-running outline critics after revision",
                 kind="phase_start",
             )
-            if bus is not None:
-                await bus.emit(
-                    "\n=== outline-critique: Re-running outline critics after revision ===\n"
-                )
+            await bus.emit(
+                "\n=== outline-critique: Re-running outline critics after revision ===\n"
+            )
             critic_agent = OutlineCriticAgent(provider, config, bus, wiki_bus)
             state = await critic_agent.run(state, settings)
             await _mark_work_item_done(state, "outline", "outline/critique")
@@ -521,7 +515,7 @@ async def _generate_chapter_with_gate(
         recaps=state.recaps,
         state=state,
     )
-    last_consistency_text: str = ""
+    last_consistency_text = ""
     if consistency_agent is not None and bus is not None:
         try:
             consistency_result = await consistency_agent.run(
@@ -544,6 +538,7 @@ async def _generate_chapter_with_gate(
                 f"\n[Consistency] Chapter {chapter_number} check failed "
                 f"({type(exc).__name__}: {exc})\n"
             )
+
     while True:
         decision = await gate.await_decision()
         if decision.approved:
@@ -552,6 +547,7 @@ async def _generate_chapter_with_gate(
             state.status = "rejected"
             await _write_savepoint(state)
             return None
+
         combined_feedback = decision.feedback
         if last_consistency_text:
             combined_feedback = f"{combined_feedback}\n\n{last_consistency_text}"
@@ -594,22 +590,6 @@ async def _generate_chapter_with_gate(
         await _write_savepoint(state)
 
 
-def _slugify_name(name: str) -> str:
-    """Convert a name to a filesystem-safe slug."""
-    slug = name.lower().replace(" ", "-")
-    slug = re.sub(r"[^a-z0-9-]", "", slug)
-    slug = re.sub(r"-+", "-", slug).strip("-")
-    return slug
-
-
-def _extract_output_content(text: str) -> str:
-    """Extract content between <output>...</output> tags, or return text stripped."""
-    match = re.search(r"<output>(.*?)</output>", text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return text.strip()
-
-
 def _build_story_elements(outline_result: OutlineResult, story_root: Path) -> str:
     """Build story_elements string from OutlineResult for prompt injection."""
     _summary = outline_result.summary
@@ -631,669 +611,6 @@ def _build_story_elements(outline_result: OutlineResult, story_root: Path) -> st
             resolved_outlines.append(chapter_copy)
         parts.append(json.dumps(resolved_outlines, ensure_ascii=False))
     return "\n\n".join(parts)
-
-
-def _parse_name_list(names_raw: str) -> list[str]:
-    names_text = names_raw.strip()
-    if names_text.startswith("```"):
-        names_lines = names_text.splitlines()
-        if names_lines:
-            names_lines = names_lines[1:]
-        if names_lines and names_lines[-1].strip() == "```":
-            names_lines = names_lines[:-1]
-        names_text = "\n".join(names_lines).strip()
-
-    parsed = json.loads(names_text)
-    if not isinstance(parsed, list):
-        return []
-    return [name for name in parsed if isinstance(name, str)]
-
-
-async def _generate_character_sheets(
-    story_name: str,
-    state: PipelineState,
-    outline_result: OutlineResult,
-    provider: ModelProvider,
-    config: dict[str, Any],
-    stories_dir: Path,
-    bus: TokenStreamBus | None = None,
-    status_bus: StatusBus | None = None,
-) -> list[Path]:
-    """Generate character sheets from outline and write to disk."""
-    sbus = status_bus if status_bus is not None else NullStatusBus()
-    story_root = stories_dir / story_name
-    project_root = Path(__file__).resolve().parents[2]
-    loader = PromptLoader(prompts_dir=str(project_root / "prompts"))
-    models = config.get("models", {})
-    model_name = models.get("chapter_writer", "openai-compat://default")
-    model_config = ModelConfig.from_string(model_name)
-    _se = outline_result.story_elements
-    actual_story_elements = (
-        read_markdown_ref(story_root, _se) if isinstance(_se, dict) else (_se or "")
-    )
-    _bc = outline_result.base_context
-    actual_base_context = (
-        read_markdown_ref(story_root, _bc) if isinstance(_bc, dict) else (_bc or "")
-    )
-
-    extract_prompt = loader.load_prompt(
-        "characters/extract_names", {"story_elements": actual_story_elements}
-    )
-    messages = [{"role": "user", "content": extract_prompt}]
-    names_cache_path = stories_dir / story_name / "characters" / "_names.json"
-    if _work_item_done(state, "characters", "_extract_names"):
-        names = json.loads(names_cache_path.read_text(encoding="utf-8"))
-    else:
-        try:
-            names_raw = await provider.generate_text(messages, model_config)
-            names = _parse_name_list(names_raw)
-            if not names:
-                return []
-        except Exception as exc:
-            if bus is not None:
-                await bus.emit(
-                    f"\n[Characters] name extraction failed ({type(exc).__name__}: {exc}) — no character sheets generated\n"
-                )
-            return []
-        names_cache_path.parent.mkdir(parents=True, exist_ok=True)
-        _atomic_write(names_cache_path, json.dumps(names, ensure_ascii=False))
-        await _mark_work_item_done(state, "characters", "_extract_names")
-
-    if not names:
-        if bus is not None:
-            await bus.emit(
-                "\n[Characters] extract_names returned an empty list — no character sheets generated\n"
-            )
-        return []
-
-    characters_dir = stories_dir / story_name / "characters"
-    characters_dir.mkdir(parents=True, exist_ok=True)
-    written: list[Path] = []
-    chunk_prompts = {
-        "backstory": "characters/create_background_chunk",
-        "personality": "characters/create_personality_chunk",
-        "motivation": "characters/create_motivations_chunk",
-        "relationships": "characters/create_relationships_chunk",
-        "skills": "characters/create_skills_chunk",
-        "arc": "characters/create_growth_arc_chunk",
-        "current_state": "characters/create_current_state_chunk",
-    }
-
-    for idx, character_name in enumerate(names, start=1):
-        if not character_name.strip():
-            continue
-        slug = _slugify_name(character_name)
-        if not slug:
-            continue
-        char_path = characters_dir / f"{slug}.json"
-        char_item_sheet = f"characters/{slug}/sheet"
-        await _emit_status(
-            sbus,
-            "characters",
-            f"[{idx}/{len(names)}] {character_name}: generating sheet",
-            kind="step",
-        )
-        if _work_item_done(state, "characters", char_item_sheet):
-            loaded_sheet = json.loads(char_path.read_text(encoding="utf-8"))
-            if not isinstance(loaded_sheet, dict):
-                raise ValueError(
-                    f"Character sheet cache for {character_name!r} is not a JSON object"
-                )
-            sheet_data = dict(loaded_sheet)
-            sheet_data.setdefault("name", character_name)
-            sheet_data.setdefault("summary", "")
-            sheet_data.setdefault("abridged", "")
-            if not isinstance(sheet_data.get("chunks"), dict):
-                sheet_data["chunks"] = {}
-            sheet_text = (
-                read_markdown_ref(story_root, _r)
-                if isinstance(_r := sheet_data.get("sheet"), dict)
-                else (_r or "")
-            )
-        else:
-            try:
-                create_prompt = loader.load_prompt(
-                    "characters/create",
-                    {
-                        "story_elements": actual_story_elements,
-                        "character_name": character_name,
-                        "additional_context": actual_base_context,
-                    },
-                )
-                sheet_messages = [{"role": "user", "content": create_prompt}]
-                sheet_text = await provider.generate_text(sheet_messages, model_config)
-            except Exception as exc:
-                if bus is not None:
-                    await bus.emit(
-                        f"\n[Characters] sheet generation failed for {character_name!r} "
-                        f"({type(exc).__name__}: {exc}) — skipping\n"
-                    )
-                continue
-
-            sheet_data = {
-                "name": character_name,
-                "sheet": persist_markdown(
-                    story_root, f"characters/{slug}/sheet.md", sheet_text
-                ),
-                "chunks": {},
-                "summary": "",
-                "abridged": "",
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-            _atomic_write(
-                char_path,
-                json.dumps(sheet_data, indent=2, ensure_ascii=False),
-            )
-            await _mark_work_item_done(state, "characters", char_item_sheet)
-
-        chunk_results = dict(cast(dict[str, str], sheet_data.get("chunks", {})))
-        abridged_text = (
-            read_markdown_ref(story_root, _r)
-            if isinstance(_r := sheet_data.get("abridged"), dict)
-            else (_r or "")
-        )
-        summary_text = (
-            read_markdown_ref(story_root, _r)
-            if isinstance(_r := sheet_data.get("summary"), dict)
-            else (_r or "")
-        )
-
-        try:
-            chunk_items = list(chunk_prompts.items())
-            for chunk_idx, (chunk_key, prompt_name) in enumerate(chunk_items, start=1):
-                await _emit_status(
-                    sbus,
-                    "characters",
-                    f"[{idx}/{len(names)}] {character_name}: chunk "
-                    f"{chunk_idx}/{len(chunk_items)} ({chunk_key})",
-                    kind="step",
-                )
-                chunk_item_id = f"characters/{slug}/chunk:{chunk_key}"
-                if _work_item_done(state, "characters", chunk_item_id):
-                    existing_chunks = sheet_data.get("chunks", {})
-                    if isinstance(existing_chunks, dict):
-                        chunk_results[chunk_key] = (
-                            read_markdown_ref(story_root, _r)
-                            if isinstance(_r := existing_chunks.get(chunk_key), dict)
-                            else (_r or "")
-                        )
-                    else:
-                        chunk_results[chunk_key] = ""
-                    continue
-
-                try:
-                    chunk_prompt = loader.load_prompt(
-                        prompt_name,
-                        {
-                            "character_name": character_name,
-                            "character_sheet": sheet_text,
-                            "story_elements": actual_story_elements,
-                        },
-                    )
-                    raw_chunk = await provider.generate_text(
-                        [{"role": "user", "content": chunk_prompt}],
-                        model_config,
-                    )
-                    chunk_results[chunk_key] = _extract_output_content(raw_chunk)
-                except Exception:
-                    chunk_results[chunk_key] = ""
-                    continue
-
-                sheet_data["chunks"] = {
-                    k: persist_markdown(
-                        story_root, f"characters/{slug}/chunks/{k}.md", v
-                    )
-                    for k, v in chunk_results.items()
-                }
-                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-                _atomic_write(
-                    char_path,
-                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
-                )
-                await _mark_work_item_done(state, "characters", chunk_item_id)
-
-            await _emit_status(
-                sbus,
-                "characters",
-                f"[{idx}/{len(names)}] {character_name}: abridged",
-                kind="step",
-            )
-            abridged_item_id = f"characters/{slug}/abridged"
-            if _work_item_done(state, "characters", abridged_item_id):
-                abridged_text = (
-                    read_markdown_ref(story_root, _r)
-                    if isinstance(_r := sheet_data.get("abridged"), dict)
-                    else (_r or "")
-                )
-            else:
-                try:
-                    abridged_prompt = loader.load_prompt(
-                        "characters/create_abridged",
-                        {
-                            "story_elements": actual_story_elements,
-                            "character_name": character_name,
-                        },
-                    )
-                    abridged_raw = await provider.generate_text(
-                        [{"role": "user", "content": abridged_prompt}],
-                        model_config,
-                    )
-                    abridged_text = _extract_output_content(abridged_raw)
-                except Exception:
-                    abridged_text = ""
-
-                sheet_data["abridged"] = persist_markdown(
-                    story_root, f"characters/{slug}/abridged.md", abridged_text
-                )
-                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-                _atomic_write(
-                    char_path,
-                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
-                )
-                await _mark_work_item_done(state, "characters", abridged_item_id)
-
-            character_info = (
-                "\n\n".join(
-                    f"=== {key.replace('_', ' ').title()} ===\n{value}"
-                    for key, value in chunk_results.items()
-                    if value
-                )
-                or sheet_text
-            )
-            await _emit_status(
-                sbus,
-                "characters",
-                f"[{idx}/{len(names)}] {character_name}: summary",
-                kind="step",
-            )
-            summary_item_id = f"characters/{slug}/summary"
-            if _work_item_done(state, "characters", summary_item_id):
-                summary_text = (
-                    read_markdown_ref(story_root, _r)
-                    if isinstance(_r := sheet_data.get("summary"), dict)
-                    else (_r or "")
-                )
-            else:
-                try:
-                    summary_prompt = loader.load_prompt(
-                        "characters/create_summary",
-                        {
-                            "character_name": character_name,
-                            "character_info": character_info,
-                        },
-                    )
-                    summary_raw = await provider.generate_text(
-                        [{"role": "user", "content": summary_prompt}],
-                        model_config,
-                    )
-                    summary_text = _extract_output_content(summary_raw)
-                except Exception:
-                    summary_text = ""
-
-                sheet_data["summary"] = persist_markdown(
-                    story_root, f"characters/{slug}/summary.md", summary_text
-                )
-                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-                _atomic_write(
-                    char_path,
-                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
-                )
-                await _mark_work_item_done(state, "characters", summary_item_id)
-        except Exception as exc:
-            if bus is not None:
-                await bus.emit(
-                    f"\n[Characters] enrichment failed for {character_name!r} "
-                    f"({type(exc).__name__}: {exc}) — base sheet retained\n"
-                )
-
-        enriched_data = dict(sheet_data)
-        enriched_data["chunks"] = {
-            k: persist_markdown(story_root, f"characters/{slug}/chunks/{k}.md", v)
-            for k, v in chunk_results.items()
-        }
-        enriched_data["abridged"] = persist_markdown(
-            story_root, f"characters/{slug}/abridged.md", abridged_text
-        )
-        enriched_data["summary"] = persist_markdown(
-            story_root, f"characters/{slug}/summary.md", summary_text
-        )
-        enriched_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-        _atomic_write(
-            char_path,
-            json.dumps(enriched_data, indent=2, ensure_ascii=False),
-        )
-
-        await _emit_status(
-            sbus,
-            "characters",
-            f"[{idx}/{len(names)}] {character_name}: saved",
-            kind="step",
-        )
-        written.append(char_path)
-
-    return [path for path in written if path != names_cache_path]
-
-
-async def _generate_setting_sheets(
-    story_name: str,
-    state: PipelineState,
-    outline_result: OutlineResult,
-    provider: ModelProvider,
-    config: dict[str, Any],
-    stories_dir: Path,
-    bus: TokenStreamBus | None = None,
-    status_bus: StatusBus | None = None,
-) -> list[Path]:
-    """Generate setting sheets from outline and write to disk."""
-    sbus = status_bus if status_bus is not None else NullStatusBus()
-    story_root = stories_dir / story_name
-    project_root = Path(__file__).resolve().parents[2]
-    loader = PromptLoader(prompts_dir=str(project_root / "prompts"))
-    models = config.get("models", {})
-    model_name = models.get("chapter_writer", "openai-compat://default")
-    model_config = ModelConfig.from_string(model_name)
-    _se = outline_result.story_elements
-    actual_story_elements = (
-        read_markdown_ref(story_root, _se) if isinstance(_se, dict) else (_se or "")
-    )
-    _bc = outline_result.base_context
-    actual_base_context = (
-        read_markdown_ref(story_root, _bc) if isinstance(_bc, dict) else (_bc or "")
-    )
-
-    extract_prompt = loader.load_prompt(
-        "settings/extract_names", {"story_elements": actual_story_elements}
-    )
-    messages = [{"role": "user", "content": extract_prompt}]
-    names_cache_path = stories_dir / story_name / "settings" / "_names.json"
-    if _work_item_done(state, "settings", "_extract_locations"):
-        names = json.loads(names_cache_path.read_text(encoding="utf-8"))
-    else:
-        try:
-            names_raw = await provider.generate_text(messages, model_config)
-            names = _parse_name_list(names_raw)
-            if not names:
-                return []
-        except Exception as exc:
-            if bus is not None:
-                await bus.emit(
-                    f"\n[Settings] name extraction failed ({type(exc).__name__}: {exc}) — no setting sheets generated\n"
-                )
-            return []
-        names_cache_path.parent.mkdir(parents=True, exist_ok=True)
-        _atomic_write(names_cache_path, json.dumps(names, ensure_ascii=False))
-        await _mark_work_item_done(state, "settings", "_extract_locations")
-
-    if not names:
-        if bus is not None:
-            await bus.emit(
-                "\n[Settings] extract_names returned an empty list — no setting sheets generated\n"
-            )
-        return []
-
-    settings_dir = stories_dir / story_name / "settings"
-    settings_dir.mkdir(parents=True, exist_ok=True)
-    written: list[Path] = []
-    chunk_prompts = {
-        "physical_description": "settings/create_physical_description_chunk",
-        "atmosphere_mood": "settings/create_atmosphere_mood_chunk",
-        "function_purpose": "settings/create_function_purpose_chunk",
-        "history_background": "settings/create_history_background_chunk",
-        "connections_relationships": "settings/create_connections_relationships_chunk",
-        "rules_constraints": "settings/create_rules_constraints_chunk",
-    }
-
-    for idx, setting_name in enumerate(names, start=1):
-        if not setting_name.strip():
-            continue
-        slug = _slugify_name(setting_name)
-        if not slug:
-            continue
-        setting_path = settings_dir / f"{slug}.json"
-        setting_item_sheet = f"settings/{slug}/sheet"
-        await _emit_status(
-            sbus,
-            "settings",
-            f"[{idx}/{len(names)}] {setting_name}: generating sheet",
-            kind="step",
-        )
-        if _work_item_done(state, "settings", setting_item_sheet):
-            loaded_sheet = json.loads(setting_path.read_text(encoding="utf-8"))
-            if not isinstance(loaded_sheet, dict):
-                raise ValueError(
-                    f"Setting sheet cache for {setting_name!r} is not a JSON object"
-                )
-            sheet_data = dict(loaded_sheet)
-            sheet_data.setdefault("name", setting_name)
-            sheet_data.setdefault("summary", "")
-            sheet_data.setdefault("abridged", "")
-            if not isinstance(sheet_data.get("chunks"), dict):
-                sheet_data["chunks"] = {}
-            sheet_text = (
-                read_markdown_ref(story_root, _r)
-                if isinstance(_r := sheet_data.get("sheet"), dict)
-                else (_r or "")
-            )
-        else:
-            try:
-                create_prompt = loader.load_prompt(
-                    "settings/create",
-                    {
-                        "story_elements": actual_story_elements,
-                        "setting_name": setting_name,
-                        "additional_context": actual_base_context,
-                    },
-                )
-                sheet_messages = [{"role": "user", "content": create_prompt}]
-                sheet_text = await provider.generate_text(sheet_messages, model_config)
-            except Exception as exc:
-                if bus is not None:
-                    await bus.emit(
-                        f"\n[Settings] sheet generation failed for {setting_name!r} "
-                        f"({type(exc).__name__}: {exc}) — skipping\n"
-                    )
-                continue
-
-            sheet_data = {
-                "name": setting_name,
-                "sheet": persist_markdown(
-                    story_root, f"settings/{slug}/sheet.md", sheet_text
-                ),
-                "chunks": {},
-                "summary": "",
-                "abridged": "",
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-            _atomic_write(
-                setting_path,
-                json.dumps(sheet_data, indent=2, ensure_ascii=False),
-            )
-            await _mark_work_item_done(state, "settings", setting_item_sheet)
-
-        chunk_results = dict(cast(dict[str, str], sheet_data.get("chunks", {})))
-        abridged_text = (
-            read_markdown_ref(story_root, _r)
-            if isinstance(_r := sheet_data.get("abridged"), dict)
-            else (_r or "")
-        )
-        summary_text = (
-            read_markdown_ref(story_root, _r)
-            if isinstance(_r := sheet_data.get("summary"), dict)
-            else (_r or "")
-        )
-
-        try:
-            chunk_items = list(chunk_prompts.items())
-            for chunk_idx, (chunk_key, prompt_name) in enumerate(chunk_items, start=1):
-                await _emit_status(
-                    sbus,
-                    "settings",
-                    f"[{idx}/{len(names)}] {setting_name}: chunk "
-                    f"{chunk_idx}/{len(chunk_items)} ({chunk_key})",
-                    kind="step",
-                )
-                chunk_item_id = f"settings/{slug}/chunk:{chunk_key}"
-                if _work_item_done(state, "settings", chunk_item_id):
-                    existing_chunks = sheet_data.get("chunks", {})
-                    if isinstance(existing_chunks, dict):
-                        chunk_results[chunk_key] = (
-                            read_markdown_ref(story_root, _r)
-                            if isinstance(_r := existing_chunks.get(chunk_key), dict)
-                            else (_r or "")
-                        )
-                    else:
-                        chunk_results[chunk_key] = ""
-                    continue
-
-                try:
-                    chunk_prompt = loader.load_prompt(
-                        prompt_name,
-                        {
-                            "setting_name": setting_name,
-                            "setting_sheet": sheet_text,
-                            "story_elements": actual_story_elements,
-                        },
-                    )
-                    raw_chunk = await provider.generate_text(
-                        [{"role": "user", "content": chunk_prompt}],
-                        model_config,
-                    )
-                    chunk_results[chunk_key] = _extract_output_content(raw_chunk)
-                except Exception:
-                    chunk_results[chunk_key] = ""
-                    continue
-
-                sheet_data["chunks"] = {
-                    k: persist_markdown(story_root, f"settings/{slug}/chunks/{k}.md", v)
-                    for k, v in chunk_results.items()
-                }
-                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-                _atomic_write(
-                    setting_path,
-                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
-                )
-                await _mark_work_item_done(state, "settings", chunk_item_id)
-
-            await _emit_status(
-                sbus,
-                "settings",
-                f"[{idx}/{len(names)}] {setting_name}: abridged",
-                kind="step",
-            )
-            abridged_item_id = f"settings/{slug}/abridged"
-            if _work_item_done(state, "settings", abridged_item_id):
-                abridged_text = (
-                    read_markdown_ref(story_root, _r)
-                    if isinstance(_r := sheet_data.get("abridged"), dict)
-                    else (_r or "")
-                )
-            else:
-                try:
-                    abridged_prompt = loader.load_prompt(
-                        "settings/create_abridged",
-                        {
-                            "story_elements": actual_story_elements,
-                            "setting_name": setting_name,
-                        },
-                    )
-                    abridged_raw = await provider.generate_text(
-                        [{"role": "user", "content": abridged_prompt}],
-                        model_config,
-                    )
-                    abridged_text = _extract_output_content(abridged_raw)
-                except Exception:
-                    abridged_text = ""
-
-                sheet_data["abridged"] = persist_markdown(
-                    story_root, f"settings/{slug}/abridged.md", abridged_text
-                )
-                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-                _atomic_write(
-                    setting_path,
-                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
-                )
-                await _mark_work_item_done(state, "settings", abridged_item_id)
-
-            setting_info = (
-                "\n\n".join(
-                    f"=== {key.replace('_', ' ').title()} ===\n{value}"
-                    for key, value in chunk_results.items()
-                    if value
-                )
-                or sheet_text
-            )
-            await _emit_status(
-                sbus,
-                "settings",
-                f"[{idx}/{len(names)}] {setting_name}: summary",
-                kind="step",
-            )
-            summary_item_id = f"settings/{slug}/summary"
-            if _work_item_done(state, "settings", summary_item_id):
-                summary_text = (
-                    read_markdown_ref(story_root, _r)
-                    if isinstance(_r := sheet_data.get("summary"), dict)
-                    else (_r or "")
-                )
-            else:
-                try:
-                    summary_prompt = loader.load_prompt(
-                        "settings/create_summary",
-                        {
-                            "setting_name": setting_name,
-                            "setting_info": setting_info,
-                        },
-                    )
-                    summary_raw = await provider.generate_text(
-                        [{"role": "user", "content": summary_prompt}],
-                        model_config,
-                    )
-                    summary_text = _extract_output_content(summary_raw)
-                except Exception:
-                    summary_text = ""
-
-                sheet_data["summary"] = persist_markdown(
-                    story_root, f"settings/{slug}/summary.md", summary_text
-                )
-                sheet_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-                _atomic_write(
-                    setting_path,
-                    json.dumps(sheet_data, indent=2, ensure_ascii=False),
-                )
-                await _mark_work_item_done(state, "settings", summary_item_id)
-        except Exception as exc:
-            if bus is not None:
-                await bus.emit(
-                    f"\n[Settings] enrichment failed for {setting_name!r} "
-                    f"({type(exc).__name__}: {exc}) — base sheet retained\n"
-                )
-
-        enriched_data = dict(sheet_data)
-        enriched_data["chunks"] = {
-            k: persist_markdown(story_root, f"settings/{slug}/chunks/{k}.md", v)
-            for k, v in chunk_results.items()
-        }
-        enriched_data["abridged"] = persist_markdown(
-            story_root, f"settings/{slug}/abridged.md", abridged_text
-        )
-        enriched_data["summary"] = persist_markdown(
-            story_root, f"settings/{slug}/summary.md", summary_text
-        )
-        enriched_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-        _atomic_write(
-            setting_path,
-            json.dumps(enriched_data, indent=2, ensure_ascii=False),
-        )
-
-        await _emit_status(
-            sbus,
-            "settings",
-            f"[{idx}/{len(names)}] {setting_name}: saved",
-            kind="step",
-        )
-        written.append(setting_path)
-
-    return [path for path in written if path != names_cache_path]
 
 
 async def _run_story_foundation(
@@ -1624,67 +941,6 @@ async def _continue_pipeline(
                     )
             await _mark_phase_complete(state, "narrative-arc", "arc_analysis_complete")
 
-        if "characters" not in state.completed_phases:
-            state.current_phase = "characters"
-            await _banner("characters", "Generating character sheets")
-            await wiki_bus.emit(
-                WikiContextEvent(
-                    phase="characters",
-                    event_type="entity_match",
-                    content=f"Generating character sheets for: {state.story_name}",
-                )
-            )
-            if state.outline_result is not None:
-                char_count = len(
-                    await _generate_character_sheets(
-                        state.story_name,
-                        state,
-                        state.outline_result,
-                        resolved_provider,
-                        resolved_config,
-                        story_dir.parent,
-                        bus,
-                        sbus,
-                    )
-                )
-                if char_count == 0:
-                    await _emit_status(
-                        sbus,
-                        "characters",
-                        "Characters phase produced no files — will retry on resume",
-                        kind="warn",
-                    )
-                    # Do NOT mark phase complete so resume retries it.
-                    await _write_savepoint(state)
-                    raise StoryGenerationError(
-                        "[Characters] No character sheets were generated. "
-                        "Check extract_names prompt and LLM output."
-                    )
-            await _mark_phase_complete(state, "characters", "characters")
-
-        if "settings" not in state.completed_phases:
-            state.current_phase = "settings"
-            await _banner("settings", "Generating setting sheets")
-            await wiki_bus.emit(
-                WikiContextEvent(
-                    phase="settings",
-                    event_type="detail_level",
-                    content=f"Generating setting sheets for: {state.story_name}",
-                )
-            )
-            if state.outline_result is not None:
-                await _generate_setting_sheets(
-                    state.story_name,
-                    state,
-                    state.outline_result,
-                    resolved_provider,
-                    resolved_config,
-                    story_dir.parent,
-                    bus,
-                    sbus,
-                )
-            await _mark_phase_complete(state, "settings", "settings")
-
         # Ensure wiki is initialized before any chapter wiki maintenance
         wiki_init_result = _init_wiki_for_story(state.story_name, STORIES_DIR)
         if "error" in wiki_init_result:
@@ -1693,14 +949,53 @@ async def _continue_pipeline(
                 f"{wiki_init_result['error']}"
             )
 
+        if "wiki-generation" not in state.completed_phases:
+            state.current_phase = "wiki-generation"
+            await _banner("wiki-generation", "Generating wiki pages from outline")
+            await wiki_bus.emit(
+                WikiContextEvent(
+                    phase="wiki-generation",
+                    event_type="entity_match",
+                    content=f"Generating planned wiki pages for: {state.story_name}",
+                )
+            )
+            if state.outline_result is not None:
+                char_result = await asyncio.to_thread(
+                    wiki_generation.generate_character_pages,
+                    state.story_name,
+                    state.outline_result,
+                    resolved_provider,
+                    resolved_config,
+                    story_dir.parent,
+                )
+                loc_result = await asyncio.to_thread(
+                    wiki_generation.generate_location_pages,
+                    state.story_name,
+                    state.outline_result,
+                    resolved_provider,
+                    resolved_config,
+                    story_dir.parent,
+                )
+                total_generated = char_result["generated"] + loc_result["generated"]
+                if (
+                    total_generated == 0
+                    and char_result["skipped"] == 0
+                    and loc_result["skipped"] == 0
+                ):
+                    await _write_savepoint(state)
+                    raise StoryGenerationError("wiki-generation produced no pages")
+            await _mark_phase_complete(
+                state,
+                "wiki-generation",
+                "wiki_pages_generated",
+            )
+
         if "wiki-bootstrap" not in state.completed_phases:
             state.current_phase = "wiki-bootstrap"
-            await _banner("wiki-bootstrap", "Seeding wiki from outline and sheets")
+            await _banner("wiki-bootstrap", "Seeding wiki from outline entities")
             models = resolved_config.get("models", {})
             wiki_model: str | None = models.get("chapter_writer")
-            await bus.emit(
-                "\n[Wiki Bootstrap] Seeding wiki from outline and sheets...\n"
-            )
+            await bus.emit("\n[Wiki Bootstrap] Seeding wiki from outline entities...\n")
             bootstrap_ok = False
             try:
                 entities = await asyncio.to_thread(
@@ -2264,7 +1559,7 @@ async def run_pipeline(
     """Execute the full story generation pipeline.
 
     Phases:
-        Init → Outline → [Outline ApprovalGate] → Characters → Settings
+        Init → Outline → [Outline ApprovalGate] → Wiki Generation → Wiki Bootstrap
         → Chapter Loop (generate → [Chapter ApprovalGate] → revise if needed)
         → Final Edit → Assembly
 

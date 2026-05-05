@@ -103,12 +103,12 @@ async def _run_outline_pipeline(
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
         patch(
-            "presentation.orchestrator._generate_character_sheets",
-            new=AsyncMock(return_value=_generated_character_paths()),
+            "tools.wiki_generation.generate_character_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
         ),
         patch(
-            "presentation.orchestrator._generate_setting_sheets",
-            new=AsyncMock(return_value=[]),
+            "tools.wiki_generation.generate_location_pages",
+            new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
     ):

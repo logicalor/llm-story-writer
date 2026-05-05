@@ -118,8 +118,8 @@ def _story_metadata_result(story_name: str = "test-story") -> MagicMock:
     )
 
 
-def _generated_character_paths() -> list[Path]:
-    return [Path("characters/alice.json")]
+def _generated_wiki_result(generated: int, skipped: int = 0) -> dict[str, int]:
+    return {"generated": generated, "skipped": skipped}
 
 
 def _savepoint_names() -> list[str]:
@@ -129,8 +129,7 @@ def _savepoint_names() -> list[str]:
         "outline",
         "metadata_outline_complete",
         "arc_analysis_complete",
-        "characters",
-        "settings",
+        "wiki-generation",
         "wiki_populated",
         "chapter-1",
         "chapter-loop",
@@ -138,23 +137,20 @@ def _savepoint_names() -> list[str]:
     ]
 
 
-def _phase_prefix_after_characters() -> list[str]:
+def _phase_prefix_after_wiki_generation() -> list[str]:
     return [
         "init",
         "story-foundation",
         "outline",
         "metadata-outline",
         "narrative-arc",
-        "characters",
+        "wiki-generation",
+        "wiki-bootstrap",
     ]
 
 
-def _phase_prefix_after_settings() -> list[str]:
-    return _phase_prefix_after_characters() + ["settings", "wiki-bootstrap"]
-
-
 def _phase_prefix_after_chapter_loop() -> list[str]:
-    return _phase_prefix_after_settings() + [
+    return _phase_prefix_after_wiki_generation() + [
         "metadata-chapter-1",
         "chapter-1",
         "chapter-loop",
@@ -215,18 +211,18 @@ def _patched_pipeline(
         recap_cls = stack.enter_context(
             patch("presentation.agents.recap_writer.RecapWriterAgent")
         )
-        generate_char_sheets = AsyncMock(return_value=_generated_character_paths())
-        generate_setting_sheets = AsyncMock(return_value=[])
+        generate_char_pages = MagicMock(return_value={"generated": 2, "skipped": 0})
+        generate_location_pages = MagicMock(return_value={"generated": 3, "skipped": 0})
         stack.enter_context(
             patch(
-                "presentation.orchestrator._generate_character_sheets",
-                new=generate_char_sheets,
+                "tools.wiki_generation.generate_character_pages",
+                new=generate_char_pages,
             )
         )
         stack.enter_context(
             patch(
-                "presentation.orchestrator._generate_setting_sheets",
-                new=generate_setting_sheets,
+                "tools.wiki_generation.generate_location_pages",
+                new=generate_location_pages,
             )
         )
         stack.enter_context(
@@ -284,8 +280,8 @@ def _patched_pipeline(
             "chapter_writer": chapter_cls.return_value.run,
             "wiki": wiki_cls.return_value.run,
             "consistency": consistency_cls.return_value.run,
-            "characters": generate_char_sheets,
-            "settings": generate_setting_sheets,
+            "wiki_generation_characters": generate_char_pages,
+            "wiki_generation_locations": generate_location_pages,
             "recap": recap_cls.return_value.run,
             "metadata": metadata_cls.return_value.run,
             "final_edit": final_editor_cls.return_value.edit_single_chapter,
@@ -293,11 +289,13 @@ def _patched_pipeline(
 
 
 def _await_counts(mocks: dict[str, Any]) -> dict[str, int]:
-    return {
-        key: value.await_count
-        for key, value in mocks.items()
-        if hasattr(value, "await_count")
-    }
+    counts: dict[str, int] = {}
+    for key, value in mocks.items():
+        if isinstance(value, AsyncMock):
+            counts[key] = value.await_count
+        elif isinstance(value, MagicMock):
+            counts[key] = value.call_count
+    return counts
 
 
 def _total_llm_calls(mocks: dict[str, Any]) -> int:
@@ -381,15 +379,13 @@ async def _resume_from_partial(
     return resumed, counts, output
 
 
-def _state_after_characters(story_name: str) -> PipelineState:
+def _state_after_wiki_generation(story_name: str) -> PipelineState:
     return PipelineState(
         story_name=story_name,
-        current_phase="characters",
-        completed_phases=_phase_prefix_after_characters(),
+        current_phase="wiki-generation",
+        completed_phases=_phase_prefix_after_wiki_generation(),
         outline_result=_outline_result(story_name),
-        completed_work_items={
-            "characters": ["_extract_names", "characters/alice/sheet"]
-        },
+        completed_work_items={},
         savepoints=_savepoint_names(),
         status="running",
     )
@@ -402,7 +398,7 @@ def _state_after_chapter_draft(
     return PipelineState(
         story_name=story_name,
         current_phase="chapter-1",
-        completed_phases=_phase_prefix_after_settings(),
+        completed_phases=_phase_prefix_after_wiki_generation(),
         outline_result=_outline_result(story_name),
         approved_chapters=[_chapter_draft(story_name, draft_content)],
         completed_work_items={"chapter-1": ["chapter-1/draft"]},
@@ -452,7 +448,7 @@ async def test_baseline_run_completes_successfully(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_resume_after_characters_phase_interrupt(tmp_path: Path) -> None:
+async def test_resume_after_wiki_generation_phase_interrupt(tmp_path: Path) -> None:
     baseline_state, baseline_counts, baseline_output = await _run_baseline(
         tmp_path,
         story_name="baseline-story",
@@ -461,7 +457,7 @@ async def test_resume_after_characters_phase_interrupt(tmp_path: Path) -> None:
     resumed_state, resumed_counts, resumed_output = await _resume_from_partial(
         tmp_path,
         story_name="resume-story",
-        state=_state_after_characters("resume-story"),
+        state=_state_after_wiki_generation("resume-story"),
     )
 
     assert resumed_state.status == "complete"
@@ -470,7 +466,8 @@ async def test_resume_after_characters_phase_interrupt(tmp_path: Path) -> None:
         == baseline_state.approved_chapters[0].content
     )
     assert resumed_output == baseline_output
-    assert resumed_counts["characters"] == 0
+    assert resumed_counts["wiki_generation_characters"] == 0
+    assert resumed_counts["wiki_generation_locations"] == 0
     assert resumed_counts["chapter_writer"] == baseline_counts["chapter_writer"]
 
 
@@ -538,10 +535,10 @@ async def test_total_llm_calls_no_duplicates_across_interrupt_resume(
 ) -> None:
     _, baseline_counts, _ = await _run_baseline(tmp_path, story_name="baseline-story")
 
-    _, characters_resume_counts, _ = await _resume_from_partial(
+    _, wiki_generation_resume_counts, _ = await _resume_from_partial(
         tmp_path,
-        story_name="resume-characters-story",
-        state=_state_after_characters("resume-characters-story"),
+        story_name="resume-wiki-generation-story",
+        state=_state_after_wiki_generation("resume-wiki-generation-story"),
     )
     _, chapter_resume_counts, _ = await _resume_from_partial(
         tmp_path,
@@ -559,6 +556,6 @@ async def test_total_llm_calls_no_duplicates_across_interrupt_resume(
     baseline_chapter_calls = baseline_counts["chapter_writer"]
 
     assert baseline_chapter_calls == 1
-    assert 0 + characters_resume_counts["chapter_writer"] == baseline_chapter_calls
+    assert 0 + wiki_generation_resume_counts["chapter_writer"] == baseline_chapter_calls
     assert 1 + chapter_resume_counts["chapter_writer"] == baseline_chapter_calls
     assert 1 + final_resume_counts["chapter_writer"] == baseline_chapter_calls

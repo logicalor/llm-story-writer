@@ -128,11 +128,6 @@ async def test_chapter_writer_skips_entity_context_when_wiki_snapshot_available(
         ) as mock_get_snapshot,
         patch.object(
             agent,
-            "_build_entity_context",
-            return_value=("unused", "unused", "unused"),
-        ) as build_entity_context,
-        patch.object(
-            agent,
             "_draft_direct",
             new=AsyncMock(return_value="Generated chapter content."),
         ),
@@ -140,7 +135,6 @@ async def test_chapter_writer_skips_entity_context_when_wiki_snapshot_available(
         draft = await agent.run("test-story", 1, _outline_result(), _settings())
 
     mock_get_snapshot.assert_called_once()
-    build_entity_context.assert_not_called()
     assert draft.content == "Generated chapter content."
 
 
