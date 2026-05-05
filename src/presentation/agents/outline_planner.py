@@ -17,6 +17,7 @@ from presentation.pipeline_primitives import (
     WikiContextEvent,
 )
 from tools._io import STORIES_DIR, _validate_story_name
+from tools.context_assembly import assemble_context
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -41,6 +42,14 @@ def _build_outline_pacing_variables(desired_chapters: int) -> dict[str, str]:
         "climax_end": str(climax_end),
         "resolution_start": str(resolution_start),
     }
+
+
+def _has_approved_chapters(story_name: str) -> bool:
+    """Return True if the story has any written chapter files."""
+    chapters_dir = STORIES_DIR / story_name / "chapters"
+    if not chapters_dir.exists():
+        return False
+    return any(chapters_dir.iterdir())
 
 
 def _parse_chapter_outlines(text: str, wanted_chapters: int) -> list[dict[str, Any]]:
@@ -197,6 +206,7 @@ class OutlinePlannerAgent:
         settings: GenerationSettings,
         base_context: str,
         story_elements: str,
+        wiki_context: str = "",
         feedback: str = "",
         critic_context: str = "",
     ) -> OutlineResult:
@@ -236,6 +246,7 @@ class OutlinePlannerAgent:
                 variables={
                     "story_elements": story_elements,
                     "base_context": base_context,
+                    "wiki_context": wiki_context,
                     "chunk_start": str(chunk_start),
                     "chunk_end": str(chunk_end),
                     "total_chapters": str(desired_chapters),
@@ -352,6 +363,17 @@ class OutlinePlannerAgent:
 
         desired_chapters = settings.wanted_chapters
         pacing_variables = _build_outline_pacing_variables(desired_chapters)
+        is_continuation = feedback is not None or _has_approved_chapters(story_name)
+        if is_continuation:
+            _ctx = assemble_context(
+                story_name,
+                scope="outline",
+                focus=story_prompt,
+                recap_window=("chapter", 10),
+            )
+            wiki_context = _ctx["wiki_snapshot"]
+        else:
+            wiki_context = ""
 
         loader = self._loader
         if not settings.expand_outline:
@@ -361,6 +383,7 @@ class OutlinePlannerAgent:
                     "prompt": prompt,
                     "story_elements": story_elements,
                     "base_context": base_context,
+                    "wiki_context": wiki_context,
                     **pacing_variables,
                 },
             )
@@ -392,6 +415,7 @@ class OutlinePlannerAgent:
                 settings,
                 base_context,
                 story_elements,
+                wiki_context=wiki_context,
                 feedback=feedback or "",
                 critic_context=critic_context,
             )
@@ -406,6 +430,7 @@ class OutlinePlannerAgent:
                 "prompt": prompt,
                 "story_elements": story_elements,
                 "base_context": base_context,
+                "wiki_context": wiki_context,
                 **pacing_variables,
             },
         )

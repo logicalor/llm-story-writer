@@ -10,6 +10,12 @@ You are a talented fiction writer creating a story skeleton. Your task is to gen
 {base_context}
 </BASE_CONTEXT>
 
+## Wiki Context (established story facts)
+
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
 <CHUNK_INFO>
 Chapters to generate: {chunk_start} to {chunk_end}
 Total story chapters: {total_chapters}

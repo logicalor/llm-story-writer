@@ -19,6 +19,24 @@ Each scene is delineated with `--- Scene N ---` markers when available. Use thes
 {outline}
 </OUTLINE>
 
+## Wiki Context (verified entity facts)
+
+<WIKI_CONTEXT>
+{wiki_context}
+</WIKI_CONTEXT>
+
+## Relationships
+
+<WIKI_RELATIONSHIPS>
+{wiki_relationships}
+</WIKI_RELATIONSHIPS>
+
+## Recap Context (prior chapter aggregates)
+
+<RECAP_CONTEXT>
+{recap_context}
+</RECAP_CONTEXT>
+
 ## Scene Definitions
 
 When present, each entry defines the intended narrative scope of that scene: its `key_events`, `ending`, and `lead_in_to_next_scene`.

@@ -13,6 +13,7 @@ from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
 from tools._io import STORIES_DIR
 from tools._persist import read_markdown_ref
+from tools.context_assembly import assemble_context
 from presentation.pipeline_primitives import (
     TokenStreamBus,
     WikiContextBus,
@@ -248,6 +249,16 @@ class ConsistencyCheckerAgent:
         delineated = self._build_delineated_content(
             story_name, chapter_number, chapter_content
         )
+        ctx = assemble_context(
+            story_name,
+            scope="consistency",
+            focus=outline or chapter_content[:500],
+            chapter=chapter_number,
+            recap_window=("chapter", 3),
+        )
+        wiki_context: str = ctx["wiki_snapshot"]
+        recap_context: str = "\n\n".join(ctx["recap_snippets"])
+        wiki_relationships: str = ""
         scene_definitions = self._load_scene_definitions(story_name, chapter_number)
         system_prompt = loader.load_prompt(
             "chapter_review/consistency_check_direct",
@@ -256,6 +267,9 @@ class ConsistencyCheckerAgent:
                 "story_name": story_name,
                 "chapter_number": str(chapter_number),
                 "outline": outline,
+                "wiki_context": wiki_context,
+                "recap_context": recap_context,
+                "wiki_relationships": wiki_relationships,
                 "scene_definitions": scene_definitions,
             },
         )

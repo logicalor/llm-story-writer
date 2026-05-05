@@ -275,6 +275,82 @@ async def test_run_does_not_truncate_chapter_content() -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_calls_assemble_context_with_consistency_scope() -> None:
+    response = '{"issues": [], "has_critical_findings": false}'
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = ConsistencyCheckerAgent(
+        provider=_ProviderStub([response]),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    with (
+        patch(
+            "presentation.agents.consistency_checker.assemble_context",
+            return_value={"wiki_snapshot": "wiki info", "recap_snippets": ["recap 1"]},
+        ) as mock_assemble_context,
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            return_value="system prompt",
+        ),
+    ):
+        await agent.run("my-story", 2, "chapter content")
+
+    bus.close()
+
+    mock_assemble_context.assert_called_once_with(
+        "my-story",
+        scope="consistency",
+        focus="chapter content",
+        chapter=2,
+        recap_window=("chapter", 3),
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_passes_wiki_and_recap_to_prompt() -> None:
+    captured_variables: dict[str, str] = {}
+
+    def capture_prompt(name: str, variables: dict | None = None) -> str:
+        if variables is not None:
+            captured_variables.update(variables)
+        return "system prompt"
+
+    response = '{"issues": [], "has_critical_findings": false}'
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+    agent = ConsistencyCheckerAgent(
+        provider=_ProviderStub([response]),
+        config={},
+        bus=bus,
+        wiki_bus=wiki_bus,
+    )
+
+    with (
+        patch(
+            "presentation.agents.consistency_checker.assemble_context",
+            return_value={
+                "wiki_snapshot": "WIKI_DATA",
+                "recap_snippets": ["RECAP1", "RECAP2"],
+            },
+        ),
+        patch(
+            "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
+            side_effect=capture_prompt,
+        ),
+    ):
+        await agent.run("my-story", 2, "chapter content")
+
+    bus.close()
+
+    assert captured_variables["wiki_context"] == "WIKI_DATA"
+    assert captured_variables["recap_context"] == "RECAP1\n\nRECAP2"
+    assert captured_variables["wiki_relationships"] == ""
+
+
+@pytest.mark.asyncio
 async def test_consistency_checker_outline_plumbed() -> None:
     captured: dict[str, str] = {}
     outline_result = OutlineResult(
