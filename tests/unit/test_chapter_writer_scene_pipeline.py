@@ -579,7 +579,12 @@ async def test_scene_pipeline_falls_back_per_scene_when_scene_context_unavailabl
             side_effect=_side_effect,
         ),
     ):
-        draft = await agent.run("test-story", 1, _outline_result(), _settings())
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(scenes_per_chapter_min=1),
+        )
 
     assert draft.content
     assert "Scene prose content." in draft.content

@@ -1,6 +1,12 @@
 Decompose the chapter synopsis below into between {scenes_min} and {scenes_max} distinct, non-overlapping scenes.
 
-Choose the scene count based on the actual narrative density of the chapter synopsis. Do not pick an arbitrary number. Use fewer scenes for lean transitional material and more scenes only when the synopsis clearly contains enough meaningful beats to justify them.
+## Hard Count Constraint
+
+The output array MUST contain at least {scenes_min} scenes and at most {scenes_max} scenes. This is not a suggestion. An array with fewer than {scenes_min} scenes will be rejected and regenerated. Do not default to a familiar number like 3 or 5; count to {scenes_min} and verify before returning.
+
+If the synopsis appears thin, expand it: split composite beats into their setup / turn / aftermath, separate dialogue beats from action beats, and treat travel, preparation, and reaction moments as their own scenes. Do not invent new plot events to pad the count — instead, decompose the existing material more finely.
+
+Within the [{scenes_min}, {scenes_max}] band, choose a count that matches the actual narrative density of the synopsis. Lean toward the lower end only when the synopsis is genuinely sparse, but never go below {scenes_min}.
 
 ## Critical Rule: Scenes Must Advance the Story
 

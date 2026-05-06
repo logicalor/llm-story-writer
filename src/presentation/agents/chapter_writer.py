@@ -433,41 +433,74 @@ class ChapterWriterAgent:
                 f"({settings.scenes_per_chapter_min}-"
                 f"{settings.scenes_per_chapter_max})...\n"
             )
+            scenes_min = settings.scenes_per_chapter_min
+            scenes_max = settings.scenes_per_chapter_max
             scenes_prompt = loader.load_prompt(
                 "chapters/expand_to_scenes",
                 variables={
                     "chapter_synopsis": synopsis_text,
-                    "scenes_min": str(settings.scenes_per_chapter_min),
-                    "scenes_max": str(settings.scenes_per_chapter_max),
+                    "scenes_min": str(scenes_min),
+                    "scenes_max": str(scenes_max),
                     "previous_chapter_recap": previous_chapter_recap,
                     "next_chapter_synopsis": next_chapter_summary,
                     "story_elements": story_elements,
                     "base_context": base_context,
                 },
             )
-            try:
-                scenes_raw = await self._stream_to_bus(
-                    [
-                        {"role": "system", "content": scenes_prompt},
-                        {"role": "user", "content": "Return the JSON array of scenes."},
-                    ],
-                    synopsis_model,
-                    settings.seed,
-                )
-            except Exception as exc:
-                await self.bus.emit(
-                    f"\n[Chapter {chapter_number}] scene decomposition failed "
-                    f"({type(exc).__name__}: {exc}); falling back to direct drafting.\n"
-                )
-                return ""
 
-            scenes = _extract_json_array(scenes_raw)
+            scenes = []
+            last_count: int | None = None
+            for attempt in range(2):
+                user_msg = "Return the JSON array of scenes."
+                if attempt > 0 and last_count is not None:
+                    user_msg = (
+                        f"Your previous response contained {last_count} scenes, which "
+                        f"is outside the required range [{scenes_min}, {scenes_max}]. "
+                        f"Decompose the synopsis again into at least {scenes_min} and "
+                        f"at most {scenes_max} scenes. Return ONLY the JSON array."
+                    )
+                try:
+                    scenes_raw = await self._stream_to_bus(
+                        [
+                            {"role": "system", "content": scenes_prompt},
+                            {"role": "user", "content": user_msg},
+                        ],
+                        synopsis_model,
+                        settings.seed,
+                    )
+                except Exception as exc:
+                    await self.bus.emit(
+                        f"\n[Chapter {chapter_number}] scene decomposition failed "
+                        f"({type(exc).__name__}: {exc}); falling back to direct drafting.\n"
+                    )
+                    return ""
+
+                candidate = _extract_json_array(scenes_raw)
+                if not candidate:
+                    # Unparseable: don't waste a retry on the same prompt.
+                    break
+                last_count = len(candidate)
+                if scenes_min <= last_count <= scenes_max:
+                    scenes = candidate
+                    break
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] scene decomposition produced "
+                    f"{last_count} scenes (need {scenes_min}-{scenes_max}); retrying.\n"
+                )
+                scenes = candidate  # keep last as fallback
+
             if not scenes:
                 await self.bus.emit(
                     f"\n[Chapter {chapter_number}] scene decomposition returned no "
                     "parsable scenes; falling back to direct drafting.\n"
                 )
                 return ""
+
+            if not (scenes_min <= len(scenes) <= scenes_max):
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] scene count {len(scenes)} still "
+                    f"outside [{scenes_min}, {scenes_max}] after retry; proceeding anyway.\n"
+                )
 
             try:
                 scenes_json_path.parent.mkdir(parents=True, exist_ok=True)
