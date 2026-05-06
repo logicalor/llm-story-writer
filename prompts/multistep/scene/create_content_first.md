@@ -1,29 +1,46 @@
-# Create First Scene Content
+# Write the First Scene of the Chapter
 
-You are now writing the first scene of a chapter, with rich contextual understanding from the previous steps.
+You are drafting the opening scene of Chapter {chapter_number}: "{chapter_title}".
 
-## Context Integration
-You have already analyzed:
-- **Next Scene**: Where the story is heading and how to set up for it
-- **Story Elements**: Core narrative foundation and themes
-- **Base Context**: Foundational setting and background
-- **Characters**: Key character summaries, motivations, and relationships
-- **Settings**: Key location details, atmosphere, and story influence
+Use the context provided below as your sole source of truth for setting, characters, prior events, and where the story is heading. Do **not** invent facts beyond what these sections give you.
 
-Use these insights to create a scene that opens the chapter effectively and leads smoothly into the next scene.
+## Story Elements
+<STORY_ELEMENTS>
+{story_elements}
+</STORY_ELEMENTS>
+
+## Base Context (Wiki Snapshot — Characters, Settings, Lore)
+<BASE_CONTEXT>
+{base_context}
+</BASE_CONTEXT>
+
+## Recap of Recent Story Events
+<RECAP_CONTEXT>
+{scene_recap_context}
+</RECAP_CONTEXT>
+
+## Chapter Outline
+<CHAPTER_OUTLINE>
+{chapter_summary}
+</CHAPTER_OUTLINE>
 
 ## Position In Chapter
-This is scene {scene_index} of {scene_total}. No prior scenes have been written yet — you are opening the chapter.
+This is scene {scene_index} of {scene_total} — the **opening scene**. No prior scenes have been written yet.
 
 ## Current Scene to Write
 <SCENE_OUTLINE>
 {current_scene_summary}
 </SCENE_OUTLINE>
 
+## Next Scene (for transition only — do not write into it)
+<NEXT_SCENE_OUTLINE>
+{next_scene_summary}
+</NEXT_SCENE_OUTLINE>
+
 ## Core Requirements
-- **Word Count**: AT LEAST 1000 words (mandatory)
-- **Output**: Only the scene content - no commentary, metadata, or summaries
-- **Scope**: Stay within the scene outline boundaries - expand creatively but don't add new events
+- **Word Count**: AT LEAST 500 words (mandatory)
+- **Output**: Only the scene content — no commentary, metadata, or summaries
+- **Scope**: Stay within the current scene outline — expand creatively but don't add new events
 
 ## Writing Guidelines
 
@@ -31,56 +48,28 @@ This is scene {scene_index} of {scene_total}. No prior scenes have been written 
 - Rich sensory details and vivid descriptions
 - Natural, character-appropriate dialogue
 - Internal thoughts and emotional depth
-- Character development and voice consistency
+- Character voice consistent with the wiki snapshot
 - Smooth transitions and logical flow
 
 ### Chapter Opening
-- Begin the chapter with an engaging hook that draws readers in
-- Establish the scene's setting and mood clearly
-- Introduce or re-establish characters and their current state
-- Set up the chapter's central conflict or focus
-
-### Scene Development
-- Expand the scene outline with creative depth and detail
-- Maintain character consistency and voice
-- Build tension, emotion, or intrigue as appropriate
-- Ensure each moment flows logically to the next
+- Open with a hook that draws readers in
+- Establish setting and mood from the base context
+- Introduce or re-establish characters and their current state per the recap
+- Set up the chapter's central conflict or focus from the chapter outline
 
 ### Scene Conclusion
-- Use your understanding of the next scene to create a proper transition
-- End this scene in a way that naturally leads into what's coming next
-- Create anticipation or momentum for the next scene
-- Ensure smooth narrative flow between scenes
+- End in a way that naturally leads into the **next scene** above
+- Create anticipation or momentum without writing the next scene's events
 
 ### What NOT to Include
-- Commentary about the writing process
-- Meta-text about story structure
-- Events beyond the scene outline
-- Exposition or spoilers
-- Working notes or thought process
-- **Direct copying from the understanding context** (use it as guidance, not content)
+- Commentary about the writing process or meta-text
+- Events beyond the current scene outline
+- Direct copying or paraphrasing of the context blocks above (use them as guidance, not content)
+- Exposition dumps from the wiki snapshot
 
 ### Creative Boundaries
-- **WITHIN the outline**: Add depth, details, dialogue, and emotional richness
-- **BEYOND the outline**: Never add new events, actions, or plot developments
-- **Think of it as**: Expanding a skeleton into a full body, but not adding new limbs
-- **Understanding context**: Use it like a style guide and continuity reference, not a content source
-
-{base_context}
-
-<RECAP_CONTEXT>
-{scene_recap_context}
-</RECAP_CONTEXT>
-
-## Final Instructions
-1. Write AT LEAST 1000 words of pure scene content
-2. Begin the chapter with an engaging opening
-3. Expand creatively on the scene outline while staying within boundaries
-4. Use your understanding of the next scene to create a proper transition
-5. Ensure smooth flow and narrative coherence throughout
-6. Write the final content that readers will read
+- **WITHIN the outline**: add depth, detail, dialogue, emotional richness
+- **BEYOND the outline**: never add new events, actions, or plot developments
 
 ## Output
-Generate only the scene content. No additional text, commentary, or formatting instructions.
-
-Now, using your understanding of the next scene and all story context, write this first scene to open the chapter effectively and lead smoothly into what comes next.
+Generate only the scene prose. No additional text, headings, or formatting instructions. Write at least 500 words.

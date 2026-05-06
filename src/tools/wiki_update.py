@@ -562,6 +562,11 @@ def run_batch(
 
             fm_update = item.get("frontmatter", {})
             if isinstance(fm_update, dict):
+                if "type" in fm_update and fm_update["type"] not in _VALID_PAGE_TYPES:
+                    raise ValueError(
+                        f"invalid page type in update for '{slug}': "
+                        f"{fm_update['type']!r}"
+                    )
                 metadata.update(fm_update)
 
             aliases_update = item.get("aliases")

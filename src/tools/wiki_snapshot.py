@@ -75,7 +75,18 @@ def _read_page(page_path: Path) -> dict | None:
     content = page_path.read_text()
     metadata, body = parse_frontmatter(content)
     slug = metadata.get("slug", page_path.stem)
-    page_type = metadata.get("type", "unknown")
+    raw_type = metadata.get("type", "unknown")
+    # Coerce malformed type values (e.g. YAML lists) to a single string so
+    # downstream code that uses page["type"] as a dict key never crashes.
+    if isinstance(raw_type, list):
+        page_type = next(
+            (str(t) for t in raw_type if isinstance(t, str) and t.strip()),
+            "unknown",
+        )
+    elif isinstance(raw_type, str):
+        page_type = raw_type
+    else:
+        page_type = "unknown"
     return {
         "slug": slug,
         "type": page_type,

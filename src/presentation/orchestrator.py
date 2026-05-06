@@ -1042,12 +1042,32 @@ async def _continue_pipeline(
                 )
                 bootstrap_ok = bool(entities)
                 if not bootstrap_ok:
-                    await _emit_status(
-                        sbus,
-                        "wiki-bootstrap",
-                        "Bootstrap returned 0 pages — phase will retry on next run",
-                        kind="warn",
+                    # No outline/sheet entities to seed from — but the wiki
+                    # may already have been populated by an earlier phase
+                    # (e.g. wiki-generation). If so, treat bootstrap as a
+                    # no-op success rather than blocking forever.
+                    existing_pages = (
+                        sum(
+                            1
+                            for _ in wiki_dir.rglob("*.md")
+                            if _.parent != wiki_dir
+                        )
+                        if wiki_dir.exists()
+                        else 0
                     )
+                    if existing_pages > 0:
+                        bootstrap_ok = True
+                        await bus.emit(
+                            f"[Wiki Bootstrap] Wiki already populated "
+                            f"({existing_pages} pages) — nothing to seed.\n"
+                        )
+                    else:
+                        await _emit_status(
+                            sbus,
+                            "wiki-bootstrap",
+                            "Bootstrap returned 0 pages — phase will retry on next run",
+                            kind="warn",
+                        )
             except Exception as exc:
                 await bus.emit(
                     f"[Wiki Bootstrap] FAILED ({type(exc).__name__}: {exc})\n"

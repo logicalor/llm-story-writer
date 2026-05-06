@@ -188,7 +188,7 @@ class ChapterWriterAgent:
             pov_character=_pov_character,
             primary_location=_primary_location,
             characters=_chapter_characters,
-            recap_window=("character", 5),
+            recap_window=("chapter", 5),
         )
         base_context = _chapter_ctx["wiki_snapshot"]
         recap_context = (
@@ -608,7 +608,7 @@ class ChapterWriterAgent:
                     pov_character=_scene_pov,
                     primary_location=_scene_location,
                     characters=_scene_chars,
-                    recap_window=("character", 3),
+                    recap_window=("chapter", 3),
                 )
                 if _scene_ctx["wiki_snapshot"]:
                     scene_base_context = _scene_ctx["wiki_snapshot"]
@@ -617,11 +617,23 @@ class ChapterWriterAgent:
             except Exception:
                 pass
 
+            if index < total_scenes:
+                next_scene_summary = json.dumps(scenes[index], ensure_ascii=False)
+            else:
+                next_scene_summary = "(none — this is the final scene of the chapter)"
+
             scene_prompt = loader.load_prompt(
                 scene_prompt_key,
                 variables={
                     "current_scene_summary": json.dumps(scene, ensure_ascii=False),
+                    "next_scene_summary": next_scene_summary,
                     "base_context": scene_base_context,
+                    "story_elements": story_elements,
+                    "chapter_number": str(chapter_number),
+                    "chapter_title": chapter_title,
+                    "chapter_summary": chapter_summary,
+                    "next_chapter_summary": next_chapter_summary
+                    or "(none — this is the final chapter)",
                     "scene_index": str(index),
                     "scene_total": str(total_scenes),
                     "previous_scene_tail": prev_tail,

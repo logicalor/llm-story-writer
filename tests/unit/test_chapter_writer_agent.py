@@ -371,5 +371,5 @@ async def test_assemble_context_called_with_chapter_scope(tmp_path: Path) -> Non
         "pov_character": None,
         "primary_location": None,
         "characters": (),
-        "recap_window": ("character", 5),
+        "recap_window": ("chapter", 5),
     }

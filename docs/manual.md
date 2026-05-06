@@ -764,7 +764,7 @@ These are LLM system/user prompts loaded by `PromptLoader` at runtime by Python-
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/datacrystals/AIStoryWriter.git
+git clone https://github.com/logicalor/llm-story-writer.git
 cd AIStoryWriter
 
 # 2. Start your local LLM server and load models

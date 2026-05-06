@@ -27,7 +27,7 @@ models:
 # Generation Settings
 generation:
   seed: 12
-  wanted_chapters: 30
+  wanted_chapters: 45
   enable_final_edit: false
   enable_scrubbing: true
   expand_outline: true

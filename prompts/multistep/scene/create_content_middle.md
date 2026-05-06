@@ -1,26 +1,39 @@
-# Create Middle Scene Content
+# Write a Middle Scene of the Chapter
 
-You are now writing a middle scene in a chapter, with rich contextual understanding from the previous steps.
+You are drafting a middle scene of Chapter {chapter_number}: "{chapter_title}".
 
-## Context Integration
-You have already analyzed:
-- **Previous Scene**: How the story left off and where to begin
-- **Next Scene**: Where the story is heading and how to conclude this scene
-- **Story Elements**: Core narrative foundation and themes
-- **Base Context**: Foundational setting and background
-- **Characters**: Key character summaries, motivations, and relationships
-- **Settings**: Key location details, atmosphere, and story influence
+Use the context provided below as your sole source of truth for setting, characters, prior events, and where the story is heading. Do **not** invent facts beyond what these sections give you.
 
-Use these insights to create a scene that flows seamlessly from the previous scene and leads smoothly into the next scene.
+## Story Elements
+<STORY_ELEMENTS>
+{story_elements}
+</STORY_ELEMENTS>
+
+## Base Context (Wiki Snapshot — Characters, Settings, Lore)
+<BASE_CONTEXT>
+{base_context}
+</BASE_CONTEXT>
+
+## Recap of Recent Story Events
+<RECAP_CONTEXT>
+{scene_recap_context}
+</RECAP_CONTEXT>
+
+## Chapter Outline
+<CHAPTER_OUTLINE>
+{chapter_summary}
+</CHAPTER_OUTLINE>
 
 ## Position In Chapter
-This is scene {scene_index} of {scene_total}. The scenes listed below have already been drafted and are part of the chapter's prose. Do **not** re-establish their setting, repeat their events, or restart from the chapter's opening situation. Continue forward from where the previous scene ended.
+This is scene {scene_index} of {scene_total}. The scenes listed below have already been drafted. Do **not** re-establish their setting, repeat their events, or restart from the chapter's opening situation. Continue forward from where the previous scene ended.
 
 ## Scenes Already Written In This Chapter
+<SCENES_COMPLETED>
 {scenes_completed_summary}
+</SCENES_COMPLETED>
 
 ## End Of The Previous Scene (verbatim)
-The previous scene's prose ends with the following passage. Your scene must begin in continuity with this — same characters, same time-flow, same physical state. Do not retread it.
+Your scene must begin in continuity with this — same characters, same time-flow, same physical state. Do not retread it.
 
 <PREVIOUS_SCENE_TAIL>
 {previous_scene_tail}
@@ -31,10 +44,15 @@ The previous scene's prose ends with the following passage. Your scene must begi
 {current_scene_summary}
 </SCENE_OUTLINE>
 
+## Next Scene (for transition only — do not write into it)
+<NEXT_SCENE_OUTLINE>
+{next_scene_summary}
+</NEXT_SCENE_OUTLINE>
+
 ## Core Requirements
-- **Word Count**: AT LEAST 1000 words (mandatory)
-- **Output**: Only the scene content - no commentary, metadata, or summaries
-- **Scope**: Stay within the scene outline boundaries - expand creatively but don't add new events
+- **Word Count**: AT LEAST 500 words (mandatory)
+- **Output**: Only the scene content — no commentary, metadata, or summaries
+- **Scope**: Stay within the current scene outline — expand creatively but don't add new events
 
 ## Writing Guidelines
 
@@ -42,56 +60,32 @@ The previous scene's prose ends with the following passage. Your scene must begi
 - Rich sensory details and vivid descriptions
 - Natural, character-appropriate dialogue
 - Internal thoughts and emotional depth
-- Character development and voice consistency
+- Character voice consistent with the wiki snapshot
 - Smooth transitions and logical flow
 
 ### Scene Opening
-- Begin by naturally continuing from where the previous scene left off
-- Use your understanding of the previous scene to create seamless continuity
-- Establish the scene's setting and mood based on what came before
+- Begin by naturally continuing from the previous-scene tail
+- Establish the scene's setting and mood from the base context
+- Maintain time-flow and character physical state from where the previous scene ended
 
 ### Scene Development
-- Expand the scene outline with creative depth and detail
-- Maintain character consistency and voice
+- Expand the current scene outline with depth and detail
+- Advance the chapter's plot or character arcs per the chapter outline
 - Build tension, emotion, or development as appropriate
-- Ensure each moment flows logically to the next
-- Advance the chapter's plot or character arcs
 
 ### Scene Conclusion
-- Use your understanding of the next scene to create a proper transition
-- End this scene in a way that naturally leads into what's coming next
-- Create anticipation or momentum for the next scene
-- Ensure smooth narrative flow between scenes
+- End in a way that naturally leads into the **next scene** above
+- Create anticipation or momentum without writing the next scene's events
 
 ### What NOT to Include
-- Commentary about the writing process
-- Meta-text about story structure
-- Events beyond the scene outline
-- Exposition or spoilers
-- Working notes or thought process
-- **Direct copying from the understanding context** (use it as guidance, not content)
+- Commentary about the writing process or meta-text
+- Events beyond the current scene outline
+- Direct copying or paraphrasing of the context blocks above (use them as guidance, not content)
+- Re-establishing setting or repeating events from already-written scenes
 
 ### Creative Boundaries
-- **WITHIN the outline**: Add depth, details, dialogue, and emotional richness
-- **BEYOND the outline**: Never add new events, actions, or plot developments
-- **Think of it as**: Expanding a skeleton into a full body, but not adding new limbs
-- **Understanding context**: Use it like a style guide and continuity reference, not a content source
-
-{base_context}
-
-<RECAP_CONTEXT>
-{scene_recap_context}
-</RECAP_CONTEXT>
-
-## Final Instructions
-1. Write AT LEAST 1000 words of pure scene content
-2. Begin by smoothly continuing from the previous scene
-3. Expand creatively on the scene outline while staying within boundaries
-4. Use your understanding of the next scene to create a proper transition
-5. Ensure smooth flow and narrative coherence throughout
-6. Write the final content that readers will read
+- **WITHIN the outline**: add depth, detail, dialogue, emotional richness
+- **BEYOND the outline**: never add new events, actions, or plot developments
 
 ## Output
-Generate only the scene content. No additional text, commentary, or formatting instructions.
-
-Now, using your understanding of the previous scene, next scene, and all story context, write this middle scene to continue the story smoothly and lead into what comes next.
+Generate only the scene prose. No additional text, headings, or formatting instructions. Write at least 500 words.
