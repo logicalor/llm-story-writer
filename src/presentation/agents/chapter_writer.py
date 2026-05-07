@@ -661,6 +661,101 @@ class ChapterWriterAgent:
             if not scene_text:
                 continue
 
+            if settings.enable_scene_critique:
+                await self.status_bus.emit(
+                    StatusEvent(
+                        phase=phase,
+                        message=(
+                            f"Ch {chapter_number}: critiquing scene "
+                            f"{index}/{total_scenes}"
+                        ),
+                        kind="step",
+                    )
+                )
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] Critiquing scene {index}...\n"
+                )
+                critique_prompt = loader.load_prompt(
+                    "scenes/critique_draft",
+                    variables={
+                        "chapter_num": str(chapter_number),
+                        "scene_num": str(index),
+                        "scene_content": scene_text,
+                        "scene_definition": json.dumps(scene, ensure_ascii=False),
+                        "chapter_outline": chapter_summary,
+                        "previous_scene": prev_tail,
+                    },
+                )
+                try:
+                    critique_text = await self._stream_to_bus(
+                        [
+                            {"role": "system", "content": critique_prompt},
+                            {"role": "user", "content": "Critique the scene now."},
+                        ],
+                        scene_model,
+                        settings.seed,
+                    )
+                    critique_text = critique_text.strip()
+                    if critique_text and critique_text != "{}":
+                        # Non-empty findings — run one revision pass
+                        await self.status_bus.emit(
+                            StatusEvent(
+                                phase=phase,
+                                message=(
+                                    f"Ch {chapter_number}: revising scene "
+                                    f"{index}/{total_scenes}"
+                                ),
+                                kind="step",
+                            )
+                        )
+                        await self.bus.emit(
+                            f"\n[Chapter {chapter_number}] Revising scene {index}...\n"
+                        )
+                        revise_prompt = loader.load_prompt(
+                            "scenes/revise_content",
+                            variables={
+                                "chapter_num": str(chapter_number),
+                                "scene_num": str(index),
+                                "scene_content": scene_text,
+                                "feedback": critique_text,
+                                "scene_definition": json.dumps(
+                                    scene, ensure_ascii=False
+                                ),
+                                "chapter_outline": chapter_summary,
+                                "previous_scene": prev_tail,
+                                "next_chapter_synopsis": (
+                                    next_chapter_summary
+                                    if index == total_scenes
+                                    else ""
+                                ),
+                            },
+                        )
+                        try:
+                            revised = await self._stream_to_bus(
+                                [
+                                    {"role": "system", "content": revise_prompt},
+                                    {
+                                        "role": "user",
+                                        "content": "Revise the scene now.",
+                                    },
+                                ],
+                                scene_model,
+                                settings.seed,
+                            )
+                            revised = revised.strip()
+                            if revised:
+                                scene_text = revised
+                        except Exception as exc:
+                            await self.bus.emit(
+                                f"\n[Chapter {chapter_number}] scene {index} revision "
+                                f"failed ({type(exc).__name__}: {exc}); using draft.\n"
+                            )
+                except Exception as exc:
+                    await self.bus.emit(
+                        f"\n[Chapter {chapter_number}] scene {index} critique "
+                        f"failed ({type(exc).__name__}: {exc}); skipping critique.\n"
+                    )
+
             if settings.enable_scrubbing:
                 await self.status_bus.emit(
                     StatusEvent(
