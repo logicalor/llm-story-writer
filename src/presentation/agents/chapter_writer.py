@@ -774,6 +774,18 @@ class ChapterWriterAgent:
             else:
                 next_scene_summary = "(none — this is the final scene of the chapter)"
 
+            _key_events = scene.get("key_events", []) if isinstance(scene, dict) else []
+            _description = (
+                scene.get("description", "") if isinstance(scene, dict) else ""
+            )
+            scene_word_target = settings.scene_word_target_floor
+            scene_word_target += 150 * len(_key_events)
+            if len(_description) > 200:
+                scene_word_target += 100
+            scene_word_target = min(
+                scene_word_target, settings.scene_word_target_ceiling
+            )
+
             scene_prompt = loader.load_prompt(
                 scene_prompt_key,
                 variables={
@@ -791,6 +803,7 @@ class ChapterWriterAgent:
                     "previous_scene_tail": prev_tail,
                     "scenes_completed_summary": scenes_completed_summary,
                     "scene_recap_context": scene_recap_context,
+                    "scene_word_target": str(scene_word_target),
                     "style_guide": style_guide,
                 },
             )

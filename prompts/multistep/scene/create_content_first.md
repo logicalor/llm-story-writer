@@ -43,7 +43,7 @@ This is scene {scene_index} of {scene_total} — the **opening scene**. No prior
 </NEXT_SCENE_OUTLINE>
 
 ## Core Requirements
-- **Word Count**: AT LEAST 500 words (mandatory)
+- **Word Count**: AT LEAST {scene_word_target} words (mandatory)
 - **Output**: Only the scene content — no commentary, metadata, or summaries
 - **Scope**: Stay within the current scene outline — expand creatively but don't add new events
 
@@ -77,4 +77,4 @@ This is scene {scene_index} of {scene_total} — the **opening scene**. No prior
 - **BEYOND the outline**: never add new events, actions, or plot developments
 
 ## Output
-Generate only the scene prose. No additional text, headings, or formatting instructions. Write at least 500 words.
+Generate only the scene prose. No additional text, headings, or formatting instructions. Write at least {scene_word_target} words for this scene.
