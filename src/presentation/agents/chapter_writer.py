@@ -786,10 +786,28 @@ class ChapterWriterAgent:
                 scene_word_target, settings.scene_word_target_ceiling
             )
 
+            _raw_devices = (
+                scene.get("literary_devices", []) if isinstance(scene, dict) else []
+            )
+            if isinstance(_raw_devices, list):
+                literary_devices_str = "\n".join(f"- {d}" for d in _raw_devices)
+            elif isinstance(_raw_devices, str) and _raw_devices:
+                literary_devices_str = f"- {_raw_devices}"
+            else:
+                literary_devices_str = ""
+
+            scene_for_summary = (
+                {k: v for k, v in scene.items() if k != "literary_devices"}
+                if isinstance(scene, dict)
+                else scene
+            )
+
             scene_prompt = loader.load_prompt(
                 scene_prompt_key,
                 variables={
-                    "current_scene_summary": json.dumps(scene, ensure_ascii=False),
+                    "current_scene_summary": json.dumps(
+                        scene_for_summary, ensure_ascii=False
+                    ),
                     "next_scene_summary": next_scene_summary,
                     "base_context": scene_base_context,
                     "story_elements": story_elements,
@@ -805,6 +823,7 @@ class ChapterWriterAgent:
                     "scene_recap_context": scene_recap_context,
                     "scene_word_target": str(scene_word_target),
                     "style_guide": style_guide,
+                    "literary_devices": literary_devices_str,
                 },
             )
             try:

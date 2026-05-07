@@ -37,6 +37,12 @@ This is scene {scene_index} of {scene_total} — the **opening scene**. No prior
 {current_scene_summary}
 </SCENE_OUTLINE>
 
+## Literary Devices to Apply
+<LITERARY_DEVICES>
+{literary_devices}
+</LITERARY_DEVICES>
+Incorporate these devices naturally in your prose for this scene.
+
 ## Next Scene (for transition only — do not write into it)
 <NEXT_SCENE_OUTLINE>
 {next_scene_summary}

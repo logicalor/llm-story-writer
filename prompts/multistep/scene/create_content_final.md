@@ -54,6 +54,12 @@ Your scene must begin in continuity with this — same characters, same time-flo
 {current_scene_summary}
 </SCENE_OUTLINE>
 
+## Literary Devices to Apply
+<LITERARY_DEVICES>
+{literary_devices}
+</LITERARY_DEVICES>
+Incorporate these devices naturally in your prose for this scene.
+
 ## Core Requirements
 - **Word Count**: AT LEAST {scene_word_target} words (mandatory)
 - **Output**: Only the scene content — no commentary, metadata, or summaries
