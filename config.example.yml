@@ -37,6 +37,8 @@ generation:
   enable_outline_critique: true
   enable_scene_critique: true
   enable_decomposition_critique: true
+  enable_beat_sheet: true
+  enable_living_scene_plan: true
   stream: true
   debug: true
   use_improved_recap_sanitizer: true

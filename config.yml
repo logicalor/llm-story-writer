@@ -36,6 +36,8 @@ generation:
   scenes_per_chapter_max: 16
   enable_outline_critique: false
   enable_decomposition_critique: true
+  enable_beat_sheet: true
+  enable_living_scene_plan: true
   stream: true
   debug: true
   use_improved_recap_sanitizer: true
