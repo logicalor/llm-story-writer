@@ -1047,11 +1047,7 @@ async def _continue_pipeline(
                     # (e.g. wiki-generation). If so, treat bootstrap as a
                     # no-op success rather than blocking forever.
                     existing_pages = (
-                        sum(
-                            1
-                            for _ in wiki_dir.rglob("*.md")
-                            if _.parent != wiki_dir
-                        )
+                        sum(1 for _ in wiki_dir.rglob("*.md") if _.parent != wiki_dir)
                         if wiki_dir.exists()
                         else 0
                     )

@@ -118,7 +118,12 @@ async def test_scene_pipeline_runs_three_stages_in_order(tmp_path: Path) -> None
 
     agent = ChapterWriterAgent(provider, config, bus, wiki_bus)
     with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
-        draft = await agent.run("test-story", 1, _outline_result(), _settings())
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+        )
 
     # Four stream_text invocations: synopsis, scenes, scene1, scene2.
     assert len(captured) == 4
@@ -163,7 +168,12 @@ async def test_scene_pipeline_falls_back_when_json_unparseable(tmp_path: Path) -
 
     agent = ChapterWriterAgent(provider, config, bus, wiki_bus)
     with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
-        draft = await agent.run("test-story", 1, _outline_result(), _settings())
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+        )
 
     # Three calls: synopsis, scenes (failed parse), direct draft fallback.
     assert len(captured) == 3
@@ -306,7 +316,11 @@ async def test_scene_pipeline_skips_decomposition_when_ledger_done(
 
     with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
         draft = await agent.run(
-            "test-story", 1, _outline_result(), _settings(), state=state
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+            state=state,
         )
 
     assert draft.content
@@ -350,7 +364,11 @@ async def test_scene_pipeline_skips_completed_scenes_on_resume(tmp_path: Path) -
 
     with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
         draft = await agent.run(
-            "test-story", 1, _outline_result(), _settings(), state=state
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+            state=state,
         )
 
     assert "Scene 1 prose from disk" in draft.content
@@ -401,7 +419,11 @@ async def test_scene_pipeline_marks_work_items_done(tmp_path: Path) -> None:
         ),
     ):
         draft = await agent.run(
-            "test-story", 1, _outline_result(), _settings(), state=state
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+            state=state,
         )
 
     assert draft.content
@@ -468,7 +490,12 @@ async def test_scene_prompt_receives_scene_recap_context(tmp_path: Path) -> None
             side_effect=assemble_side_effect,
         ),
     ):
-        await agent.run("test-story", 1, _outline_result(), _settings())
+        await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+        )
 
     assert any("scene recap A" in prompt for prompt in captured)
 
@@ -525,10 +552,219 @@ async def test_scene_pipeline_calls_assemble_context_per_scene(tmp_path: Path) -
             side_effect=_assemble_side_effect,
         ),
     ):
-        draft = await agent.run("test-story", 1, _outline_result(), _settings())
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+        )
 
     assert call_count == 3
     assert draft.content
+
+
+@pytest.mark.asyncio
+async def test_scene_critique_fires_and_revises_when_findings_returned(
+    tmp_path: Path,
+) -> None:
+    scenes_payload = json.dumps(
+        [
+            {"title": "Opening", "description": "Hero arrives at the gate."},
+            {"title": "Climax", "description": "Hero confronts the guard."},
+        ]
+    )
+    provider, captured = _make_provider(
+        [
+            "Detailed synopsis content for chapter 1.",
+            f"```json\n{scenes_payload}\n```",
+            "Scene 1 draft prose.",
+            '{"outline_adherence": ["missing: hero meets villain"]}',
+            "Scene 1 revised prose with hero meets villain.",
+            "Scene 2 draft prose.",
+            "{}",
+        ]
+    )
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            },
+            "model_api_base": "http://localhost/v1",
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=True, enable_scrubbing=False),
+        )
+
+    assert len(captured) == 7
+    assert any("Scene Critique" in prompt for prompt in captured)
+    assert any("Scene Revision" in prompt for prompt in captured)
+    assert "Scene 1 revised prose with hero meets villain." in draft.content
+    assert "Scene 1 draft prose." not in draft.content
+    assert "Scene 2 draft prose." in draft.content
+
+
+@pytest.mark.asyncio
+async def test_scene_critique_bypasses_revision_when_findings_empty(
+    tmp_path: Path,
+) -> None:
+    scenes_payload = json.dumps(
+        [{"title": "Opening", "description": "Hero arrives at the gate."}]
+    )
+    provider, captured = _make_provider(
+        [
+            "Detailed synopsis content for chapter 1.",
+            f"```json\n{scenes_payload}\n```",
+            "Scene 1 clean draft prose.",
+            "{}",
+        ]
+    )
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(
+                scenes_per_chapter_min=1,
+                enable_scene_critique=True,
+                enable_scrubbing=False,
+            ),
+        )
+
+    assert len(captured) == 4
+    assert any("Scene Critique" in prompt for prompt in captured)
+    assert not any("Scene Revision" in prompt for prompt in captured)
+    assert "Scene 1 clean draft prose." in draft.content
+
+
+@pytest.mark.asyncio
+async def test_scene_critique_skipped_when_disabled(tmp_path: Path) -> None:
+    scenes_payload = json.dumps(
+        [
+            {"title": "Opening", "description": "Hero arrives at the gate."},
+            {"title": "Climax", "description": "Hero confronts the guard."},
+        ]
+    )
+    provider, captured = _make_provider(
+        [
+            "Detailed synopsis content for chapter 1.",
+            f"```json\n{scenes_payload}\n```",
+            "Scene 1 prose body.",
+            "Scene 2 prose body.",
+        ]
+    )
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+        )
+
+    assert len(captured) == 4
+    assert not any("Scene Critique" in prompt for prompt in captured)
+    assert not any("Scene Revision" in prompt for prompt in captured)
+    assert "Scene 1 prose body." in draft.content
+    assert "Scene 2 prose body." in draft.content
+
+
+@pytest.mark.asyncio
+async def test_scene_critique_skipped_on_resume_when_scene_already_saved(
+    tmp_path: Path,
+) -> None:
+    scenes = [
+        {"title": "Opening", "description": "Hero arrives at the gate."},
+        {"title": "Climax", "description": "Hero confronts the guard."},
+    ]
+    provider, captured = _make_provider(
+        [
+            "Detailed synopsis content for chapter 1.",
+            json.dumps(scenes),
+            "Scene 2 prose body.",
+            "{}",
+        ]
+    )
+    state = PipelineState(
+        story_name="test-story",
+        current_phase="chapters",
+        completed_work_items={"chapter-1": ["scene:1"]},
+    )
+
+    scene_1_path = tmp_path / "test-story" / "chapters" / "chapter_1" / "scene_1.md"
+    scene_1_path.parent.mkdir(parents=True, exist_ok=True)
+    scene_1_path.write_text("Scene 1 prose from disk", encoding="utf-8")
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(
+                scenes_per_chapter_min=1,
+                enable_scene_critique=True,
+                enable_scrubbing=False,
+            ),
+            state=state,
+        )
+
+    assert len(captured) == 4
+    assert captured[2].startswith("# Scene Critique") is False
+    assert "Scene 1 prose from disk" in draft.content
+    assert "Scene 2 prose body." in draft.content
+    assert any("Climax" in prompt for prompt in captured)
+    assert sum("Scene Critique" in prompt for prompt in captured) == 1
 
 
 @pytest.mark.asyncio
