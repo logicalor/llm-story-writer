@@ -23,14 +23,18 @@ Extract events from provided chapter content. Follow these instructions exactly.
 1. **Find each scene** in the chapter outline
 2. **Write one to two sentences** describing what happens in that scene  
 3. **Assign a type** (routine, departure, tragedy, medical, emotional)
-4. **Create JSON entry** for that scene
-5. **Repeat for ALL scenes**
+4. **List participants** — character names present in the scene, using canonical names from the wiki context
+5. **List locations** — location names where the scene occurs, using canonical names from the wiki context
+6. **Create JSON entry** for that scene
+7. **Repeat for ALL scenes**
 
 ## ABSOLUTE RULES
 
 - **NO THINKING OR ANALYSIS** 
 - **NO DEBATING WHAT TO INCLUDE**
 - **DESCRIBE WHAT HAPPENS, NOTHING MORE**
+- **participants** must be an array of strings (character names). Use `[]` if no named characters appear.
+- **locations** must be an array of strings (location names). Use `[]` if no named location is established.
 
 ## Example
 
@@ -45,19 +49,27 @@ Extract events from provided chapter content. Follow these instructions exactly.
 [
   {
     "summary": "Family has breakfast together",
-    "type": "routine"
+    "type": "routine",
+    "participants": ["Amy Miller", "Thomas Miller", "Sarah Miller"],
+    "locations": ["Miller Family Home"]
   },
   {
     "summary": "Car accident occurs killing parents",
-    "type": "tragedy"
+    "type": "tragedy",
+    "participants": ["Thomas Miller", "Sarah Miller"],
+    "locations": ["City Road"]
   },
   {
     "summary": "Paramedics arrive and treat victims",
-    "type": "medical"
+    "type": "medical",
+    "participants": ["Thomas Miller", "Sarah Miller"],
+    "locations": ["City Road"]
   },
   {
     "summary": "Amy is taken to hospital",
-    "type": "medical"
+    "type": "medical",
+    "participants": ["Amy Miller"],
+    "locations": ["City Hospital"]
   }
 ]
 ```
