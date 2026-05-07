@@ -60,6 +60,8 @@ Your scene must begin in continuity with this — same characters, same time-flo
 </LITERARY_DEVICES>
 Incorporate these devices naturally in your prose for this scene.
 
+{beat_sheet_section}
+
 ## Core Requirements
 - **Word Count**: AT LEAST {scene_word_target} words (mandatory)
 - **Output**: Only the scene content — no commentary, metadata, or summaries

@@ -28,6 +28,8 @@ class GenerationSettings:
     enable_concurrent_critics: bool = False
     enable_scene_critique: bool = True
     enable_decomposition_critique: bool = True
+    enable_beat_sheet: bool = False
+    enable_living_scene_plan: bool = False
 
     # Initial outline generation settings
     use_chunked_outline_generation: bool = (
@@ -123,6 +125,8 @@ class GenerationSettings:
             "enable_outline_critique": self.enable_outline_critique,
             "enable_scene_critique": self.enable_scene_critique,
             "enable_decomposition_critique": self.enable_decomposition_critique,
+            "enable_beat_sheet": self.enable_beat_sheet,
+            "enable_living_scene_plan": self.enable_living_scene_plan,
             "enable_concurrent_critics": self.enable_concurrent_critics,
             "stream": self.stream,
             "debug": self.debug,

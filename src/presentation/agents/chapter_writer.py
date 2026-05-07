@@ -802,6 +802,67 @@ class ChapterWriterAgent:
                 else scene
             )
 
+            beat_sheet_section = ""
+            if settings.enable_beat_sheet:
+                await self.status_bus.emit(
+                    StatusEvent(
+                        phase=phase,
+                        message=(
+                            f"Ch {chapter_number}: planning beat-sheet for scene "
+                            f"{index}/{total_scenes}"
+                        ),
+                        kind="step",
+                    )
+                )
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] Planning beat-sheet for scene {index}...\n"
+                )
+                beat_sheet_prompt = loader.load_prompt(
+                    "multistep/scene/create_beat_sheet",
+                    variables={
+                        "chapter_number": str(chapter_number),
+                        "chapter_title": chapter_title,
+                        "chapter_summary": chapter_summary,
+                        "scene_index": str(index),
+                        "scene_total": str(total_scenes),
+                        "current_scene_summary": json.dumps(
+                            scene_for_summary, ensure_ascii=False
+                        ),
+                        "next_scene_summary": next_scene_summary,
+                        "previous_scene_tail": prev_tail,
+                        "scenes_completed_summary": scenes_completed_summary,
+                        "scene_recap_context": scene_recap_context,
+                        "literary_devices": literary_devices_str,
+                    },
+                )
+                try:
+                    beat_sheet_raw = await self._stream_to_bus(
+                        [
+                            {"role": "system", "content": beat_sheet_prompt},
+                            {
+                                "role": "user",
+                                "content": "Produce the beat-sheet now.",
+                            },
+                        ],
+                        scene_model,
+                        settings.seed,
+                    )
+                    beat_sheet_raw = beat_sheet_raw.strip()
+                    if beat_sheet_raw:
+                        beat_sheet_section = (
+                            "\n\n## Scene Beat-Sheet (Internal Planning Notes — Do Not Copy Verbatim)\n"
+                            "<BEAT_SHEET>\n"
+                            f"{beat_sheet_raw}\n"
+                            "</BEAT_SHEET>\n"
+                            "Use these beats as your structural scaffold. The prose you write must "
+                            "flow naturally — do not copy beat labels into the text."
+                        )
+                except Exception as exc:
+                    await self.bus.emit(
+                        f"\n[Chapter {chapter_number}] scene {index} beat-sheet failed "
+                        f"({type(exc).__name__}: {exc}); continuing without beat-sheet.\n"
+                    )
+
             scene_prompt = loader.load_prompt(
                 scene_prompt_key,
                 variables={
@@ -824,6 +885,7 @@ class ChapterWriterAgent:
                     "scene_word_target": str(scene_word_target),
                     "style_guide": style_guide,
                     "literary_devices": literary_devices_str,
+                    "beat_sheet_section": beat_sheet_section,
                 },
             )
             try:
@@ -1017,6 +1079,67 @@ class ChapterWriterAgent:
                 scene_file.parent.mkdir(parents=True, exist_ok=True)
                 _atomic_write(scene_file, scene_text)
                 await _mark_work_item_done(state, phase, scene_item_id)
+
+            if settings.enable_living_scene_plan and index < total_scenes:
+                await self.status_bus.emit(
+                    StatusEvent(
+                        phase=phase,
+                        message=(
+                            f"Ch {chapter_number}: updating remaining scene plans "
+                            f"after scene {index}/{total_scenes}"
+                        ),
+                        kind="step",
+                    )
+                )
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] Updating remaining scene plans after scene {index}...\n"
+                )
+                remaining_scenes = scenes[index:]
+                completed_recap = actual_recaps.get(index, scene_text[-300:].strip())
+                update_prompt = loader.load_prompt(
+                    "multistep/scene/update_remaining_scenes",
+                    variables={
+                        "completed_scene_title": scene.get("title", f"Scene {index}"),
+                        "completed_scene_recap": completed_recap,
+                        "chapter_summary": chapter_summary,
+                        "remaining_scenes_json": json.dumps(
+                            remaining_scenes, ensure_ascii=False, indent=2
+                        ),
+                    },
+                )
+                try:
+                    updated_json_text = await self._stream_to_bus(
+                        [
+                            {"role": "system", "content": update_prompt},
+                            {
+                                "role": "user",
+                                "content": "Return the updated scenes JSON array now.",
+                            },
+                        ],
+                        scene_model,
+                        settings.seed,
+                    )
+                    updated_json_text = updated_json_text.strip()
+                    if updated_json_text.startswith("```"):
+                        lines = updated_json_text.splitlines()
+                        updated_json_text = "\n".join(
+                            line for line in lines if not line.startswith("```")
+                        ).strip()
+                    updated_remaining = json.loads(updated_json_text)
+                    if isinstance(updated_remaining, list) and len(
+                        updated_remaining
+                    ) == len(remaining_scenes):
+                        scenes[index:] = updated_remaining
+                        scenes_json_path.parent.mkdir(parents=True, exist_ok=True)
+                        _atomic_write(
+                            scenes_json_path,
+                            json.dumps(scenes, ensure_ascii=False, indent=2),
+                        )
+                except Exception as exc:
+                    await self.bus.emit(
+                        f"\n[Chapter {chapter_number}] living scene plan update after scene {index} "
+                        f"failed ({type(exc).__name__}: {exc}); continuing with original plans.\n"
+                    )
 
         if not scene_prose:
             return ""
