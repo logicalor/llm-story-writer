@@ -20,6 +20,8 @@ class GenerationSettings:
     scene_generation_pipeline: bool = True
     scenes_per_chapter_min: int = 8
     scenes_per_chapter_max: int = 16
+    scene_word_target_floor: int = 600
+    scene_word_target_ceiling: int = 1500
 
     # Critique settings
     enable_outline_critique: bool = True
@@ -81,6 +83,19 @@ class GenerationSettings:
                 "and min must be <= max"
             )
 
+        if self.scene_word_target_floor < 1:
+            raise ValidationError(
+                "scene_word_target_floor must be at least 1, "
+                f"got {self.scene_word_target_floor}"
+            )
+
+        if self.scene_word_target_ceiling < self.scene_word_target_floor:
+            raise ValidationError(
+                "scene_word_target_ceiling must be >= scene_word_target_floor, "
+                f"got floor={self.scene_word_target_floor}, "
+                f"ceiling={self.scene_word_target_ceiling}"
+            )
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GenerationSettings":
         """Create GenerationSettings from a dictionary."""
@@ -103,6 +118,8 @@ class GenerationSettings:
             "scene_generation_pipeline": self.scene_generation_pipeline,
             "scenes_per_chapter_min": self.scenes_per_chapter_min,
             "scenes_per_chapter_max": self.scenes_per_chapter_max,
+            "scene_word_target_floor": self.scene_word_target_floor,
+            "scene_word_target_ceiling": self.scene_word_target_ceiling,
             "enable_outline_critique": self.enable_outline_critique,
             "enable_scene_critique": self.enable_scene_critique,
             "enable_decomposition_critique": self.enable_decomposition_critique,
