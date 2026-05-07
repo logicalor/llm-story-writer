@@ -169,6 +169,40 @@ def count_tokens(text: str) -> int:
     return int(len(text.split()) * 1.33)
 
 
+def extract_paragraph_tail(text: str, token_budget: int = 350) -> str:
+    """Return the last N full paragraphs of *text* that fit within *token_budget*.
+
+        Paragraphs are split on double-newline.  Walking backwards from the final
+    paragraph, paragraphs are accumulated until the running token count would
+        exceed *token_budget*.  A token is approximated as ``chars / 4``
+    (consistent with the rest of the codebase).
+
+    Rules:
+    - If the entire text fits in the budget, the full text is returned.
+    - If only one paragraph exists, that paragraph is returned regardless of length.
+        - The returned string never has a leading ``…`` prefix (paragraph-boundary
+      alignment makes it unnecessary).
+    """
+    if not text:
+        return text
+    paragraphs = [p for p in text.split("\n\n") if p.strip()]
+    if not paragraphs:
+        return text
+
+    accumulated: list[str] = []
+    char_budget = token_budget * 4  # approximate: 1 token ≈ 4 chars
+
+    for para in reversed(paragraphs):
+        candidate = "\n\n".join([para] + accumulated)
+        if len(candidate) > char_budget and accumulated:
+            # Adding this paragraph would exceed the budget and we already
+            # have at least one paragraph — stop here.
+            break
+        accumulated.insert(0, para)
+
+    return "\n\n".join(accumulated)
+
+
 def _strip_markdown_fences(text: str) -> str:
     """Remove markdown code fences from text and extract JSON content."""
     text = text.strip()

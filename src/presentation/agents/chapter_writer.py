@@ -38,6 +38,7 @@ from presentation.pipeline_primitives import (
     WikiContextEvent,
 )
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
+from tools._llm import extract_paragraph_tail
 from tools._persist import read_markdown_ref
 from tools.context_assembly import assemble_context
 
@@ -719,12 +720,9 @@ class ChapterWriterAgent:
 
             # Continuity context: tail of previous scene's prose + summary
             # of all scenes already drafted, so the model does not retread.
-            if scene_prose:
-                prev_tail = scene_prose[-1].strip()
-                if len(prev_tail) > 1200:
-                    prev_tail = "…" + prev_tail[-1200:]
-            else:
-                prev_tail = ""
+            prev_tail = (
+                extract_paragraph_tail(scene_prose[-1].strip()) if scene_prose else ""
+            )
 
             if scenes_completed_meta:
                 completed_lines = []
