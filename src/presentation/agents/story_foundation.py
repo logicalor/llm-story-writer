@@ -99,6 +99,12 @@ class StoryFoundationAgent:
             model_config,
             settings,
         )
+        style_guide = await self._generate_section(
+            "story/extract_style_guide",
+            story_prompt,
+            model_config,
+            settings,
+        )
 
         return OutlineResult(
             story_name=story_name,
@@ -109,4 +115,5 @@ class StoryFoundationAgent:
             base_context=base_context,
             story_start_date=story_start_date,
             story_elements=story_elements,
+            style_guide=style_guide,
         )

@@ -383,6 +383,10 @@ class ChapterWriterAgent:
         critical step fails so the caller can fall back to single-shot
         drafting.
         """
+        style_guide: str = state.style_guide if state is not None else ""
+        if isinstance(style_guide, dict):
+            style_guide = ""
+
         loader = self._loader
         synopsis_model = _build_model_config(
             self.config, "chapter_outline_writer", "openai-compat://default"
@@ -789,6 +793,7 @@ class ChapterWriterAgent:
                     "previous_scene_tail": prev_tail,
                     "scenes_completed_summary": scenes_completed_summary,
                     "scene_recap_context": scene_recap_context,
+                    "style_guide": style_guide,
                 },
             )
             try:

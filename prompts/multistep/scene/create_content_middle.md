@@ -9,6 +9,11 @@ Use the context provided below as your sole source of truth for setting, charact
 {story_elements}
 </STORY_ELEMENTS>
 
+## Style Guide
+<STYLE_GUIDE>
+{style_guide}
+</STYLE_GUIDE>
+
 ## Base Context (Wiki Snapshot — Characters, Settings, Lore)
 <BASE_CONTEXT>
 {base_context}

@@ -722,6 +722,16 @@ async def _continue_pipeline(
                 )
             elif isinstance(foundation_result.story_elements, dict):
                 state.outline_result.story_elements = foundation_result.story_elements
+            if (
+                isinstance(foundation_result.style_guide, str)
+                and foundation_result.style_guide
+            ):
+                persist_markdown(
+                    story_dir,
+                    "style_guide.md",
+                    foundation_result.style_guide,
+                )
+                state.style_guide = foundation_result.style_guide
             await _mark_phase_complete(
                 state,
                 "story-foundation",
