@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
 
+import tools._llm as tool_llm
 import tools.scene_writer as sw
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +43,63 @@ def patched_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, 
     monkeypatch.setattr(sw, "_load_prompt", lambda *_a, **_kw: "mock prompt text")
 
     return stories_dir, story_name
+
+
+def test_call_llm_forwards_system_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_call_llm should forward system_message to the LLM helper."""
+    received: dict[str, object] = {}
+
+    def fake_generate_text(
+        prompt: str,
+        *,
+        model: str | None = None,
+        system_message: str | None = None,
+    ) -> str:
+        received["prompt"] = prompt
+        received["model"] = model
+        received["system_message"] = system_message
+        return "ok"
+
+    monkeypatch.setattr(tool_llm, "generate_text", fake_generate_text)
+
+    assert sw._call_llm("prompt", system_message="sys") == "ok"
+    assert received == {
+        "prompt": "prompt",
+        "model": None,
+        "system_message": "sys",
+    }
+
+
+def test_fetch_persona_view_empty_stdout_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Empty persona-builder stdout should map to None."""
+    monkeypatch.setattr(
+        sw.subprocess,
+        "run",
+        lambda *_a, **_kw: subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=""
+        ),
+    )
+
+    assert sw._fetch_persona_view("story", "scene") is None
+
+
+def test_fetch_persona_view_non_empty_stdout_returns_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-empty persona-builder stdout should be stripped and returned."""
+    monkeypatch.setattr(
+        sw.subprocess,
+        "run",
+        lambda *_a, **_kw: subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="You are a writer.\n"
+        ),
+    )
+
+    assert sw._fetch_persona_view("story", "scene") == "You are a writer."
 
 
 def _run_tool(
@@ -537,6 +595,86 @@ def test_generate_include_content_returns_content(
     assert out["data"]["content"] == scene_text
 
 
+def test_generate_persona_and_delta_forwarded(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """generate should forward persona text and append emphasis delta."""
+    _stories_dir, name = patched_env
+
+    received: dict[str, object] = {}
+
+    def fake_call_llm(
+        prompt: str,
+        *,
+        model: str | None = None,
+        system_message: str | None = None,
+    ) -> str:
+        received["prompt"] = prompt
+        received["model"] = model
+        received["system_message"] = system_message
+        return "Generated scene"
+
+    monkeypatch.setattr(sw, "_call_llm", fake_call_llm)
+    monkeypatch.setattr(sw, "_fetch_persona_view", lambda *_a, **_kw: "persona sys")
+
+    sw.cmd_generate(
+        name,
+        chapter_num=1,
+        scene_num=1,
+        scene_definition="Scene definition",
+        chapter_outline="Chapter outline",
+        model="test",
+        persona_view="scene",
+        emphasis_delta="Lean harder into suspense.",
+    )
+
+    json.loads(capsys.readouterr().out)
+    assert received["system_message"] == "persona sys"
+    assert "## Chapter Emphasis" in str(received["prompt"])
+    assert "Lean harder into suspense." in str(received["prompt"])
+
+
+def test_generate_no_persona_no_delta(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """generate should omit persona system message and emphasis section when absent."""
+    _stories_dir, name = patched_env
+
+    received: dict[str, object] = {}
+
+    def fake_call_llm(
+        prompt: str,
+        *,
+        model: str | None = None,
+        system_message: str | None = None,
+    ) -> str:
+        received["prompt"] = prompt
+        received["model"] = model
+        received["system_message"] = system_message
+        return "Generated scene"
+
+    monkeypatch.setattr(sw, "_call_llm", fake_call_llm)
+
+    sw.cmd_generate(
+        name,
+        chapter_num=1,
+        scene_num=1,
+        scene_definition="Scene definition",
+        chapter_outline="Chapter outline",
+        model="test",
+        persona_view=None,
+        emphasis_delta=None,
+    )
+
+    json.loads(capsys.readouterr().out)
+    assert received["system_message"] is None
+    assert "## Chapter Emphasis" not in str(received["prompt"])
+
+
 def test_generate_auto_loads_previous_scene(
     patched_env: tuple[Path, str],
     monkeypatch: pytest.MonkeyPatch,
@@ -708,6 +846,47 @@ def test_revise_include_content_returns_content(
 
     out = json.loads(capsys.readouterr().out)
     assert out["data"]["content"] == revised_text
+
+
+def test_revise_persona_and_delta_forwarded(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """revise should forward persona text and append emphasis delta."""
+    _stories_dir, name = patched_env
+
+    received: dict[str, object] = {}
+
+    def fake_call_llm(
+        prompt: str,
+        *,
+        model: str | None = None,
+        system_message: str | None = None,
+    ) -> str:
+        received["prompt"] = prompt
+        received["model"] = model
+        received["system_message"] = system_message
+        return "Revised scene"
+
+    monkeypatch.setattr(sw, "_call_llm", fake_call_llm)
+    monkeypatch.setattr(sw, "_fetch_persona_view", lambda *_a, **_kw: "persona sys")
+
+    sw.cmd_revise(
+        name,
+        chapter_num=1,
+        scene_num=1,
+        feedback="Tighten prose",
+        scene_content="Original scene",
+        model="test",
+        persona_view="scene",
+        emphasis_delta="Keep the voice severe.",
+    )
+
+    json.loads(capsys.readouterr().out)
+    assert received["system_message"] == "persona sys"
+    assert "## Chapter Emphasis" in str(received["prompt"])
+    assert "Keep the voice severe." in str(received["prompt"])
 
 
 def test_assemble_chapter_default_returns_chapter_ref(

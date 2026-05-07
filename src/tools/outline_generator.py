@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn
@@ -75,20 +76,50 @@ def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str
     return loader.load_prompt(prompt_id, variables)
 
 
-def _call_llm(prompt: str, *, model: str | None = None) -> str:
+def _call_llm(
+    prompt: str,
+    *,
+    model: str | None = None,
+    system_message: str | None = None,
+) -> str:
     """Call LLM with a single prompt and return text response."""
     from tools._llm import generate_text
 
-    return generate_text(prompt, model=model)
+    return generate_text(prompt, model=model, system_message=system_message)
 
 
 def _call_llm_messages(
-    messages: list[dict[str, str]], *, model: str | None = None
+    messages: list[dict[str, str]],
+    *,
+    model: str | None = None,
+    system_message: str | None = None,
 ) -> str:
     """Call LLM with full conversation history and return text response."""
     from tools._llm import generate_text_messages
 
+    if system_message:
+        messages = [{"role": "system", "content": system_message}, *messages]
     return generate_text_messages(messages, model=model)
+
+
+def _fetch_persona_view(name: str, view: str) -> str | None:
+    """Invoke persona-builder get-view; return text or None on empty stdout."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).parent / "persona_builder.py"),
+            "--operation",
+            "get-view",
+            "--name",
+            name,
+            "--view",
+            view,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    text = result.stdout.strip()
+    return text if text else None
 
 
 def _success(operation: str, data: Any) -> None:
@@ -396,6 +427,8 @@ def cmd_expand_chapter(
     continuity_summary: str = "",
     model: str | None = None,
     phase: str = "chunk",
+    persona_view: str | None = None,
+    emphasis_delta: str | None = None,
     **_kwargs: Any,
 ) -> None:
     """Generate an outline chunk for a range of chapters, then analyze continuity.
@@ -417,6 +450,8 @@ def cmd_expand_chapter(
             f"at a time. If you are invoking this tool directly, loop externally; "
             f"otherwise dispatch the chapter-outline-expander subagent instead."
         )
+
+    system_message = _fetch_persona_view(name, persona_view) if persona_view else None
 
     if not _has_savepoint(repo, "story_elements"):
         _error("story_elements savepoint not found — run generate-elements first")
@@ -491,7 +526,13 @@ def cmd_expand_chapter(
                     "continuity_summary": continuity_summary,
                 },
             )
-            chunk_text = _call_llm(chunk_prompt, model=model)
+            if emphasis_delta and emphasis_delta.strip():
+                chunk_prompt += f"\n\n## Chapter Emphasis\n\n{emphasis_delta}"
+            chunk_text = _call_llm(
+                chunk_prompt,
+                model=model,
+                system_message=system_message,
+            )
             _save_savepoint(repo, chunk_step, chunk_text)
         except Exception as exc:
             _error(f"chunk expansion failed: {exc}")
@@ -538,7 +579,13 @@ def cmd_expand_chapter(
                     "last_chapter_in_previous": last_prev,
                 },
             )
-            continuity_analysis = _call_llm(continuity_prompt, model=model)
+            if emphasis_delta and emphasis_delta.strip():
+                continuity_prompt += f"\n\n## Chapter Emphasis\n\n{emphasis_delta}"
+            continuity_analysis = _call_llm(
+                continuity_prompt,
+                model=model,
+                system_message=system_message,
+            )
             _save_savepoint(repo, continuity_step, continuity_analysis)
         except Exception as exc:
             print(
@@ -735,6 +782,8 @@ def cmd_refine(
     feedback: str,
     *,
     model: str | None = None,
+    persona_view: str | None = None,
+    emphasis_delta: str | None = None,
     **_kwargs: Any,
 ) -> None:
     """Refine the outline based on feedback/critique."""
@@ -776,6 +825,7 @@ def cmd_refine(
 
     # TODO: load wanted_chapters from story config when available
     wanted_chapters = ""
+    system_message = _fetch_persona_view(name, persona_view) if persona_view else None
 
     try:
         refinement_prompt = _load_prompt(
@@ -795,7 +845,13 @@ def cmd_refine(
             "Apply the following feedback when refining the outline:\n\n"
             f"{feedback}"
         )
-        refined_text = _call_llm(refinement_prompt, model=model)
+        if emphasis_delta and emphasis_delta.strip():
+            refinement_prompt += f"\n\n## Chapter Emphasis\n\n{emphasis_delta}"
+        refined_text = _call_llm(
+            refinement_prompt,
+            model=model,
+            system_message=system_message,
+        )
         _save_savepoint(repo, "refined_outline", refined_text)
         _success("refine", {"refined_outline": refined_text})
     except Exception as exc:
@@ -868,6 +924,16 @@ def main() -> None:
         "--feedback",
         default=None,
         help="Critique/feedback text (refine)",
+    )
+    parser.add_argument(
+        "--persona-view",
+        default=None,
+        help="Optional persona-builder view name for persona system message",
+    )
+    parser.add_argument(
+        "--emphasis-delta",
+        default=None,
+        help="Optional chapter emphasis text appended to prompt for supported operations",
     )
     parser.add_argument(
         "--chapter-num",
@@ -963,6 +1029,8 @@ def main() -> None:
             continuity_summary=args.continuity_summary,
             model=args.model,
             phase=args.phase,
+            persona_view=args.persona_view,
+            emphasis_delta=args.emphasis_delta,
         )
 
     elif args.operation == "expand-to-scenes":
@@ -990,7 +1058,13 @@ def main() -> None:
                 file=sys.stderr,
             )
             sys.exit(2)
-        cmd_refine(args.name, args.feedback, model=args.model)
+        cmd_refine(
+            args.name,
+            args.feedback,
+            model=args.model,
+            persona_view=args.persona_view,
+            emphasis_delta=args.emphasis_delta,
+        )
 
 
 if __name__ == "__main__":

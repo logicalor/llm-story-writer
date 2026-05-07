@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+import tools._llm as tool_llm
 import tools._io as tool_io
 import tools.outline_generator as og
 
@@ -353,6 +354,109 @@ def patched_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, 
     return stories_dir, story_name
 
 
+def test_call_llm_forwards_system_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_call_llm should forward system_message to the LLM helper."""
+    received: dict[str, object] = {}
+
+    def fake_generate_text(
+        prompt: str,
+        *,
+        model: str | None = None,
+        system_message: str | None = None,
+    ) -> str:
+        received["prompt"] = prompt
+        received["model"] = model
+        received["system_message"] = system_message
+        return "ok"
+
+    monkeypatch.setattr(tool_llm, "generate_text", fake_generate_text)
+
+    assert og._call_llm("prompt", system_message="sys") == "ok"
+    assert received == {
+        "prompt": "prompt",
+        "model": None,
+        "system_message": "sys",
+    }
+
+
+def test_call_llm_messages_prepends_system_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """System message should be prepended as the first chat message."""
+    received: dict[str, object] = {}
+
+    def fake_generate_text_messages(
+        messages: list[dict[str, str]], *, model: str | None = None
+    ) -> str:
+        received["messages"] = messages
+        received["model"] = model
+        return "ok"
+
+    monkeypatch.setattr(tool_llm, "generate_text_messages", fake_generate_text_messages)
+
+    original_messages = [{"role": "user", "content": "hi"}]
+
+    assert og._call_llm_messages(original_messages, system_message="sys") == "ok"
+    assert received["messages"] == [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "hi"},
+    ]
+    assert original_messages == [{"role": "user", "content": "hi"}]
+
+
+def test_call_llm_no_system_message_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without a system message, the original message list should pass through unchanged."""
+    received: dict[str, object] = {}
+
+    def fake_generate_text_messages(
+        messages: list[dict[str, str]], *, model: str | None = None
+    ) -> str:
+        received["messages"] = messages
+        received["model"] = model
+        return "ok"
+
+    monkeypatch.setattr(tool_llm, "generate_text_messages", fake_generate_text_messages)
+
+    original_messages = [{"role": "user", "content": "hi"}]
+
+    assert og._call_llm_messages(original_messages, system_message=None) == "ok"
+    assert received["messages"] == original_messages
+
+
+def test_fetch_persona_view_returns_none_on_empty_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Empty persona-builder stdout should map to None."""
+    monkeypatch.setattr(
+        og.subprocess,
+        "run",
+        lambda *_a, **_kw: subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=""
+        ),
+    )
+
+    assert og._fetch_persona_view("story", "outline") is None
+
+
+def test_fetch_persona_view_returns_text_on_non_empty_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-empty persona-builder stdout should be stripped and returned."""
+    monkeypatch.setattr(
+        og.subprocess,
+        "run",
+        lambda *_a, **_kw: subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="You are a writer.\n"
+        ),
+    )
+
+    assert og._fetch_persona_view("story", "outline") == "You are a writer."
+
+
 # ---------------------------------------------------------------------------
 # Test: analyze-prompt happy path (monkeypatched)
 # ---------------------------------------------------------------------------
@@ -487,9 +591,15 @@ def test_expand_chapter_happy_path(
 
     call_count = 0
 
-    def fake_call_llm(prompt: str, *, model: str | None = None) -> str:
+    def fake_call_llm(
+        prompt: str,
+        *,
+        model: str | None = None,
+        system_message: str | None = None,
+    ) -> str:
         nonlocal call_count
         call_count += 1
+        assert system_message is None
         if call_count == 1:
             return "Expanded chapters 1-3 outline"
         return "Continuity analysis for chapters 1-3"
@@ -508,6 +618,100 @@ def test_expand_chapter_happy_path(
     assert out["operation"] == "expand-chapter"
     assert "chunk_outline" in out["data"]
     assert "continuity_analysis" in out["data"]
+
+
+def test_expand_chapter_persona_and_delta_forwarded(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """expand-chapter should forward persona text and append emphasis delta."""
+    stories_dir, name = patched_env
+
+    _write_savepoint(stories_dir, name, "story_elements", "Elements content")
+    _write_savepoint(stories_dir, name, "base_context", "Base context content")
+
+    calls: list[dict[str, object]] = []
+
+    def fake_call_llm(
+        prompt: str,
+        *,
+        model: str | None = None,
+        system_message: str | None = None,
+    ) -> str:
+        calls.append(
+            {
+                "prompt": prompt,
+                "model": model,
+                "system_message": system_message,
+            }
+        )
+        return "chunk response" if len(calls) == 1 else "continuity response"
+
+    monkeypatch.setattr(og, "_call_llm", fake_call_llm)
+    monkeypatch.setattr(og, "_fetch_persona_view", lambda *_a, **_kw: "persona sys")
+
+    og.cmd_expand_chapter(
+        name,
+        1,
+        3,
+        10,
+        model="test-model",
+        persona_view="outline",
+        emphasis_delta="Focus on dread.",
+    )
+
+    json.loads(capsys.readouterr().out)
+    assert len(calls) == 2
+    assert all(call["system_message"] == "persona sys" for call in calls)
+    assert all("## Chapter Emphasis" in str(call["prompt"]) for call in calls)
+    assert all("Focus on dread." in str(call["prompt"]) for call in calls)
+
+
+def test_expand_chapter_no_persona_no_delta(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """expand-chapter should omit both persona system message and emphasis section when absent."""
+    stories_dir, name = patched_env
+
+    _write_savepoint(stories_dir, name, "story_elements", "Elements content")
+    _write_savepoint(stories_dir, name, "base_context", "Base context content")
+
+    calls: list[dict[str, object]] = []
+
+    def fake_call_llm(
+        prompt: str,
+        *,
+        model: str | None = None,
+        system_message: str | None = None,
+    ) -> str:
+        calls.append(
+            {
+                "prompt": prompt,
+                "model": model,
+                "system_message": system_message,
+            }
+        )
+        return "chunk response" if len(calls) == 1 else "continuity response"
+
+    monkeypatch.setattr(og, "_call_llm", fake_call_llm)
+
+    og.cmd_expand_chapter(
+        name,
+        1,
+        3,
+        10,
+        model="test-model",
+        persona_view=None,
+        emphasis_delta=None,
+    )
+
+    json.loads(capsys.readouterr().out)
+    assert len(calls) == 2
+    assert all(call["system_message"] is None for call in calls)
+    assert all("## Chapter Emphasis" not in str(call["prompt"]) for call in calls)
 
 
 # ---------------------------------------------------------------------------
@@ -561,8 +765,14 @@ def test_refine_happy_path(
 
     received_prompts: list[str] = []
 
-    def fake_call_llm(prompt: str, *, model: str | None = None) -> str:
+    def fake_call_llm(
+        prompt: str,
+        *,
+        model: str | None = None,
+        system_message: str | None = None,
+    ) -> str:
         received_prompts.append(prompt)
+        assert system_message is None
         return "Refined outline with stronger ending"
 
     monkeypatch.setattr(og, "_call_llm", fake_call_llm)
@@ -581,6 +791,48 @@ def test_refine_happy_path(
     assert out["status"] == "success"
     assert out["operation"] == "refine"
     assert "Refined outline with stronger ending" in out["data"]["refined_outline"]
+
+
+def test_refine_persona_and_delta_forwarded(
+    patched_env: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """refine should forward persona text and append emphasis delta."""
+    stories_dir, name = patched_env
+
+    _write_savepoint(stories_dir, name, "initial_outline", "Original outline")
+    _write_savepoint(stories_dir, name, "story_elements", "Elements content")
+    _write_savepoint(stories_dir, name, "base_context", "Base context content")
+
+    received: dict[str, object] = {}
+
+    def fake_call_llm(
+        prompt: str,
+        *,
+        model: str | None = None,
+        system_message: str | None = None,
+    ) -> str:
+        received["prompt"] = prompt
+        received["model"] = model
+        received["system_message"] = system_message
+        return "Refined outline"
+
+    monkeypatch.setattr(og, "_call_llm", fake_call_llm)
+    monkeypatch.setattr(og, "_fetch_persona_view", lambda *_a, **_kw: "persona sys")
+
+    og.cmd_refine(
+        name,
+        "Sharpen climax",
+        model="test-model",
+        persona_view="outline",
+        emphasis_delta="Keep pressure high.",
+    )
+
+    json.loads(capsys.readouterr().out)
+    assert received["system_message"] == "persona sys"
+    assert "## Chapter Emphasis" in str(received["prompt"])
+    assert "Keep pressure high." in str(received["prompt"])
 
 
 # ---------------------------------------------------------------------------

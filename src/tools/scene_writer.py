@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn
@@ -62,11 +63,36 @@ def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str
     return loader.load_prompt(prompt_id, variables)
 
 
-def _call_llm(prompt: str, *, model: str | None = None) -> str:
+def _call_llm(
+    prompt: str,
+    *,
+    model: str | None = None,
+    system_message: str | None = None,
+) -> str:
     """Call LLM with a single prompt and return text response."""
     from tools._llm import generate_text
 
-    return generate_text(prompt, model=model)
+    return generate_text(prompt, model=model, system_message=system_message)
+
+
+def _fetch_persona_view(name: str, view: str) -> str | None:
+    """Invoke persona-builder get-view; return text or None on empty stdout."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).parent / "persona_builder.py"),
+            "--operation",
+            "get-view",
+            "--name",
+            name,
+            "--view",
+            view,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    text = result.stdout.strip()
+    return text if text else None
 
 
 def _load_story_state(name: str) -> dict[str, Any]:
@@ -201,6 +227,8 @@ def cmd_generate(
     next_scene_definition: str | None = None,
     next_chapter_synopsis: str | None = None,
     model: str | None = None,
+    persona_view: str | None = None,
+    emphasis_delta: str | None = None,
     include_content: bool = False,
 ) -> None:
     """Generate content for a single scene."""
@@ -227,6 +255,8 @@ def cmd_generate(
             if isinstance(prev_loaded, str):
                 previous_scene = prev_loaded
 
+    system_message = _fetch_persona_view(name, persona_view) if persona_view else None
+
     prompt_text = _load_prompt(
         "scenes/create_content",
         {
@@ -244,9 +274,15 @@ def cmd_generate(
             "next_chapter_synopsis": next_chapter_synopsis or "",
         },
     )
+    if emphasis_delta and emphasis_delta.strip():
+        prompt_text += f"\n\n## Chapter Emphasis\n\n{emphasis_delta}"
 
     try:
-        content = _call_llm(prompt_text, model=model)
+        content = _call_llm(
+            prompt_text,
+            model=model,
+            system_message=system_message,
+        )
     except RuntimeError as exc:
         _error(f"scene generation failed: {exc}")
 
@@ -273,6 +309,8 @@ def cmd_revise(
     previous_scene: str | None = None,
     next_chapter_synopsis: str | None = None,
     model: str | None = None,
+    persona_view: str | None = None,
+    emphasis_delta: str | None = None,
     include_content: bool = False,
 ) -> None:
     """Revise scene content based on feedback."""
@@ -292,6 +330,8 @@ def cmd_revise(
         else:
             _error(f"--scene-content is required: no savepoint found at {step!r}")
 
+    system_message = _fetch_persona_view(name, persona_view) if persona_view else None
+
     prompt_text = _load_prompt(
         "scenes/revise_content",
         {
@@ -305,9 +345,15 @@ def cmd_revise(
             "chapter_num": str(chapter_num),
         },
     )
+    if emphasis_delta and emphasis_delta.strip():
+        prompt_text += f"\n\n## Chapter Emphasis\n\n{emphasis_delta}"
 
     try:
-        revised = _call_llm(prompt_text, model=model)
+        revised = _call_llm(
+            prompt_text,
+            model=model,
+            system_message=system_message,
+        )
     except RuntimeError as exc:
         _error(f"scene revision failed: {exc}")
 
@@ -638,6 +684,16 @@ def main() -> None:
     )
     parser.add_argument("--model", default=None, help="Override LLM model identifier")
     parser.add_argument(
+        "--persona-view",
+        default=None,
+        help="Optional persona-builder view name for persona system message",
+    )
+    parser.add_argument(
+        "--emphasis-delta",
+        default=None,
+        help="Optional chapter emphasis text appended to prompt for supported operations",
+    )
+    parser.add_argument(
         "--chapter-text", default=None, help="Chapter text for scrub/voice analysis"
     )
     parser.add_argument(
@@ -702,6 +758,8 @@ def main() -> None:
             next_scene_definition=args.next_scene_definition,
             next_chapter_synopsis=args.next_chapter_synopsis,
             model=args.model,
+            persona_view=args.persona_view,
+            emphasis_delta=args.emphasis_delta,
             include_content=args.include_content,
         )
 
@@ -727,6 +785,8 @@ def main() -> None:
             previous_scene=getattr(args, "previous_scene", None),
             next_chapter_synopsis=getattr(args, "next_chapter_synopsis", None),
             model=args.model,
+            persona_view=args.persona_view,
+            emphasis_delta=args.emphasis_delta,
             include_content=args.include_content,
         )
 
