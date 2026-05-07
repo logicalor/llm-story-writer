@@ -45,6 +45,7 @@ class OutlineResult:
     title: str = ""
     tags: list[str] = field(default_factory=list)
     savepoint_id: str | None = None
+    style_guide: str = ""
 
 
 @dataclass
@@ -152,6 +153,7 @@ class PipelineState:
     evolved_sheets: dict[str, Any] = field(default_factory=dict)
     completed_work_items: dict[str, list[str]] = field(default_factory=dict)
     status: str = "running"
+    style_guide: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a JSON-compatible dict for savepoint persistence.
@@ -187,6 +189,14 @@ class PipelineState:
                     content,
                 )
 
+        style_guide_val = d.get("style_guide", "")
+        if isinstance(style_guide_val, str) and style_guide_val:
+            d["style_guide"] = persist_markdown(
+                story_root,
+                "style_guide.md",
+                style_guide_val,
+            )
+
         return d
 
     @classmethod
@@ -218,6 +228,7 @@ class PipelineState:
                 base_context=outline_data.get("base_context", ""),
                 story_start_date=outline_data.get("story_start_date", ""),
                 story_elements=outline_data.get("story_elements", ""),
+                style_guide=outline_data.get("style_guide", ""),
                 chapter_skeletons=outline_data.get("chapter_skeletons", []),
                 chapter_details=outline_data.get("chapter_details", []),
                 enrichment_suggestions=outline_data.get("enrichment_suggestions", ""),
@@ -264,6 +275,7 @@ class PipelineState:
             evolved_sheets=data.get("evolved_sheets", {}),
             status=data.get("status", "running"),
             completed_work_items=data.get("completed_work_items", {}),
+            style_guide=_resolve(data.get("style_guide", "")),
         )
 
     def to_json(self) -> str:
