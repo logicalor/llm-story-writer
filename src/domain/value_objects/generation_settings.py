@@ -50,6 +50,12 @@ class GenerationSettings:
     translate_language: Optional[str] = None
     translate_prompt_language: Optional[str] = None
 
+    # Author persona settings
+    enable_author_persona: bool = True
+    persona_model: Optional[str] = None
+    persona_word_budget: int = 225
+    enable_emphasis_delta: bool = True
+
     def __post_init__(self):
         """Validate the generation settings."""
         # Validate seed
@@ -98,6 +104,11 @@ class GenerationSettings:
                 f"ceiling={self.scene_word_target_ceiling}"
             )
 
+        if not (100 <= self.persona_word_budget <= 500):
+            raise ValidationError(
+                f"persona_word_budget must be between 100 and 500, got {self.persona_word_budget}"
+            )
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GenerationSettings":
         """Create GenerationSettings from a dictionary."""
@@ -137,6 +148,10 @@ class GenerationSettings:
             "log_prompt_inputs": self.log_prompt_inputs,
             "translate_language": self.translate_language,
             "translate_prompt_language": self.translate_prompt_language,
+            "enable_author_persona": self.enable_author_persona,
+            "persona_model": self.persona_model,
+            "persona_word_budget": self.persona_word_budget,
+            "enable_emphasis_delta": self.enable_emphasis_delta,
         }
 
     def with_updates(self, **kwargs) -> "GenerationSettings":

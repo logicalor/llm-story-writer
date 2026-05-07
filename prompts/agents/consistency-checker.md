@@ -118,3 +118,5 @@ Return a structured consistency report:
 > **File path rule:** Always pass the `chapter_file_path` (not `chapter_text`) to `wiki-lint`. Inline text will cause a validation error.
 
 > **Graceful degradation:** If `rag-query` returns no results (no prior chapters indexed), include a note in the report and continue. Do not fail.
+
+> **No persona injection:** This agent does not use a persona view or emphasis delta. Persona injection measurably degrades factual reasoning tasks (Kim et al., 2025, arXiv:2408.08631). Consistency analysis requires neutral, unbiased prose evaluation.

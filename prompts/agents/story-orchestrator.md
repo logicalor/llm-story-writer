@@ -71,6 +71,9 @@ Execute these phases sequentially. Each phase completes fully before the next be
 - `generation.stream` (default: true)
 - `generation.debug` (default: true)
 - `generation.strategy` (default: "outline-chapter")
+- `generation.enable_author_persona` (default: true)
+- `generation.persona_word_budget` (default: 225)
+- `generation.enable_emphasis_delta` (default: true)
 
 ### Phase 2: Outline
 
@@ -80,9 +83,9 @@ Execute these phases sequentially. Each phase completes fully before the next be
 2. Delegate outline generation to the `outline-planner` subagent, passing:
    - `story_name`: the story name
    - `prompt`: the full story prompt text read from state
-   - All relevant config values: `use_chunked_outline_generation`, `outline_chunk_size`, `enable_outline_critique`, `outline_quality`, `outline_critique_iterations`, `outline_min_revisions`, `wanted_chapters`
+   - All relevant config values: `use_chunked_outline_generation`, `outline_chunk_size`, `enable_outline_critique`, `outline_quality`, `outline_critique_iterations`, `outline_min_revisions`, `wanted_chapters`, `enable_author_persona`, `persona_word_budget`, `enable_emphasis_delta`
 
-   > **Note:** The `outline-planner` handles the full pipeline internally — prompt analysis, element synthesis, outline generation (chunked or monolithic), and the critique/refinement loop. Do **not** run critique or revision steps at the orchestrator level.
+   > **Note:** The `outline-planner` handles the full pipeline internally — prompt analysis, element synthesis, persona generation (when `enable_author_persona` is true), outline generation (chunked or monolithic), and the critique/refinement loop. Do **not** invoke `persona-builder` directly from the orchestrator — persona generation is owned by `outline-planner` and executes between element synthesis and outline generation.
 3. Receive the finalised outline from `outline-planner`. If the orchestrator's own revision cap (`outline_max_revisions`) has not been reached and the user requests further revisions (Phase 3 feedback), re-invoke `outline-planner` with feedback.
 4. Persist the finalised outline by calling `savepoint-mgr save --name {story_name} --step outline --data <outline_text>` with the outline text returned by `outline-planner` in step 3 above. This step is **mandatory** regardless of whether chunked or non-chunked generation was used — both paths must produce and return the consolidated outline text. (The outline is stored only in the `outline` savepoint — **do not** write it to `story-state`; that field is forbidden and the write will be rejected.)
 
