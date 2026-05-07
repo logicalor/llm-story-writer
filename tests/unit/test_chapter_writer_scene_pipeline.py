@@ -101,7 +101,9 @@ async def test_scene_pipeline_runs_three_stages_in_order(tmp_path: Path) -> None
             "Detailed synopsis content for chapter 1.",  # synopsis call
             f"```json\n{scenes_payload}\n```",  # scene decomposition call
             "Scene 1 prose body.",  # scene 1 drafting
+            "Scene 1 actual recap.",
             "Scene 2 prose body.",  # scene 2 drafting
+            "Scene 2 actual recap.",
         ]
     )
 
@@ -125,12 +127,15 @@ async def test_scene_pipeline_runs_three_stages_in_order(tmp_path: Path) -> None
             _settings(enable_scene_critique=False, enable_scrubbing=False),
         )
 
-    # Four stream_text invocations: synopsis, scenes, scene1, scene2.
-    assert len(captured) == 4
+    # Six stream_text invocations: synopsis, scenes, scene1, scene1 recap,
+    # scene2, scene2 recap.
+    assert len(captured) == 6
     assert "Create Chapter Synopsis" in captured[0]
     assert "scene" in captured[1].lower()
     assert "Opening" in captured[2]
-    assert "Climax" in captured[3]
+    assert "continuity assistant" in captured[3]
+    assert "Climax" in captured[4]
+    assert "continuity assistant" in captured[5]
 
     # Final chapter content concatenates scene prose under the chapter title.
     assert "Scene 1 prose body." in draft.content
@@ -290,7 +295,14 @@ async def test_scene_pipeline_skips_decomposition_when_ledger_done(
         {"title": "Opening", "description": "Hero arrives at the gate."},
         {"title": "Climax", "description": "Hero confronts the guard."},
     ]
-    provider, captured = _make_provider(["Scene 1 prose body.", "Scene 2 prose body."])
+    provider, captured = _make_provider(
+        [
+            "Scene 1 prose body.",
+            "Scene 1 actual recap.",
+            "Scene 2 prose body.",
+            "Scene 2 actual recap.",
+        ]
+    )
     state = PipelineState(
         story_name="test-story",
         current_phase="chapters",
@@ -324,7 +336,7 @@ async def test_scene_pipeline_skips_decomposition_when_ledger_done(
         )
 
     assert draft.content
-    assert len(captured) == 2
+    assert len(captured) == 4
     assert "Scene 1 prose body." in draft.content
     assert "Scene 2 prose body." in draft.content
 
@@ -335,7 +347,9 @@ async def test_scene_pipeline_skips_completed_scenes_on_resume(tmp_path: Path) -
         {"title": "Opening", "description": "Hero arrives at the gate."},
         {"title": "Climax", "description": "Hero confronts the guard."},
     ]
-    provider, captured = _make_provider(["Scene 2 prose body."])
+    provider, captured = _make_provider(
+        ["Scene 2 prose body.", "Scene 2 actual recap."]
+    )
     state = PipelineState(
         story_name="test-story",
         current_phase="chapters",
@@ -373,7 +387,7 @@ async def test_scene_pipeline_skips_completed_scenes_on_resume(tmp_path: Path) -
 
     assert "Scene 1 prose from disk" in draft.content
     assert "Scene 2 prose body." in draft.content
-    assert len(captured) == 1
+    assert len(captured) == 2
     assert "Climax" in captured[0]
 
 
@@ -390,7 +404,9 @@ async def test_scene_pipeline_marks_work_items_done(tmp_path: Path) -> None:
             "Detailed synopsis content for chapter 1.",
             f"```json\n{scenes_payload}\n```",
             "Scene 1 prose body.",
+            "Scene 1 actual recap.",
             "Scene 2 prose body.",
+            "Scene 2 actual recap.",
         ]
     )
     state = PipelineState(story_name="test-story", current_phase="chapters")
@@ -427,7 +443,7 @@ async def test_scene_pipeline_marks_work_items_done(tmp_path: Path) -> None:
         )
 
     assert draft.content
-    assert len(captured) == 4
+    assert len(captured) == 6
     completed = state.completed_work_items.get("chapter-1", [])
     assert "scenes/decomposition" in completed
     assert "scene:1" in completed
@@ -457,7 +473,9 @@ async def test_scene_prompt_receives_scene_recap_context(tmp_path: Path) -> None
                 ]
             ),
             "Scene 1 prose body.",
+            "Scene 1 actual recap.",
             "Scene 2 prose body.",
+            "Scene 2 actual recap.",
         ]
     )
 
@@ -500,6 +518,173 @@ async def test_scene_prompt_receives_scene_recap_context(tmp_path: Path) -> None
     assert any("scene recap A" in prompt for prompt in captured)
 
 
+@pytest.mark.asyncio
+async def test_actual_recap_file_written_after_scene_draft(tmp_path: Path) -> None:
+    scenes = [
+        {"title": "Opening", "description": "Hero arrives."},
+        {"title": "Climax", "description": "Hero fights."},
+    ]
+    provider, _captured = _make_provider(
+        [
+            "Detailed synopsis content for chapter 1.",
+            json.dumps(scenes),
+            "Scene 1 prose.",
+            "Hero arrived at the gate.",
+            "Scene 2 prose.",
+            "Hero defeated the guard.",
+        ]
+    )
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+        )
+
+    recap_1 = (
+        tmp_path / "test-story" / "chapters" / "chapter_1" / "scene_1_actual_recap.txt"
+    )
+    recap_2 = (
+        tmp_path / "test-story" / "chapters" / "chapter_1" / "scene_2_actual_recap.txt"
+    )
+    assert recap_1.exists()
+    assert recap_2.exists()
+    assert recap_1.read_text(encoding="utf-8") == "Hero arrived at the gate."
+    assert recap_2.read_text(encoding="utf-8") == "Hero defeated the guard."
+    assert draft.content
+
+
+@pytest.mark.asyncio
+async def test_scenes_completed_summary_uses_actual_recap_not_predicted_ending(
+    tmp_path: Path,
+) -> None:
+    scenes = [
+        {
+            "title": "Opening",
+            "description": "...",
+            "ending": "PREDICTED_ENDING_ONE",
+        },
+        {
+            "title": "Climax",
+            "description": "...",
+            "ending": "PREDICTED_ENDING_TWO",
+        },
+    ]
+    provider, captured = _make_provider(
+        [
+            "Detailed synopsis content for chapter 1.",
+            json.dumps(scenes),
+            "Scene 1 actual prose.",
+            "ACTUAL_RECAP_ONE",
+            "Scene 2 actual prose.",
+            "ACTUAL_RECAP_TWO",
+        ]
+    )
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+        )
+
+    assert "ACTUAL_RECAP_ONE" in captured[4]
+    assert "PREDICTED_ENDING_ONE" not in captured[4]
+    assert (
+        tmp_path / "test-story" / "chapters" / "chapter_1" / "scene_1_actual_recap.txt"
+    ).exists()
+    assert (
+        tmp_path / "test-story" / "chapters" / "chapter_1" / "scene_2_actual_recap.txt"
+    ).exists()
+
+
+@pytest.mark.asyncio
+async def test_resume_reads_actual_recap_from_disk_no_extra_llm_call(
+    tmp_path: Path,
+) -> None:
+    scenes = [
+        {"title": "Opening", "ending": "PREDICTED_ENDING"},
+        {"title": "Climax", "ending": "PREDICTED_CLIMAX"},
+    ]
+    provider, captured = _make_provider(
+        ["Scene 2 prose body.", "Scene 2 actual recap."]
+    )
+    state = PipelineState(
+        story_name="test-story",
+        current_phase="chapters",
+        completed_work_items={"chapter-1": ["scenes/decomposition", "scene:1"]},
+    )
+
+    scenes_file = tmp_path / "test-story" / "chapters" / "chapter_1_scenes.json"
+    scenes_file.parent.mkdir(parents=True, exist_ok=True)
+    scenes_file.write_text(json.dumps(scenes), encoding="utf-8")
+
+    scene_1_path = tmp_path / "test-story" / "chapters" / "chapter_1" / "scene_1.md"
+    scene_1_path.parent.mkdir(parents=True, exist_ok=True)
+    scene_1_path.write_text("Scene 1 actual prose from disk.", encoding="utf-8")
+
+    recap_1_path = (
+        tmp_path / "test-story" / "chapters" / "chapter_1" / "scene_1_actual_recap.txt"
+    )
+    recap_1_path.write_text("DISK_RECAP_ONE", encoding="utf-8")
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(enable_scene_critique=False, enable_scrubbing=False),
+            state=state,
+        )
+
+    assert len(captured) == 2
+    assert "DISK_RECAP_ONE" in captured[0]
+    assert "PREDICTED_ENDING" not in captured[0]
+    assert "Scene 2 prose body." in draft.content
+
+
 def test_extract_json_array_filters_non_dict_entries() -> None:
     payload = '[{"title": "A"}, "stray string", 42, {"title": "B"}]'
     assert _extract_json_array(payload) == [{"title": "A"}, {"title": "B"}]
@@ -522,7 +707,9 @@ async def test_scene_pipeline_calls_assemble_context_per_scene(tmp_path: Path) -
             "Synopsis text.",
             f"```json\n{scenes_payload}\n```",
             "Scene A prose.",
+            "Scene A actual recap.",
             "Scene B prose.",
+            "Scene B actual recap.",
         ]
     )
 
@@ -580,8 +767,10 @@ async def test_scene_critique_fires_and_revises_when_findings_returned(
             "Scene 1 draft prose.",
             '{"outline_adherence": ["missing: hero meets villain"]}',
             "Scene 1 revised prose with hero meets villain.",
+            "Scene 1 actual recap.",
             "Scene 2 draft prose.",
             "{}",
+            "Scene 2 actual recap.",
         ]
     )
 
@@ -607,7 +796,7 @@ async def test_scene_critique_fires_and_revises_when_findings_returned(
             _settings(enable_scene_critique=True, enable_scrubbing=False),
         )
 
-    assert len(captured) == 7
+    assert len(captured) == 9
     assert any("Scene Critique" in prompt for prompt in captured)
     assert any("Scene Revision" in prompt for prompt in captured)
     assert "Scene 1 revised prose with hero meets villain." in draft.content
@@ -628,6 +817,7 @@ async def test_scene_critique_bypasses_revision_when_findings_empty(
             f"```json\n{scenes_payload}\n```",
             "Scene 1 clean draft prose.",
             "{}",
+            "Scene 1 actual recap.",
         ]
     )
 
@@ -656,7 +846,7 @@ async def test_scene_critique_bypasses_revision_when_findings_empty(
             ),
         )
 
-    assert len(captured) == 4
+    assert len(captured) == 5
     assert any("Scene Critique" in prompt for prompt in captured)
     assert not any("Scene Revision" in prompt for prompt in captured)
     assert "Scene 1 clean draft prose." in draft.content
@@ -675,7 +865,9 @@ async def test_scene_critique_skipped_when_disabled(tmp_path: Path) -> None:
             "Detailed synopsis content for chapter 1.",
             f"```json\n{scenes_payload}\n```",
             "Scene 1 prose body.",
+            "Scene 1 actual recap.",
             "Scene 2 prose body.",
+            "Scene 2 actual recap.",
         ]
     )
 
@@ -700,7 +892,7 @@ async def test_scene_critique_skipped_when_disabled(tmp_path: Path) -> None:
             _settings(enable_scene_critique=False, enable_scrubbing=False),
         )
 
-    assert len(captured) == 4
+    assert len(captured) == 6
     assert not any("Scene Critique" in prompt for prompt in captured)
     assert not any("Scene Revision" in prompt for prompt in captured)
     assert "Scene 1 prose body." in draft.content
@@ -721,6 +913,7 @@ async def test_scene_critique_skipped_on_resume_when_scene_already_saved(
             json.dumps(scenes),
             "Scene 2 prose body.",
             "{}",
+            "Scene 2 actual recap.",
         ]
     )
     state = PipelineState(
@@ -759,7 +952,7 @@ async def test_scene_critique_skipped_on_resume_when_scene_already_saved(
             state=state,
         )
 
-    assert len(captured) == 4
+    assert len(captured) == 5
     assert captured[2].startswith("# Scene Critique") is False
     assert "Scene 1 prose from disk" in draft.content
     assert "Scene 2 prose body." in draft.content
@@ -784,6 +977,7 @@ async def test_scene_pipeline_falls_back_per_scene_when_scene_context_unavailabl
             "Synopsis text.",
             f"```json\n{scenes_payload}\n```",
             "Scene prose content.",
+            "Scene actual recap.",
         ]
     )
 

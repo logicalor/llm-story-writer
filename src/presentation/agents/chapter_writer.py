@@ -519,6 +519,7 @@ class ChapterWriterAgent:
         # Stage 3: per-scene drafting.
         scene_prose: list[str] = []
         scenes_completed_meta: list[dict[str, Any]] = []
+        actual_recaps: dict[int, str] = {}
         total_scenes = len(scenes)
         scenes_dir = STORIES_DIR / story_name / "chapters" / f"chapter_{chapter_number}"
         for index, scene in enumerate(scenes, start=1):
@@ -554,6 +555,11 @@ class ChapterWriterAgent:
                 scene_text = scene_file.read_text(encoding="utf-8")
                 scene_prose.append(scene_text)
                 scenes_completed_meta.append(scene)
+                recap_cache_file = scenes_dir / f"scene_{index}_actual_recap.txt"
+                if recap_cache_file.exists():
+                    actual_recaps[index] = recap_cache_file.read_text(
+                        encoding="utf-8"
+                    ).strip()
                 continue
 
             if index == 1:
@@ -576,7 +582,7 @@ class ChapterWriterAgent:
                 completed_lines = []
                 for done_idx, done_scene in enumerate(scenes_completed_meta, start=1):
                     title = done_scene.get("title", "") or f"scene {done_idx}"
-                    desc = (
+                    desc = actual_recaps.get(done_idx) or (
                         done_scene.get("ending") or done_scene.get("description") or ""
                     )
                     completed_lines.append(f"{done_idx}. {title} — {desc}".strip())
@@ -799,6 +805,32 @@ class ChapterWriterAgent:
                         f"\n[Chapter {chapter_number}] scene {index} scrub "
                         f"failed ({type(exc).__name__}: {exc}); using raw draft.\n"
                     )
+
+            # Generate and cache an actual-prose recap for continuity.
+            prose_excerpt = scene_text[-500:].strip()
+            recap_prompt = loader.load_prompt(
+                "scenes/summarise_for_continuity",
+                variables={"prose_excerpt": prose_excerpt},
+            )
+            try:
+                recap_text = await self._stream_to_bus(
+                    [
+                        {"role": "system", "content": recap_prompt},
+                        {"role": "user", "content": "Summarise the scene ending now."},
+                    ],
+                    scene_model,
+                    settings.seed,
+                )
+                recap_text = recap_text.strip()
+                if recap_text:
+                    actual_recaps[index] = recap_text
+                    recap_cache_file = scenes_dir / f"scene_{index}_actual_recap.txt"
+                    _atomic_write(recap_cache_file, recap_text)
+            except Exception as exc:
+                await self.bus.emit(
+                    f"\n[Chapter {chapter_number}] scene {index} recap failed "
+                    f"({type(exc).__name__}: {exc}); continuity will use predicted ending.\n"
+                )
 
             scene_prose.append(scene_text)
             scenes_completed_meta.append(scene)
