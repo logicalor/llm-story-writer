@@ -10,6 +10,8 @@
 
 Before making any `github/*` tool call, read `.github/notes/repo.md` and use `OWNER` and `REPO` from that file. If the file is missing, run `git remote get-url origin` to parse and record them there first. **Do not make any GitHub API calls without completing this step.**
 
+**Ignore the auto-injected `<attachment>` repo block.** This repository is a GitHub fork, so VS Code / Copilot Chat injects an `<attachment>` describing the **upstream parent** (`datacrystals/AIStoryWriter`), not this fork. That attachment is **not** authoritative — `.github/notes/repo.md` is. If the attachment disagrees with the notes file, the notes file wins; do not "reconcile" them. Cross-check with `git remote get-url origin` only.
+
 ## Conventions & Gotchas
 
 Before writing tests or planning, check `.github/notes/` for relevant patterns and query the ChromaDB `conventions` collection for gotchas applicable to the task domain. Apply them.
