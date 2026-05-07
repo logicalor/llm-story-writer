@@ -87,6 +87,27 @@ def _make_provider(responses: list[str]):
     return provider, captured_systems
 
 
+def _two_scenes() -> list[dict[str, object]]:
+    return [
+        {
+            "title": "Scene A",
+            "description": "First scene.",
+            "characters": ["Alice"],
+            "setting": "Forest",
+            "key_events": ["Alice arrives"],
+            "ending": "Alice rests",
+        },
+        {
+            "title": "Scene B",
+            "description": "Second scene.",
+            "characters": ["Alice"],
+            "setting": "Cave",
+            "key_events": ["Alice explores"],
+            "ending": "Alice escapes",
+        },
+    ]
+
+
 @pytest.mark.asyncio
 async def test_scene_pipeline_runs_three_stages_in_order(tmp_path: Path) -> None:
     """Synopsis → scene-array → per-scene calls happen in order with correct prompts."""
@@ -802,6 +823,165 @@ async def test_scene_critique_fires_and_revises_when_findings_returned(
     assert "Scene 1 revised prose with hero meets villain." in draft.content
     assert "Scene 1 draft prose." not in draft.content
     assert "Scene 2 draft prose." in draft.content
+
+
+@pytest.mark.asyncio
+async def test_decomposition_critic_clean_decomposition_no_retry(
+    tmp_path: Path,
+) -> None:
+    scenes_json_valid = json.dumps(_two_scenes())
+    provider, captured = _make_provider(
+        [
+            "synopsis text",
+            scenes_json_valid,
+            "{}",
+            "Scene 1 prose body.",
+            "Scene 1 actual recap.",
+            "Scene 2 prose body.",
+            "Scene 2 actual recap.",
+        ]
+    )
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(
+                enable_decomposition_critique=True,
+                enable_scene_critique=False,
+                enable_scrubbing=False,
+            ),
+        )
+
+    assert len(captured) == 7
+    assert "decomposition" in captured[2].lower()
+    assert "Scene 1 prose body." in draft.content
+    assert "Scene 2 prose body." in draft.content
+
+
+@pytest.mark.asyncio
+async def test_decomposition_critic_findings_triggers_one_retry(
+    tmp_path: Path,
+) -> None:
+    scenes_json_valid = json.dumps(_two_scenes())
+    retry_scenes = [
+        {
+            "title": "Retry Scene A",
+            "description": "Reworked first scene.",
+            "characters": ["Alice"],
+            "setting": "Forest",
+            "key_events": ["Alice arrives carefully"],
+            "ending": "Alice regroups",
+        },
+        {
+            "title": "Retry Scene B",
+            "description": "Reworked second scene.",
+            "characters": ["Alice"],
+            "setting": "Cave",
+            "key_events": ["Alice explores deeper"],
+            "ending": "Alice escapes faster",
+        },
+    ]
+    scenes_json_retry = json.dumps(retry_scenes)
+    provider, captured = _make_provider(
+        [
+            "synopsis text",
+            scenes_json_valid,
+            '{"overlap_pairs": [[0, 1, "both describe arrival"]], "summary": "overlap found"}',
+            scenes_json_retry,
+            "Retry scene 1 prose body.",
+            "Scene 1 actual recap.",
+            "Retry scene 2 prose body.",
+            "Scene 2 actual recap.",
+        ]
+    )
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(
+                enable_decomposition_critique=True,
+                enable_scene_critique=False,
+                enable_scrubbing=False,
+            ),
+        )
+
+    assert len(captured) == 8
+    assert "Retry scene 1 prose body." in draft.content
+    assert "Retry scene 2 prose body." in draft.content
+
+
+@pytest.mark.asyncio
+async def test_decomposition_critic_disabled_skips_critic(tmp_path: Path) -> None:
+    scenes_json_valid = json.dumps(_two_scenes())
+    provider, captured = _make_provider(
+        [
+            "synopsis text",
+            scenes_json_valid,
+            "Scene 1 prose body.",
+            "Scene 1 actual recap.",
+            "Scene 2 prose body.",
+            "Scene 2 actual recap.",
+        ]
+    )
+
+    agent = ChapterWriterAgent(
+        provider,
+        {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        },
+        TokenStreamBus(),
+        WikiContextBus(),
+    )
+
+    with patch("presentation.agents.chapter_writer.STORIES_DIR", tmp_path):
+        draft = await agent.run(
+            "test-story",
+            1,
+            _outline_result(),
+            _settings(
+                enable_decomposition_critique=False,
+                enable_scene_critique=False,
+                enable_scrubbing=False,
+            ),
+        )
+
+    assert len(captured) == 6
+    assert "Scene 1 prose body." in draft.content
+    assert "Scene 2 prose body." in draft.content
 
 
 @pytest.mark.asyncio

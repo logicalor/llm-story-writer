@@ -92,6 +92,30 @@ def _extract_json_array(text: str) -> list[dict[str, Any]]:
     return [scene for scene in parsed if isinstance(scene, dict)]
 
 
+def _extract_json_object(text: str) -> dict[str, Any]:
+    stripped = text.strip()
+
+    fence = re.search(r"```(?:json)?\s*(.*?)```", stripped, re.DOTALL)
+    if fence:
+        stripped = fence.group(1).strip()
+
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            parsed = json.loads(stripped[start : end + 1])
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict):
+            return parsed
+
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 class ChapterWriterAgent:
     def __init__(
         self,
@@ -515,6 +539,126 @@ class ChapterWriterAgent:
                     f"\n[Chapter {chapter_number}] could not persist scene "
                     f"definitions ({type(exc).__name__}: {exc}); continuing.\n"
                 )
+
+            if settings.enable_decomposition_critique:
+                try:
+                    known_character_slugs: list[str] = []
+                    known_location_slugs: list[str] = []
+                    wiki_index_path = STORIES_DIR / story_name / "wiki" / "index.md"
+                    if wiki_index_path.exists():
+                        try:
+                            for raw_line in wiki_index_path.read_text(
+                                encoding="utf-8"
+                            ).splitlines():
+                                line = raw_line.strip()
+                                if not line:
+                                    continue
+                                parts = [part.strip() for part in line.split("|")]
+                                if len(parts) != 5:
+                                    raise ValueError(
+                                        f"Malformed wiki index line: {raw_line}"
+                                    )
+                                slug, entry_type, _name, _aliases, entry_path = parts
+                                if entry_type == "character":
+                                    known_character_slugs.append(slug)
+                                if entry_path.startswith("locations/"):
+                                    known_location_slugs.append(slug)
+                        except (OSError, ValueError) as exc:
+                            known_character_slugs = []
+                            known_location_slugs = []
+                            await self.bus.emit(
+                                f"\n[Chapter {chapter_number}] Decomposition critic "
+                                f"wiki index unavailable ({type(exc).__name__}: {exc}); "
+                                "using empty slug hints.\n"
+                            )
+
+                    critic_prompt = loader.load_prompt(
+                        "chapters/critique_scene_decomposition",
+                        variables={
+                            "scene_array_json": json.dumps(
+                                scenes, indent=2, ensure_ascii=False
+                            ),
+                            "chapter_synopsis": synopsis_text,
+                            "known_character_slugs": ", ".join(known_character_slugs),
+                            "known_location_slugs": ", ".join(known_location_slugs),
+                        },
+                    )
+                    critic_raw = await self._stream_to_bus(
+                        [
+                            {"role": "system", "content": critic_prompt},
+                            {
+                                "role": "user",
+                                "content": "Return the JSON findings object.",
+                            },
+                        ],
+                        synopsis_model,
+                        settings.seed,
+                    )
+                    findings = _extract_json_object(critic_raw)
+                    has_findings = any(key != "summary" for key in findings)
+
+                    if has_findings:
+                        await self.bus.emit(
+                            f"\n[Chapter {chapter_number}] Decomposition critic found issues; regenerating scenes.\n"
+                        )
+                        await self.status_bus.emit(
+                            StatusEvent(
+                                phase=phase,
+                                message=(
+                                    f"Ch {chapter_number}: regenerating scenes "
+                                    "(critic feedback)"
+                                ),
+                                kind="step",
+                            )
+                        )
+                        feedback_msg = (
+                            "The previous scene decomposition had the following "
+                            "structural issues:\n\n"
+                            + json.dumps(findings, indent=2, ensure_ascii=False)
+                            + "\n\nPlease regenerate the scene array, fixing all "
+                            "listed issues. Return ONLY the JSON array of scenes."
+                        )
+                        retry_raw = await self._stream_to_bus(
+                            [
+                                {"role": "system", "content": scenes_prompt},
+                                {"role": "user", "content": feedback_msg},
+                            ],
+                            synopsis_model,
+                            settings.seed,
+                        )
+                        retry_scenes = _extract_json_array(retry_raw)
+                        if (
+                            retry_scenes
+                            and scenes_min <= len(retry_scenes) <= scenes_max
+                        ):
+                            scenes = retry_scenes
+                            try:
+                                _atomic_write(
+                                    scenes_json_path,
+                                    json.dumps(scenes, indent=2, ensure_ascii=False),
+                                )
+                            except OSError as exc:
+                                await self.bus.emit(
+                                    f"\n[Chapter {chapter_number}] could not persist "
+                                    "critic-regenerated scenes "
+                                    f"({type(exc).__name__}: {exc}); continuing.\n"
+                                )
+                        else:
+                            retry_count = len(retry_scenes) if retry_scenes else 0
+                            await self.bus.emit(
+                                f"\n[Chapter {chapter_number}] Decomposition critic "
+                                "retry produced invalid scene output "
+                                f"({retry_count} scenes); proceeding with original decomposition.\n"
+                            )
+                    else:
+                        await self.bus.emit(
+                            f"\n[Chapter {chapter_number}] Decomposition critic: no issues found.\n"
+                        )
+                except Exception as exc:
+                    await self.bus.emit(
+                        f"\n[Chapter {chapter_number}] Decomposition critic failed "
+                        f"({type(exc).__name__}: {exc}); proceeding.\n"
+                    )
 
         # Stage 3: per-scene drafting.
         scene_prose: list[str] = []

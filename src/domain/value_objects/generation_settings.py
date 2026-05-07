@@ -25,6 +25,7 @@ class GenerationSettings:
     enable_outline_critique: bool = True
     enable_concurrent_critics: bool = False
     enable_scene_critique: bool = True
+    enable_decomposition_critique: bool = True
 
     # Initial outline generation settings
     use_chunked_outline_generation: bool = (
@@ -104,6 +105,7 @@ class GenerationSettings:
             "scenes_per_chapter_max": self.scenes_per_chapter_max,
             "enable_outline_critique": self.enable_outline_critique,
             "enable_scene_critique": self.enable_scene_critique,
+            "enable_decomposition_critique": self.enable_decomposition_critique,
             "enable_concurrent_critics": self.enable_concurrent_critics,
             "stream": self.stream,
             "debug": self.debug,
