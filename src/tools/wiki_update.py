@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import re
 import sys
@@ -26,6 +27,7 @@ from tools._wiki import (  # noqa: E402
     parse_frontmatter,
     read_index,
     render_frontmatter,
+    slugify,
     write_index,
 )
 
@@ -63,6 +65,11 @@ def _upsert_to_chromadb(
         for key in ("role", "status", "region", "chapter", "impact"):
             if key in metadata:
                 extra_meta[key] = metadata[key]
+        aliases_val = metadata.get("aliases")
+        if isinstance(aliases_val, list):
+            extra_meta["aliases"] = "|".join(
+                a for a in aliases_val if isinstance(a, str) and a
+            )
 
         source_path = (
             str(page_path.relative_to(PROJECT_ROOT)) if page_path is not None else ""
@@ -456,6 +463,20 @@ def run_batch(
     created_count = 0
     updated_count = 0
 
+    # Build alias→slug map for soft-duplicate detection across name/alias variants
+    _index_for_dedup = read_index(wiki_dir) if creates else []
+    _alias_map: dict[str, str] = {}
+    for _ie in _index_for_dedup:
+        _ie_slug = _ie.get("slug", "")
+        _ie_name = _ie.get("name", "")
+        if _ie_slug:
+            _alias_map[_ie_slug] = _ie_slug
+        if _ie_name:
+            _alias_map[slugify(_ie_name)] = _ie_slug
+        for _ia in _ie.get("aliases", []):
+            if isinstance(_ia, str) and _ia.strip():
+                _alias_map[slugify(_ia)] = _ie_slug
+
     try:
         # --- Creates ---
         for item in creates:
@@ -471,6 +492,31 @@ def run_batch(
             _validate_slug(slug)
             if page_type not in _VALID_PAGE_TYPES:
                 raise ValueError(f"invalid page type: {page_type}")
+
+            # Soft-dedup: skip if a different page already covers this entity
+            # via a name or alias match (prevents slug-divergence duplicates)
+            _new_lookup = {slug, slugify(page_name)}
+            _new_lookup.update(
+                slugify(a)
+                for a in item.get("aliases", [])
+                if isinstance(a, str) and a.strip()
+            )
+            _conflict = next(
+                (
+                    _alias_map[s]
+                    for s in _new_lookup
+                    if s in _alias_map and _alias_map[s] != slug
+                ),
+                None,
+            )
+            if _conflict:
+                logging.warning(
+                    "[wiki_update] run_batch: skipping '%s' — "
+                    "name/alias overlap with existing page '%s'",
+                    slug,
+                    _conflict,
+                )
+                continue
 
             existing = find_pages(wiki_dir, slug=slug)
             if existing:

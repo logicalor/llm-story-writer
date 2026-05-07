@@ -986,11 +986,24 @@ async def _continue_pipeline(
                     resolved_config,
                     story_dir.parent,
                 )
-                total_generated = char_result["generated"] + loc_result["generated"]
+                entity_result = await asyncio.to_thread(
+                    wiki_generation.generate_outline_entity_pages,
+                    state.story_name,
+                    state.outline_result,
+                    resolved_provider,
+                    resolved_config,
+                    story_dir.parent,
+                )
+                total_generated = (
+                    char_result["generated"]
+                    + loc_result["generated"]
+                    + entity_result["generated"]
+                )
                 if (
                     total_generated == 0
                     and char_result["skipped"] == 0
                     and loc_result["skipped"] == 0
+                    and entity_result["skipped"] == 0
                 ):
                     await _write_savepoint(state)
                     raise StoryGenerationError("wiki-generation produced no pages")

@@ -110,6 +110,10 @@ async def test_recap_write_stores_pointer_dicts_in_state(tmp_path: Path) -> None
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result(1))
@@ -171,6 +175,10 @@ async def test_recap_md_files_contain_correct_content(tmp_path: Path) -> None:
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
     ):
@@ -251,6 +259,10 @@ async def test_recap_read_resolves_pointer_to_string(tmp_path: Path) -> None:
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
         patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
@@ -313,6 +325,10 @@ async def test_recap_legacy_inline_dict_still_loads(tmp_path: Path) -> None:
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
         patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
         patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,

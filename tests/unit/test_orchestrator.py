@@ -150,6 +150,10 @@ async def test_run_pipeline_happy_path(tmp_path: Path) -> None:
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
@@ -206,6 +210,10 @@ async def test_wiki_update_failure_does_not_abort_chapter_loop(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         foundation_cls.return_value.run = AsyncMock(return_value=_outline_result())
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
@@ -259,6 +267,10 @@ async def test_chapter_files_written_during_chapter_loop(tmp_path: Path) -> None
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
@@ -309,6 +321,10 @@ async def test_assembly_writes_output_story_md(tmp_path: Path) -> None:
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         foundation_cls.return_value.run = AsyncMock(return_value=_outline_result())
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
@@ -356,6 +372,10 @@ async def test_run_pipeline_outline_rejection(tmp_path: Path) -> None:
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
@@ -412,6 +432,10 @@ async def test_outline_revision_does_not_duplicate_savepoint(tmp_path: Path) -> 
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
         patch(
             "presentation.orchestrator._init_wiki_for_story",
@@ -489,6 +513,10 @@ async def test_run_pipeline_chapter_revision(tmp_path: Path) -> None:
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         chapter_cls.return_value.run = AsyncMock(
@@ -558,6 +586,10 @@ async def test_resume_pipeline_from_savepoint(tmp_path: Path) -> None:
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
     ):
         chapter_cls.return_value.run = AsyncMock(return_value=_chapter_draft())
@@ -782,6 +814,10 @@ async def test_assembly_raises_when_no_chapters(tmp_path: Path) -> None:
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         await _write_savepoint(partial_state)
 
@@ -828,6 +864,10 @@ async def test_narrative_arc_phase_runs_after_outline(tmp_path: Path) -> None:
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
@@ -899,6 +939,10 @@ async def test_narrative_arc_phase_advisory_continues_on_error(tmp_path: Path) -
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         arc_agent_cls.return_value.run = AsyncMock(
@@ -960,6 +1004,10 @@ async def test_final_edit_phase_invokes_agent(tmp_path: Path) -> None:
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
@@ -1040,6 +1088,10 @@ async def test_final_edit_exception_does_not_abort_assembly(tmp_path: Path) -> N
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         arc_agent_cls.return_value.run = AsyncMock(
@@ -1115,6 +1167,10 @@ async def test_final_edit_phase_skipped_when_disabled(tmp_path: Path) -> None:
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         arc_agent_cls.return_value.run = AsyncMock(
@@ -1183,6 +1239,10 @@ async def test_wiki_initialised_before_chapter_loop(tmp_path: Path) -> None:
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
@@ -1253,6 +1313,10 @@ async def test_wiki_initialisation_idempotent_on_resume(tmp_path: Path) -> None:
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
     ):
         arc_agent_cls.return_value.run = AsyncMock(
@@ -1326,6 +1390,10 @@ async def test_wiki_init_error_raises_story_generation_error(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         arc_agent_cls.return_value.run = AsyncMock(
@@ -1384,6 +1452,10 @@ async def test_consistency_warnings_emitted_even_when_passed_true(
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
@@ -2189,6 +2261,10 @@ async def test_outline_draft_skipped_on_resume(tmp_path: Path) -> None:
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         arc_agent_cls.return_value.run = AsyncMock(
@@ -2271,6 +2347,10 @@ async def test_outline_critique_skipped_on_resume(tmp_path: Path) -> None:
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
         critic_cls.return_value.run = AsyncMock(return_value=state)
@@ -2348,6 +2428,10 @@ async def test_tui_resume_banner_emits_backfill_events(tmp_path: Path) -> None:
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
@@ -2438,6 +2522,10 @@ async def test_tui_resume_banner_suppressed_for_empty_ledger(tmp_path: Path) -> 
         patch(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
         ),
     ):
         outline_cls.return_value.run = AsyncMock(return_value=_outline_result())

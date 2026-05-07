@@ -17,6 +17,9 @@ Entity categories to extract:
 - Events
 - Themes
 - World rules
+- Items
+- Factions
+- Relationships
 
 Use these exact singular `type` values:
 - `character`
@@ -25,6 +28,9 @@ Use these exact singular `type` values:
 - `event`
 - `theme`
 - `world_rule`
+- `item`
+- `faction`
+- `relationship`
 
 Every entity object must have this shape:
 

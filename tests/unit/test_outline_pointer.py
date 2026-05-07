@@ -110,6 +110,10 @@ async def _run_outline_pipeline(
             "tools.wiki_generation.generate_location_pages",
             new=MagicMock(return_value={"generated": 3, "skipped": 0}),
         ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 0, "skipped": 0}),
+        ),
         patch("presentation.agents.recap_writer.RecapWriterAgent") as recap_cls,
     ):
         outline_cls.return_value.run = AsyncMock(return_value=outline_result)

@@ -14,7 +14,7 @@ from infrastructure.prompts.prompt_loader import PromptLoader
 from tools import _llm
 from tools._io import _validate_story_name
 from tools._persist import read_markdown_ref
-from tools._wiki import get_wiki_dir, slugify
+from tools._wiki import _TYPE_TO_DIR, get_wiki_dir, slugify
 from tools.wiki_update import run_batch
 
 logger = logging.getLogger(__name__)
@@ -150,11 +150,19 @@ def _extract_entities(
             aliases = item.get("aliases")
             if not isinstance(aliases, list):
                 aliases = []
+            description = item.get("description")
+            confidence = item.get("confidence")
             entities.append(
                 {
                     "name": name.strip(),
                     "type": entity_type.strip(),
                     "aliases": [alias for alias in aliases if isinstance(alias, str)],
+                    "description": description.strip()
+                    if isinstance(description, str)
+                    else "",
+                    "confidence": confidence
+                    if isinstance(confidence, str)
+                    else "planned",
                 }
             )
         return entities
@@ -408,3 +416,94 @@ def generate_location_pages(
         generated += int(summary.get("created", 0))
 
     return {"generated": generated, "skipped": skipped}
+
+
+_OUTLINE_EXTRA_TYPES = {
+    "plot_thread",
+    "event",
+    "theme",
+    "world_rule",
+    "item",
+    "faction",
+    "relationship",
+}
+
+
+def generate_outline_entity_pages(
+    story_name: str,
+    outline_result: OutlineResult,
+    provider: Any,
+    config: dict[str, Any],
+    stories_dir: Path,
+) -> dict[str, int]:
+    """Generate wiki pages for non-character/non-location outline entities.
+
+    Returns {"generated": int, "skipped": int}.
+    """
+    _validate_story_name(story_name)
+    story_root = stories_dir / story_name
+    wiki_dir = get_wiki_dir(story_root)
+    outline_excerpt = _build_outline_excerpt(outline_result, story_root)
+    model_config = _model_config(config)
+    seed = _generation_seed(config)
+
+    all_entities = _extract_entities(
+        story_name, outline_excerpt, provider, model_config, seed=seed
+    )
+
+    creates = []
+    seen_slugs: set[str] = set()
+    skipped = 0
+
+    for entity in all_entities:
+        page_type = entity.get("type", "")
+        if page_type not in _OUTLINE_EXTRA_TYPES:
+            continue
+
+        slug = slugify(entity["name"])
+        if slug in seen_slugs:
+            skipped += 1
+            continue
+
+        type_dir = _TYPE_TO_DIR.get(page_type)
+        if (
+            type_dir
+            and wiki_dir.exists()
+            and (wiki_dir / type_dir / f"{slug}.md").exists()
+        ):
+            skipped += 1
+            continue
+
+        seen_slugs.add(slug)
+
+        description = entity.get("description", "")
+        first_sentence = (
+            (description.split(".")[0].strip() + ".")
+            if "." in description
+            else description[:120]
+        )
+        creates.append(
+            {
+                "slug": slug,
+                "page_type": page_type,
+                "page_name": entity["name"],
+                "confidence": entity.get("confidence", "planned"),
+                "first_appearance": 1,
+                "aliases": entity.get("aliases", []),
+                "detail_levels": {
+                    "L1": first_sentence.strip(),
+                    "L2": description.strip(),
+                    "L3": description.strip(),
+                },
+                "body": description.strip(),
+            }
+        )
+
+    if not creates:
+        return {"generated": 0, "skipped": skipped}
+
+    summary = run_batch(
+        story_name,
+        {"creates": creates, "updates": [], "timeline_events": []},
+    )
+    return {"generated": summary.get("created", 0), "skipped": skipped}

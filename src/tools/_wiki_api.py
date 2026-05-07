@@ -21,7 +21,7 @@ from tools._wiki import (
     write_index,
 )
 from tools.recap_index import query_recap
-from tools.wiki_update import run_batch
+from tools.wiki_update import _upsert_to_chromadb, run_batch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -440,6 +440,13 @@ def _apply_merge_patch(story_dir: Path, slug: str, patch: dict[str, Any]) -> boo
     new_text = render_frontmatter(metadata, body.rstrip("\n"))
 
     _atomic_write(page_path, new_text)
+    _upsert_to_chromadb(
+        story_dir.name,
+        slug,
+        body.rstrip("\n"),
+        metadata,
+        page_path=page_path,
+    )
 
     index_entries = read_index(wiki_dir)
     index_changed = False
@@ -842,8 +849,45 @@ def update_wiki_full_pass(
 
     total_created = sum(stats["created"] for stats in per_type_stats.values())
     total_updated = sum(stats["updated"] for stats in per_type_stats.values())
+
+    # ---- Timeline extraction ----
+    # No per-type prompt covers timeline events. Use the omnibus chapter prompt.
+    timeline_events_added = 0
+    try:
+        compact_entities = [
+            {
+                "name": e.get("name", ""),
+                "slug": e.get("slug", ""),
+                "type": e.get("type", ""),
+            }
+            for e in index_entries
+        ]
+        tl_prompt = _load_prompt(
+            "wiki/extract_from_chapter",
+            {
+                "chapter_text": chapter_text,
+                "chapter_number": chapter,
+                "existing_entities": json.dumps(
+                    compact_entities, indent=2, ensure_ascii=True
+                ),
+            },
+        )
+        tl_raw = _chat_completion(tl_prompt, model=model, base_url=base_url)
+        tl_result = _parse_json_response(tl_raw, "timeline extraction")
+        if isinstance(tl_result, dict):
+            tl_events = tl_result.get("timeline_events", [])
+            if isinstance(tl_events, list) and tl_events:
+                tl_batch = run_batch(
+                    story_name,
+                    {"creates": [], "updates": [], "timeline_events": tl_events},
+                )
+                timeline_events_added = tl_batch.get("timeline_events", 0)
+    except Exception as exc:
+        logging.warning("[Wiki] WARNING timeline extraction failed: %s", exc)
+
     return {
         "per_type": per_type_stats,
         "total_created": total_created,
         "total_updated": total_updated,
+        "timeline_events": timeline_events_added,
     }
