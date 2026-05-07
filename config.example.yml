@@ -46,6 +46,11 @@ generation:
   use_chunked_outline_generation: true
   outline_chunk_size: 5
   log_prompt_inputs: true
+  # Author persona system
+  enable_author_persona: true       # master kill switch for persona injection
+  persona_model: null               # overrides creative_model for persona generation; null = use creative_model
+  persona_word_budget: 225          # target word count for persona document; valid range: 100–500
+  enable_emphasis_delta: true       # per-chapter tonal delta alongside the static persona
 
 # Translation Settings
 translation:

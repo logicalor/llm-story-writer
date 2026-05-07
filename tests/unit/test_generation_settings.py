@@ -42,3 +42,68 @@ class TestGenerationSettings:
 
         assert settings.scenes_per_chapter_min == 5
         assert settings.scenes_per_chapter_max == 12
+
+
+class TestPersonaSettings:
+    """Verification tests for author persona generation settings."""
+
+    def test_persona_word_budget_default(self) -> None:
+        """Persona word budget defaults to the configured midpoint."""
+        settings = GenerationSettings()
+
+        assert settings.persona_word_budget == 225
+
+    def test_persona_word_budget_min_valid(self) -> None:
+        """Persona word budget accepts the lower bound."""
+        settings = GenerationSettings(persona_word_budget=100)
+
+        assert settings.persona_word_budget == 100
+
+    def test_persona_word_budget_max_valid(self) -> None:
+        """Persona word budget accepts the upper bound."""
+        settings = GenerationSettings(persona_word_budget=500)
+
+        assert settings.persona_word_budget == 500
+
+    def test_persona_word_budget_below_min_raises(self) -> None:
+        """Persona word budget below the lower bound is rejected."""
+        with pytest.raises(ValidationError, match="persona_word_budget"):
+            GenerationSettings(persona_word_budget=99)
+
+    def test_persona_word_budget_above_max_raises(self) -> None:
+        """Persona word budget above the upper bound is rejected."""
+        with pytest.raises(ValidationError, match="persona_word_budget"):
+            GenerationSettings(persona_word_budget=501)
+
+    def test_enable_author_persona_default_true(self) -> None:
+        """Author persona is enabled by default."""
+        settings = GenerationSettings()
+
+        assert settings.enable_author_persona is True
+
+    def test_enable_emphasis_delta_default_true(self) -> None:
+        """Emphasis delta is enabled by default."""
+        settings = GenerationSettings()
+
+        assert settings.enable_emphasis_delta is True
+
+    def test_persona_model_default_none(self) -> None:
+        """Persona model falls back to None by default."""
+        settings = GenerationSettings()
+
+        assert settings.persona_model is None
+
+    def test_to_dict_includes_persona_fields(self) -> None:
+        """to_dict includes persona fields with default values."""
+        settings = GenerationSettings()
+
+        assert settings.to_dict()["enable_author_persona"] is True
+        assert settings.to_dict()["persona_model"] is None
+        assert settings.to_dict()["persona_word_budget"] == 225
+        assert settings.to_dict()["enable_emphasis_delta"] is True
+
+    def test_from_dict_persona_model_null_uses_default(self) -> None:
+        """from_dict ignores explicit None and retains the default persona model."""
+        settings = GenerationSettings.from_dict({"persona_model": None})
+
+        assert settings.persona_model is None

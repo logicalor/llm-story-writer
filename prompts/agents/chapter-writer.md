@@ -88,7 +88,7 @@ For each scene M in the chapter (M = 1, 2, ..., scene_count):
    - Previous scene content is auto-loaded from the savepoint by the tool (if M > 1). No need to pass it explicitly.
    - For the last scene in the chapter, fetch the next chapter's outline from `story-state` key `chapters.{N+1}.outline` and pass it as `nextChapterSynopsis`
 
-3. **Generate the scene.** Call `scene-writer` (operation: `generate`) with the assembled context. Pass the wiki snapshot string as the `baseContext` parameter.
+3. **Generate the scene.** Call `scene-writer` (operation: `generate`) with the assembled context. Pass the wiki snapshot string as the `baseContext` parameter. When `enable_author_persona` is true, pass `personaView: "chapter"`. When `enable_emphasis_delta` is true, derive an emphasis delta string from the chapter outline metadata (tone label, narrative beat, and arc position of the chapter) and pass it as `emphasisDelta`; omit `emphasisDelta` when `enable_emphasis_delta` is false.
    Note: scene summaries and titles are held in working context only, not persisted as savepoints.
    The tool returns `{"scene_ref": "chapter_{N}/scene_{M}", "savepoint_step": "...", "char_count": N}`. The full prose is on disk, not in the response. **Do not pass `includeContent: true`** — subsequent scenes will load the previous scene from the savepoint automatically.
 
