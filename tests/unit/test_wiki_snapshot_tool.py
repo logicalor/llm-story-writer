@@ -23,6 +23,7 @@ def _run_tool(
 ) -> subprocess.CompletedProcess[str]:
     env = {**os.environ}
     env["PYTHONPATH"] = str(PROJECT_ROOT)
+    env["LLM_API_BASE"] = "http://127.0.0.1:1"
     if stories_dir is not None:
         env["STORIES_DIR"] = str(stories_dir)
     if chromadb_dir is not None:

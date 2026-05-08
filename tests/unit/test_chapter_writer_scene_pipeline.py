@@ -58,6 +58,7 @@ def _settings(**overrides) -> GenerationSettings:
         "scene_generation_pipeline": True,
         "scenes_per_chapter_min": 2,
         "scenes_per_chapter_max": 3,
+        "enable_decomposition_critique": False,
     }
     base.update(overrides)
     return GenerationSettings(**base)
@@ -528,6 +529,10 @@ async def test_scene_prompt_receives_scene_recap_context(tmp_path: Path) -> None
             "presentation.agents.chapter_writer.assemble_context",
             side_effect=assemble_side_effect,
         ),
+        patch(
+            "presentation.agents.chapter_writer.render_recap_as_markdown",
+            side_effect=lambda snippets: "\n\n".join(snippets),
+        ),
     ):
         await agent.run(
             "test-story",
@@ -814,7 +819,12 @@ async def test_scene_critique_fires_and_revises_when_findings_returned(
             "test-story",
             1,
             _outline_result(),
-            _settings(enable_scene_critique=True, enable_scrubbing=False),
+            _settings(
+                enable_scene_critique=True,
+                enable_scrubbing=False,
+                scene_critique_score_threshold=95.0,
+                scene_critique_max_iterations=1,
+            ),
         )
 
     assert len(captured) == 9
@@ -1193,7 +1203,11 @@ async def test_scene_pipeline_falls_back_per_scene_when_scene_context_unavailabl
             "test-story",
             1,
             _outline_result(),
-            _settings(scenes_per_chapter_min=1),
+            _settings(
+                scenes_per_chapter_min=1,
+                enable_scene_critique=False,
+                enable_scrubbing=False,
+            ),
         )
 
     assert draft.content

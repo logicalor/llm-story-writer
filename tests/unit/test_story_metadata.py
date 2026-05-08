@@ -221,6 +221,10 @@ async def test_run_calls_assemble_context_with_metadata_scope() -> None:
             "presentation.agents.story_metadata.assemble_context",
             return_value={"wiki_snapshot": "wiki data", "recap_snippets": ["recap 1"]},
         ) as mock_ctx,
+        patch(
+            "presentation.agents.story_metadata.render_recap_as_markdown",
+            return_value="recap 1",
+        ),
     ):
         await agent.run(
             "my-story",
@@ -259,6 +263,10 @@ async def test_run_passes_wiki_and_recap_context_to_prompts() -> None:
         patch(
             "presentation.agents.story_metadata.assemble_context",
             return_value={"wiki_snapshot": "wiki data", "recap_snippets": ["recap 1"]},
+        ),
+        patch(
+            "presentation.agents.story_metadata.render_recap_as_markdown",
+            return_value="recap 1",
         ),
     ):
         await agent.run(

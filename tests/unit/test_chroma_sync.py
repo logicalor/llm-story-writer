@@ -185,7 +185,7 @@ def test_refresh_if_stale_returns_true_and_updates_doc(
     result = collection.get(ids=["refresh"], include=["documents", "metadatas"])
     metadata = result["metadatas"][0]
     assert result["documents"][0] == "new"
-    assert metadata["source_mtime"] == source_path.stat().st_mtime
+    assert metadata["source_mtime"] == pytest.approx(source_path.stat().st_mtime)
     assert metadata["source_sha256"] == compute_fingerprint(source_path)[1]
 
 

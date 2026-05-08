@@ -153,7 +153,11 @@ class TestMainDispatch:
             sys.argv = original_argv
 
         mock_cmd_tui.assert_called_once_with(
-            "my_story", resume=False, savepoint=None, prompt=None
+            "my_story",
+            resume=False,
+            savepoint=None,
+            prompt=None,
+            auto_approve=False,
         )
 
     def test_tui_with_resume_dispatches_cmd_tui_with_resume(self) -> None:
@@ -167,7 +171,11 @@ class TestMainDispatch:
             sys.argv = original_argv
 
         mock_cmd_tui.assert_called_once_with(
-            "my_story", resume=True, savepoint=None, prompt=None
+            "my_story",
+            resume=True,
+            savepoint=None,
+            prompt=None,
+            auto_approve=False,
         )
 
     def test_tui_with_resume_and_savepoint_dispatches_correctly(self) -> None:
@@ -189,7 +197,11 @@ class TestMainDispatch:
             sys.argv = original_argv
 
         mock_cmd_tui.assert_called_once_with(
-            "my_story", resume=True, savepoint="ch3", prompt=None
+            "my_story",
+            resume=True,
+            savepoint="ch3",
+            prompt=None,
+            auto_approve=False,
         )
 
     def test_resume_dispatches_cmd_resume(self) -> None:

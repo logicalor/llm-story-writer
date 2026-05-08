@@ -252,6 +252,10 @@ async def test_assemble_context_called_with_recap_scope(tmp_path: Path) -> None:
             },
         ) as assemble_mock,
         patch(
+            "presentation.agents.recap_writer.render_recap_as_markdown",
+            return_value="recap A\n\nrecap B",
+        ),
+        patch(
             "presentation.agents.recap_writer.read_index",
             return_value=[
                 {

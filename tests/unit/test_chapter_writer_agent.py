@@ -141,6 +141,10 @@ async def _run_agent(
                 "recap_snippets": [],
             },
         ),
+        patch(
+            "presentation.agents.chapter_writer.render_recap_as_markdown",
+            side_effect=lambda snippets: "\n\n".join(snippets),
+        ),
     ):
         loader = loader_cls.return_value
         loader.load_prompt.side_effect = _render_prompt

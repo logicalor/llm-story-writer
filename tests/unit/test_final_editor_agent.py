@@ -290,6 +290,10 @@ async def test_edit_single_chapter_calls_assemble_context_with_final_edit_scope(
             "presentation.agents.final_editor.assemble_context",
             return_value={"wiki_snapshot": "wiki data", "recap_snippets": ["recap 1"]},
         ) as mock_ctx,
+        patch(
+            "presentation.agents.final_editor.render_recap_as_markdown",
+            return_value="recap 1",
+        ),
     ):
         await agent.run(
             "s",
@@ -335,6 +339,10 @@ async def test_edit_single_chapter_passes_wiki_recap_to_edit_chapter_direct() ->
         patch(
             "presentation.agents.final_editor.assemble_context",
             return_value={"wiki_snapshot": "wiki data", "recap_snippets": ["recap 1"]},
+        ),
+        patch(
+            "presentation.agents.final_editor.render_recap_as_markdown",
+            return_value="recap 1",
         ),
     ):
         await agent.run(

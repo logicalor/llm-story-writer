@@ -83,6 +83,10 @@ async def test_run_calls_assemble_context_on_continuation_run() -> None:
             return_value={"wiki_snapshot": "wiki", "recap_snippets": ["recap"]},
         ) as mock_assemble_context,
         patch(
+            "presentation.agents.story_planner.render_recap_as_markdown",
+            return_value="recap",
+        ),
+        patch(
             "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
             return_value="mocked prompt",
         ),
@@ -142,6 +146,10 @@ async def test_run_passes_wiki_and_recap_to_prompt_on_continuation() -> None:
                 "wiki_snapshot": "wiki snapshot",
                 "recap_snippets": ["recap one", "recap two"],
             },
+        ),
+        patch(
+            "presentation.agents.story_planner.render_recap_as_markdown",
+            return_value="recap one\n\nrecap two",
         ),
         patch(
             "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",

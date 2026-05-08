@@ -292,6 +292,10 @@ async def test_run_calls_assemble_context_with_consistency_scope() -> None:
             return_value={"wiki_snapshot": "wiki info", "recap_snippets": ["recap 1"]},
         ) as mock_assemble_context,
         patch(
+            "presentation.agents.consistency_checker.render_recap_as_markdown",
+            return_value="recap 1",
+        ),
+        patch(
             "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
             return_value="system prompt",
         ),
@@ -335,6 +339,10 @@ async def test_run_passes_wiki_and_recap_to_prompt() -> None:
                 "wiki_snapshot": "WIKI_DATA",
                 "recap_snippets": ["RECAP1", "RECAP2"],
             },
+        ),
+        patch(
+            "presentation.agents.consistency_checker.render_recap_as_markdown",
+            return_value="RECAP1\n\nRECAP2",
         ),
         patch(
             "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",

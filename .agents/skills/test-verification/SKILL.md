@@ -26,6 +26,15 @@ Tests verify implemented behavior. They should be meaningful, isolated, and alig
 - For filesystem fingerprint / stale-refresh tests: advance mtime explicitly with `os.utime(path, (t+10, t+10))` after writing the edited content — never rely on the filesystem clock advancing between write and check (see gotcha #050).
 - For subprocess integration tests: include all module-level `os.environ.get(...)` vars (e.g. `CHROMADB_DIR`, `STORIES_DIR`) in the `env` dict passed to `subprocess.run` — they are baked in at subprocess import time and cannot be patched in-process (see gotcha #051).
 
+## LLM Boundaries
+
+- Unit tests must never call LM Studio, Ollama, OpenAI-compatible HTTP endpoints, or any real model provider.
+- Use the established local seam: inject `MagicMock`/`AsyncMock` providers for agents; patch tool-local `_call_llm`, `_call_llm_messages`, or `_chat_completion` shims for tools; patch `requests.post` only in tests that exercise `tools._llm` itself.
+- If a mocked `assemble_context` returns non-empty `recap_snippets`, patch the consumer module's imported `render_recap_as_markdown`; that helper calls `tools._llm.generate_text()` internally.
+- For subprocess tool tests, parent monkeypatches do not cross process boundaries. Set child `LLM_API_BASE` to `http://127.0.0.1:1` and avoid LLM code paths unless the child process has its own explicit mock/escape hatch.
+- `tests/unit/conftest.py` blocks known LLM entrypoints. Treat failures from that guard as a test bug to fix by mocking the correct seam; do not weaken the guard.
+- Intentional live-LLM coverage belongs in `tests/integration/` and must use the suite-standard `llm_available` fixture.
+
 ## Handoff
 
 Report test files changed, test cases added, commands run, and any pre-existing failures.

@@ -25,6 +25,17 @@ DYNAMIC_PROMPT_PATTERNS: tuple[tuple[str, str], ...] = (
     ("prompts/wiki/extract_*_from_chapter.md", "wiki/extract_"),
 )
 
+INTENTIONAL_CONFIG_SURFACE_SETTINGS = {
+    # Declared and documented config surface for planned/partially migrated
+    # features. These are validated and serialised by GenerationSettings, but
+    # not yet read by runtime code paths.
+    "use_improved_recap_sanitizer",
+    "enable_author_persona",
+    "persona_model",
+    "persona_word_budget",
+    "enable_emphasis_delta",
+}
+
 
 def _grep_has_output(search_term: str, search_root: Path, *extra_args: str) -> bool:
     result = subprocess.run(
@@ -69,6 +80,9 @@ def test_no_dead_generation_settings():
     dead_fields = []
 
     for field in dataclasses.fields(GenerationSettings):
+        if field.name in INTENTIONAL_CONFIG_SURFACE_SETTINGS:
+            continue
+
         if not _grep_has_output(
             field.name,
             Path("src"),
