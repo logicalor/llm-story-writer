@@ -2558,3 +2558,309 @@ async def test_tui_resume_banner_suppressed_for_empty_ledger(tmp_path: Path) -> 
 
     events = [event async for event in status_bus]
     assert not any(event.message == "(resumed)" for event in events)
+
+
+def _critical_consistency_result() -> dict:
+    return {
+        "issues": [
+            {
+                "severity": "critical",
+                "description": "Timeline violation",
+                "type": "continuity",
+                "location": "para 1",
+                "scene_number": None,
+            }
+        ],
+        "passed": False,
+    }
+
+
+def _warning_consistency_result() -> dict:
+    return {
+        "issues": [
+            {
+                "severity": "warning",
+                "description": "Minor inconsistency",
+                "type": "continuity",
+                "location": "para 2",
+                "scene_number": None,
+            }
+        ],
+        "passed": True,
+    }
+
+
+def _clean_consistency_result() -> dict:
+    return {"issues": [], "passed": True}
+
+
+def _revised_draft(n: int) -> ChapterDraft:
+    return ChapterDraft(
+        story_name="test-story",
+        chapter_number=1,
+        title="Chapter 1",
+        content=f"Revised content {n}",
+        word_count=2,
+    )
+
+
+def _config_with_consistency(
+    enabled: bool = True, max_iterations: int = 2
+) -> dict:
+    cfg = _config()
+    cfg["generation"]["enable_consistency_revision_loop"] = enabled
+    cfg["generation"]["consistency_max_iterations"] = max_iterations
+    return cfg
+
+
+@pytest.mark.asyncio
+async def test_consistency_revision_loop_runs_on_critical_findings(
+    tmp_path: Path,
+) -> None:
+    """Revision loop executes both iterations when criticals persist across checks."""
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "tools.wiki_generation.generate_character_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_location_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        # Initial check: critical; loop iter 0 check: critical (continues);
+        # loop iter 1 check: clean (loop exhausted, all iterations used).
+        consistency_cls.return_value.run = AsyncMock(
+            side_effect=[
+                _critical_consistency_result(),
+                _critical_consistency_result(),
+                _clean_consistency_result(),
+            ]
+        )
+        chapter_cls.return_value.run = AsyncMock(
+            side_effect=[
+                _chapter_draft(),
+                _revised_draft(1),
+                _revised_draft(2),
+            ]
+        )
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+
+        state = await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config_with_consistency(enabled=True, max_iterations=2),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    # Initial draft + 2 revisions = 3 total
+    assert chapter_cls.return_value.run.await_count == 3
+    # Initial check + 2 loop checks = 3 total
+    assert consistency_cls.return_value.run.await_count == 3
+    # Final approved chapter should be the last revised draft
+    assert state.approved_chapters[0].content == "Revised content 2"
+
+
+@pytest.mark.asyncio
+async def test_consistency_revision_loop_stops_when_no_criticals(
+    tmp_path: Path,
+) -> None:
+    """Revision loop does not run when initial check returns only warnings."""
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "tools.wiki_generation.generate_character_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_location_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        consistency_cls.return_value.run = AsyncMock(
+            side_effect=[_warning_consistency_result()]
+        )
+        chapter_cls.return_value.run = AsyncMock(side_effect=[_chapter_draft()])
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+
+        state = await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config_with_consistency(enabled=True, max_iterations=2),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    assert chapter_cls.return_value.run.await_count == 1
+    assert consistency_cls.return_value.run.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_consistency_revision_loop_disabled_by_setting(
+    tmp_path: Path,
+) -> None:
+    """Critical findings do not trigger revision when loop is disabled."""
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "tools.wiki_generation.generate_character_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_location_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        consistency_cls.return_value.run = AsyncMock(
+            side_effect=[_critical_consistency_result()]
+        )
+        chapter_cls.return_value.run = AsyncMock(side_effect=[_chapter_draft()])
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+
+        state = await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config_with_consistency(enabled=False, max_iterations=2),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    # Loop disabled — only initial draft, no revisions
+    assert chapter_cls.return_value.run.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_consistency_revision_loop_max_iterations_respected(
+    tmp_path: Path,
+) -> None:
+    """Revision loop stops after max_iterations even when criticals remain."""
+    provider = MagicMock()
+    bus = TokenStreamBus()
+    wiki_bus = WikiContextBus()
+
+    def fake_savepoint_path(story_name: str) -> Path:
+        return tmp_path / story_name / "savepoints" / "pipeline_state.json"
+
+    with (
+        patch(
+            "presentation.orchestrator._savepoint_path", side_effect=fake_savepoint_path
+        ),
+        patch("presentation.orchestrator.STORIES_DIR", tmp_path),
+        patch("tools._io.STORIES_DIR", tmp_path),
+        patch("presentation.orchestrator.OutlinePlannerAgent") as outline_cls,
+        patch("presentation.orchestrator.ChapterWriterAgent") as chapter_cls,
+        patch("presentation.orchestrator.WikiMaintainerAgent") as wiki_cls,
+        patch("presentation.orchestrator.ConsistencyCheckerAgent") as consistency_cls,
+        patch(
+            "tools.wiki_generation.generate_character_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_location_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+        patch(
+            "tools.wiki_generation.generate_outline_entity_pages",
+            new=MagicMock(return_value={"generated": 2, "skipped": 0}),
+        ),
+    ):
+        outline_cls.return_value.run = AsyncMock(return_value=_outline_result())
+        # All 3 checks return critical — loop exhausts max_iterations
+        consistency_cls.return_value.run = AsyncMock(
+            side_effect=[
+                _critical_consistency_result(),
+                _critical_consistency_result(),
+                _critical_consistency_result(),
+            ]
+        )
+        chapter_cls.return_value.run = AsyncMock(
+            side_effect=[
+                _chapter_draft(),
+                _revised_draft(1),
+                _revised_draft(2),
+            ]
+        )
+        wiki_cls.return_value.run = AsyncMock(return_value=_wiki_batch())
+
+        state = await run_pipeline(
+            "test-story",
+            NullApprovalGate(),
+            bus,
+            wiki_bus,
+            config=_config_with_consistency(enabled=True, max_iterations=2),
+            provider=provider,
+        )
+
+    assert state.status == "complete"
+    # Initial + 2 loop revisions = 3 total (capped by max_iterations)
+    assert chapter_cls.return_value.run.await_count == 3
+    # Initial check + 2 loop checks = 3 total
+    assert consistency_cls.return_value.run.await_count == 3

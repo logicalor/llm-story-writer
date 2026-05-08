@@ -515,6 +515,7 @@ async def _generate_chapter_with_gate(
         recaps=state.recaps,
         state=state,
     )
+    consistency_result: dict[str, Any] | None = None
     last_consistency_text = ""
     if consistency_agent is not None and bus is not None:
         try:
@@ -542,6 +543,65 @@ async def _generate_chapter_with_gate(
     while True:
         decision = await gate.await_decision()
         if decision.approved:
+            if (
+                decision.auto_approved
+                and settings.enable_consistency_revision_loop
+                and consistency_agent is not None
+                and bus is not None
+            ):
+                for _cr_iter in range(settings.consistency_max_iterations):
+                    if consistency_result is None:
+                        break
+                    _has_critical = any(
+                        issue.get("severity") == "critical"
+                        for issue in consistency_result.get("issues", [])
+                    )
+                    if not _has_critical:
+                        break
+                    _cr_feedback = _format_consistency_results(
+                        chapter_number, consistency_result
+                    )
+                    if draft.content:
+                        _cr_feedback = f"{_cr_feedback}\n\n## Current Chapter Draft\n{draft.content}"
+                    draft = await agent.run(
+                        story_name,
+                        chapter_number,
+                        outline_result,
+                        settings,
+                        feedback=_cr_feedback,
+                        recaps=state.recaps,
+                        state=state,
+                    )
+                    await _mark_work_item_done(
+                        state,
+                        f"chapter-{chapter_number}",
+                        f"chapter-{chapter_number}/consistency-revision-{_cr_iter + 1}",
+                    )
+                    await _write_savepoint(state)
+                    try:
+                        consistency_result = await consistency_agent.run(
+                            story_name,
+                            chapter_number,
+                            draft.content,
+                            outline_result=outline_result,
+                        )
+                        await _emit_consistency_results(
+                            bus, chapter_number, consistency_result
+                        )
+                    except Exception as exc:
+                        await bus.emit(f"\n[Consistency] Revision check error: {exc}\n")
+                        break
+                else:
+                    if consistency_result is not None:
+                        _residual = [
+                            i
+                            for i in consistency_result.get("issues", [])
+                            if i.get("severity") in ("warning", "info")
+                        ]
+                        if _residual:
+                            await bus.emit(
+                                f"\n[Consistency] {len(_residual)} advisory issue(s) remain after max iterations.\n"
+                            )
             return draft
         if decision.feedback is None:
             state.status = "rejected"
