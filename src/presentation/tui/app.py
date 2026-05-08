@@ -38,6 +38,7 @@ from application.pipeline.handoffs import ApprovalDecision, PipelineState  # noq
 from presentation.orchestrator import resume_pipeline, run_pipeline  # noqa: E402
 from presentation.pipeline_primitives import (  # noqa: E402
     ApprovalGate,
+    NullApprovalGate,
     StatusBus,
     StatusEvent,
     TokenStreamBus,
@@ -120,12 +121,14 @@ class StoryWriterApp(App[None]):
         story_name: str,
         resume: bool = False,
         savepoint_name: str | None = None,
+        auto_approve: bool = False,
     ) -> None:
         super().__init__()
         self.story_name = story_name
         self.resume = resume
         self.savepoint_name = savepoint_name
-        self._gate: TUIApprovalGate | None = None
+        self.auto_approve = auto_approve
+        self._gate: TUIApprovalGate | NullApprovalGate | None = None
         self._wiki_visible = True
         self._token_buffer: list[str] = []
 
@@ -416,7 +419,9 @@ class StoryWriterApp(App[None]):
         savepoint_name: str | None = None,
     ) -> None:
         """Background worker: runs the async pipeline and bridges events to UI."""
-        gate = TUIApprovalGate(self)
+        gate: TUIApprovalGate | NullApprovalGate = (
+            NullApprovalGate() if self.auto_approve else TUIApprovalGate(self)
+        )
         self._gate = gate
 
         async def _drain_tokens(bus: TokenStreamBus) -> None:

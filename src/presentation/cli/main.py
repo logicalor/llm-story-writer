@@ -53,6 +53,7 @@ def _cmd_tui(
     resume: bool = False,
     savepoint: str | None = None,
     prompt: str | None = None,
+    auto_approve: bool = False,
 ) -> None:
     if prompt:
         _apply_prompt(story, prompt)
@@ -77,7 +78,12 @@ def _cmd_tui(
         )
         raise SystemExit(1)
 
-    app = StoryWriterApp(story_name=story, resume=resume, savepoint_name=savepoint)
+    app = StoryWriterApp(
+        story_name=story,
+        resume=resume,
+        savepoint_name=savepoint,
+        auto_approve=auto_approve,
+    )
     app.run()
     # Force-terminate any lingering pipeline worker threads.
     # Python won't exit on its own if non-daemon threads are still running.
@@ -141,6 +147,7 @@ def main() -> None:
             resume=args.resume,
             savepoint=args.savepoint,
             prompt=args.prompt,
+            auto_approve=getattr(args, "auto_approve", False),
         )
     elif args.subcommand == "run":
         if getattr(args, "debug_log", None):

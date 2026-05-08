@@ -39,6 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="Write a JSONL debug log of every LLM request and response to PATH.",
     )
+    tui_p.add_argument(
+        "--auto-approve",
+        action="store_true",
+        default=False,
+        help="Automatically approve outline and chapter gates without waiting for user input.",
+    )
 
     run_p = sub.add_parser("run", help="Run the full pipeline headlessly.")
     run_p.add_argument("--story", required=True, metavar="NAME", help="Story name.")
