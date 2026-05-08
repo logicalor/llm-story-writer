@@ -6,7 +6,7 @@ import sys
 from typing import Any, Literal
 
 from domain.exceptions import StoryGenerationError
-from tools._llm import count_tokens
+from tools._llm import count_tokens, generate_text
 from tools.recap_index import query_recap
 from tools.wiki_snapshot import get_snapshot
 
@@ -89,6 +89,35 @@ def assemble_context(
     )
 
     return {"wiki_snapshot": wiki_text, "recap_snippets": recap_snippets}
+
+
+def render_recap_as_markdown(snippets: list[str]) -> str:
+    """Convert a list of recap event JSON strings to a concise markdown narrative.
+
+    Returns an empty string if snippets is empty.
+    Calls the local LLM synchronously.
+    """
+    if not snippets:
+        return ""
+    import pathlib
+
+    from infrastructure.prompts.prompt_loader import PromptLoader
+
+    _loader = PromptLoader(
+        prompts_dir=str(pathlib.Path(__file__).resolve().parents[2] / "prompts")
+    )
+    combined = "\n\n---\n\n".join(snippets)
+    try:
+        prompt = _loader.load_prompt(
+            "recap/render_markdown", variables={"events_json": combined}
+        )
+        return generate_text(prompt)
+    except Exception as exc:
+        print(
+            f"[ContextAssembly] Warning: recap markdown render failed: {exc}",
+            file=sys.stderr,
+        )
+        return "\n\n".join(snippets)
 
 
 def _retrieve_wiki(

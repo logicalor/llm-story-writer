@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -70,6 +71,71 @@ def upsert_recap(
         extra_metadata=metadata,
         body=body,
     )
+
+
+def delete_chapter_events(story_name: str, chapter: int) -> None:
+    """Delete all recap event docs for a chapter from the story collection."""
+    collection = _get_or_create_collection(story_name)
+    collection.delete(where={"chapter": chapter})
+
+
+def clear_recap_index(story_name: str) -> None:
+    """Drop and recreate the story recap collection (clean slate on restart)."""
+    import chromadb  # type: ignore[import-not-found]
+
+    client = chromadb.PersistentClient(path=CHROMADB_DIR)
+    collection_name = f"recaps-{_normalize_story_name(story_name)}"
+    client.delete_collection(collection_name)
+    client.get_or_create_collection(name=collection_name)
+
+
+def upsert_recap_events(
+    story_name: str,
+    chapter: int,
+    events: list[dict],
+) -> None:
+    """Upsert each event as its own Chroma document (flat storage)."""
+    collection = _get_or_create_collection(story_name)
+    story_slug = _normalize_story_name(story_name)
+    delete_chapter_events(story_name, chapter)
+    for i, event in enumerate(events, start=1):
+        doc_id = f"event/{chapter}/{i}"
+        raw_participants = event.get("participants") or event.get("characters") or []
+        raw_locations = event.get("locations") or []
+        pipe_participants = "|".join(str(p) for p in raw_participants if p)
+        pipe_locations = "|".join(str(loc) for loc in raw_locations if loc)
+        narrative_fields: dict = {}
+        for key in (
+            "summary",
+            "key_events",
+            "character_development",
+            "symbols_motifs",
+            "impact",
+        ):
+            if key in event:
+                narrative_fields[key] = event[key]
+        body = (
+            f"participants:{pipe_participants}\n"
+            f"locations:{pipe_locations}\n\n"
+            f"{json.dumps(narrative_fields, ensure_ascii=False)}"
+        )
+        metadata = {
+            "chapter": chapter,
+            "kind": "event",
+            "story": story_slug,
+            "participants": pipe_participants,
+            "locations": pipe_locations,
+            "date_start": str(event.get("date_start", "")),
+            "date_end": str(event.get("date_end", "")),
+            "importance": str(event.get("importance", "medium")),
+        }
+        upsert_from_source(
+            collection,
+            doc_id,
+            source_path="",
+            extra_metadata=metadata,
+            body=body,
+        )
 
 
 def _build_where_clause(
@@ -173,7 +239,7 @@ def query_recap(
 
     if chapter is not None and where_doc_clause is None and chapter_range is None:
         result = collection.get(
-            ids=[f"aggregate/{chapter}"],
+            where={"chapter": chapter},
             include=["documents", "metadatas"],
         )
         return _flatten_get_results(result)

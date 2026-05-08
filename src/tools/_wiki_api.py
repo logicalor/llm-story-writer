@@ -22,6 +22,7 @@ from tools._wiki import (
 )
 from tools.recap_index import query_recap
 from tools.wiki_update import _upsert_to_chromadb, run_batch
+from tools.context_assembly import render_recap_as_markdown
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -709,7 +710,7 @@ def update_wiki_full_pass(
                 for recap_result in _recap_results
                 if recap_result.get("document")
             ]
-            _prior_recap_context = "\n\n---\n\n".join(_snippets)
+            _prior_recap_context = render_recap_as_markdown(_snippets)
     except Exception as _recap_exc:
         logging.warning(
             "[Wiki] WARNING event recap context unavailable: %s",

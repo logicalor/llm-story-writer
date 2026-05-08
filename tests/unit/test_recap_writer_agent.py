@@ -49,9 +49,7 @@ async def test_run_full_path_returns_events_compact_sanitised() -> None:
             "events text",
             "timed events",
             "enriched events",
-            '{"events": ["formatted"]}',
-            "compact recap",
-            "sanitised recap",
+            '[{"summary": "formatted event"}]',
         ]
     )
     bus = _StubBus()
@@ -72,16 +70,14 @@ async def test_run_full_path_returns_events_compact_sanitised() -> None:
         )
 
     assert result == {
-        "events": "events text",
-        "compact": "compact recap",
-        "sanitised": "sanitised recap",
+        "events": [{"summary": "formatted event"}],
     }
-    assert provider.generate_text.call_count == 6
+    assert provider.generate_text.call_count == 4
 
 
 @pytest.mark.asyncio
 async def test_run_short_path_two_calls() -> None:
-    provider = _ProviderStub(["events text", '{"events": ["formatted"]}'])
+    provider = _ProviderStub(["events text", '[{"key": "val"}]'])
     bus = _StubBus()
     wiki_bus = _StubWikiBus()
     agent = RecapWriterAgent(provider, {}, bus, wiki_bus)
@@ -104,9 +100,7 @@ async def test_run_short_path_two_calls() -> None:
         )
 
     assert provider.generate_text.call_count == 2
-    assert result["events"] == "events text"
-    assert result["compact"] == '{"events": ["formatted"]}'
-    assert result["sanitised"] == result["compact"]
+    assert result == {"events": [{"key": "val"}]}
 
 
 @pytest.mark.asyncio
@@ -116,8 +110,7 @@ async def test_run_skip_sanitizer_five_calls() -> None:
             "events text",
             "timed events",
             "enriched events",
-            '{"events": ["formatted"]}',
-            "compact recap",
+            '[{"summary": "formatted"}]',
         ]
     )
     bus = _StubBus()
@@ -141,10 +134,8 @@ async def test_run_skip_sanitizer_five_calls() -> None:
             ),
         )
 
-    assert provider.generate_text.call_count == 5
-    assert result["events"] == "events text"
-    assert result["compact"] == "compact recap"
-    assert result["sanitised"] == result["compact"]
+    assert provider.generate_text.call_count == 4
+    assert result == {"events": [{"summary": "formatted"}]}
 
 
 @pytest.mark.asyncio
@@ -168,9 +159,7 @@ async def test_run_stage1_failure_returns_empty_dict() -> None:
         )
 
     assert result == {
-        "events": "",
-        "compact": "",
-        "sanitised": "",
+        "events": [],
     }
 
 
@@ -213,9 +202,7 @@ async def test_run_accepts_empty_previous_recap_and_start_date() -> None:
             "events text",
             "timed events",
             "enriched events",
-            '{"events": ["formatted"]}',
-            "compact recap",
-            "sanitised recap",
+            '[{"summary": "formatted"}]',
         ]
     )
     bus = _StubBus()
@@ -236,7 +223,7 @@ async def test_run_accepts_empty_previous_recap_and_start_date() -> None:
         )
 
     assert isinstance(result, dict)
-    assert result["events"] == "events text"
+    assert isinstance(result["events"], list)
 
 
 @pytest.mark.asyncio
@@ -318,9 +305,7 @@ async def test_related_recap_history_injected_in_extract_events_prompt() -> None
             "events text",
             "timed events",
             "enriched events",
-            '{"events": ["formatted"]}',
-            "compact recap",
-            "sanitised recap",
+            '[{"summary": "formatted"}]',
         ]
     )
     bus = _StubBus()
@@ -342,6 +327,10 @@ async def test_related_recap_history_injected_in_extract_events_prompt() -> None
             },
         ),
         patch(
+            "presentation.agents.recap_writer.render_recap_as_markdown",
+            return_value="prior event 1\n\nprior event 2",
+        ),
+        patch(
             "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
             side_effect=capture_prompt,
         ),
@@ -361,26 +350,19 @@ async def test_related_recap_history_injected_in_extract_events_prompt() -> None
 
 
 @pytest.mark.asyncio
-async def test_related_recap_history_injected_in_sanitize_prompt() -> None:
+async def test_render_recap_as_markdown_called_with_snippets() -> None:
+    """render_recap_as_markdown is called with the snippets from assemble_context."""
     provider = _ProviderStub(
         [
             "events text",
             "timed events",
             "enriched events",
-            '{"events": ["formatted"]}',
-            "compact recap",
-            "sanitised recap",
+            '[{"summary": "formatted"}]',
         ]
     )
     bus = _StubBus()
     wiki_bus = _StubWikiBus()
     agent = RecapWriterAgent(provider, {}, bus, wiki_bus)
-    captured_variables: dict[str, object] = {}
-
-    def capture_prompt(name: str, variables: dict[str, object] | None = None) -> str:
-        if name == "recap/sanitize":
-            captured_variables.update(variables or {})
-        return f"prompt::{name}"
 
     with (
         patch(
@@ -391,8 +373,12 @@ async def test_related_recap_history_injected_in_sanitize_prompt() -> None:
             },
         ),
         patch(
+            "presentation.agents.recap_writer.render_recap_as_markdown",
+            return_value="prior event",
+        ) as render_mock,
+        patch(
             "infrastructure.prompts.prompt_loader.PromptLoader.load_prompt",
-            side_effect=capture_prompt,
+            side_effect=lambda name, variables=None: f"prompt::{name}",
         ),
     ):
         await agent.run(
@@ -404,9 +390,8 @@ async def test_related_recap_history_injected_in_sanitize_prompt() -> None:
             GenerationSettings.from_dict(
                 {
                     "use_multi_stage_recap_sanitizer": True,
-                    "use_improved_recap_sanitizer": True,
                 }
             ),
         )
 
-    assert "prior event" in str(captured_variables["related_recap_history"])
+    render_mock.assert_called_once_with(["prior event"])

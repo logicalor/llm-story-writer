@@ -47,7 +47,7 @@ from presentation.pipeline_primitives import (
 from tools import recap_index, wiki_generation
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools._persist import persist_markdown, read_markdown_ref
-from tools._wiki import find_pages, get_wiki_dir, read_index, slugify as wiki_slugify
+from tools._wiki import find_pages, get_wiki_dir, slugify as wiki_slugify
 from tools.wiki_extract import _bootstrap_single_wiki_entity, _list_wiki_entities
 from tools.wiki_init import _init_wiki_for_story
 from tools.wiki_update import run_batch as wiki_update_run_batch
@@ -1287,70 +1287,25 @@ async def _continue_pipeline(
                         )
                         # --- recap index upsert ---
                         try:
-                            _recap_participants: list[str] = []
-                            _recap_locations: list[str] = []
-                            _raw_events = recap_result.get("events") or ""
-                            if _raw_events:
-                                try:
-                                    _wiki_index = read_index(story_dir / "wiki")
-                                    _name_to_slug: dict[str, str] = {}
-                                    for _entry in _wiki_index:
-                                        _entry_name = str(
-                                            _entry.get("name") or ""
-                                        ).strip()
-                                        _entry_slug = str(
-                                            _entry.get("slug") or ""
-                                        ).strip()
-                                        if _entry_name and _entry_slug:
-                                            _name_to_slug[_entry_name.lower()] = (
-                                                _entry_slug
-                                            )
-                                        for _alias in _coerce_string_list(
-                                            _entry.get("aliases")
-                                        ):
-                                            _name_to_slug[_alias.lower()] = _entry_slug
-                                    _decoded_events = json.loads(_raw_events)
-                                    if isinstance(_decoded_events, list):
-                                        _events_list = [
-                                            _event
-                                            for _event in _decoded_events
-                                            if isinstance(_event, dict)
-                                        ]
-                                    else:
-                                        _events_list = []
-                                except (ValueError, TypeError):
-                                    _events_list = []
-                                    _name_to_slug = {}
-                                for _ev in _events_list:
-                                    for _name in _coerce_string_list(
-                                        _ev.get("participants") or _ev.get("characters")
-                                    ):
-                                        _slug = _name_to_slug.get(_name.lower())
-                                        if _slug:
-                                            _recap_participants.append(_slug)
-                                    for _name in _coerce_string_list(
-                                        _ev.get("locations")
-                                    ):
-                                        _slug = _name_to_slug.get(_name.lower())
-                                        if _slug:
-                                            _recap_locations.append(_slug)
-                            # deduplicate while preserving order
-                            _recap_participants = list(
-                                dict.fromkeys(_recap_participants)
+                            _parsed_events: list[dict] = (
+                                recap_result["events"]
+                                if isinstance(recap_result.get("events"), list)
+                                else []
                             )
-                            _recap_locations = list(dict.fromkeys(_recap_locations))
                             await asyncio.to_thread(
-                                recap_index.upsert_recap,
+                                recap_index.delete_chapter_events,
                                 state.story_name,
                                 chapter_number,
-                                recap_result,
-                                _recap_participants or None,
-                                _recap_locations or None,
+                            )
+                            await asyncio.to_thread(
+                                recap_index.upsert_recap_events,
+                                state.story_name,
+                                chapter_number,
+                                _parsed_events,
                             )
                             await bus.emit(
-                                f"[Recap] indexed chapter {chapter_number} aggregate "
-                                f"({len(_recap_participants)} participants, "
-                                f"{len(_recap_locations)} locations)\n"
+                                f"[Recap] indexed chapter {chapter_number} "
+                                f"({len(_parsed_events)} events)\n"
                             )
                         except Exception as _exc:  # noqa: BLE001
                             await bus.emit(f"[Recap] index upsert failed: {_exc}\n")

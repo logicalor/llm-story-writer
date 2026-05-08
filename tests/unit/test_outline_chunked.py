@@ -95,7 +95,9 @@ async def test_chunked_exact_call_counts(tmp_path: Path) -> None:
     prompt_names = [call.args[0] for call in mock_load_prompt.call_args_list]
 
     assert isinstance(result, OutlineResult)
-    assert provider.stream_text.call_count == 11  # 1 skeleton + 5 chunks + 4 continuity + 1 enrichment
+    assert (
+        provider.stream_text.call_count == 11
+    )  # 1 skeleton + 5 chunks + 4 continuity + 1 enrichment
     assert prompt_names.count("outline/create_skeleton") == 1
     assert prompt_names.count("outline/create_chunk") == 5
     assert prompt_names.count("outline/analyze_continuity") == 4

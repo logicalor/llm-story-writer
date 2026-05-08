@@ -15,7 +15,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
-from tools.context_assembly import assemble_context
+from tools.context_assembly import assemble_context, render_recap_as_markdown
 from tools._io import _validate_story_name
 from tools._wiki import get_wiki_dir, match_entities_in_text, read_index
 
@@ -83,9 +83,7 @@ class FinalEditorAgent:
             recap_window=("chapter", 3),
         )
         wiki_context: str = _ctx["wiki_snapshot"]
-        recap_context: str = (
-            "\n\n".join(_ctx["recap_snippets"]) if _ctx["recap_snippets"] else ""
-        )
+        recap_context: str = render_recap_as_markdown(_ctx["recap_snippets"])
 
         if settings.enable_scrubbing:
             character_aliases = ""

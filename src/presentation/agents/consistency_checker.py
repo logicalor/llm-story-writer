@@ -13,7 +13,7 @@ from domain.value_objects.model_config import ModelConfig
 from infrastructure.prompts.prompt_loader import PromptLoader
 from tools._io import STORIES_DIR
 from tools._persist import read_markdown_ref
-from tools.context_assembly import assemble_context
+from tools.context_assembly import assemble_context, render_recap_as_markdown
 from presentation.pipeline_primitives import (
     TokenStreamBus,
     WikiContextBus,
@@ -257,7 +257,7 @@ class ConsistencyCheckerAgent:
             recap_window=("chapter", 3),
         )
         wiki_context: str = ctx["wiki_snapshot"]
-        recap_context: str = "\n\n".join(ctx["recap_snippets"])
+        recap_context: str = render_recap_as_markdown(ctx["recap_snippets"])
         wiki_relationships: str = ""
         scene_definitions = self._load_scene_definitions(story_name, chapter_number)
         system_prompt = loader.load_prompt(
