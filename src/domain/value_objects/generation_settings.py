@@ -27,6 +27,9 @@ class GenerationSettings:
     enable_outline_critique: bool = True
     enable_concurrent_critics: bool = False
     enable_scene_critique: bool = True
+    enable_scene_critique_loop: bool = True
+    scene_critique_score_threshold: float = 80.0
+    scene_critique_max_iterations: int = 3
     enable_decomposition_critique: bool = True
     enable_beat_sheet: bool = False
     enable_living_scene_plan: bool = False
@@ -91,6 +94,18 @@ class GenerationSettings:
                 "and min must be <= max"
             )
 
+        if not (0.0 <= self.scene_critique_score_threshold <= 100.0):
+            raise ValidationError(
+                "scene_critique_score_threshold must be between 0.0 and 100.0, "
+                f"got {self.scene_critique_score_threshold}"
+            )
+
+        if not (1 <= self.scene_critique_max_iterations <= 10):
+            raise ValidationError(
+                "scene_critique_max_iterations must be between 1 and 10, "
+                f"got {self.scene_critique_max_iterations}"
+            )
+
         if self.scene_word_target_floor < 1:
             raise ValidationError(
                 "scene_word_target_floor must be at least 1, "
@@ -135,6 +150,9 @@ class GenerationSettings:
             "scene_word_target_ceiling": self.scene_word_target_ceiling,
             "enable_outline_critique": self.enable_outline_critique,
             "enable_scene_critique": self.enable_scene_critique,
+            "enable_scene_critique_loop": self.enable_scene_critique_loop,
+            "scene_critique_score_threshold": self.scene_critique_score_threshold,
+            "scene_critique_max_iterations": self.scene_critique_max_iterations,
             "enable_decomposition_critique": self.enable_decomposition_critique,
             "enable_beat_sheet": self.enable_beat_sheet,
             "enable_living_scene_plan": self.enable_living_scene_plan,
