@@ -1,9 +1,16 @@
 """Parse critique scores and summaries for the critique-runner tool."""
 
+import json
 import re
-from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+
 from domain.exceptions import StoryGenerationError
+
+
+def passed_quality_threshold(score: float, threshold: float = 75.0) -> bool:
+    """Return True if score meets or exceeds threshold (0-100 scale)."""
+    return score >= threshold
 
 
 @dataclass
@@ -263,3 +270,60 @@ class CritiqueParser:
             feedback_parts.append("")
 
         return "\n".join(feedback_parts)
+
+    def parse_scene_critique(self, response: str) -> CritiqueResult:
+        """Parse a scene critique JSON response into a CritiqueResult.
+
+        The scene critique prompt returns a JSON object with optional keys:
+        ``outline_adherence``, ``pov_consistency``, ``continuity``,
+        ``style_violations``, each mapping to a list of finding strings.
+
+        Each category contributes up to 25 points. Every finding in a
+        category deducts 8 points, capped at 0 for that category.
+        An empty JSON object ``{}`` scores 100 (all categories clean).
+        """
+        categories = [
+            "outline_adherence",
+            "pov_consistency",
+            "continuity",
+            "style_violations",
+        ]
+        points_per_category = 25
+        deduction_per_finding = 8
+
+        try:
+            data = json.loads(response) if response.strip() else {}
+        except (json.JSONDecodeError, ValueError):
+            # Malformed response - treat as clean (no actionable findings)
+            data = {}
+
+        if not isinstance(data, dict):
+            data = {}
+
+        scores: list[CritiqueScore] = []
+        for category in categories:
+            findings = data.get(category) or []
+            if not isinstance(findings, list):
+                findings = []
+            findings = [finding for finding in findings if isinstance(finding, str)]
+            deduction = len(findings) * deduction_per_finding
+            raw = max(0.0, float(points_per_category - deduction))
+            percentage = (raw / points_per_category) * 100.0
+            notes = "; ".join(findings) if findings else "No issues found."
+            scores.append(
+                CritiqueScore(
+                    criterion=category,
+                    score=raw,
+                    max_score=float(points_per_category),
+                    percentage=percentage,
+                    notes=notes,
+                )
+            )
+
+        overall_score = self._calculate_overall_score(scores)
+        return CritiqueResult(
+            critic_type="scene-critique",
+            scores=scores,
+            summary=f"Scene critique: {int(overall_score)}/100",
+            overall_score=overall_score,
+        )

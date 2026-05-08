@@ -41,6 +41,7 @@ from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools._llm import extract_paragraph_tail
 from tools._persist import read_markdown_ref
 from tools.context_assembly import assemble_context, render_recap_as_markdown
+from tools.critique_parser import CritiqueParser, passed_quality_threshold
 
 
 def _savepoint_path(story_name: str) -> Path:
@@ -940,8 +941,10 @@ class ChapterWriterAgent:
                         settings.seed,
                     )
                     critique_text = critique_text.strip()
-                    if critique_text and critique_text != "{}":
-                        # Non-empty findings — run one revision pass
+                    _scene_parser = CritiqueParser()
+                    _scene_result = _scene_parser.parse_scene_critique(critique_text)
+                    if not passed_quality_threshold(_scene_result.overall_score):
+                        # Score below threshold - run one revision pass
                         await self.status_bus.emit(
                             StatusEvent(
                                 phase=phase,
