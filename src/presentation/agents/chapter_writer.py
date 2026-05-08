@@ -943,21 +943,51 @@ class ChapterWriterAgent:
                     critique_text = critique_text.strip()
                     _scene_parser = CritiqueParser()
                     _scene_result = _scene_parser.parse_scene_critique(critique_text)
-                    if not passed_quality_threshold(_scene_result.overall_score):
-                        # Score below threshold - run one revision pass
+                    _critique_score = _scene_result.overall_score
+                    _critique_iteration = 0
+
+                    while (
+                        settings.enable_scene_critique_loop
+                        and _critique_iteration < settings.scene_critique_max_iterations
+                        and not passed_quality_threshold(
+                            _critique_score,
+                            settings.scene_critique_score_threshold,
+                        )
+                    ):
+                        _critique_iteration += 1
+                        _iter_label = (
+                            "iter "
+                            f"{_critique_iteration}/"
+                            f"{settings.scene_critique_max_iterations}"
+                        )
                         await self.status_bus.emit(
                             StatusEvent(
                                 phase=phase,
                                 message=(
                                     f"Ch {chapter_number}: revising scene "
-                                    f"{index}/{total_scenes}"
+                                    f"{index}/{total_scenes} ({_iter_label}, "
+                                    f"score {_critique_score:.0f})"
                                 ),
                                 kind="step",
                             )
                         )
                         await self.bus.emit(
-                            f"\n[Chapter {chapter_number}] Revising scene {index}...\n"
+                            f"\n[Chapter {chapter_number}] Revising scene {index} "
+                            f"({_iter_label}, score {_critique_score:.0f}/100)...\n"
                         )
+
+                        _iter_critique_file = (
+                            scenes_dir
+                            / f"scene_{index}_critique_iter_{_critique_iteration}.txt"
+                        )
+                        try:
+                            _iter_critique_file.parent.mkdir(
+                                parents=True, exist_ok=True
+                            )
+                            _atomic_write(_iter_critique_file, critique_text)
+                        except OSError:
+                            pass
+
                         revise_prompt = loader.load_prompt(
                             "scenes/revise_content",
                             variables={
@@ -992,11 +1022,80 @@ class ChapterWriterAgent:
                             revised = revised.strip()
                             if revised:
                                 scene_text = revised
+                                _iter_scene_file = (
+                                    scenes_dir / f"scene_{index}_critique_iter_"
+                                    f"{_critique_iteration}.md"
+                                )
+                                try:
+                                    _atomic_write(_iter_scene_file, scene_text)
+                                except OSError:
+                                    pass
                         except Exception as exc:
                             await self.bus.emit(
                                 f"\n[Chapter {chapter_number}] scene {index} revision "
-                                f"failed ({type(exc).__name__}: {exc}); using draft.\n"
+                                f"({_iter_label}) failed "
+                                f"({type(exc).__name__}: {exc}); keeping current draft.\n"
                             )
+                            break
+
+                        if _critique_iteration < settings.scene_critique_max_iterations:
+                            re_critique_prompt = loader.load_prompt(
+                                "scenes/critique_draft",
+                                variables={
+                                    "chapter_num": str(chapter_number),
+                                    "scene_num": str(index),
+                                    "scene_content": scene_text,
+                                    "scene_definition": json.dumps(
+                                        scene, ensure_ascii=False
+                                    ),
+                                    "chapter_outline": chapter_summary,
+                                    "previous_scene": prev_tail,
+                                },
+                            )
+                            try:
+                                critique_text = await self._stream_to_bus(
+                                    [
+                                        {
+                                            "role": "system",
+                                            "content": re_critique_prompt,
+                                        },
+                                        {
+                                            "role": "user",
+                                            "content": "Critique the scene now.",
+                                        },
+                                    ],
+                                    scene_model,
+                                    settings.seed,
+                                )
+                                critique_text = critique_text.strip()
+                                _scene_result = _scene_parser.parse_scene_critique(
+                                    critique_text
+                                )
+                                _critique_score = _scene_result.overall_score
+                            except Exception as exc:
+                                await self.bus.emit(
+                                    f"\n[Chapter {chapter_number}] scene {index} "
+                                    f"re-critique ({_iter_label}) failed "
+                                    f"({type(exc).__name__}: {exc}); stopping loop.\n"
+                                )
+                                break
+
+                    await self.status_bus.emit(
+                        StatusEvent(
+                            phase=phase,
+                            message=(
+                                f"Ch {chapter_number}: scene {index}/{total_scenes} "
+                                f"critique done - score {_critique_score:.0f}/100 "
+                                f"after {_critique_iteration} revision(s)"
+                            ),
+                            kind="step",
+                        )
+                    )
+                    await self.bus.emit(
+                        f"\n[Chapter {chapter_number}] Scene {index} critique complete: "
+                        f"score {_critique_score:.0f}/100 "
+                        f"after {_critique_iteration} revision(s).\n"
+                    )
                 except Exception as exc:
                     await self.bus.emit(
                         f"\n[Chapter {chapter_number}] scene {index} critique "
