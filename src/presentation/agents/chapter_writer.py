@@ -40,7 +40,7 @@ from presentation.pipeline_primitives import (
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools._llm import extract_paragraph_tail
 from tools._persist import read_markdown_ref
-from tools.context_assembly import assemble_context
+from tools.context_assembly import assemble_context, render_recap_as_markdown
 
 
 def _savepoint_path(story_name: str) -> Path:
@@ -216,11 +216,7 @@ class ChapterWriterAgent:
             recap_window=("chapter", 5),
         )
         base_context = _chapter_ctx["wiki_snapshot"]
-        recap_context = (
-            "\n\n".join(_chapter_ctx["recap_snippets"])
-            if _chapter_ctx["recap_snippets"]
-            else ""
-        )
+        recap_context = render_recap_as_markdown(_chapter_ctx["recap_snippets"])
         character_context = ""
         setting_context = ""
         await self.wiki_bus.emit(
@@ -764,8 +760,9 @@ class ChapterWriterAgent:
                 )
                 if _scene_ctx["wiki_snapshot"]:
                     scene_base_context = _scene_ctx["wiki_snapshot"]
-                if _scene_ctx["recap_snippets"]:
-                    scene_recap_context = "\n\n".join(_scene_ctx["recap_snippets"])
+                scene_recap_context = render_recap_as_markdown(
+                    _scene_ctx["recap_snippets"]
+                )
             except Exception:
                 pass
 

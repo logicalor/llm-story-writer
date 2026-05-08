@@ -16,7 +16,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
-from tools.context_assembly import assemble_context
+from tools.context_assembly import assemble_context, render_recap_as_markdown
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
@@ -112,9 +112,7 @@ class StoryMetadataAgent:
             token_budget=20000,
         )
         wiki_context: str = _ctx["wiki_snapshot"]
-        recap_context: str = (
-            "\n\n".join(_ctx["recap_snippets"]) if _ctx["recap_snippets"] else ""
-        )
+        recap_context: str = render_recap_as_markdown(_ctx["recap_snippets"])
 
         model_config = _build_model_config(
             self.config, "story_metadata", "openai-compat://default"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -17,13 +18,33 @@ from presentation.pipeline_primitives import (
 )
 from tools._io import STORIES_DIR
 from tools._wiki import get_wiki_dir, match_entities_in_text, read_index
-from tools.context_assembly import assemble_context
+from tools.context_assembly import assemble_context, render_recap_as_markdown
 
 
 def _build_model_config(config: dict[str, Any], role: str, default: str) -> ModelConfig:
     models = config.get("models", {})
     model_name = models.get(role, default)
     return ModelConfig.from_string(model_name)
+
+
+def _parse_events_from_json(text: str) -> list[dict]:
+    """Extract a list of event dicts from an LLM JSON response."""
+    if not text:
+        return []
+    stripped = text.strip()
+    fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", stripped)
+    candidate = fence_match.group(1).strip() if fence_match else stripped
+    try:
+        obj = json.loads(candidate)
+    except (json.JSONDecodeError, ValueError):
+        return []
+    if isinstance(obj, list):
+        return [e for e in obj if isinstance(e, dict)]
+    if isinstance(obj, dict):
+        events = obj.get("events")
+        if isinstance(events, list):
+            return [e for e in events if isinstance(e, dict)]
+    return []
 
 
 class RecapWriterAgent:
@@ -109,9 +130,7 @@ class RecapWriterAgent:
                 recap_window=("character", 5),
             )
             _wiki_context = _ctx["wiki_snapshot"]
-            _recap_snippets = _ctx["recap_snippets"]
-            if _recap_snippets:
-                _related_recap_history = "\n\n".join(_recap_snippets)
+            _related_recap_history = render_recap_as_markdown(_ctx["recap_snippets"])
         except Exception:
             pass
 
@@ -134,20 +153,18 @@ class RecapWriterAgent:
             settings,
         )
         if not events:
-            return {"events": "", "compact": "", "sanitised": ""}
+            return {"events": []}
 
         if not settings.use_multi_stage_recap_sanitizer:
             await self._emit_stage(chapter_number, "format json")
-            compact = await self._run_stage(
+            formatted = await self._run_stage(
                 "recap/format_json",
                 {"enriched_events": events},
                 model_config,
                 settings,
             )
             return {
-                "events": events,
-                "compact": compact,
-                "sanitised": compact,
+                "events": _parse_events_from_json(formatted),
             }
 
         await self._emit_stage(chapter_number, "assign event timing")
@@ -178,31 +195,6 @@ class RecapWriterAgent:
             settings,
         )
 
-        await self._emit_stage(chapter_number, "compact events")
-        compact = await self._run_stage(
-            "recap/compact_events",
-            {"events_json": formatted},
-            model_config,
-            settings,
-        )
-
-        sanitised = compact
-        if settings.use_improved_recap_sanitizer:
-            await self._emit_stage(chapter_number, "sanitize")
-            sanitised = await self._run_stage(
-                "recap/sanitize",
-                {
-                    "recap": compact,
-                    "story_start_date": story_start_date,
-                    "previous_chapter_recap": previous_recap,
-                    "related_recap_history": _related_recap_history,
-                },
-                model_config,
-                settings,
-            )
-
         return {
-            "events": events,
-            "compact": compact,
-            "sanitised": sanitised,
+            "events": _parse_events_from_json(formatted),
         }

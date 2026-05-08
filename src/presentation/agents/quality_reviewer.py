@@ -13,7 +13,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
-from tools.context_assembly import assemble_context
+from tools.context_assembly import assemble_context, render_recap_as_markdown
 
 
 _CRITIQUE_PROMPTS: list[tuple[str, str]] = [
@@ -80,7 +80,7 @@ class QualityReviewerAgent:
                 recap_window=("chapter", 3),
             )
             wiki_context: str = ctx["wiki_snapshot"]
-            recap_context: str = "\n\n".join(ctx["recap_snippets"])
+            recap_context: str = render_recap_as_markdown(ctx["recap_snippets"])
         except Exception as exc:  # noqa: BLE001
             await self.wiki_bus.emit(
                 WikiContextEvent(

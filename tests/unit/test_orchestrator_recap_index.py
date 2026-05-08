@@ -67,67 +67,32 @@ def _extract_recap_entity_slugs(
 
 async def _run_recap_index_upsert_block(
     *,
-    story_dir: Path,
     story_name: str,
     chapter_number: int,
-    recap_result: dict[str, str],
+    recap_result: dict,
     bus: MagicMock,
 ) -> None:
-    recap_participants: list[str] = []
-    recap_locations: list[str] = []
-
     try:
-        raw_events = recap_result.get("events") or ""
-        if raw_events:
-            try:
-                wiki_index = orchestrator.read_index(story_dir / "wiki")
-                name_to_slug: dict[str, str] = {}
-                for entry in wiki_index:
-                    entry_name = str(entry.get("name") or "").strip()
-                    entry_slug = str(entry.get("slug") or "").strip()
-                    if entry_name and entry_slug:
-                        name_to_slug[entry_name.lower()] = entry_slug
-                    for alias in orchestrator._coerce_string_list(entry.get("aliases")):
-                        name_to_slug[alias.lower()] = entry_slug
-                decoded_events = json.loads(raw_events)
-                if isinstance(decoded_events, list):
-                    events_list = [
-                        event for event in decoded_events if isinstance(event, dict)
-                    ]
-                else:
-                    events_list = []
-            except (ValueError, TypeError):
-                events_list = []
-                name_to_slug = {}
-
-            for event in events_list:
-                for name in orchestrator._coerce_string_list(
-                    event.get("participants") or event.get("characters")
-                ):
-                    slug = name_to_slug.get(name.lower())
-                    if slug:
-                        recap_participants.append(slug)
-                for name in orchestrator._coerce_string_list(event.get("locations")):
-                    slug = name_to_slug.get(name.lower())
-                    if slug:
-                        recap_locations.append(slug)
-
-        recap_participants = list(dict.fromkeys(recap_participants))
-        recap_locations = list(dict.fromkeys(recap_locations))
+        _parsed_events: list[dict] = (
+            recap_result["events"]
+            if isinstance(recap_result.get("events"), list)
+            else []
+        )
         await orchestrator.asyncio.to_thread(
-            orchestrator.recap_index.upsert_recap,
+            orchestrator.recap_index.delete_chapter_events,
             story_name,
             chapter_number,
-            recap_result,
-            recap_participants or None,
-            recap_locations or None,
+        )
+        await orchestrator.asyncio.to_thread(
+            orchestrator.recap_index.upsert_recap_events,
+            story_name,
+            chapter_number,
+            _parsed_events,
         )
         await bus.emit(
-            f"[Recap] indexed chapter {chapter_number} aggregate "
-            f"({len(recap_participants)} participants, "
-            f"{len(recap_locations)} locations)\n"
+            f"[Recap] indexed chapter {chapter_number} ({len(_parsed_events)} events)\n"
         )
-    except Exception as exc:  # pragma: no cover - failure path not target here
+    except Exception as exc:  # pragma: no cover
         await bus.emit(f"[Recap] index upsert failed: {exc}\n")
 
 
@@ -184,28 +149,8 @@ def test_slug_resolution_deduplicates_participants() -> None:
 
 @pytest.mark.asyncio
 async def test_upsert_called_for_chapter_with_events(tmp_path: Path) -> None:
-    story_dir = tmp_path / "test-story"
-    story_dir.mkdir()
-    wiki_index = [
-        {
-            "name": "Amy Miller",
-            "slug": "amy-miller",
-            "type": "character",
-            "aliases": ["Amy"],
-            "path": "characters/amy-miller.md",
-        },
-        {
-            "name": "The Park",
-            "slug": "the-park",
-            "type": "location",
-            "aliases": [],
-            "path": "locations/the-park.md",
-        },
-    ]
     recap_result = {
-        "events": json.dumps([{"participants": ["Amy"], "locations": ["The Park"]}]),
-        "compact": "compact text",
-        "sanitised": "sanitised text",
+        "events": [{"participants": ["Amy"], "locations": ["The Park"]}],
     }
     bus = MagicMock()
     bus.emit = AsyncMock()
@@ -214,8 +159,8 @@ async def test_upsert_called_for_chapter_with_events(tmp_path: Path) -> None:
         return func(*args)
 
     with (
-        patch.object(orchestrator, "read_index", return_value=wiki_index),
-        patch.object(orchestrator.recap_index, "upsert_recap") as upsert_mock,
+        patch.object(orchestrator.recap_index, "delete_chapter_events") as delete_mock,
+        patch.object(orchestrator.recap_index, "upsert_recap_events") as upsert_mock,
         patch.object(
             orchestrator.asyncio,
             "to_thread",
@@ -223,33 +168,25 @@ async def test_upsert_called_for_chapter_with_events(tmp_path: Path) -> None:
         ),
     ):
         await _run_recap_index_upsert_block(
-            story_dir=story_dir,
             story_name="test-story",
             chapter_number=1,
             recap_result=recap_result,
             bus=bus,
         )
 
+    delete_mock.assert_called_once_with("test-story", 1)
     upsert_mock.assert_called_once_with(
         "test-story",
         1,
-        recap_result,
-        ["amy-miller"],
-        ["the-park"],
+        [{"participants": ["Amy"], "locations": ["The Park"]}],
     )
-    bus.emit.assert_awaited_once_with(
-        "[Recap] indexed chapter 1 aggregate (1 participants, 1 locations)\n"
-    )
+    bus.emit.assert_awaited_once_with("[Recap] indexed chapter 1 (1 events)\n")
 
 
 @pytest.mark.asyncio
 async def test_upsert_called_for_chapter_without_events(tmp_path: Path) -> None:
-    story_dir = tmp_path / "test-story"
-    story_dir.mkdir()
-    recap_result = {
-        "events": "",
-        "compact": "compact text",
-        "sanitised": "sanitised text",
+    recap_result: dict = {
+        "events": [],
     }
     bus = MagicMock()
     bus.emit = AsyncMock()
@@ -258,8 +195,8 @@ async def test_upsert_called_for_chapter_without_events(tmp_path: Path) -> None:
         return func(*args)
 
     with (
-        patch.object(orchestrator, "read_index") as read_index_mock,
-        patch.object(orchestrator.recap_index, "upsert_recap") as upsert_mock,
+        patch.object(orchestrator.recap_index, "delete_chapter_events") as delete_mock,
+        patch.object(orchestrator.recap_index, "upsert_recap_events") as upsert_mock,
         patch.object(
             orchestrator.asyncio,
             "to_thread",
@@ -267,21 +204,12 @@ async def test_upsert_called_for_chapter_without_events(tmp_path: Path) -> None:
         ),
     ):
         await _run_recap_index_upsert_block(
-            story_dir=story_dir,
             story_name="test-story",
             chapter_number=1,
             recap_result=recap_result,
             bus=bus,
         )
 
-    read_index_mock.assert_not_called()
-    upsert_mock.assert_called_once_with(
-        "test-story",
-        1,
-        recap_result,
-        None,
-        None,
-    )
-    bus.emit.assert_awaited_once_with(
-        "[Recap] indexed chapter 1 aggregate (0 participants, 0 locations)\n"
-    )
+    delete_mock.assert_called_once_with("test-story", 1)
+    upsert_mock.assert_called_once_with("test-story", 1, [])
+    bus.emit.assert_awaited_once_with("[Recap] indexed chapter 1 (0 events)\n")
