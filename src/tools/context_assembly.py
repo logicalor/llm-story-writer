@@ -136,8 +136,8 @@ def _retrieve_wiki(
     """Call get_snapshot and handle empty/error conditions."""
     result = get_snapshot(
         story_name=story_name,
-        chapter=chapter or 0,
-        scene=scene or 0,
+        chapter=chapter or 1,
+        scene=scene or 1,
         outline=focus,
         pov_character=pov_character,
         characters=list(characters) if characters else None,

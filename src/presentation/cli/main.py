@@ -150,6 +150,11 @@ def main() -> None:
         if getattr(args, "debug_log", None):
             os.environ["LLM_DEBUG_LOG"] = args.debug_log
         _cmd_resume(args.story, args.savepoint, prompt=args.prompt)
+    elif args.subcommand == "reset-recaps":
+        from tools.recap_index import clear_recap_index
+
+        clear_recap_index(args.story)
+        print(f"Recap index cleared for story: {args.story}")
     else:
         parser.print_help()
         raise SystemExit(1)

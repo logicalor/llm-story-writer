@@ -81,4 +81,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write a JSONL debug log of every LLM request and response to PATH.",
     )
 
+    reset_recaps_p = sub.add_parser(
+        "reset-recaps",
+        help="Drop and recreate the ChromaDB recap collection for a story.",
+    )
+    reset_recaps_p.add_argument(
+        "--story", required=True, metavar="NAME", help="Story name."
+    )
+
     return parser
