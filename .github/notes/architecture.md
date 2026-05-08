@@ -31,7 +31,9 @@
    - Extract story start date
    - Extract base context
    - Generate story elements
+   - Generate author persona via `persona-builder generate` immediately after `generate-elements`
    - Generate initial outline (optional: chunked, `outline_chunk_size` chapters at a time)
+   - Derive and inject the `outline` persona view for outline expansion and refinement calls
    - Generate chapter list
    - (Optional) Critique loop: 6 critic types evaluate outline, refine if below quality threshold
 3. **Character/Setting phase:**
@@ -85,7 +87,7 @@ Prompt templates are **Markdown files** stored in the top-level `prompts/` direc
 
 ## Tools
 
-Fifteen tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
+Sixteen tools implemented following the hybrid pattern from [ADR 001](docs/planning/adr/001-hybrid-agent-tool-architecture.md):
 
 | Tool | Wrapper | Script | Infrastructure |
 |------|---------|--------|---------------|
@@ -96,6 +98,7 @@ Fifteen tools implemented following the hybrid pattern from [ADR 001](docs/plann
 | `setting-mgr` | `.opencode/tools/setting-mgr.ts` | `src/tools/setting_manager.py` | Direct filesystem — setting sheet JSON I/O with deep-merge updates |
 | `recap-manager` | `.opencode/tools/recap-manager.ts` | `src/tools/recap_manager.py` | `_llm.py` + `FilesystemSavepointRepository` — 5-stage recap pipeline with LLM |
 | `outline-generator` | `.opencode/tools/outline-generator.ts` | `src/tools/outline_generator.py` | `_llm.py` + `FilesystemSavepointRepository` + `PromptLoader` — multi-step outline pipeline with conversation history |
+| `persona-builder` | — | `src/tools/persona_builder.py` | `_llm.py` + `FilesystemSavepointRepository` + `PromptLoader` — persona generation, view derivation, and writes to `stories/<name>/persona/persona.md` |
 | `scene-writer` | `.opencode/tools/scene-writer.ts` | `src/tools/scene_writer.py` | `_llm.py` + `FilesystemSavepointRepository` + `PromptLoader` — per-scene generation, revision, and chapter assembly |
 | `critique-runner` | `.opencode/tools/critique-runner.ts` | `src/tools/critique_runner.py` | `_llm.py` + `src/tools/critique_parser.py` — 6-critic evaluation with scoring and threshold logic |
 | `wiki-init` | `.opencode/tools/wiki-init.ts` | `src/tools/wiki_init.py` | `_wiki.py` — idempotent wiki directory + schema creation |
@@ -117,11 +120,17 @@ Three agent prompt files defined in `prompts/agents/`, registered in `opencode.j
 |-------|-----------|--------|--------|
 | `story-orchestrator` | `prompts/agents/story-orchestrator.md` | `story-pipeline` | Primary pipeline controller — coordinates 10-phase story generation lifecycle, delegates to subagents |
 | `chapter-writer` | `prompts/agents/chapter-writer.md` | `scene-writing`, `character-voice` | Per-chapter scene generation — invoked by orchestrator during Phase 8b, generates scenes sequentially using wiki-snapshot context |
-| `outline-planner` | `prompts/agents/outline-planner.md` | `story-pipeline`, `outline-structure` | Outline generation — invoked by orchestrator during Phase 2, runs 5-phase pipeline: prompt analysis, element synthesis, outline generation (chunked/monolithic), optional critique & refinement |
+| `outline-planner` | `prompts/agents/outline-planner.md` | `story-pipeline`, `outline-structure` | Outline generation — invoked by orchestrator during Phase 3, runs prompt analysis, element synthesis, `persona-builder generate`, outline generation (chunked/monolithic), and optional critique & refinement |
 
 The `chapter-writer` is named to avoid collision with the existing `scene-writer` tool. The orchestrator delegates to `chapter-writer` for the per-chapter scene generation loop; the agent in turn calls the `scene-writer` tool for individual scene generation.
 
-The `outline-planner` uses `outline-generator` and `critique-runner` tools to drive the outline pipeline end-to-end, creating savepoints at each stage for resumability.
+The `outline-planner` uses `outline-generator`, `persona-builder`, and `critique-runner` tools to drive the outline pipeline end-to-end, creating savepoints at each stage for resumability.
+
+## Persona Phase
+
+The current persona step is owned by `outline-planner`, not the top-level orchestrator. After `generate-elements` finishes, `outline-planner` calls `persona-builder generate` to create `stories/<name>/persona/persona.md`, then hands the derived `outline` persona view into outline expansion and refinement calls.
+
+This keeps persona generation adjacent to the analysis chunks that feed it and avoids cross-agent duplication of persona-building logic.
 
 ## Skills
 

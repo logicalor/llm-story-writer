@@ -498,6 +498,7 @@ In addition to the primary phases, the orchestrator now runs three advisory meta
 **What the system does:**
 - Delegates to the `outline-planner` agent
 - Generates a detailed chapter-by-chapter outline
+- After `generate-elements` completes, calls `persona-builder generate` to create the story's author persona at `stories/<name>/persona/persona.md` before outline expansion and refinement use persona-aware views
 - Optionally runs `OutlineCriticAgent` before the approval gate (if `enable_outline_critique: true`)
 - Writes the in-progress outline to `pipeline_state.json` before opening the approval gate
 - When outline critique is enabled, runs six outline critics plus three arc analytics and persists the critic artefacts before the gate opens
