@@ -57,6 +57,7 @@ async def test_chunked_exact_call_counts(tmp_path: Path) -> None:
     provider = MagicMock()
     provider.stream_text = MagicMock(
         side_effect=[
+            _async_gen(["Skeleton text"]),  # skeleton generation (new)
             _async_gen([_chunk_outline(1, 5)]),
             _async_gen(["Continuity 1-5"]),
             _async_gen([_chunk_outline(6, 10)]),
@@ -94,7 +95,8 @@ async def test_chunked_exact_call_counts(tmp_path: Path) -> None:
     prompt_names = [call.args[0] for call in mock_load_prompt.call_args_list]
 
     assert isinstance(result, OutlineResult)
-    assert provider.stream_text.call_count == 10
+    assert provider.stream_text.call_count == 11  # 1 skeleton + 5 chunks + 4 continuity + 1 enrichment
+    assert prompt_names.count("outline/create_skeleton") == 1
     assert prompt_names.count("outline/create_chunk") == 5
     assert prompt_names.count("outline/analyze_continuity") == 4
     assert prompt_names.count("outline/analyze_enrichment") == 1
@@ -105,6 +107,7 @@ async def test_chunked_enrichment_suggestions_non_empty(tmp_path: Path) -> None:
     provider = MagicMock()
     provider.stream_text = MagicMock(
         side_effect=[
+            _async_gen(["Skeleton text"]),  # skeleton generation (new)
             _async_gen([_chunk_outline(1, 5)]),
             _async_gen(["Continuity 1-5"]),
             _async_gen([_chunk_outline(6, 10)]),
@@ -141,6 +144,7 @@ async def test_chunked_enrichment_md_written_to_disk(tmp_path: Path) -> None:
     provider = MagicMock()
     provider.stream_text = MagicMock(
         side_effect=[
+            _async_gen(["Skeleton text"]),  # skeleton generation (new)
             _async_gen([_chunk_outline(1, 5)]),
             _async_gen(["Continuity 1-5"]),
             _async_gen([_chunk_outline(6, 10)]),

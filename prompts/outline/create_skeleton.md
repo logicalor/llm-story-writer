@@ -50,9 +50,11 @@ For each chapter, provide ONLY:
 
 ### Chapter [Number]: [Compelling Title]
 **Story Arc Position**: [Setup/Rising Action/Climax/Resolution]
-**Core Purpose**: [What this chapter accomplishes in 1-2 sentences]
-**Key Characters**: [Main characters involved]
-**Major Event**: [Primary plot point or development]
+**Tension Level**: [Low / Building / High / Peak / Releasing]
+**Key Characters**: [Main characters involved, with their role or emotional state at this point]
+**Major Event**: [Primary plot point — what triggers it, what unfolds, and what it sets in motion]
+**Core Purpose**: [2-3 sentences: what this chapter accomplishes, why it matters at this arc position, and how it moves the protagonist's arc forward]
+**Planted Seeds**: [Any setup elements introduced here that pay off in later chapters — or "None"]
 
 ## PACING CONSIDERATIONS
 For your {desired_chapters}-chapter story:
@@ -69,6 +71,6 @@ For your {desired_chapters}-chapter story:
 - Maintain consistency with provided story elements
 
 ## OUTPUT FORMAT
-Provide a complete skeleton with all {desired_chapters} chapters using the format above. Keep each chapter entry concise (2-3 lines maximum) while ensuring the overall story arc is complete and logical.
+Provide a complete skeleton with all {desired_chapters} chapters using the format above. Each entry should be detailed enough to serve as a pacing contract for later chunk generation — richer is better here.
 
 You MUST generate {desired_chapters} chapters.

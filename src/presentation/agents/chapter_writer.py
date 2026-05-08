@@ -556,9 +556,9 @@ class ChapterWriterAgent:
                                 encoding="utf-8"
                             ).splitlines():
                                 line = raw_line.strip()
-                                if not line:
+                                if not line or not line.startswith("- "):
                                     continue
-                                parts = [part.strip() for part in line.split("|")]
+                                parts = [part.strip() for part in line[2:].split("|")]
                                 if len(parts) != 5:
                                     raise ValueError(
                                         f"Malformed wiki index line: {raw_line}"

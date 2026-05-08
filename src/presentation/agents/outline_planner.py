@@ -223,6 +223,30 @@ class OutlinePlannerAgent:
         accumulated_chunks: list[str] = []
         continuity_summary = ""
 
+        # Generate a full skeleton first so every chunk has a global arc contract.
+        # This prevents each chunk from rushing the plot without knowing what's ahead.
+        skeleton_file = outline_dir / "skeleton.md"
+        if skeleton_file.exists():
+            story_skeleton = skeleton_file.read_text(encoding="utf-8")
+        else:
+            pacing_vars = _build_outline_pacing_variables(desired_chapters)
+            skeleton_system_prompt = loader.load_prompt(
+                "outline/create_skeleton",
+                variables={
+                    "prompt": prompt,
+                    "story_elements": story_elements,
+                    "base_context": base_context,
+                    "wiki_context": wiki_context,
+                    **pacing_vars,
+                },
+            )
+            story_skeleton = await self._stream_prompt(
+                skeleton_system_prompt,
+                "Please generate the complete story skeleton.",
+                settings,
+            )
+            skeleton_file.write_text(story_skeleton, encoding="utf-8")
+
         windows: list[tuple[int, int]] = []
         start = 1
         while start <= desired_chapters:
@@ -247,6 +271,7 @@ class OutlinePlannerAgent:
                     "story_elements": story_elements,
                     "base_context": base_context,
                     "wiki_context": wiki_context,
+                    "story_skeleton": story_skeleton,
                     "chunk_start": str(chunk_start),
                     "chunk_end": str(chunk_end),
                     "total_chapters": str(desired_chapters),

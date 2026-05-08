@@ -25,18 +25,30 @@ Total story chapters: {total_chapters}
 {previous_chunks}
 </PREVIOUS_CHUNKS>
 
+<STORY_SKELETON>
+{story_skeleton}
+</STORY_SKELETON>
+
 <CONTINUITY_SUMMARY>
 {continuity_summary}
 </CONTINUITY_SUMMARY>
 
 ## OBJECTIVE
 Create a brief skeleton outline for chapters {chunk_start} through {chunk_end} that:
+- **Uses the STORY_SKELETON as the authoritative pacing contract** — honour the major events, act positions, and character beats already planned for each chapter; do not rush, reorder, or skip ahead in the arc
 - **Maintains proper escalation order** as specified in the continuity summary
 - Follows logical story progression from previous chapters (if any)
 - Maintains consistency with the established story elements and context
 - **Respects established pacing and intensity patterns** from previous chunks
 - Provides concise chapter overviews suitable for later expansion
 - Connects smoothly to the overall story arc
+
+## PACING CONSTRAINT — STORY SKELETON
+The STORY_SKELETON above is a pre-planned high-level arc for all {total_chapters} chapters. It is the single source of truth for *what should happen when*. When writing your chunk:
+- Match the **Story Arc Position** (Setup / Rising Action / Climax / Resolution) for each chapter in your range
+- Honour the **Core Purpose** and **Major Event** fields — do not introduce events planned for later chapters
+- Do not escalate stakes beyond what the skeleton schedules — if the skeleton says "rising tension" for your chunk, the climax must not appear yet
+- If the previous chunks have already introduced something scheduled for your range, note it in the Action field and advance the skeleton beat logically rather than skipping it entirely
 
 ## CONTINUITY REQUIREMENTS
 **CRITICAL**: Use the continuity summary to ensure proper story progression:
@@ -47,12 +59,12 @@ Create a brief skeleton outline for chapters {chunk_start} through {chunk_end} t
 - **Thematic Development**: Continue building themes and symbols as established in previous chapters
 
 ## STORY STRUCTURE AWARENESS
-Based on your chunk position within the {total_chapters}-chapter story:
+Refer to the STORY_SKELETON for the authoritative act position of each chapter. The percentages below are a fallback only when no skeleton is available:
 - **Early chapters** (first ~25%): Focus on setup, character introduction, inciting incident
 - **Middle chapters** (~25-75%): Focus on rising action, complications, character development  
 - **Late chapters** (final ~25%): Focus on climax, resolution, character transformation
 
-Your chunk ({chunk_start}-{chunk_end}) represents chapters {chunk_start}/{total_chapters} to {chunk_end}/{total_chapters} of the story.
+Your chunk ({chunk_start}-{chunk_end}) covers chapters {chunk_start}/{total_chapters} to {chunk_end}/{total_chapters}. Check the skeleton for the planned arc position of each chapter in this range and write accordingly — do not guess or extrapolate from position alone.
 
 ## SKELETON FORMAT
 
@@ -60,16 +72,16 @@ For each chapter in your assigned range, output **exactly** this block — same 
 
 ```
 ### Chapter [Number]: [Primary plot point or development]
-**Characters**: [Comma-separated list of characters central to this chapter]
+**Characters**: [Comma-separated list of characters central to this chapter, noting key role or emotional state]
 **Setting**: [Primary setting / location — use the canonical name from story elements]
-**Action**: [One sentence describing the concrete events that occur]
-**Purpose**: [One sentence describing what this chapter accomplishes for the overall story]
-**Consequence**: [One sentence describing what changes as a result]
+**Action**: [2-3 sentences covering the full sequence of concrete events: what triggers the chapter, what unfolds, and how it resolves within the chapter]
+**Purpose**: [2-3 sentences: what this chapter accomplishes for the overall story, how it advances the protagonist's arc, and what thematic or emotional weight it carries]
+**Consequence**: [2-3 sentences: what changes immediately after this chapter ends, how it raises or alters the stakes, and what it sets up for the chapters ahead]
 ```
 
 Rules:
 - The five bold labels (`**Characters**`, `**Setting**`, `**Action**`, `**Purpose**`, `**Consequence**`) are **mandatory** for every chapter. Do not omit any. Do not rename them. Do not reorder them.
-- Do **not** write prose paragraphs. Do **not** merge fields. Do **not** emit alternate formats (no "Summary:", no JSON, no numbered lists inside the body).
+- Write in full sentences. Do **not** merge fields. Do **not** emit alternate formats (no "Summary:", no JSON, no numbered lists inside the body).
 - Separate chapters with a single blank line.
 - Do not include the chapter heading inside a code fence in the actual output — the fence above is illustrative.
 
@@ -119,21 +131,21 @@ Rules:
 ```
 Wrong because: headings use bold instead of `###`, fields are missing, body is a single vague clause.
 
-### ✅ GOOD (Specific, Unique, Clear, Correctly Formatted)
+### ✅ GOOD (Specific, Unique, Clear, Multi-sentence, Correctly Formatted)
 ```
 ### Chapter 5: Sarah uncovers her father's secret investigation
-**Characters**: Sarah, Uncle Marcus (mentioned), Father (via journal)
+**Characters**: Sarah (grieving, uncertain), Uncle Marcus (mentioned), Father (via journal)
 **Setting**: The attic of the family home
-**Action**: Sarah finds her father's hidden correspondence revealing he was investigating her mother's disappearance.
-**Purpose**: Converts the maternal-death backstory from accepted tragedy to active mystery, redirecting Sarah's arc.
-**Consequence**: Sarah no longer trusts Uncle Marcus and resolves to find the missing case files.
+**Action**: While clearing out boxes, Sarah finds a locked briefcase containing her father's correspondence with a private investigator. The letters reveal her father believed her mother's death was not an accident and had been building a case in secret. Sarah reads enough to understand he was silenced before he could act.
+**Purpose**: Converts the maternal-death backstory from accepted tragedy to active mystery, fundamentally redirecting Sarah's grief into purpose. It also reframes every interaction she has had with Uncle Marcus, making the familiar world feel suddenly hostile. The chapter marks the end of Sarah's passive acceptance and the beginning of her as an active investigator.
+**Consequence**: Sarah no longer trusts Uncle Marcus and commits to finding the missing case files. The stakes shift from personal loss to potential danger — someone may have known what her father was doing.
 
 ### Chapter 6: Sarah confronts Uncle Marcus
-**Characters**: Sarah, Uncle Marcus
+**Characters**: Sarah (determined, frightened), Uncle Marcus (evasive, then threatening)
 **Setting**: Marcus's study
-**Action**: Sarah confronts her uncle about the lies he told regarding her mother's death; he refuses to answer and expels her from the house.
-**Purpose**: Closes the "trusted family" safety net and forces Sarah into independent investigation.
-**Consequence**: Sarah loses her home but gains a concrete lead — the name of her mother's last employer.
+**Action**: Sarah arrives with the letters and demands answers. Marcus initially deflects with practiced calm, but when Sarah names the investigator her father hired, his composure breaks. He takes the letters by force and expels her from the house, making it clear she should stop asking questions.
+**Purpose**: Closes the "trusted family" safety net and confirms that the threat is real rather than imagined. Marcus's reaction is more revealing than any answer he could have given — Sarah now knows someone powerful enough to intimidate her father is still watching. The confrontation also tests Sarah's courage and she passes, even under pressure.
+**Consequence**: Sarah loses her home and her last family connection but gains a concrete lead — the name of her mother's last employer, overheard when Marcus made a phone call thinking Sarah had left. The danger is now explicit and personal.
 ```
 
 ## QUALITY CHECKLIST
@@ -150,8 +162,8 @@ Before finalizing your output, verify each chapter meets these criteria:
 - ✅ **Thematic Resonance**: Does this chapter contribute to the story's emotional and thematic depth?
 
 ## OUTPUT REQUIREMENTS
-- Provide brief skeleton entries for ALL requested chapters
-- Use the exact skeleton format specified above (5 lines per chapter maximum)
+- Provide detailed skeleton entries for ALL requested chapters
+- Use the exact skeleton format specified above
 - **PRIORITIZE continuity compliance**: Follow escalation order and progression from continuity summary
 - **Apply all guardrails**: No repetition, maximum specificity, complete clarity
 - Maintain consistency with established story elements

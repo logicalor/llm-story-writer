@@ -27,13 +27,13 @@ models:
 # Generation Settings
 generation:
   seed: 12
-  wanted_chapters: 45
+  wanted_chapters: 60
   enable_final_edit: false
   enable_scrubbing: true
   expand_outline: true
   scene_generation_pipeline: true
-  scenes_per_chapter_min: 8
-  scenes_per_chapter_max: 16
+  scenes_per_chapter_min: 5
+  scenes_per_chapter_max: 15
   enable_outline_critique: false
   enable_decomposition_critique: true
   enable_beat_sheet: true
@@ -43,7 +43,7 @@ generation:
   use_improved_recap_sanitizer: true
   use_multi_stage_recap_sanitizer: true
   use_chunked_outline_generation: true
-  outline_chunk_size: 5
+  outline_chunk_size: 12
   log_prompt_inputs: true
 
 # Translation Settings

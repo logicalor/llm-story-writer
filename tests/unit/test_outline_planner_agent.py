@@ -360,6 +360,8 @@ async def test_chunked_revision_context_injected_into_chunk_prompt(
     ) -> str:
         del settings
         captured_prompts.append(system_prompt)
+        if "skeleton" in user_message.lower():
+            return "### Chapter 1: One\n**Story Arc Position**: Setup\n"
         if "chapters 1 to 5" in user_message:
             return "### Chapter 1: One\nBody\n\n### Chapter 2: Two\nBody\n"
         if "chapters 6 to 10" in user_message:
