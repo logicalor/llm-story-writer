@@ -107,3 +107,49 @@ class TestPersonaSettings:
         settings = GenerationSettings.from_dict({"persona_model": None})
 
         assert settings.persona_model is None
+
+
+class TestConsistencyRevisionLoopSettings:
+    """Verification tests for consistency revision loop generation settings."""
+
+    def test_consistency_fields_defaults(self) -> None:
+        """Consistency revision loop defaults match spec."""
+        settings = GenerationSettings()
+
+        assert settings.enable_consistency_revision_loop is True
+        assert settings.consistency_max_iterations == 2
+
+    def test_consistency_max_iterations_validation_too_low(self) -> None:
+        """consistency_max_iterations below 1 is rejected."""
+        with pytest.raises(ValidationError):
+            GenerationSettings(consistency_max_iterations=0)
+
+    def test_consistency_max_iterations_validation_too_high(self) -> None:
+        """consistency_max_iterations above 10 is rejected."""
+        with pytest.raises(ValidationError):
+            GenerationSettings(consistency_max_iterations=11)
+
+    def test_consistency_max_iterations_lower_bound_valid(self) -> None:
+        """consistency_max_iterations=1 is accepted."""
+        settings = GenerationSettings(consistency_max_iterations=1)
+
+        assert settings.consistency_max_iterations == 1
+
+    def test_consistency_max_iterations_upper_bound_valid(self) -> None:
+        """consistency_max_iterations=10 is accepted."""
+        settings = GenerationSettings(consistency_max_iterations=10)
+
+        assert settings.consistency_max_iterations == 10
+
+    def test_to_dict_includes_consistency_fields(self) -> None:
+        """to_dict includes both consistency revision fields."""
+        settings = GenerationSettings(
+            enable_consistency_revision_loop=False,
+            consistency_max_iterations=3,
+        )
+        result = settings.to_dict()
+
+        assert "enable_consistency_revision_loop" in result
+        assert "consistency_max_iterations" in result
+        assert result["enable_consistency_revision_loop"] is False
+        assert result["consistency_max_iterations"] == 3

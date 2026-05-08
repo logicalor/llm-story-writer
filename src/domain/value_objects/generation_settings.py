@@ -30,6 +30,8 @@ class GenerationSettings:
     enable_scene_critique_loop: bool = True
     scene_critique_score_threshold: float = 80.0
     scene_critique_max_iterations: int = 3
+    enable_consistency_revision_loop: bool = True
+    consistency_max_iterations: int = 2
     enable_decomposition_critique: bool = True
     enable_beat_sheet: bool = False
     enable_living_scene_plan: bool = False
@@ -106,6 +108,12 @@ class GenerationSettings:
                 f"got {self.scene_critique_max_iterations}"
             )
 
+        if not (1 <= self.consistency_max_iterations <= 10):
+            raise ValidationError(
+                "consistency_max_iterations must be between 1 and 10, "
+                f"got {self.consistency_max_iterations}"
+            )
+
         if self.scene_word_target_floor < 1:
             raise ValidationError(
                 "scene_word_target_floor must be at least 1, "
@@ -153,6 +161,8 @@ class GenerationSettings:
             "enable_scene_critique_loop": self.enable_scene_critique_loop,
             "scene_critique_score_threshold": self.scene_critique_score_threshold,
             "scene_critique_max_iterations": self.scene_critique_max_iterations,
+            "enable_consistency_revision_loop": self.enable_consistency_revision_loop,
+            "consistency_max_iterations": self.consistency_max_iterations,
             "enable_decomposition_critique": self.enable_decomposition_critique,
             "enable_beat_sheet": self.enable_beat_sheet,
             "enable_living_scene_plan": self.enable_living_scene_plan,
