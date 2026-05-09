@@ -50,6 +50,8 @@ async def test_run_full_path_returns_events_compact_sanitised() -> None:
             "timed events",
             "enriched events",
             '[{"summary": "formatted event"}]',
+            "compact recap",
+            "sanitised recap",
         ]
     )
     bus = _StubBus()
@@ -71,8 +73,10 @@ async def test_run_full_path_returns_events_compact_sanitised() -> None:
 
     assert result == {
         "events": [{"summary": "formatted event"}],
+        "compact": "compact recap",
+        "sanitised": "sanitised recap",
     }
-    assert provider.generate_text.call_count == 4
+    assert provider.generate_text.call_count == 6
 
 
 @pytest.mark.asyncio
@@ -100,7 +104,11 @@ async def test_run_short_path_two_calls() -> None:
         )
 
     assert provider.generate_text.call_count == 2
-    assert result == {"events": [{"key": "val"}]}
+    assert result == {
+        "events": [{"key": "val"}],
+        "compact": '[{"key": "val"}]',
+        "sanitised": '[{"key": "val"}]',
+    }
 
 
 @pytest.mark.asyncio
@@ -111,6 +119,7 @@ async def test_run_skip_sanitizer_five_calls() -> None:
             "timed events",
             "enriched events",
             '[{"summary": "formatted"}]',
+            "compact recap",
         ]
     )
     bus = _StubBus()
@@ -134,8 +143,12 @@ async def test_run_skip_sanitizer_five_calls() -> None:
             ),
         )
 
-    assert provider.generate_text.call_count == 4
-    assert result == {"events": [{"summary": "formatted"}]}
+    assert provider.generate_text.call_count == 5
+    assert result == {
+        "events": [{"summary": "formatted"}],
+        "compact": "compact recap",
+        "sanitised": "compact recap",
+    }
 
 
 @pytest.mark.asyncio
@@ -203,6 +216,8 @@ async def test_run_accepts_empty_previous_recap_and_start_date() -> None:
             "timed events",
             "enriched events",
             '[{"summary": "formatted"}]',
+            "compact recap",
+            "sanitised recap",
         ]
     )
     bus = _StubBus()

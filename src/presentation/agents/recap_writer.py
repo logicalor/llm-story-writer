@@ -165,6 +165,8 @@ class RecapWriterAgent:
             )
             return {
                 "events": _parse_events_from_json(formatted),
+                "compact": formatted,
+                "sanitised": formatted,
             }
 
         await self._emit_stage(chapter_number, "assign event timing")
@@ -195,6 +197,34 @@ class RecapWriterAgent:
             settings,
         )
 
+        await self._emit_stage(chapter_number, "compact events")
+        compact = await self._run_stage(
+            "recap/compact_events",
+            {"events_json": formatted},
+            model_config,
+            settings,
+        )
+        compact = compact or formatted
+
+        if settings.use_improved_recap_sanitizer:
+            await self._emit_stage(chapter_number, "sanitize recap")
+            sanitised = await self._run_stage(
+                "recap/sanitize",
+                {
+                    "previous_chapter_recap": previous_recap,
+                    "recap": compact,
+                    "story_start_date": story_start_date,
+                    "related_recap_history": _related_recap_history,
+                },
+                model_config,
+                settings,
+            )
+            sanitised = sanitised or compact
+        else:
+            sanitised = compact
+
         return {
             "events": _parse_events_from_json(formatted),
+            "compact": compact,
+            "sanitised": sanitised,
         }

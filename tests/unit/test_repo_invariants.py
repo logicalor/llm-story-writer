@@ -29,7 +29,6 @@ INTENTIONAL_CONFIG_SURFACE_SETTINGS = {
     # Declared and documented config surface for planned/partially migrated
     # features. These are validated and serialised by GenerationSettings, but
     # not yet read by runtime code paths.
-    "use_improved_recap_sanitizer",
     "enable_author_persona",
     "persona_model",
     "persona_word_budget",
