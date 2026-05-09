@@ -22,6 +22,7 @@
 12. [Agents & Tools](#12-agents--tools)
 13. [Strategies](#13-strategies)
 14. [Working with Savepoints](#14-working-with-savepoints)
+- [Quality Reports](#quality-reports)
 15. [General Operation](#15-general-operation)
 16. [Troubleshooting](#16-troubleshooting)
 17. [Prompt Writing Tips](#17-prompt-writing-tips)
@@ -1582,6 +1583,37 @@ story-writer tui --story my-story
 1. Copy the entire `stories/<name>/` directory to the new machine
 2. Ensure the new machine has the same `config.yml` (or equivalent)
 3. Run `story-writer resume --story <name>`
+
+---
+
+## Quality Reports
+
+After each story run completes, the pipeline writes `stories/<name>/quality_report.json`.
+This file accumulates one entry per run (append-safe: multiple runs produce multiple entries).
+
+### Report Structure
+
+Each entry contains:
+
+- **timestamp** — UTC ISO-8601 datetime of the run
+- **model** — model identifier used for chapter generation
+- **settings_snapshot** — key generation settings (seed, wanted chapters, score thresholds)
+- **chapters** — array of per-chapter records:
+  - **scenes** — per-scene: `final_score`, `iteration_count`, `residual_categories`
+  - **consistency** — `passed`, `critical_count`, `warning_count`, `iteration_count`, `final_status`
+
+### Viewing a Report
+
+```
+story-writer report <story-name>
+```
+
+Prints a formatted table of all runs for the given story to stdout.
+
+### Notes
+
+- If scene critique or consistency checks are disabled, the corresponding fields will be empty or `null`.
+- The report is not overwritten between runs; each run appends a new entry.
 
 ---
 

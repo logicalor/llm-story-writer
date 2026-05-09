@@ -154,6 +154,7 @@ class PipelineState:
     completed_work_items: dict[str, list[str]] = field(default_factory=dict)
     status: str = "running"
     style_guide: str = ""
+    quality_telemetry: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a JSON-compatible dict for savepoint persistence.
@@ -276,6 +277,7 @@ class PipelineState:
             status=data.get("status", "running"),
             completed_work_items=data.get("completed_work_items", {}),
             style_guide=_resolve(data.get("style_guide", "")),
+            quality_telemetry=data.get("quality_telemetry", []),
         )
 
     def to_json(self) -> str:
