@@ -61,6 +61,7 @@ Your scene must begin in continuity with this — same characters, same time-flo
 Incorporate these devices naturally in your prose for this scene.
 
 {beat_sheet_section}
+{critique_lessons_section}
 
 ## Core Requirements
 - **Word Count**: AT LEAST {scene_word_target} words (mandatory)

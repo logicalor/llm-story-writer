@@ -60,6 +60,8 @@ class GenerationSettings:
     persona_model: Optional[str] = None
     persona_word_budget: int = 225
     enable_emphasis_delta: bool = True
+    enable_critique_learning: bool = True
+    critique_learning_top_n: int = 3
 
     def __post_init__(self):
         """Validate the generation settings."""
@@ -132,6 +134,12 @@ class GenerationSettings:
                 f"persona_word_budget must be between 100 and 500, got {self.persona_word_budget}"
             )
 
+        if not (1 <= self.critique_learning_top_n <= 10):
+            raise ValidationError(
+                "critique_learning_top_n must be between 1 and 10, "
+                f"got {self.critique_learning_top_n}"
+            )
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GenerationSettings":
         """Create GenerationSettings from a dictionary."""
@@ -180,6 +188,8 @@ class GenerationSettings:
             "persona_model": self.persona_model,
             "persona_word_budget": self.persona_word_budget,
             "enable_emphasis_delta": self.enable_emphasis_delta,
+            "enable_critique_learning": self.enable_critique_learning,
+            "critique_learning_top_n": self.critique_learning_top_n,
         }
 
     def with_updates(self, **kwargs) -> "GenerationSettings":
