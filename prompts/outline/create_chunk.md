@@ -46,9 +46,9 @@ Create a brief skeleton outline for chapters {chunk_start} through {chunk_end} t
 ## PACING CONSTRAINT — STORY SKELETON
 The STORY_SKELETON above is a pre-planned high-level arc for all {total_chapters} chapters. It is the single source of truth for *what should happen when*. When writing your chunk:
 - Match the **Story Arc Position** (Setup / Rising Action / Climax / Resolution) for each chapter in your range
-- Honour the **Core Purpose** and **Major Event** fields — do not introduce events planned for later chapters
+- Honour the **Core Purpose** and **Story Beats** fields — do not introduce events planned for later chapters
 - Do not escalate stakes beyond what the skeleton schedules — if the skeleton says "rising tension" for your chunk, the climax must not appear yet
-- If the previous chunks have already introduced something scheduled for your range, note it in the Action field and advance the skeleton beat logically rather than skipping it entirely
+- If the previous chunks have already introduced something scheduled for your range, note it in the first Events beat and advance the skeleton beat logically rather than skipping it entirely
 
 ## CONTINUITY REQUIREMENTS
 **CRITICAL**: Use the continuity summary to ensure proper story progression:
@@ -74,14 +74,19 @@ For each chapter in your assigned range, output **exactly** this block — same 
 ### Chapter [Number]: [Primary plot point or development]
 **Characters**: [Comma-separated list of characters central to this chapter, noting key role or emotional state]
 **Setting**: [Primary setting / location — use the canonical name from story elements]
-**Action**: [2-3 sentences covering the full sequence of concrete events: what triggers the chapter, what unfolds, and how it resolves within the chapter]
+**Events**:
+- [Triggering beat — what sets this chapter in motion, 1 concrete sentence]
+- [Development beat — key complication, confrontation, or discovery, 1 concrete sentence]
+- [Resolution beat — how this chapter's conflict concludes within the chapter, 1 concrete sentence]
+- [Optional 4th beat — subplot thread or secondary character moment; only include if substantive]
 **Purpose**: [2-3 sentences: what this chapter accomplishes for the overall story, how it advances the protagonist's arc, and what thematic or emotional weight it carries]
 **Consequence**: [2-3 sentences: what changes immediately after this chapter ends, how it raises or alters the stakes, and what it sets up for the chapters ahead]
 ```
 
 Rules:
-- The five bold labels (`**Characters**`, `**Setting**`, `**Action**`, `**Purpose**`, `**Consequence**`) are **mandatory** for every chapter. Do not omit any. Do not rename them. Do not reorder them.
-- Write in full sentences. Do **not** merge fields. Do **not** emit alternate formats (no "Summary:", no JSON, no numbered lists inside the body).
+- The five bold labels (`**Characters**`, `**Setting**`, `**Events**`, `**Purpose**`, `**Consequence**`) are **mandatory** for every chapter. Do not omit any. Do not rename them. Do not reorder them.
+- Write `**Events**` as a bullet list of 2–4 items. Each bullet is one concrete sentence describing a **distinct** story beat — a triggering event, a complication/confrontation/discovery, or a resolution. Do **not** collapse all beats into a single prose paragraph.
+- Write all other fields in full sentences. Do **not** merge fields or emit alternate formats (no "Summary:", no JSON).
 - Separate chapters with a single blank line.
 - Do not include the chapter heading inside a code fence in the actual output — the fence above is illustrative.
 
@@ -136,14 +141,20 @@ Wrong because: headings use bold instead of `###`, fields are missing, body is a
 ### Chapter 5: Sarah uncovers her father's secret investigation
 **Characters**: Sarah (grieving, uncertain), Uncle Marcus (mentioned), Father (via journal)
 **Setting**: The attic of the family home
-**Action**: While clearing out boxes, Sarah finds a locked briefcase containing her father's correspondence with a private investigator. The letters reveal her father believed her mother's death was not an accident and had been building a case in secret. Sarah reads enough to understand he was silenced before he could act.
+**Events**:
+- While clearing out boxes, Sarah finds a locked briefcase containing her father's correspondence with a private investigator.
+- The letters reveal her father believed her mother's death was not an accident and had been secretly building a case.
+- Sarah reads enough to understand he was silenced before he could act, converting her grief into a search for answers.
 **Purpose**: Converts the maternal-death backstory from accepted tragedy to active mystery, fundamentally redirecting Sarah's grief into purpose. It also reframes every interaction she has had with Uncle Marcus, making the familiar world feel suddenly hostile. The chapter marks the end of Sarah's passive acceptance and the beginning of her as an active investigator.
 **Consequence**: Sarah no longer trusts Uncle Marcus and commits to finding the missing case files. The stakes shift from personal loss to potential danger — someone may have known what her father was doing.
 
 ### Chapter 6: Sarah confronts Uncle Marcus
 **Characters**: Sarah (determined, frightened), Uncle Marcus (evasive, then threatening)
 **Setting**: Marcus's study
-**Action**: Sarah arrives with the letters and demands answers. Marcus initially deflects with practiced calm, but when Sarah names the investigator her father hired, his composure breaks. He takes the letters by force and expels her from the house, making it clear she should stop asking questions.
+**Events**:
+- Sarah arrives at Marcus's study and confronts him with the letters, demanding answers.
+- Marcus deflects with practiced calm until Sarah names the private investigator — his composure breaks and he seizes the letters by force.
+- Marcus expels Sarah from the house with an explicit warning to stop asking questions; she overhears him on a phone call that reveals her mother's last employer.
 **Purpose**: Closes the "trusted family" safety net and confirms that the threat is real rather than imagined. Marcus's reaction is more revealing than any answer he could have given — Sarah now knows someone powerful enough to intimidate her father is still watching. The confrontation also tests Sarah's courage and she passes, even under pressure.
 **Consequence**: Sarah loses her home and her last family connection but gains a concrete lead — the name of her mother's last employer, overheard when Marcus made a phone call thinking Sarah had left. The danger is now explicit and personal.
 ```
@@ -156,6 +167,7 @@ Before finalizing your output, verify each chapter meets these criteria:
 - ✅ **Plot Thread Continuity**: Are active storylines from previous chapters properly addressed?
 - ✅ **Pacing Consistency**: Does this chapter maintain the established story rhythm and intensity patterns?
 - ✅ **Unique Purpose**: Does this chapter accomplish something different from all others?
+- ✅ **Distinct Beats**: Are the Events bullets truly distinct from each other — no two bullets describing the same moment?
 - ✅ **Specific Events**: Can someone clearly understand what exactly happens in this chapter?
 - ✅ **Clear Actions**: Are the character actions concrete and definitive (not vague)?
 - ✅ **Distinct Outcomes**: Does this chapter change something specific in the story?

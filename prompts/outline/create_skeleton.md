@@ -52,7 +52,10 @@ For each chapter, provide ONLY:
 **Story Arc Position**: [Setup/Rising Action/Climax/Resolution]
 **Tension Level**: [Low / Building / High / Peak / Releasing]
 **Key Characters**: [Main characters involved, with their role or emotional state at this point]
-**Major Event**: [Primary plot point — what triggers it, what unfolds, and what it sets in motion]
+**Story Beats**:
+- [Triggering event — what initiates or defines this chapter's opening condition]
+- [Primary development — key action, confrontation, or discovery that forms the chapter's core]
+- [Exit condition — how the chapter ends and what it sets up for the chapters ahead]
 **Core Purpose**: [2-3 sentences: what this chapter accomplishes, why it matters at this arc position, and how it moves the protagonist's arc forward]
 **Planted Seeds**: [Any setup elements introduced here that pay off in later chapters — or "None"]
 

@@ -104,7 +104,7 @@ Add a heading to the chapter outline, using the following format:
      - Tone: [Emotional tone]
 
    - **Key Events:**
-     - [Describe important events, actions, or dialogue, including how the scene ends or connects to the next scene.  Use some artistic license to embellish the scene, expanding on the general chapter themes]
+     - [List 1–3 concrete events that occur in this scene. Every scene must be anchored to at least one distinct story beat — do NOT write atmospheric, transitional, or filler scenes that contain no plot-relevant action, decision, revelation, or conflict escalation. Use artistic license to embellish, but the beat must be present.]
    - **Dialogue:**
      - [If there is to be dialogue between characters in the scene, provide an example of a dialogue exchange in line with the events]
    - **Literary Devices:**

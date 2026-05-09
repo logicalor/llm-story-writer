@@ -59,7 +59,12 @@ For your {desired_chapters}-chapter story:
 For each chapter, provide exactly:
 
 ### Chapter [Number]: [Compelling Title]
-[2-3 sentence summary focusing on the main conflict, key character development, and the chapter's contribution to the overall arc. Be specific about what happens and why it matters.]
+[1-2 sentence summary: what the chapter's central conflict is and why it matters to the overall arc.]
+
+**Key Events**:
+- [Triggering beat — what sets the chapter in motion]
+- [Core development — key complication, confrontation, or discovery]
+- [Resolution beat — how the chapter's conflict concludes]
 
 Continue this format for all {desired_chapters} chapters. Do not group chapters or skip any numbers.
 
@@ -69,7 +74,7 @@ Continue this format for all {desired_chapters} chapters. Do not group chapters 
 - Balance action, character development, and plot advancement.
 - Create natural story beats and pacing.
 - Keep chapter titles under 10 words.
-- Keep each summary to 2-3 sentences maximum.
+- Keep the chapter summary to 1-2 sentences. Specifics go in the Key Events bullets — do not repeat them in the prose.
 - Focus on WHAT happens and WHY it matters, not HOW it is written.
 - Avoid repetitive plot elements, multiple conflicts per chapter, or verbose descriptions.
 - Maintain consistency with the provided story elements.
