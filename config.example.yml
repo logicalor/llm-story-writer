@@ -37,6 +37,13 @@ generation:
   enable_outline_critique: true
   enable_scene_critique: true
   enable_decomposition_critique: true
+  scene_critique_score_threshold: 80.0
+  scene_critique_max_iterations: 3
+  # Threshold mode: "fixed" applies threshold uniformly; "adaptive" starts
+  # permissive for early chapters and tightens as wiki style notes accumulate.
+  scene_critique_threshold_mode: "fixed"
+  # Slack subtracted from threshold at chapter 1 in adaptive mode.
+  scene_critique_adaptive_slack: 10.0
   enable_beat_sheet: true
   enable_living_scene_plan: true
   stream: true

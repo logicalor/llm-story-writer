@@ -1471,6 +1471,11 @@ async def _continue_pipeline(
                             state.story_name,
                             chapter_number,
                         )
+                        if (
+                            sn_result.get("written")
+                            and state.style_notes_first_chapter is None
+                        ):
+                            state.style_notes_first_chapter = chapter_number
                         if sn_result["written"]:
                             await bus.emit(
                                 f"[StyleNotes] Promoted {len(sn_result['promoted'])} "
