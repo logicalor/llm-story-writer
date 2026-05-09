@@ -40,6 +40,7 @@ from presentation.pipeline_primitives import (
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools._llm import extract_paragraph_tail
 from tools._persist import read_markdown_ref
+from tools.adaptive_threshold import compute_effective_threshold
 from tools.context_assembly import assemble_context, render_recap_as_markdown
 from tools.critique_parser import CritiqueParser, passed_quality_threshold
 
@@ -385,6 +386,14 @@ class ChapterWriterAgent:
         style_guide: str = state.style_guide if state is not None else ""
         if isinstance(style_guide, dict):
             style_guide = ""
+        _style_notes_first_chapter = (
+            getattr(state, "style_notes_first_chapter", None) if state else None
+        )
+        _effective_threshold = compute_effective_threshold(
+            settings,
+            chapter_number,
+            _style_notes_first_chapter,
+        )
 
         loader = self._loader
         synopsis_model = _build_model_config(
@@ -715,6 +724,7 @@ class ChapterWriterAgent:
                         "final_score": None,
                         "iteration_count": 0,
                         "residual_categories": [],
+                        "threshold_used": _effective_threshold,
                     }
                 )
                 continue
@@ -983,7 +993,7 @@ class ChapterWriterAgent:
                         and _critique_iteration < settings.scene_critique_max_iterations
                         and not passed_quality_threshold(
                             _critique_score,
-                            settings.scene_critique_score_threshold,
+                            _effective_threshold,
                         )
                     ):
                         _critique_iteration += 1
@@ -1157,6 +1167,7 @@ class ChapterWriterAgent:
                         "scene_num": index,
                         "final_score": _critique_score,
                         "iteration_count": _critique_iteration,
+                        "threshold_used": _effective_threshold,
                         "residual_categories": [
                             s.criterion
                             for s in _scene_result.scores
@@ -1171,6 +1182,7 @@ class ChapterWriterAgent:
                         "final_score": None,
                         "iteration_count": 0,
                         "residual_categories": [],
+                        "threshold_used": _effective_threshold,
                     }
                 )
 
