@@ -701,6 +701,51 @@ async def _emit_status(
     )
 
 
+def _write_quality_report(
+    state: PipelineState,
+    story_dir: Path,
+    config: dict[str, Any],
+) -> None:
+    """Append a quality-telemetry entry to stories/{name}/quality_report.json."""
+    report_path = story_dir / "quality_report.json"
+    try:
+        existing: list[dict[str, Any]] = (
+            json.loads(report_path.read_text(encoding="utf-8"))
+            if report_path.exists()
+            else []
+        )
+    except (json.JSONDecodeError, OSError):
+        existing = []
+
+    model_name = (
+        config.get("models", {}).get("chapter_writer")
+        or config.get("models", {}).get("default")
+        or "unknown"
+    )
+    generation = config.get("generation", {}) or {}
+    settings_snapshot = {
+        k: generation.get(k)
+        for k in (
+            "seed",
+            "wanted_chapters",
+            "min_scene_score",
+            "max_critique_iterations",
+        )
+        if generation.get(k) is not None
+    }
+
+    entry: dict[str, Any] = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "model": model_name,
+        "settings_snapshot": settings_snapshot,
+        "chapters": state.quality_telemetry,
+    }
+    existing.append(entry)
+    report_path.write_text(
+        json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
 async def _continue_pipeline(
     state: PipelineState,
     gate: ApprovalGate,
@@ -1226,6 +1271,11 @@ async def _continue_pipeline(
                 else:
                     draft = state.approved_chapters[chapter_number - 1]
 
+                consistency_meta: dict[str, Any] = {
+                    "passed": True,
+                    "critical_count": 0,
+                    "warning_count": 0,
+                }
                 consistency_item_id = f"chapter-{chapter_number}/consistency-check"
                 if not _work_item_done(state, phase, consistency_item_id):
                     if consistency_agent is not None and bus is not None:
@@ -1239,6 +1289,23 @@ async def _continue_pipeline(
                             await _emit_consistency_results(
                                 bus, chapter_number, consistency_result
                             )
+                            draft.consistency_findings = consistency_result.get(
+                                "issues", []
+                            )
+                            _issues = consistency_result.get("issues", [])
+                            _critical = sum(
+                                1 for i in _issues if i.get("severity") == "critical"
+                            )
+                            _warnings = sum(
+                                1
+                                for i in _issues
+                                if i.get("severity") in ("warning", "info")
+                            )
+                            consistency_meta = {
+                                "passed": consistency_result.get("passed", True),
+                                "critical_count": _critical,
+                                "warning_count": _warnings,
+                            }
                         except Exception as exc:
                             await bus.emit(
                                 f"\n[Consistency] Chapter {chapter_number} check failed "
@@ -1433,6 +1500,21 @@ async def _continue_pipeline(
                             await bus.emit(
                                 f"\n[Metadata] chapter-1 metadata skipped ({type(exc).__name__}: {exc})\n"
                             )
+                state.quality_telemetry.append(
+                    {
+                        "chapter_number": chapter_number,
+                        "scenes": draft.critic_findings or [],
+                        "consistency": {
+                            "passed": consistency_meta.get("passed", True),
+                            "iteration_count": 0,
+                            "critical_count": consistency_meta.get("critical_count", 0),
+                            "warning_count": consistency_meta.get("warning_count", 0),
+                            "final_status": "passed"
+                            if consistency_meta.get("passed", True)
+                            else "failed",
+                        },
+                    }
+                )
                 await _mark_phase_complete(
                     state,
                     f"chapter-{chapter_number}",
@@ -1584,6 +1666,12 @@ async def _continue_pipeline(
         state.savepoint_id = "complete"
         if "complete" not in state.savepoints:
             state.savepoints.append("complete")
+        try:
+            _write_quality_report(state, story_dir, resolved_config)
+        except Exception as exc:
+            await bus.emit(
+                f"\n[Quality Report] Failed to write quality report: {exc}\n"
+            )
         await _write_savepoint(state)
         await _emit_status(sbus, "complete", "Pipeline complete", kind="phase_end")
         return state

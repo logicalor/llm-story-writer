@@ -95,4 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--story", required=True, metavar="NAME", help="Story name."
     )
 
+    report_p = sub.add_parser("report", help="Print quality report for a story.")
+    report_p.add_argument("name", metavar="NAME", help="Story name.")
+
     return parser

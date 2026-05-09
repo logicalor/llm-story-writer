@@ -268,7 +268,7 @@ class ChapterWriterAgent:
         # Multi-stage pipeline: synopsis → scenes → per-scene drafting.
         # Skipped on revisions (feedback path) and when disabled by settings.
         if feedback is None and settings.scene_generation_pipeline:
-            multi_stage_text = await self._run_scene_pipeline(
+            multi_stage_text, scene_records = await self._run_scene_pipeline(
                 story_name=story_name,
                 chapter_number=chapter_number,
                 chapter_title=title,
@@ -288,6 +288,7 @@ class ChapterWriterAgent:
                     title=title,
                     content=multi_stage_text,
                     word_count=len(multi_stage_text.split()),
+                    critic_findings=scene_records,
                 )
             await self.bus.emit(
                 f"\n[Chapter {chapter_number}] scene pipeline empty — "
@@ -374,12 +375,12 @@ class ChapterWriterAgent:
         previous_chapter_recap: str = "",
         recap_context: str = "",
         state: PipelineState | None = None,
-    ) -> str:
+    ) -> tuple[str, list[dict[str, Any]]]:
         """Run synopsis → scene-decomposition → per-scene drafting.
 
-        Returns the concatenated chapter prose, or an empty string if any
-        critical step fails so the caller can fall back to single-shot
-        drafting.
+        Returns the concatenated chapter prose and a list of per-scene critique
+        records, or an empty string and empty list if any critical step fails so
+        the caller can fall back to single-shot drafting.
         """
         style_guide: str = state.style_guide if state is not None else ""
         if isinstance(style_guide, dict):
@@ -499,7 +500,7 @@ class ChapterWriterAgent:
                         f"\n[Chapter {chapter_number}] scene decomposition failed "
                         f"({type(exc).__name__}: {exc}); falling back to direct drafting.\n"
                     )
-                    return ""
+                    return ("", [])
 
                 candidate = _extract_json_array(scenes_raw)
                 if not candidate:
@@ -520,7 +521,7 @@ class ChapterWriterAgent:
                     f"\n[Chapter {chapter_number}] scene decomposition returned no "
                     "parsable scenes; falling back to direct drafting.\n"
                 )
-                return ""
+                return ("", [])
 
             if not (scenes_min <= len(scenes) <= scenes_max):
                 await self.bus.emit(
@@ -667,6 +668,7 @@ class ChapterWriterAgent:
         scenes_completed_meta: list[dict[str, Any]] = []
         actual_recaps: dict[int, str] = {}
         lessons_buffer: dict[str, int] = {}
+        scene_records: list[dict[str, Any]] = []
         total_scenes = len(scenes)
         scenes_dir = STORIES_DIR / story_name / "chapters" / f"chapter_{chapter_number}"
         for index, scene in enumerate(scenes, start=1):
@@ -707,6 +709,14 @@ class ChapterWriterAgent:
                     actual_recaps[index] = recap_cache_file.read_text(
                         encoding="utf-8"
                     ).strip()
+                scene_records.append(
+                    {
+                        "scene_num": index,
+                        "final_score": None,
+                        "iteration_count": 0,
+                        "residual_categories": [],
+                    }
+                )
                 continue
 
             if index == 1:
@@ -924,6 +934,10 @@ class ChapterWriterAgent:
             if not scene_text:
                 continue
 
+            _scene_result = None
+            _critique_score = 0.0
+            _critique_iteration = 0
+
             if settings.enable_scene_critique:
                 await self.status_bus.emit(
                     StatusEvent(
@@ -1137,6 +1151,29 @@ class ChapterWriterAgent:
                         f"failed ({type(exc).__name__}: {exc}); skipping critique.\n"
                     )
 
+            if _scene_result is not None:
+                scene_records.append(
+                    {
+                        "scene_num": index,
+                        "final_score": _critique_score,
+                        "iteration_count": _critique_iteration,
+                        "residual_categories": [
+                            s.criterion
+                            for s in _scene_result.scores
+                            if s.score < s.max_score * 0.6
+                        ],
+                    }
+                )
+            else:
+                scene_records.append(
+                    {
+                        "scene_num": index,
+                        "final_score": None,
+                        "iteration_count": 0,
+                        "residual_categories": [],
+                    }
+                )
+
             if settings.enable_scrubbing:
                 await self.status_bus.emit(
                     StatusEvent(
@@ -1276,10 +1313,10 @@ class ChapterWriterAgent:
                     )
 
         if not scene_prose:
-            return ""
+            return ("", [])
 
         chapter_body = f"# {chapter_title}\n\n" + "\n\n".join(scene_prose)
-        return chapter_body
+        return (chapter_body, scene_records)
 
     async def _revise_scene_pipeline(
         self,

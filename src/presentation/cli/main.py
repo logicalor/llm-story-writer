@@ -131,6 +131,52 @@ def _cmd_resume(story: str, savepoint: str | None, prompt: str | None = None) ->
     print(f"Pipeline resumed: status={state.status}")
 
 
+def _cmd_report(story_name: str) -> None:
+    import json
+    from pathlib import Path
+
+    report_path = Path("stories") / story_name / "quality_report.json"
+    if not report_path.exists():
+        print(f"No quality report found for story '{story_name}'.", file=sys.stderr)
+        raise SystemExit(1)
+    try:
+        runs: list[dict] = json.loads(report_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(f"Malformed quality report: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+    if not runs:
+        print("Quality report is empty.", file=sys.stderr)
+        raise SystemExit(0)
+
+    for run in runs:
+        print(
+            f"\nRun: {run.get('timestamp', 'unknown')}  Model: {run.get('model', 'unknown')}"
+        )
+        print(f"  Settings: {run.get('settings_snapshot', {})}")
+        chapters = run.get("chapters", [])
+        if not chapters:
+            print("  No chapter data recorded.")
+            continue
+        print(
+            f"  {'Ch':>3}  {'Scenes':>6}  {'Avg Score':>9}  {'Consistency':>12}  {'Crit':>4}  {'Warn':>4}"
+        )
+        print(f"  {'-' * 3}  {'-' * 6}  {'-' * 9}  {'-' * 12}  {'-' * 4}  {'-' * 4}")
+        for ch in chapters:
+            ch_num = ch.get("chapter_number", "?")
+            scenes = ch.get("scenes", [])
+            scores = [
+                s["final_score"] for s in scenes if s.get("final_score") is not None
+            ]
+            avg_score = f"{sum(scores) / len(scores):.1f}" if scores else "n/a"
+            con = ch.get("consistency", {})
+            con_status = "passed" if con.get("passed", True) else "failed"
+            crit = con.get("critical_count", 0)
+            warn = con.get("warning_count", 0)
+            print(
+                f"  {ch_num:>3}  {len(scenes):>6}  {avg_score:>9}  {con_status:>12}  {crit:>4}  {warn:>4}"
+            )
+
+
 def main() -> None:
     from presentation.cli.argument_parser import build_parser
 
@@ -162,6 +208,8 @@ def main() -> None:
 
         clear_recap_index(args.story)
         print(f"Recap index cleared for story: {args.story}")
+    elif args.subcommand == "report":
+        _cmd_report(args.name)
     else:
         parser.print_help()
         raise SystemExit(1)
