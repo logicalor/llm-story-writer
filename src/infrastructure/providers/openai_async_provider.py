@@ -12,7 +12,7 @@ from openai import AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
-from application.interfaces.model_provider import ModelProvider
+from application.interfaces.model_provider import ModelProvider, StreamToken
 from domain.exceptions import ModelProviderError
 from domain.value_objects.model_config import ModelConfig
 
@@ -21,6 +21,7 @@ def _append_debug_log(
     messages: List[Dict[str, str]],
     model: str,
     response: str,
+    reasoning: str = "",
 ) -> None:
     """Append one JSONL record to LLM_DEBUG_LOG if the env var is set."""
     log_path = os.environ.get("LLM_DEBUG_LOG")
@@ -32,6 +33,8 @@ def _append_debug_log(
         "messages": messages,
         "response": response,
     }
+    if reasoning:
+        record["reasoning"] = reasoning
     try:
         with open(log_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -113,13 +116,6 @@ class OpenAIAsyncProvider(ModelProvider):
             self._clients[base_url] = client
         return client
 
-    def _filter_think_tags(self, text: str) -> str:
-        """Remove <think>...</think> tags from text while preserving the rest."""
-        filtered = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-        filtered = re.sub(r"<think>.*", "", filtered, flags=re.DOTALL)
-        filtered = re.sub(r"</think>.*", "", filtered, flags=re.DOTALL)
-        return filtered
-
     def _prepare_options(
         self,
         model_config: ModelConfig,
@@ -194,17 +190,18 @@ class OpenAIAsyncProvider(ModelProvider):
                 print(f"[OPENAI ASYNC] Stream: {stream}")
 
             if stream:
-                chunks: List[str] = []
-                async for chunk in self.stream_text(
+                chunks: List[StreamToken] = []
+                async for st in self.stream_text(
                     messages=messages,
                     model_config=model_config,
                     seed=seed,
                     format_type=format_type,
                 ):
-                    print(chunk, end="", flush=True)
-                    chunks.append(chunk)
+                    if st.kind == "content":
+                        print(st.text, end="", flush=True)
+                    chunks.append(st)
                 print()
-                full_text = self._filter_think_tags("".join(chunks))
+                full_text = "".join(st.text for st in chunks if st.kind == "content")
                 _append_debug_log(messages, model_config.name, full_text)
                 return full_text
 
@@ -217,9 +214,12 @@ class OpenAIAsyncProvider(ModelProvider):
             )
             response = cast(ChatCompletion, response)
             response_text = response.choices[0].message.content or ""
-            response_text = self._filter_think_tags(response_text)
+            _msg_extra = getattr(response.choices[0].message, "model_extra", None) or {}
+            _reasoning = _msg_extra.get("reasoning_content", "") or ""
 
-            _append_debug_log(messages, model_config.name, response_text)
+            _append_debug_log(
+                messages, model_config.name, response_text, reasoning=_reasoning
+            )
 
             if min_word_count > 1 and len(response_text.split()) < min_word_count:
                 continued_messages = [
@@ -245,9 +245,7 @@ class OpenAIAsyncProvider(ModelProvider):
                 )
                 continuation = cast(ChatCompletion, continuation)
                 extra_text = continuation.choices[0].message.content or ""
-                response_text = self._filter_think_tags(
-                    f"{response_text}\n{extra_text}".strip()
-                )
+                response_text = f"{response_text}\n{extra_text}".strip()
 
             return response_text
         except Exception as exc:
@@ -335,7 +333,7 @@ class OpenAIAsyncProvider(ModelProvider):
         model_config: ModelConfig,
         seed: Optional[int] = None,
         format_type: Optional[str] = None,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[StreamToken, None]:
         """Stream text generation using async OpenAI-compatible API."""
         accumulated: List[str] = []
         try:
@@ -348,10 +346,18 @@ class OpenAIAsyncProvider(ModelProvider):
             )
             stream = cast(AsyncStream[ChatCompletionChunk], stream)
             async for chunk in stream:
-                delta = chunk.choices[0].delta.content if chunk.choices else None
-                if delta:
-                    accumulated.append(delta)
-                    yield delta
+                delta_obj = chunk.choices[0].delta if chunk.choices else None
+                if delta_obj is None:
+                    continue
+                reasoning = (getattr(delta_obj, "model_extra", None) or {}).get(
+                    "reasoning_content"
+                )
+                if reasoning:
+                    yield StreamToken(text=reasoning, kind="thinking")
+                content = delta_obj.content
+                if content:
+                    accumulated.append(content)
+                    yield StreamToken(text=content, kind="content")
         except Exception as exc:
             raise ModelProviderError(f"OpenAI async streaming failed: {exc}") from exc
         finally:

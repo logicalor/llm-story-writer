@@ -14,11 +14,12 @@ if _src_dir not in sys.path:
 from application.pipeline.handoffs import OutlineResult, PipelineState
 from domain.value_objects.generation_settings import GenerationSettings
 from presentation.agents.story_planner import StoryPlannerAgent
+from application.interfaces.model_provider import StreamToken
 
 
 async def _async_gen(tokens: list[str]):
     for token in tokens:
-        yield token
+        yield StreamToken(text=token, kind="content")
 
 
 class _StubBus:

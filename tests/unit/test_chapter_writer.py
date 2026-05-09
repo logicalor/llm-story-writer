@@ -1,5 +1,6 @@
 """Verification tests for iterative scene critique loop (#416) and cross-scene learning (#418)."""
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -15,8 +16,14 @@ if _src_dir not in sys.path:
 from application.pipeline.handoffs import OutlineResult
 from domain.exceptions import ValidationError
 from domain.value_objects.generation_settings import GenerationSettings
+from domain.value_objects.model_config import ModelConfig
 from presentation.agents.chapter_writer import ChapterWriterAgent
-from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
+from presentation.pipeline_primitives import (
+    ThinkingStreamBus,
+    TokenStreamBus,
+    WikiContextBus,
+)
+from application.interfaces.model_provider import StreamToken
 
 
 @pytest.fixture(autouse=True)
@@ -76,7 +83,7 @@ def _make_provider(responses: list[str]) -> MagicMock:
             text = next(response_iter)
         except StopIteration:
             text = ""
-        yield text
+        yield StreamToken(text=text, kind="content")
 
     provider.stream_text = fake_stream
     return provider
@@ -480,3 +487,57 @@ async def test_critique_learning_disabled_lessons_not_injected(
     assert lessons_section == "", (
         f"Expected empty lessons section when learning disabled, got: {lessons_section!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# _stream_to_bus thinking isolation (issue #431)
+# ---------------------------------------------------------------------------
+
+
+def test_stream_to_bus_separates_content_and_thinking() -> None:
+    """_stream_to_bus return value is content-only; thinking tokens go to thinking_bus."""
+
+    tokens = [
+        StreamToken(text="think...", kind="thinking"),
+        StreamToken(text="prose", kind="content"),
+    ]
+
+    async def fake_stream(messages, model_config, seed=None, format_type=None):
+        for t in tokens:
+            yield t
+
+    async def _run() -> tuple[str, list[StreamToken]]:
+        provider = MagicMock()
+        provider.stream_text = fake_stream
+        bus = TokenStreamBus()
+        wiki_bus = WikiContextBus()
+        thinking_bus = ThinkingStreamBus()
+        config = {
+            "models": {
+                "chapter_writer": "openai-compat://test",
+                "chapter_outline_writer": "openai-compat://test",
+                "scene_writer": "openai-compat://test",
+            }
+        }
+        agent = ChapterWriterAgent(
+            provider, config, bus, wiki_bus, thinking_bus=thinking_bus
+        )
+        model_cfg = ModelConfig(name="test", provider="openai_compatible")
+
+        result = await agent._stream_to_bus(
+            messages=[{"role": "user", "content": "go"}],
+            model_config=model_cfg,
+            seed=0,
+        )
+        bus.close()
+        thinking_bus.close()
+
+        content_tokens = [delta async for delta in bus]
+        thinking_tokens = [st async for st in thinking_bus]
+        return result, content_tokens, thinking_tokens
+
+    result, content_tokens, thinking_tokens = asyncio.run(_run())
+
+    assert result == "prose"
+    assert content_tokens == ["prose"]
+    assert thinking_tokens == [StreamToken(text="think...", kind="thinking")]

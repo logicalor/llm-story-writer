@@ -17,6 +17,7 @@ from domain.exceptions import StoryGenerationError
 from domain.value_objects.generation_settings import GenerationSettings
 from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
+from application.interfaces.model_provider import StreamToken
 
 
 def _outline_result(
@@ -94,7 +95,7 @@ def _make_provider(responses: list[str]) -> tuple[MagicMock, list[str]]:
             text = next(response_iter)
         except StopIteration:
             text = ""
-        yield text
+        yield StreamToken(text=text, kind="content")
 
     provider.stream_text = fake_stream
     return provider, captured_systems

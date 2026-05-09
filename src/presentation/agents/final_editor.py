@@ -15,6 +15,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
+from application.interfaces.model_provider import StreamToken
 from tools.context_assembly import assemble_context, render_recap_as_markdown
 from tools._io import _validate_story_name
 from tools._wiki import get_wiki_dir, match_entities_in_text, read_index
@@ -148,11 +149,12 @@ class FinalEditorAgent:
             ]
             prose_findings = ""
             stream = cast(
-                AsyncIterator[str],
+                AsyncIterator[StreamToken],
                 self.provider.stream_text(messages, model_config, seed=settings.seed),
             )
-            async for token in stream:
-                prose_findings += token
+            async for st in stream:
+                if st.kind == "content":
+                    prose_findings += st.text
             prose_findings = prose_findings.strip()
 
             voice_prompt = self._loader.load_prompt(
@@ -168,11 +170,12 @@ class FinalEditorAgent:
             ]
             voice_findings = ""
             stream = cast(
-                AsyncIterator[str],
+                AsyncIterator[StreamToken],
                 self.provider.stream_text(messages, model_config, seed=settings.seed),
             )
-            async for token in stream:
-                voice_findings += token
+            async for st in stream:
+                if st.kind == "content":
+                    voice_findings += st.text
             voice_findings = voice_findings.strip()
         else:
             prose_findings = ""
@@ -199,12 +202,13 @@ class FinalEditorAgent:
 
         full_text = ""
         stream = cast(
-            AsyncIterator[str],
+            AsyncIterator[StreamToken],
             self.provider.stream_text(messages, model_config, seed=settings.seed),
         )
-        async for token in stream:
-            await self.bus.emit(token)
-            full_text += token
+        async for st in stream:
+            if st.kind == "content":
+                await self.bus.emit(st.text)
+                full_text += st.text
 
         edited_content = full_text.strip() if full_text.strip() else draft.content
         return ChapterDraft(

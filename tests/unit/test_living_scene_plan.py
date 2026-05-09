@@ -14,6 +14,7 @@ from application.pipeline.handoffs import OutlineResult
 from domain.value_objects.generation_settings import GenerationSettings
 from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
+from application.interfaces.model_provider import StreamToken
 
 
 def _make_provider(responses: list[str]) -> tuple[object, list[str]]:
@@ -22,7 +23,7 @@ def _make_provider(responses: list[str]) -> tuple[object, list[str]]:
     class _Prov:
         async def stream_text(self, messages, model_config, seed=None):
             captured.append(messages[0]["content"])
-            yield responses.pop(0)
+            yield StreamToken(text=responses.pop(0), kind="content")
 
     return _Prov(), captured
 

@@ -41,10 +41,12 @@ from presentation.pipeline_primitives import (  # noqa: E402
     NullApprovalGate,
     StatusBus,
     StatusEvent,
+    ThinkingStreamBus,
     TokenStreamBus,
     WikiContextBus,
     WikiContextEvent,
 )
+from application.interfaces.model_provider import StreamToken  # noqa: E402
 
 # Ordered list of phases the orchestrator may walk through. The phase tracker
 # panel renders this list; phases that are encountered dynamically (chapter-N)
@@ -131,6 +133,7 @@ class StoryWriterApp(App[None]):
         self._gate: TUIApprovalGate | NullApprovalGate | None = None
         self._wiki_visible = True
         self._token_buffer: list[str] = []
+        self._thinking_buffer: list[str] = []
 
         # Visibility tracking
         self._phase_order: list[str] = list(KNOWN_PHASES)
@@ -212,6 +215,20 @@ class StoryWriterApp(App[None]):
             f"{ts} {symbol} [{event.phase}] {event.content}"
         )
         self._last_activity_at = time.monotonic()
+
+    # --------------------------------------------------------------- thinking
+
+    def _append_thinking_token(self, st: StreamToken) -> None:
+        ts = datetime.now().strftime("%H:%M:%S")
+        log = self.query_one("#wiki-log", RichLog)
+        self._thinking_buffer.append(st.text)
+        text = "".join(self._thinking_buffer)
+        if "\n" in text or len(text) > 200:
+            lines = text.split("\n")
+            for line in lines[:-1]:
+                if line.strip():
+                    log.write(f"{ts} \U0001f4ad [think] {line}")
+            self._thinking_buffer = [lines[-1]] if lines[-1] else []
 
     # ------------------------------------------------------------------- error
 
@@ -392,7 +409,7 @@ class StoryWriterApp(App[None]):
             return
         decision = _parse_approval_input(raw)
         self._hide_approval_input()
-        if self._gate is not None:
+        if self._gate is not None and isinstance(self._gate, TUIApprovalGate):
             self._gate.resolve_from_ui(decision)
 
     def action_toggle_wiki(self) -> None:
@@ -436,10 +453,15 @@ class StoryWriterApp(App[None]):
             async for event in status_bus:
                 self.call_from_thread(self._handle_status_event, event)
 
+        async def _drain_thinking(thinking_bus: ThinkingStreamBus) -> None:
+            async for st in thinking_bus:
+                self.call_from_thread(self._append_thinking_token, st)
+
         async def _pipeline_with_close(
             bus: TokenStreamBus,
             wiki_bus: WikiContextBus,
             status_bus: StatusBus,
+            thinking_bus: ThinkingStreamBus,
         ) -> PipelineState:
             try:
                 if resume:
@@ -450,6 +472,7 @@ class StoryWriterApp(App[None]):
                         bus,
                         wiki_bus,
                         status_bus=status_bus,
+                        thinking_bus=thinking_bus,
                     )
                 return await run_pipeline(
                     story_name,
@@ -457,22 +480,26 @@ class StoryWriterApp(App[None]):
                     bus,
                     wiki_bus,
                     status_bus=status_bus,
+                    thinking_bus=thinking_bus,
                 )
             finally:
                 bus.close()
                 wiki_bus.close()
                 status_bus.close()
+                thinking_bus.close()
 
         async def _run() -> None:
             bus = TokenStreamBus()
             wiki_bus = WikiContextBus()
             status_bus = StatusBus()
+            thinking_bus = ThinkingStreamBus()
             try:
-                state, _, _, _ = await asyncio.gather(
-                    _pipeline_with_close(bus, wiki_bus, status_bus),
+                state, _, _, _, _ = await asyncio.gather(
+                    _pipeline_with_close(bus, wiki_bus, status_bus, thinking_bus),
                     _drain_tokens(bus),
                     _drain_wiki(wiki_bus),
                     _drain_status(status_bus),
+                    _drain_thinking(thinking_bus),
                 )
                 self.call_from_thread(self._on_pipeline_complete, state.status)
             except Exception as exc:

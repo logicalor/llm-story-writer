@@ -19,6 +19,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from application.pipeline.handoffs import ApprovalDecision
+from application.interfaces.model_provider import StreamToken
 from presentation.tui.app import StoryWriterApp
 
 
@@ -268,3 +269,44 @@ class TestTUIApprovalGate:
         mock_loop.call_soon_threadsafe.assert_called_once_with(
             mock_future.set_result, decision
         )
+
+
+# ---------------------------------------------------------------------------
+# Thinking token routing (issue #431)
+# ---------------------------------------------------------------------------
+
+
+class TestThinkingTokenRouting:
+    @pytest.mark.asyncio
+    async def test_append_thinking_token_writes_to_wiki_log(self) -> None:
+        """_append_thinking_token routes thinking content to #wiki-log with 💭 [think] prefix."""
+        with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
+            app = StoryWriterApp(story_name="test_story")
+            async with app.run_test(size=(120, 40)):
+                wiki_log = app.query_one("#wiki-log")
+                # A token with a newline triggers immediate flush to the log.
+                st = StreamToken(text="model reasoning here\n", kind="thinking")
+                app._append_thinking_token(st)
+
+                rendered = "\n".join(line.text for line in wiki_log.lines)
+                assert "\U0001f4ad [think]" in rendered
+                assert "model reasoning here" in rendered
+
+    @pytest.mark.asyncio
+    async def test_append_thinking_token_short_text_buffers_without_writing(
+        self,
+    ) -> None:
+        """Short thinking tokens (no newline, <=200 chars) are buffered, not written immediately."""
+        with patch("presentation.tui.app.StoryWriterApp._run_pipeline"):
+            app = StoryWriterApp(story_name="test_story")
+            async with app.run_test(size=(120, 40)):
+                wiki_log = app.query_one("#wiki-log")
+                lines_before = len(wiki_log.lines)
+
+                st = StreamToken(text="short thought", kind="thinking")
+                app._append_thinking_token(st)
+
+                # No newline and <= 200 chars → nothing flushed yet
+                lines_after = len(wiki_log.lines)
+                assert lines_after == lines_before
+                assert app._thinking_buffer == ["short thought"]

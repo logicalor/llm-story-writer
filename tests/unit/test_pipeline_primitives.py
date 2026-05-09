@@ -10,9 +10,11 @@ if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
 from application.pipeline.handoffs import ApprovalDecision
+from application.interfaces.model_provider import StreamToken
 from presentation.pipeline_primitives import (
     ApprovalGate,
     NullApprovalGate,
+    ThinkingStreamBus,
     TokenStreamBus,
     WikiContextBus,
     WikiContextEvent,
@@ -176,3 +178,79 @@ def test_close_idempotent() -> None:
         return [delta async for delta in bus]
 
     assert asyncio.run(main()) == ["x"]
+
+
+# ---------------------------------------------------------------------------
+# StreamToken tests (issue #431)
+# ---------------------------------------------------------------------------
+
+
+def test_stream_token_content_construction() -> None:
+    st = StreamToken(text="hello", kind="content")
+    assert st.text == "hello"
+    assert st.kind == "content"
+
+
+def test_stream_token_thinking_construction() -> None:
+    st = StreamToken(text="...", kind="thinking")
+    assert st.text == "..."
+    assert st.kind == "thinking"
+
+
+# ---------------------------------------------------------------------------
+# ThinkingStreamBus tests (issue #431)
+# ---------------------------------------------------------------------------
+
+
+def test_thinking_bus_emit_and_drain() -> None:
+    async def _run() -> list[StreamToken]:
+        bus = ThinkingStreamBus()
+        token = StreamToken(text="thought", kind="thinking")
+        await bus.emit(token)
+        bus.close()
+        results = []
+        async for st in bus:
+            results.append(st)
+        return results
+
+    results = asyncio.run(_run())
+    assert results == [StreamToken(text="thought", kind="thinking")]
+
+
+def test_thinking_bus_close_before_consume() -> None:
+    async def _run() -> list[StreamToken]:
+        bus = ThinkingStreamBus()
+        bus.close()
+        return [st async for st in bus]
+
+    assert asyncio.run(_run()) == []
+
+
+def test_thinking_bus_emit_after_close_is_silent() -> None:
+    async def _run() -> None:
+        bus = ThinkingStreamBus()
+        bus.close()
+        await bus.emit(StreamToken(text="x", kind="thinking"))  # must not raise
+
+    asyncio.run(_run())  # no exception expected
+
+
+def test_thinking_bus_ordering() -> None:
+    async def _run() -> list[StreamToken]:
+        bus = ThinkingStreamBus()
+        tokens = [
+            StreamToken(text="a", kind="thinking"),
+            StreamToken(text="b", kind="thinking"),
+            StreamToken(text="c", kind="thinking"),
+        ]
+        for t in tokens:
+            await bus.emit(t)
+        bus.close()
+        return [st async for st in bus]
+
+    result = asyncio.run(_run())
+    assert result == [
+        StreamToken(text="a", kind="thinking"),
+        StreamToken(text="b", kind="thinking"),
+        StreamToken(text="c", kind="thinking"),
+    ]

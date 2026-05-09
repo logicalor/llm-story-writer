@@ -13,6 +13,7 @@ from presentation.pipeline_primitives import (
     WikiContextBus,
     WikiContextEvent,
 )
+from application.interfaces.model_provider import StreamToken
 from tools.context_assembly import assemble_context, render_recap_as_markdown
 
 
@@ -116,12 +117,13 @@ class QualityReviewerAgent:
 
             full_text = ""
             stream = cast(
-                AsyncIterator[str],
+                AsyncIterator[StreamToken],
                 self.provider.stream_text(messages, model_config),
             )
-            async for token in stream:
-                await self.bus.emit(token)
-                full_text += token
+            async for st in stream:
+                if st.kind == "content":
+                    await self.bus.emit(st.text)
+                    full_text += st.text
 
             results.append({"critique_type": critique_type, "text": full_text})
 

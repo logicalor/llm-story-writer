@@ -40,6 +40,7 @@ from presentation.pipeline_primitives import (
     NullStatusBus,
     StatusBus,
     StatusEvent,
+    ThinkingStreamBus,
     TokenStreamBus,
     WikiContextBus,
     WikiContextEvent,
@@ -754,6 +755,7 @@ async def _continue_pipeline(
     config: dict[str, Any] | None,
     provider: ModelProvider | None,
     status_bus: StatusBus | None = None,
+    thinking_bus: ThinkingStreamBus | None = None,
 ) -> PipelineState:
     resolved_config = config if config is not None else ConfigLoader().load_config()
     resolved_provider = provider or _create_provider(resolved_config)
@@ -1223,7 +1225,7 @@ async def _continue_pipeline(
         _backfill_missing_chapter_files(story_dir, state.approved_chapters)
         if "chapter-loop" not in state.completed_phases:
             chapter_agent = ChapterWriterAgent(
-                resolved_provider, resolved_config, bus, wiki_bus, sbus
+                resolved_provider, resolved_config, bus, wiki_bus, sbus, thinking_bus
             )
             wiki_agent = WikiMaintainerAgent(
                 resolved_provider, resolved_config, bus, wiki_bus
@@ -1725,6 +1727,7 @@ async def run_pipeline(
     config: dict[str, Any] | None = None,
     provider: ModelProvider | None = None,
     status_bus: StatusBus | None = None,
+    thinking_bus: ThinkingStreamBus | None = None,
 ) -> PipelineState:
     """Execute the full story generation pipeline.
 
@@ -1749,7 +1752,7 @@ async def run_pipeline(
     await _mark_phase_complete(state, "init", "init")
 
     return await _continue_pipeline(
-        state, gate, bus, wiki_bus, resolved_config, provider, status_bus
+        state, gate, bus, wiki_bus, resolved_config, provider, status_bus, thinking_bus
     )
 
 
@@ -1762,6 +1765,7 @@ async def resume_pipeline(
     config: dict[str, Any] | None = None,
     provider: ModelProvider | None = None,
     status_bus: StatusBus | None = None,
+    thinking_bus: ThinkingStreamBus | None = None,
 ) -> PipelineState:
     """Resume a pipeline from the latest persisted savepoint.
 
@@ -1795,5 +1799,5 @@ async def resume_pipeline(
         return state
 
     return await _continue_pipeline(
-        state, gate, bus, wiki_bus, config, provider, status_bus
+        state, gate, bus, wiki_bus, config, provider, status_bus, thinking_bus
     )

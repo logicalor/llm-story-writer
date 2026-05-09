@@ -14,6 +14,7 @@ from application.pipeline.handoffs import OutlineResult, PipelineState
 from domain.value_objects.generation_settings import GenerationSettings
 from presentation.agents.chapter_writer import ChapterWriterAgent
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
+from application.interfaces.model_provider import StreamToken
 
 
 def _settings(**overrides: object) -> GenerationSettings:
@@ -56,7 +57,7 @@ def _make_provider(responses: list[str]) -> MagicMock:
             text = next(response_iter)
         except StopIteration:
             text = ""
-        yield text
+        yield StreamToken(text=text, kind="content")
 
     provider.stream_text = fake_stream
     return provider

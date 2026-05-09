@@ -1,8 +1,18 @@
 """Model provider interface."""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, AsyncGenerator
+from dataclasses import dataclass
+from typing import AsyncGenerator, Any, Dict, List, Literal, Optional
+
 from domain.value_objects.model_config import ModelConfig
+
+
+@dataclass
+class StreamToken:
+    """Tagged token from stream_text — content or thinking channel."""
+
+    text: str
+    kind: Literal["content", "thinking"]
 
 
 class ModelProvider(ABC):
@@ -54,7 +64,7 @@ class ModelProvider(ABC):
         model_config: ModelConfig,
         seed: Optional[int] = None,
         format_type: Optional[str] = None,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[StreamToken, None]:
         """Stream text generation from messages."""
         pass
 

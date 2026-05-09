@@ -457,65 +457,18 @@ class PromptHandler:
     ) -> str:
         """Execute prompt with streaming output to console."""
         full_response = ""
-        buffer = ""
-        in_thinking = False
-        thinking_buffer = ""
 
-        # print(f"Streaming prompt: {messages}")
         print(f"Model config: {model_config}")
 
-        async for chunk in self.model_provider.stream_text(
+        async for st in self.model_provider.stream_text(
             messages=messages,
             model_config=model_config,
             seed=seed,
             format_type=format_type,
         ):
-            # Add chunk to buffer
-            buffer += chunk
-
-            # Process buffer for complete tags
-            while True:
-                if not in_thinking:
-                    # Look for start of think tag
-                    think_start = buffer.find("<think>")
-                    if think_start != -1:
-                        # Print content before think tag
-                        if think_start > 0:
-                            content_before = buffer[:think_start]
-                            print(content_before, end="", flush=True)
-
-                        # Remove content up to and including think tag start
-                        buffer = buffer[think_start + 7 :]  # 7 is len('<think>')
-                        in_thinking = True
-                        continue
-                    else:
-                        # No think tag found, print the buffer
-                        if buffer:
-                            print(buffer, end="", flush=True)
-                            buffer = ""
-                        break
-                else:
-                    # We're inside a think tag, look for end
-                    think_end = buffer.find("</think>")
-                    if think_end != -1:
-                        # Collect thinking content
-                        thinking_buffer += buffer[:think_end]
-
-                        # Display thinking content with visual distinction
-                        print(f"\n[THINKING] {thinking_buffer}\n", end="", flush=True)
-
-                        # Remove content up to and including think tag end
-                        buffer = buffer[think_end + 8 :]  # 8 is len('</think>')
-                        in_thinking = False
-                        thinking_buffer = ""
-                        continue
-                    else:
-                        # Think tag not complete, keep buffering
-                        thinking_buffer += buffer
-                        buffer = ""
-                        break
-
-            full_response += chunk
+            if st.kind == "content":
+                print(st.text, end="", flush=True)
+                full_response += st.text
 
         print()  # New line after streaming
 
