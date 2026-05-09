@@ -1,6 +1,6 @@
 """Generation settings value objects."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 from ..exceptions import ValidationError
 
@@ -32,6 +32,7 @@ class GenerationSettings:
     scene_critique_max_iterations: int = 3
     scene_critique_threshold_mode: str = "fixed"
     scene_critique_adaptive_slack: float = 10.0
+    scene_critique_critics: list[str] = field(default_factory=lambda: ["scene-default"])
     enable_consistency_revision_loop: bool = True
     consistency_max_iterations: int = 2
     enable_decomposition_critique: bool = True
@@ -118,6 +119,11 @@ class GenerationSettings:
                 f"got {self.scene_critique_adaptive_slack}"
             )
 
+        if not self.scene_critique_critics or len(self.scene_critique_critics) < 1:
+            raise ValidationError(
+                "scene_critique_critics must have at least 1 entry, got empty list"
+            )
+
         if not (1 <= self.scene_critique_max_iterations <= 10):
             raise ValidationError(
                 "scene_critique_max_iterations must be between 1 and 10, "
@@ -185,6 +191,7 @@ class GenerationSettings:
             "scene_critique_max_iterations": self.scene_critique_max_iterations,
             "scene_critique_threshold_mode": self.scene_critique_threshold_mode,
             "scene_critique_adaptive_slack": self.scene_critique_adaptive_slack,
+            "scene_critique_critics": list(self.scene_critique_critics),
             "enable_consistency_revision_loop": self.enable_consistency_revision_loop,
             "consistency_max_iterations": self.consistency_max_iterations,
             "enable_decomposition_critique": self.enable_decomposition_critique,

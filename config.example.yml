@@ -44,6 +44,10 @@ generation:
   scene_critique_threshold_mode: "fixed"
   # Slack subtracted from threshold at chapter 1 in adaptive mode.
   scene_critique_adaptive_slack: 10.0
+  # scene_critique_critics:     # Uncomment and extend for ensemble mode
+  #   - "scene-default"         # Default: single implicit critic (current behaviour)
+  #   - "commercial-fiction-editor"
+  #   - "literary-fiction-reviewer"
   enable_beat_sheet: true
   enable_living_scene_plan: true
   stream: true
