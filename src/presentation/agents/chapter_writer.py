@@ -42,7 +42,11 @@ from tools._llm import extract_paragraph_tail
 from tools._persist import read_markdown_ref
 from tools.adaptive_threshold import compute_effective_threshold
 from tools.context_assembly import assemble_context, render_recap_as_markdown
-from tools.critique_parser import CritiqueParser, passed_quality_threshold
+from tools.critique_parser import (
+    CritiqueParser,
+    CritiqueResult,
+    passed_quality_threshold,
+)
 
 
 def _savepoint_path(story_name: str) -> Path:
@@ -962,30 +966,50 @@ class ChapterWriterAgent:
                 await self.bus.emit(
                     f"\n[Chapter {chapter_number}] Critiquing scene {index}...\n"
                 )
-                critique_prompt = loader.load_prompt(
-                    "scenes/critique_draft",
-                    variables={
-                        "chapter_num": str(chapter_number),
-                        "scene_num": str(index),
-                        "scene_content": scene_text,
-                        "scene_definition": json.dumps(scene, ensure_ascii=False),
-                        "chapter_outline": chapter_summary,
-                        "previous_scene": prev_tail,
-                    },
-                )
+                _critique_prompt_vars = {
+                    "chapter_num": str(chapter_number),
+                    "scene_num": str(index),
+                    "scene_content": scene_text,
+                    "scene_definition": json.dumps(scene, ensure_ascii=False),
+                    "chapter_outline": chapter_summary,
+                    "previous_scene": prev_tail,
+                }
                 try:
-                    critique_text = await self._stream_to_bus(
-                        [
-                            {"role": "system", "content": critique_prompt},
-                            {"role": "user", "content": "Critique the scene now."},
-                        ],
-                        scene_model,
-                        settings.seed,
-                    )
-                    critique_text = critique_text.strip()
                     _scene_parser = CritiqueParser()
-                    _scene_result = _scene_parser.parse_scene_critique(critique_text)
-                    _critique_score = _scene_result.overall_score
+                    _critic_results: list[CritiqueResult] = []
+                    critique_text = ""
+                    for _critic_name in settings.scene_critique_critics:
+                        _critique_prompt = loader.load_prompt(
+                            "scenes/critique_draft",
+                            variables=_critique_prompt_vars,
+                        )
+                        _critic_system = (
+                            f"You are evaluating from the perspective of: {_critic_name.replace('-', ' ')}.\n\n{_critique_prompt}"
+                            if _critic_name != "scene-default"
+                            else _critique_prompt
+                        )
+                        _critic_response = await self._stream_to_bus(
+                            [
+                                {"role": "system", "content": _critic_system},
+                                {"role": "user", "content": "Critique the scene now."},
+                            ],
+                            scene_model,
+                            settings.seed,
+                        )
+                        _critic_response = _critic_response.strip()
+                        if not critique_text:
+                            critique_text = _critic_response
+                        _critic_results.append(
+                            _scene_parser.parse_scene_critique(_critic_response)
+                        )
+                    if len(_critic_results) == 1:
+                        _scene_result = _critic_results[0]
+                        _critique_score = _scene_result.overall_score
+                    else:
+                        _scene_result = _critic_results[0]
+                        _critique_score = _scene_parser.get_overall_average_score(
+                            _critic_results
+                        )
                     _critique_iteration = 0
 
                     while (
@@ -1036,7 +1060,13 @@ class ChapterWriterAgent:
                                 "chapter_num": str(chapter_number),
                                 "scene_num": str(index),
                                 "scene_content": scene_text,
-                                "feedback": critique_text,
+                                "feedback": (
+                                    _scene_parser.format_critique_feedback(
+                                        _critic_results
+                                    )
+                                    if len(_critic_results) > 1
+                                    else critique_text
+                                ),
                                 "scene_definition": json.dumps(
                                     scene, ensure_ascii=False
                                 ),
@@ -1081,39 +1111,61 @@ class ChapterWriterAgent:
                             break
 
                         if _critique_iteration < settings.scene_critique_max_iterations:
-                            re_critique_prompt = loader.load_prompt(
-                                "scenes/critique_draft",
-                                variables={
-                                    "chapter_num": str(chapter_number),
-                                    "scene_num": str(index),
-                                    "scene_content": scene_text,
-                                    "scene_definition": json.dumps(
-                                        scene, ensure_ascii=False
-                                    ),
-                                    "chapter_outline": chapter_summary,
-                                    "previous_scene": prev_tail,
-                                },
-                            )
+                            _re_critique_prompt_vars = {
+                                "chapter_num": str(chapter_number),
+                                "scene_num": str(index),
+                                "scene_content": scene_text,
+                                "scene_definition": json.dumps(
+                                    scene, ensure_ascii=False
+                                ),
+                                "chapter_outline": chapter_summary,
+                                "previous_scene": prev_tail,
+                            }
                             try:
-                                critique_text = await self._stream_to_bus(
-                                    [
-                                        {
-                                            "role": "system",
-                                            "content": re_critique_prompt,
-                                        },
-                                        {
-                                            "role": "user",
-                                            "content": "Critique the scene now.",
-                                        },
-                                    ],
-                                    scene_model,
-                                    settings.seed,
-                                )
-                                critique_text = critique_text.strip()
-                                _scene_result = _scene_parser.parse_scene_critique(
-                                    critique_text
-                                )
-                                _critique_score = _scene_result.overall_score
+                                _critic_results = []
+                                critique_text = ""
+                                for _critic_name in settings.scene_critique_critics:
+                                    re_critique_prompt = loader.load_prompt(
+                                        "scenes/critique_draft",
+                                        variables=_re_critique_prompt_vars,
+                                    )
+                                    _re_critic_system = (
+                                        f"You are evaluating from the perspective of: {_critic_name.replace('-', ' ')}.\n\n{re_critique_prompt}"
+                                        if _critic_name != "scene-default"
+                                        else re_critique_prompt
+                                    )
+                                    critique_text_part = await self._stream_to_bus(
+                                        [
+                                            {
+                                                "role": "system",
+                                                "content": _re_critic_system,
+                                            },
+                                            {
+                                                "role": "user",
+                                                "content": "Critique the scene now.",
+                                            },
+                                        ],
+                                        scene_model,
+                                        settings.seed,
+                                    )
+                                    critique_text_part = critique_text_part.strip()
+                                    if not critique_text:
+                                        critique_text = critique_text_part
+                                    _critic_results.append(
+                                        _scene_parser.parse_scene_critique(
+                                            critique_text_part
+                                        )
+                                    )
+                                if len(_critic_results) == 1:
+                                    _scene_result = _critic_results[0]
+                                    _critique_score = _scene_result.overall_score
+                                else:
+                                    _scene_result = _critic_results[0]
+                                    _critique_score = (
+                                        _scene_parser.get_overall_average_score(
+                                            _critic_results
+                                        )
+                                    )
                             except Exception as exc:
                                 await self.bus.emit(
                                     f"\n[Chapter {chapter_number}] scene {index} "
@@ -1162,19 +1214,22 @@ class ChapterWriterAgent:
                     )
 
             if _scene_result is not None:
-                scene_records.append(
-                    {
-                        "scene_num": index,
-                        "final_score": _critique_score,
-                        "iteration_count": _critique_iteration,
-                        "threshold_used": _effective_threshold,
-                        "residual_categories": [
-                            s.criterion
-                            for s in _scene_result.scores
-                            if s.score < s.max_score * 0.6
-                        ],
+                _scene_record: dict[str, Any] = {
+                    "scene_num": index,
+                    "final_score": _critique_score,
+                    "iteration_count": _critique_iteration,
+                    "threshold_used": _effective_threshold,
+                    "residual_categories": [
+                        s.criterion
+                        for s in _scene_result.scores
+                        if s.score < s.max_score * 0.6
+                    ],
+                }
+                if len(settings.scene_critique_critics) > 1:
+                    _scene_record["per_critic_scores"] = {
+                        r.critic_type: r.overall_score for r in _critic_results
                     }
-                )
+                scene_records.append(_scene_record)
             else:
                 scene_records.append(
                     {
