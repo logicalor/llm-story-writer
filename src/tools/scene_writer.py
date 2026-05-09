@@ -55,6 +55,19 @@ def _has_savepoint(repo: FilesystemSavepointRepository, step: str) -> bool:
     return asyncio.run(repo.has_savepoint(step))
 
 
+def _load_last_scene_of_chapter(
+    repo: FilesystemSavepointRepository, chapter_num: int, max_scenes: int = 30
+) -> str | None:
+    """Return the prose of the last saved scene in chapter_num, or None."""
+    for scene_n in range(max_scenes, 0, -1):
+        step = f"chapter_{chapter_num}/scene_{scene_n}"
+        if _has_savepoint(repo, step):
+            loaded = _load_savepoint(repo, step)
+            if isinstance(loaded, str):
+                return loaded
+    return None
+
+
 def _load_prompt(prompt_id: str, variables: dict[str, Any] | None = None) -> str:
     """Load and render a prompt template."""
     from infrastructure.prompts.prompt_loader import PromptLoader
@@ -254,6 +267,8 @@ def cmd_generate(
             prev_loaded = _load_savepoint(repo, prev_step)
             if isinstance(prev_loaded, str):
                 previous_scene = prev_loaded
+    elif previous_scene is None and scene_num == 1 and chapter_num > 1:
+        previous_scene = _load_last_scene_of_chapter(repo, chapter_num - 1)
 
     system_message = _fetch_persona_view(name, persona_view) if persona_view else None
 
@@ -329,6 +344,15 @@ def cmd_revise(
                 )
         else:
             _error(f"--scene-content is required: no savepoint found at {step!r}")
+
+    if previous_scene is None and scene_num > 1:
+        prev_step = f"chapter_{chapter_num}/scene_{scene_num - 1}"
+        if _has_savepoint(repo, prev_step):
+            prev_loaded = _load_savepoint(repo, prev_step)
+            if isinstance(prev_loaded, str):
+                previous_scene = prev_loaded
+    elif previous_scene is None and scene_num == 1 and chapter_num > 1:
+        previous_scene = _load_last_scene_of_chapter(repo, chapter_num - 1)
 
     system_message = _fetch_persona_view(name, persona_view) if persona_view else None
 

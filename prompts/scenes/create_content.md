@@ -45,7 +45,8 @@ Reference these broader story elements for consistency.
 <LEAD_UP>
 {previous_scene}
 </LEAD_UP>
-*Note: If empty, this is the first scene in the chapter. Continue naturally from where the story left off.*
+*Note: If empty, this is the first scene of the first chapter. Continue naturally from the story's opening.*
+*If populated for scene 1 of a non-first chapter, this is the closing scene of the previous chapter — use it to bridge the chapter transition.*
 
 **Next Chapter Context:**
 <NEXT_CHAPTER>
