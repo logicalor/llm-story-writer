@@ -1459,6 +1459,29 @@ async def _continue_pipeline(
                             f"\n[Recap] chapter {chapter_number} recap skipped "
                             f"({type(exc).__name__}: {exc})\n"
                         )
+                style_notes_item_id = f"chapter-{chapter_number}/style-notes"
+                if settings.enable_critique_learning and not _work_item_done(
+                    state, phase, style_notes_item_id
+                ):
+                    try:
+                        from tools import wiki_style_notes as _wiki_style_notes
+
+                        sn_result = await asyncio.to_thread(
+                            _wiki_style_notes.promote_findings,
+                            state.story_name,
+                            chapter_number,
+                        )
+                        if sn_result["written"]:
+                            await bus.emit(
+                                f"[StyleNotes] Promoted {len(sn_result['promoted'])} "
+                                "finding(s) to wiki/style-notes.md\n"
+                            )
+                        await _mark_work_item_done(state, phase, style_notes_item_id)
+                    except Exception as exc:  # noqa: BLE001
+                        await bus.emit(
+                            f"\n[StyleNotes] chapter {chapter_number} style-notes "
+                            f"skipped ({type(exc).__name__}: {exc})\n"
+                        )
                 if (
                     chapter_number == 1
                     and "metadata-chapter-1" not in state.completed_phases

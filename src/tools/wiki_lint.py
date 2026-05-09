@@ -489,6 +489,23 @@ def cmd_check_full(args: argparse.Namespace) -> None:
     # Append to contradictions.md
     _append_contradictions(wiki_dir, "Full lint", findings)
 
+    style_notes_path = wiki_dir / "style-notes.md"
+    if style_notes_path.exists():
+        sn_content = style_notes_path.read_text()
+        sn_fm, _ = parse_frontmatter(sn_content)
+        for field in ("type", "slug", "last_updated"):
+            if field not in sn_fm:
+                findings.append(
+                    _finding(
+                        "error",
+                        "factual_consistency",
+                        "missing_frontmatter_field",
+                        ["style-notes"],
+                        f"wiki/style-notes.md is missing required frontmatter field '{field}'",
+                        f"Add '{field}' to the frontmatter of wiki/style-notes.md",
+                    )
+                )
+
     _output("check-full", findings)
 
 
