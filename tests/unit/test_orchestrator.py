@@ -2604,9 +2604,7 @@ def _revised_draft(n: int) -> ChapterDraft:
     )
 
 
-def _config_with_consistency(
-    enabled: bool = True, max_iterations: int = 2
-) -> dict:
+def _config_with_consistency(enabled: bool = True, max_iterations: int = 2) -> dict:
     cfg = _config()
     cfg["generation"]["enable_consistency_revision_loop"] = enabled
     cfg["generation"]["consistency_max_iterations"] = max_iterations

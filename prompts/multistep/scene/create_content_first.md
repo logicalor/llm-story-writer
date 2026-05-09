@@ -49,6 +49,7 @@ Incorporate these devices naturally in your prose for this scene.
 </NEXT_SCENE_OUTLINE>
 
 {beat_sheet_section}
+{critique_lessons_section}
 
 ## Core Requirements
 - **Word Count**: AT LEAST {scene_word_target} words (mandatory)

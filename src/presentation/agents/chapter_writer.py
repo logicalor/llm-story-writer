@@ -666,6 +666,7 @@ class ChapterWriterAgent:
         scene_prose: list[str] = []
         scenes_completed_meta: list[dict[str, Any]] = []
         actual_recaps: dict[int, str] = {}
+        lessons_buffer: dict[str, int] = {}
         total_scenes = len(scenes)
         scenes_dir = STORIES_DIR / story_name / "chapters" / f"chapter_{chapter_number}"
         for index, scene in enumerate(scenes, start=1):
@@ -800,6 +801,22 @@ class ChapterWriterAgent:
                 else scene
             )
 
+            critique_lessons_section = ""
+            if settings.enable_critique_learning and lessons_buffer:
+                _top = sorted(lessons_buffer.items(), key=lambda x: x[1], reverse=True)[
+                    : settings.critique_learning_top_n
+                ]
+                _lines = [
+                    f"- **{cat}** (flagged {count} time{'s' if count != 1 else ''})"
+                    for cat, count in _top
+                ]
+                critique_lessons_section = (
+                    "\n\n## Lessons From Earlier Scenes\n"
+                    "Your previous scenes in this chapter were repeatedly flagged "
+                    "for these issues. Actively avoid them in this scene:\n"
+                    + "\n".join(_lines)
+                )
+
             beat_sheet_section = ""
             if settings.enable_beat_sheet:
                 await self.status_bus.emit(
@@ -884,6 +901,7 @@ class ChapterWriterAgent:
                     "style_guide": style_guide,
                     "literary_devices": literary_devices_str,
                     "beat_sheet_section": beat_sheet_section,
+                    "critique_lessons_section": critique_lessons_section,
                 },
             )
             try:
@@ -1096,6 +1114,23 @@ class ChapterWriterAgent:
                         f"score {_critique_score:.0f}/100 "
                         f"after {_critique_iteration} revision(s).\n"
                     )
+                    if settings.enable_critique_learning:
+                        for _score in _scene_result.scores:
+                            if _score.score < 25.0:
+                                lessons_buffer[_score.criterion] = (
+                                    lessons_buffer.get(_score.criterion, 0) + 1
+                                )
+                        try:
+                            _lessons_file = scenes_dir / "critique_lessons.json"
+                            _lessons_file.parent.mkdir(parents=True, exist_ok=True)
+                            _atomic_write(
+                                _lessons_file,
+                                json.dumps(
+                                    lessons_buffer, indent=2, ensure_ascii=False
+                                ),
+                            )
+                        except OSError:
+                            pass
                 except Exception as exc:
                     await self.bus.emit(
                         f"\n[Chapter {chapter_number}] scene {index} critique "
