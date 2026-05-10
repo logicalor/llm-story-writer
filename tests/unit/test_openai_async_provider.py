@@ -396,3 +396,89 @@ class TestOpenAIAsyncProvider:
         """_filter_think_tags must no longer exist — thinking is handled via StreamToken."""
         provider = _build_provider()
         assert not hasattr(provider, "_filter_think_tags")
+
+    # -----------------------------------------------------------------------
+    # _append_debug_log tests (issue #436)
+    # -----------------------------------------------------------------------
+
+    def test_append_debug_log_includes_reasoning_when_non_empty(
+        self, tmp_path
+    ) -> None:
+        """JSONL record includes 'reasoning' key when reasoning is non-empty."""
+        import json as _json
+
+        log_file = tmp_path / "debug.jsonl"
+        messages = [{"role": "user", "content": "Think!"}]
+        _provider_module._append_debug_log(
+            messages, "llama3", "some response", reasoning="step A"
+        )
+
+        # Without env var nothing is written
+        assert not log_file.exists()
+
+        import os as _os
+
+        _os.environ["LLM_DEBUG_LOG"] = str(log_file)
+        try:
+            _provider_module._append_debug_log(
+                messages, "llama3", "some response", reasoning="step A"
+            )
+        finally:
+            del _os.environ["LLM_DEBUG_LOG"]
+
+        record = _json.loads(log_file.read_text())
+        assert record["response"] == "some response"
+        assert record["reasoning"] == "step A"
+
+    def test_append_debug_log_omits_reasoning_key_when_empty(
+        self, tmp_path
+    ) -> None:
+        """JSONL record omits 'reasoning' key entirely when reasoning is empty."""
+        import json as _json
+        import os as _os
+
+        log_file = tmp_path / "debug.jsonl"
+        messages = [{"role": "user", "content": "Hello"}]
+
+        _os.environ["LLM_DEBUG_LOG"] = str(log_file)
+        try:
+            _provider_module._append_debug_log(messages, "llama3", "response")
+        finally:
+            del _os.environ["LLM_DEBUG_LOG"]
+
+        record = _json.loads(log_file.read_text())
+        assert record["response"] == "response"
+        assert "reasoning" not in record
+
+    def test_generate_text_stream_captures_thinking_tokens_in_debug_log(
+        self, tmp_path
+    ) -> None:
+        """generate_text streaming path writes reasoning to debug log."""
+        import json as _json
+        import os as _os
+
+        provider = _build_provider()
+        model_config = ModelConfig(name="llama3", provider="openai_compatible")
+
+        async def fake_stream_text(*args, **kwargs):
+            del args, kwargs
+            yield StreamToken(text="rationale", kind="thinking")
+            yield StreamToken(text="prose", kind="content")
+
+        log_file = tmp_path / "debug.jsonl"
+        _os.environ["LLM_DEBUG_LOG"] = str(log_file)
+        try:
+            with patch.object(provider, "stream_text", fake_stream_text):
+                asyncio.run(
+                    provider.generate_text(
+                        messages=[{"role": "user", "content": "Go"}],
+                        model_config=model_config,
+                        stream=True,
+                    )
+                )
+        finally:
+            del _os.environ["LLM_DEBUG_LOG"]
+
+        record = _json.loads(log_file.read_text())
+        assert record["response"] == "prose"
+        assert record["reasoning"] == "rationale"
