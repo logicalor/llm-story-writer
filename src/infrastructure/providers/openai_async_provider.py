@@ -202,7 +202,12 @@ class OpenAIAsyncProvider(ModelProvider):
                     chunks.append(st)
                 print()
                 full_text = "".join(st.text for st in chunks if st.kind == "content")
-                _append_debug_log(messages, model_config.name, full_text)
+                reasoning_text = "".join(
+                    st.text for st in chunks if st.kind == "thinking"
+                )
+                _append_debug_log(
+                    messages, model_config.name, full_text, reasoning=reasoning_text
+                )
                 return full_text
 
             options = self._prepare_options(model_config, seed, format_type)
@@ -336,6 +341,7 @@ class OpenAIAsyncProvider(ModelProvider):
     ) -> AsyncGenerator[StreamToken, None]:
         """Stream text generation using async OpenAI-compatible API."""
         accumulated: List[str] = []
+        accumulated_thinking: List[str] = []
         try:
             options = self._prepare_options(model_config, seed, format_type)
             stream = await self._get_client(model_config).chat.completions.create(
@@ -353,6 +359,7 @@ class OpenAIAsyncProvider(ModelProvider):
                     "reasoning_content"
                 )
                 if reasoning:
+                    accumulated_thinking.append(reasoning)
                     yield StreamToken(text=reasoning, kind="thinking")
                 content = delta_obj.content
                 if content:
@@ -362,7 +369,12 @@ class OpenAIAsyncProvider(ModelProvider):
             raise ModelProviderError(f"OpenAI async streaming failed: {exc}") from exc
         finally:
             if accumulated:
-                _append_debug_log(messages, model_config.name, "".join(accumulated))
+                _append_debug_log(
+                    messages,
+                    model_config.name,
+                    "".join(accumulated),
+                    reasoning="".join(accumulated_thinking),
+                )
 
     async def is_model_available(self, model_config: ModelConfig) -> bool:
         """Check if server model listing is reachable."""
