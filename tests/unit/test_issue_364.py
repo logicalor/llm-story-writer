@@ -16,11 +16,12 @@ from domain.value_objects.generation_settings import GenerationSettings
 from presentation.agents.final_editor import FinalEditorAgent
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
 from tools._wiki_api import _extract_type_candidates, update_wiki_full_pass
+from application.interfaces.model_provider import StreamToken
 
 
 async def _stream_tokens(tokens: list[str]):
     for token in tokens:
-        yield token
+        yield StreamToken(text=token, kind="content")
 
 
 def _make_draft(content: str = "Alice walked in.") -> ChapterDraft:

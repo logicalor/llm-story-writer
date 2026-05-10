@@ -19,6 +19,7 @@ from presentation.agents.chapter_writer import (
     _extract_json_array,
 )
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
+from application.interfaces.model_provider import StreamToken
 
 
 @pytest.fixture(autouse=True)
@@ -82,7 +83,7 @@ def _make_provider(responses: list[str]):
         except StopIteration:
             text = ""
         for token in [text]:
-            yield token
+            yield StreamToken(text=token, kind="content")
 
     provider.stream_text = fake_stream
     return provider, captured_systems
@@ -237,7 +238,7 @@ async def test_scene_snapshot_appears_in_base_context(tmp_path: Path) -> None:
         captured_messages.append(
             next(m["content"] for m in messages if m["role"] == "system")
         )
-        yield "Direct chapter prose."
+        yield StreamToken(text="Direct chapter prose.", kind="content")
 
     provider.stream_text = fake_stream
 

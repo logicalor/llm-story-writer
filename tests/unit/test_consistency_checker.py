@@ -15,6 +15,7 @@ from presentation.agents.consistency_checker import (
 )
 from application.pipeline.handoffs import OutlineResult
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
+from application.interfaces.model_provider import StreamToken
 
 
 async def _collect_tokens(bus: TokenStreamBus) -> list[str]:
@@ -26,7 +27,7 @@ async def _collect_tokens(bus: TokenStreamBus) -> list[str]:
 
 async def _stream_tokens(tokens: list[str]):
     for token in tokens:
-        yield token
+        yield StreamToken(text=token, kind="content")
 
 
 class _ProviderStub:

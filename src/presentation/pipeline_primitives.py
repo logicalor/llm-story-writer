@@ -12,6 +12,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
+from application.interfaces.model_provider import StreamToken
 from application.pipeline.handoffs import ApprovalDecision
 
 
@@ -230,3 +231,36 @@ class NullStatusBus(StatusBus):
                 yield  # type: ignore[unreachable]
 
         return _empty()
+
+
+class ThinkingStreamBus:
+    """Single-consumer async bus for StreamToken (thinking channel).
+
+    Producer: .emit(token) for each thinking token, .close() when done.
+    Consumer: async iteration yields StreamToken objects.
+    """
+
+    def __init__(self) -> None:
+        self._queue: asyncio.Queue[StreamToken | object] = asyncio.Queue()
+        self._closed = False
+
+    async def emit(self, token: StreamToken) -> None:
+        """Emit a thinking token."""
+        if not self._closed:
+            await self._queue.put(token)
+
+    def close(self) -> None:
+        """Signal end-of-stream to consumers."""
+        if not self._closed:
+            self._closed = True
+            self._queue.put_nowait(_SENTINEL)
+
+    def __aiter__(self) -> AsyncIterator[StreamToken]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncIterator[StreamToken]:
+        while True:
+            item = await self._queue.get()
+            if item is _SENTINEL:
+                break
+            yield item  # type: ignore[misc]

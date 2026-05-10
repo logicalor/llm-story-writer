@@ -17,11 +17,12 @@ from application.pipeline.handoffs import ChapterDraft
 from domain.value_objects.generation_settings import GenerationSettings
 from presentation.agents.final_editor import FinalEditorAgent
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
+from application.interfaces.model_provider import StreamToken
 
 
 async def _stream_tokens(tokens: list[str]):
     for token in tokens:
-        yield token
+        yield StreamToken(text=token, kind="content")
 
 
 class _ProviderStub:

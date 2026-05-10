@@ -33,10 +33,12 @@ from presentation.pipeline_primitives import (
     NullStatusBus,
     StatusBus,
     StatusEvent,
+    ThinkingStreamBus,
     TokenStreamBus,
     WikiContextBus,
     WikiContextEvent,
 )
+from application.interfaces.model_provider import StreamToken
 from tools._io import STORIES_DIR, _atomic_write, _validate_story_name
 from tools._llm import extract_paragraph_tail
 from tools._persist import read_markdown_ref
@@ -131,6 +133,7 @@ class ChapterWriterAgent:
         bus: TokenStreamBus,
         wiki_bus: WikiContextBus,
         status_bus: StatusBus | None = None,
+        thinking_bus: ThinkingStreamBus | None = None,
     ) -> None:
         self.provider = provider
         self.config = config
@@ -139,6 +142,7 @@ class ChapterWriterAgent:
         self.status_bus: StatusBus = (
             status_bus if status_bus is not None else NullStatusBus()
         )
+        self.thinking_bus = thinking_bus
         self._loader = PromptLoader(prompts_dir="prompts")
 
     async def run(
@@ -359,12 +363,15 @@ class ChapterWriterAgent:
         """Stream tokens to the bus and return the accumulated text."""
         full_text = ""
         stream = cast(
-            AsyncIterator[str],
+            AsyncIterator[StreamToken],
             self.provider.stream_text(messages, model_config, seed=seed),
         )
-        async for token in stream:
-            await self.bus.emit(token)
-            full_text += token
+        async for st in stream:
+            if st.kind == "content":
+                await self.bus.emit(st.text)
+                full_text += st.text
+            elif st.kind == "thinking" and self.thinking_bus:
+                await self.thinking_bus.emit(st)
         return full_text
 
     async def _run_scene_pipeline(

@@ -7,7 +7,7 @@ import re
 from typing import Any, AsyncGenerator, Dict, List, Optional
 from urllib.parse import urlparse, urlunparse
 
-from application.interfaces.model_provider import ModelProvider
+from application.interfaces.model_provider import ModelProvider, StreamToken
 from domain.exceptions import ModelProviderError
 from domain.value_objects.model_config import ModelConfig
 
@@ -249,17 +249,18 @@ class OpenAICompatibleProvider(ModelProvider):
         self._log_prompt_stats(messages, model_config)
 
         full_response = ""
-        async for chunk in self.stream_text(
+        async for st in self.stream_text(
             messages=messages,
             model_config=model_config,
             seed=seed,
             format_type=format_type,
         ):
-            print(chunk, end="", flush=True)
-            full_response += chunk
+            if st.kind == "content":
+                print(st.text, end="", flush=True)
+                full_response += st.text
         print()
 
-        return self._filter_think_tags(full_response)
+        return full_response
 
     async def generate_json(
         self,
@@ -323,7 +324,7 @@ class OpenAICompatibleProvider(ModelProvider):
         model_config: ModelConfig,
         seed: Optional[int] = None,
         format_type: Optional[str] = None,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[StreamToken, None]:
         """Stream text generation using an OpenAI-compatible API."""
         try:
             options = self._prepare_options(model_config, seed, format_type)
@@ -351,7 +352,10 @@ class OpenAICompatibleProvider(ModelProvider):
                 if chunk.get("choices") and chunk["choices"][0].get("delta", {}).get(
                     "content"
                 ):
-                    yield chunk["choices"][0]["delta"]["content"]
+                    yield StreamToken(
+                        text=chunk["choices"][0]["delta"]["content"],
+                        kind="content",
+                    )
         except Exception as exc:
             raise ModelProviderError(
                 f"OpenAI-compatible streaming failed: {exc}"
@@ -690,17 +694,17 @@ class OpenAICompatibleProvider(ModelProvider):
 
                 response_text = ""
                 payload_messages = list(conversation_messages)
-                async for chunk in self.stream_text(
+                async for st in self.stream_text(
                     messages=payload_messages,
                     model_config=model_config,
                     seed=seed,
                     format_type=None,
                 ):
-                    print(chunk, end="", flush=True)
-                    response_text += chunk
+                    if st.kind == "content":
+                        print(st.text, end="", flush=True)
+                        response_text += st.text
 
                 print(f"\n{'=' * 40}")
-                response_text = self._filter_think_tags(response_text)
 
                 if debug:
                     print(

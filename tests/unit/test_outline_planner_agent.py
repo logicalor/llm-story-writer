@@ -15,11 +15,12 @@ from application.pipeline.handoffs import ApprovalDecision, OutlineResult, Pipel
 from domain.value_objects.generation_settings import GenerationSettings
 from presentation.agents.outline_planner import OutlinePlannerAgent
 from presentation.orchestrator import _await_outline_approval
+from application.interfaces.model_provider import StreamToken
 
 
 async def _async_gen(tokens: list[str]):
     for token in tokens:
-        yield token
+        yield StreamToken(text=token, kind="content")
 
 
 class _StubBus:

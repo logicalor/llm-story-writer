@@ -13,11 +13,12 @@ if _src_dir not in sys.path:
 
 from presentation.agents.quality_reviewer import QualityReviewerAgent
 from presentation.pipeline_primitives import TokenStreamBus, WikiContextBus
+from application.interfaces.model_provider import StreamToken
 
 
 async def _stream_tokens(tokens: list[str]):
     for token in tokens:
-        yield token
+        yield StreamToken(text=token, kind="content")
 
 
 class _ProviderStub:
