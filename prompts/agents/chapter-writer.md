@@ -62,7 +62,17 @@ In normal pipeline execution, all entity information is accessed through the wik
 
 Generate scenes **sequentially** — never in parallel. Narrative flow depends on each prior scene's content.
 
-For each scene M in the chapter (M = 1, 2, ..., scene_count):
+**Pre-loop scan — identify complete scenes:**
+
+Before entering the scene loop, call `savepoint-mgr list` for the story. Filter the returned names for entries matching `chapter_{N}/scene_{M}` where N is the current chapter number. Parse the M values to determine which scene numbers are already complete.
+
+Find `first_incomplete_scene` = the smallest M in [1..`scene_count`] that does **not** have a `chapter_{N}/scene_{M}` savepoint. If all scenes are complete, skip directly to step 6 (assemble the chapter).
+
+For scenes 1 through `first_incomplete_scene - 1`: they are already persisted on disk. Do **not** call `wiki-snapshot` for these scenes. Do **not** call `scene-writer generate` for these scenes. The `scene-writer generate` tool auto-loads the previous scene from its savepoint for continuity — no agent-side action is needed.
+
+Begin the `wiki-snapshot` + `scene-writer generate` loop from `first_incomplete_scene`.
+
+For each scene M in the chapter (M = `first_incomplete_scene`, `first_incomplete_scene + 1`, ..., `scene_count`):
 
 1. **Assemble context.** Call `wiki-snapshot` (operation: `snapshot`) with:
    - `name`: the current story name
@@ -110,10 +120,11 @@ Savepoints are created at each significant milestone within a chapter, enabling 
 | `chapter_{N}/scene_{M}` | Scene M generated successfully (written internally by `scene-writer`) |
 | `chapter_{N}/chapter_content` | All scenes assembled into chapter (written automatically by `scene-writer assemble-chapter`) |
 
-**Resuming from a savepoint:**
-1. Load the savepoint via `savepoint-mgr` (operation: `load`)
-2. Determine the last completed scene from the savepoint name
-3. Resume the scene generation loop from the next scene, or proceed to assembly if all scenes are complete
+**Resume procedure:**
+1. At the start of the Scene Generation Loop, call `savepoint-mgr list` and filter for `chapter_{N}/scene_{M}` entries.
+2. Find `first_incomplete_scene` — the smallest M without a savepoint.
+3. For scenes before `first_incomplete_scene`: skip both `wiki-snapshot` and `scene-writer generate`. The tool auto-loads previous scene content from savepoints for continuity.
+4. Begin the loop from `first_incomplete_scene`. If all scenes are complete, proceed directly to `scene-writer assemble-chapter`.
 
 ---
 

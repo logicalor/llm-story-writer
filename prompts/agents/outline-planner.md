@@ -62,19 +62,31 @@ Execute these phases sequentially. Each phase must complete before the next begi
 
    **If chunked generation is enabled (`true`):**
 
-   Loop through chapters in chunks of `outline_chunk_size`:
+   **Pre-loop scan — identify complete chunks:**
 
-    - For the first chunk, call `outline-generator` with:
+   Before entering the expansion loop, call `savepoint-mgr list` for the story. Filter the returned names for entries matching `outline_chunk_{start}_{end}`. Build the full ordered list of chunk ranges that would be generated for `wanted_chapters` / `outline_chunk_size` (ranges: `[1..chunk_size]`, `[chunk_size+1..2*chunk_size]`, ... `[last_start..wanted_chapters]`). Initialise an empty `chunk_outlines` accumulator list and set `continuitySummary = ""`.
+
+   For each chunk range **with an existing savepoint** (i.e., `outline_chunk_{start}_{end}` was returned by `savepoint-mgr list`):
+   - Load the chunk outline directly via `savepoint-mgr load` (step: `outline_chunk_{start}_{end}`). Append `data.chunk_outline` to the `chunk_outlines` accumulator.
+   - This is the last complete chunk: load its `continuity_{start}_{end}` savepoint via `savepoint-mgr load` and assign `data.continuity_analysis` as `continuitySummary`. (Each subsequent complete chunk overwrites this — the last complete chunk's continuity becomes the seed for the first real `expand-chapter` call.)
+   - **Do not** call `expand-chapter` for this range.
+
+   Identify the **first incomplete chunk range** — the smallest range in the ordered list whose `outline_chunk_{start}_{end}` savepoint does not exist. If all chunk ranges are already complete, skip directly to the consolidation step below.
+
+   **Expansion loop — from first incomplete chunk:**
+
+   Begin `expand-chapter` calls from the **first incomplete** chunk range. For each remaining range (first incomplete through last):
+
+    - For the **first incomplete** chunk, call `outline-generator` with:
        - `operation`: `"expand-chapter"`
        - `name`: story name
-       - `chunkStart`: 1
-       - `chunkEnd`: `outline_chunk_size`
+       - `chunkStart`: range start
+       - `chunkEnd`: range end
        - `totalChapters`: `wanted_chapters`
+       - `continuitySummary`: the value loaded from the last complete `continuity_{start}_{end}` savepoint (empty string if no chunks were complete)
        - `personaView`: `"outline"` (only when `enable_author_persona` is true; omit when false)
 
-   **After the first `expand-chapter` call**, parse the JSON response and extract `data.chunk_outline` and `data.continuity_analysis` (see note after subsequent chunks below).
-
-    - For subsequent chunks, call `outline-generator` with:
+    - For **subsequent incomplete** chunks, call `outline-generator` with:
        - `operation`: `"expand-chapter"`
        - `name`: story name
        - `chunkStart`: previous chunk end + 1
@@ -88,10 +100,9 @@ Execute these phases sequentially. Each phase must complete before the next begi
    **After each `expand-chapter` call**, parse the JSON response — the tool returns `{"status": "success", "operation": "expand-chapter", "data": {"chunk_outline": "...", "continuity_analysis": "..."}}`:
     - Extract `data.chunk_outline` — rely on the tool's chunk savepoint for persistence
    - Extract `data.continuity_analysis` — use as the `continuitySummary` value for the next chunk's call
+   - Append `data.chunk_outline` to the `chunk_outlines` accumulator
 
-   Continue until all `wanted_chapters` chapters are covered.
-
-   **After all chunks are covered,** consolidate the collected chunk outlines into a single merged outline string:
+   **After all chunks are covered** (both pre-loaded and newly generated), consolidate the collected chunk outlines into a single merged outline string:
    - Concatenate all `data.chunk_outline` values in chapter order (as collected during the loop above), separated by double newlines
    - Store the result as `merged_outline` — this is the complete, consolidated outline for all `wanted_chapters` chapters
    - Assign `current_outline = merged_outline`. This variable will be updated by critique refinements if enabled.

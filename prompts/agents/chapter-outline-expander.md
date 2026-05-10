@@ -42,9 +42,16 @@ Received from the orchestrator at dispatch time:
 Execute these steps sequentially.
 
 1. If `expand_outline` is false, return immediately with `{"status": "skipped", "reason": "expand_outline disabled"}`.
-2. Initialise `current_chapter = 1`.
+2. **Pre-loop scan — identify complete chapters:**
+
+   Call `savepoint-mgr list` for the story. Filter the returned names for entries matching `expanded_chapter_{N}_{N}`. Build the set of chapter numbers N that are already fully expanded.
+
+   Find `first_incomplete_chapter` = the smallest N in [1..`wanted_chapters`] that does **not** have an `expanded_chapter_{N}_{N}` savepoint. If all chapters are complete, skip to step 5 (return complete).
+
+   If `first_incomplete_chapter > 1`: chapters 1 through `first_incomplete_chapter - 1` are already done. The tool auto-loads `expansion_continuity_{N-1}_{N-1}` internally when `phase == "chapter"`, so no agent-side continuity loading is required.
+
 3. **Do not manually load the approved outline or prior continuity analysis.** The `outline-generator expand-chapter` call (step 4a) loads the `outline` savepoint and the previous chapter's `expansion_continuity_{N-1}_{N-1}` savepoint internally when `phase == "chapter"`. Skipping these manual loads keeps multi-KB outline and continuity text off the orchestrator LLM's context. If the `outline` / `refined_outline` / `initial_outline` savepoints are all missing, `expand-chapter` will still run against `story_elements` alone and emit a warning in its response — inspect and abort if that happens.
-4. Loop for chapter N from 1 to `wanted_chapters`:
+4. Loop for chapter N from `first_incomplete_chapter` to `wanted_chapters`:
    a. Call `outline-generator` with:
       - `operation`: `"expand-chapter"`
       - `name`: `story_name`
@@ -58,7 +65,7 @@ Execute these steps sequentially.
    b. Parse the JSON response string from `outline-generator` for logging only:
       - `data.chunk_outline` and `data.continuity_analysis` are already persisted to `expanded_chapter_{N}_{N}` and `expansion_continuity_{N}_{N}` savepoints by the tool.
    c. **Do not write `chapters.{N}.expanded_outline` to `story-state`.** The `outline-generator expand-chapter` call in step a already saves the expanded outline to the `expanded_chapter_{N}_{N}` savepoint (when `phase == "chapter"`), which is the single source of truth. The `story-state` field is forbidden — writes will be rejected.
-   d. **(When `scene_expansion_enabled` is true) Expand synopsis to scenes:** Call `outline-generator` with:
+   d. **(When `scene_expansion_enabled` is true) Expand synopsis to scenes:** First check: if `chapter_{N}/scene_definitions` savepoint already exists (i.e., it appears in the `savepoint-mgr list` output from the pre-loop scan), skip `expand-to-scenes` for this chapter N. Otherwise, call `outline-generator` with:
       - `operation`: `"expand-to-scenes"`
       - `name`: `story_name`
       - `chapterNum`: `N`
