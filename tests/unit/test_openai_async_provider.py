@@ -112,6 +112,42 @@ class TestOpenAIAsyncProvider:
 
         assert result == "hello world"
 
+    def test_generate_text_non_streaming_reasoning_content_in_debug_log(
+        self, tmp_path
+    ) -> None:
+        """Non-streaming generate_text: reasoning_content goes to debug log; return value is content-only."""
+        import json as _json
+        import os as _os
+
+        provider = _build_provider()
+        model_config = ModelConfig(name="llama3", provider="openai_compatible")
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "final answer"
+        mock_response.choices[0].message.model_extra = {
+            "reasoning_content": "step by step"
+        }
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        log_file = tmp_path / "debug.jsonl"
+        _os.environ["LLM_DEBUG_LOG"] = str(log_file)
+        try:
+            with patch.object(provider, "_get_client", return_value=mock_client):
+                result = asyncio.run(
+                    provider.generate_text(
+                        messages=[{"role": "user", "content": "Think!"}],
+                        model_config=model_config,
+                    )
+                )
+        finally:
+            del _os.environ["LLM_DEBUG_LOG"]
+
+        assert result == "final answer"
+        record = _json.loads(log_file.read_text())
+        assert record["response"] == "final answer"
+        assert record["reasoning"] == "step by step"
+
     def test_generate_text_raises_model_provider_error_on_exception(self) -> None:
         provider = _build_provider()
         model_config = ModelConfig(name="llama3", provider="openai_compatible")
@@ -401,9 +437,7 @@ class TestOpenAIAsyncProvider:
     # _append_debug_log tests (issue #436)
     # -----------------------------------------------------------------------
 
-    def test_append_debug_log_includes_reasoning_when_non_empty(
-        self, tmp_path
-    ) -> None:
+    def test_append_debug_log_includes_reasoning_when_non_empty(self, tmp_path) -> None:
         """JSONL record includes 'reasoning' key when reasoning is non-empty."""
         import json as _json
 
@@ -430,9 +464,7 @@ class TestOpenAIAsyncProvider:
         assert record["response"] == "some response"
         assert record["reasoning"] == "step A"
 
-    def test_append_debug_log_omits_reasoning_key_when_empty(
-        self, tmp_path
-    ) -> None:
+    def test_append_debug_log_omits_reasoning_key_when_empty(self, tmp_path) -> None:
         """JSONL record omits 'reasoning' key entirely when reasoning is empty."""
         import json as _json
         import os as _os
